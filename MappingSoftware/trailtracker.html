@@ -111,9 +111,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pin .badge{width:26px;height:26px;border-radius:50% 50% 50% 2px;transform:rotate(45deg);
   border:1.5px solid #0D100F;display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 5px rgba(0,0,0,.55)}
-.pin .badge span{transform:rotate(-45deg);font-family:var(--mono);font-size:9px;font-weight:700;color:#14181B}
+.pin .badge svg{width:14px;height:14px;transform:rotate(-45deg);stroke:#14181B;fill:none;
+  stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
 .pin.poi .badge{width:22px;height:22px;border-radius:50%;transform:none;opacity:.92;border-style:dashed}
-.pin.poi .badge span{transform:none;font-size:8px}
+.pin.poi .badge svg{width:12px;height:12px;transform:none;stroke-width:2.2}
 .leaflet-popup-content-wrapper{background:var(--panel);color:var(--sand);border:1px solid var(--line2);
   border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
 .leaflet-popup-content{margin:10px 12px;font-size:13px;line-height:1.4}
@@ -210,7 +211,9 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .tag.medium{background:rgba(232,185,35,.16);color:var(--warn);border:1px solid rgba(232,185,35,.35)}
 .tag.hard{background:rgba(185,67,46,.2);color:#E07C63;border:1px solid rgba(185,67,46,.4)}
 .dotmark{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:8.5px;font-weight:700;color:#14181B;flex:0 0 auto}
+  flex:0 0 auto}
+.dotmark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
 .swrow{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:12px}
 .sw{width:42px;height:24px;border-radius:12px;background:#0F1311;border:1px solid var(--line2);
   position:relative;flex:0 0 auto;transition:background .16s,border-color .16s}
@@ -238,7 +241,9 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .catgrid button{display:flex;align-items:center;gap:5px;padding:8px 6px;border:1px solid var(--line2);
   border-radius:5px;background:#111513;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
   color:var(--dim);font-weight:600}
-.catgrid button .sq{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+.catgrid button svg{width:15px;height:15px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.catgrid button em{font-style:normal}
 .catgrid button.on{border-color:var(--sand);color:var(--sand);background:#1E2420}
 
 /* ---------- modal ---------- */
@@ -250,6 +255,8 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .modal-head .t{flex:1;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .modal-body{padding:14px;overflow-y:auto}
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
+#askModal{z-index:1050;background:rgba(6,8,7,.45)}
+.askmsg{font-size:13px;line-height:1.5;color:var(--sand)}
 .hint{font-size:10.5px;color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
 .bignum{font-family:var(--mono);font-size:26px;color:var(--sand);letter-spacing:.02em}
 .bignum.over{color:var(--danger)}
@@ -467,10 +474,10 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   </div>
 </div>
 
-<!-- start-recording modal -->
+<!-- save dialog: shown when a recording is stopped, not when it starts -->
 <div id="trackModal" class="modal hidden">
   <div class="modal-box">
-    <div class="modal-head"><div class="t">Start Recording</div></div>
+    <div class="modal-head"><div class="t">Save Track</div></div>
     <div class="modal-body">
       <div class="fld">
         <label>Track name</label>
@@ -485,11 +492,13 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
         </div>
       </div>
       <div class="kv"><span>Date</span><b id="tkDate">--</b></div>
-      <div class="kv"><span>Start fix</span><b id="tkFix">--</b></div>
+      <div class="kv"><span>Distance</span><b id="tkDist">--</b></div>
+      <div class="kv"><span>Moving time</span><b id="tkTime">--</b></div>
+      <div class="kv"><span>Track points</span><b id="tkPts">--</b></div>
     </div>
     <div class="modal-foot">
-      <button class="btn sm ghost" id="tkCancel">Cancel</button>
-      <button class="btn sm dangerb" id="tkStart">Start</button>
+      <button class="btn sm ghost" id="tkDiscard">Discard</button>
+      <button class="btn sm go" id="tkSave">Save Track</button>
     </div>
   </div>
 </div>
@@ -532,6 +541,18 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   </div>
 </div>
 
+
+<!-- in-app confirmation: browsers suppress window.confirm in installed PWAs -->
+<div id="askModal" class="modal hidden">
+  <div class="modal-box" style="width:min(320px,100%)">
+    <div class="modal-head"><div class="t" id="askTitle">Confirm</div></div>
+    <div class="modal-body"><div id="askMsg" class="askmsg"></div></div>
+    <div class="modal-foot">
+      <button class="btn sm ghost" id="askNo">Cancel</button>
+      <button class="btn sm dangerb" id="askYes">Confirm</button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -623,6 +644,30 @@ function saveLS(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* quota */ }
 }
 
+
+/* ---------------------------------------------------------------------
+   In-app confirmation. window.confirm() is silently suppressed by Chrome
+   in several contexts (installed PWAs among them), where it returns false
+   without ever showing anything - so destructive actions ask here instead.
+   --------------------------------------------------------------------- */
+let askResolve = null;
+
+function ask(msg, yesLabel, title) {
+  $("#askTitle").textContent = title || "Confirm";
+  $("#askMsg").textContent = msg;
+  $("#askYes").textContent = yesLabel || "Confirm";
+  $("#askModal").classList.remove("hidden");
+  return new Promise(function (res) { askResolve = res; });
+}
+
+function closeAsk(answer) {
+  $("#askModal").classList.add("hidden");
+  const r = askResolve;
+  askResolve = null;
+  if (r) r(answer);
+}
+
+function askOpen() { return !$("#askModal").classList.contains("hidden"); }
 let toastTimer = null;
 function toast(msg, kind) {
   const t = $("#toast");
@@ -782,8 +827,15 @@ const OfflineTileLayer = L.TileLayer.extend({
     const key = coords.z + "/" + coords.x + "/" + coords.y;
     const url = this.getTileUrl(coords);
     let settled = false;
-    img.onload = function () { if (!settled) { settled = true; done(null, img); } };
-    img.onerror = function () { if (!settled) { settled = true; done(new Error("tile"), img); } };
+    /* addEventListener, not the onload/onerror properties: Leaflet's
+       _abortLoading() nulls those properties on a zoom change, which would
+       orphan a tile whose src is still being resolved from IndexedDB. */
+    img.addEventListener("load", function () {
+      if (!settled) { settled = true; done(null, img); }
+    });
+    img.addEventListener("error", function () {
+      if (!settled) { settled = true; done(new Error("tile"), img); }
+    });
     (async () => {
       try {
         const hit = await DB.get("tiles", key);
@@ -845,13 +897,15 @@ let panDx = 0, panDy = 0, resyncing = false;
 
 function mapOffset() { return { x: (mapW - stageW) / 2, y: (mapH - stageH) / 2 }; }
 
-/* fitBounds must frame the VISIBLE window, not the oversized map canvas */
+/* fitBounds must frame the VISIBLE window, not the oversized map canvas.
+   Padding is clamped so it can never swallow the whole canvas, which would
+   hand Leaflet a negative size and a NaN zoom. */
 function fitVisible(b) {
   const off = mapOffset();
-  const px = Math.round(off.x + stageW * 0.12);
-  const py = Math.round(off.y + stageH * 0.12);
+  const px = Math.round(Math.min(off.x + stageW * 0.12, (mapW - 80) / 2));
+  const py = Math.round(Math.min(off.y + stageH * 0.12, (mapH - 80) / 2));
   resyncing = true;
-  map.fitBounds(b, { padding: [px, py], animate: false });
+  map.fitBounds(b, { padding: [Math.max(0, px), Math.max(0, py)], animate: false });
   resyncing = false;
 }
 
@@ -1002,9 +1056,13 @@ function pushPosition(fix) {
     view.cur = { lat: pt.lat, lng: pt.lng };
     view.hdgCur = hdg == null ? 0 : hdg;
     view.has = true;
-    resyncing = true;
-    map.setView(pt, Math.max(map.getZoom(), 15), { animate: false });
-    resyncing = false;
+    /* Only take over the view if the driver has not already pointed the map
+       somewhere deliberately - showing a saved track, for instance. */
+    if (S.follow) {
+      resyncing = true;
+      map.setView(pt, Math.max(map.getZoom(), 15), { animate: false });
+      resyncing = false;
+    }
     schedulePoi();
   }
   view.tgt = { lat: pt.lat, lng: pt.lng };
@@ -1077,7 +1135,7 @@ const Rec = {
     trailCasing.setLatLngs([]); trailLine.setLatLngs([]);
     if (view.has) this.push({ lat: view.tgt.lat, lng: view.tgt.lng, alt: view.alt, spd: view.speed, t: Date.now() });
     this.persist(); this.ui();
-    toast("Recording started", "ok");
+    toast(view.has ? "Recording started" : "Recording started - waiting for GPS fix", view.has ? "ok" : "warn");
   },
 
   pause: function () {
@@ -1096,10 +1154,21 @@ const Rec = {
     toast("Recording resumed", "ok");
   },
 
-  stop: async function () {
+  /* Stopping ends collection and hands the finished track to the save
+     dialog. Nothing is written to storage until the driver names it, and
+     the localStorage checkpoint is kept until then so a crash mid-dialog
+     still recovers the recording. */
+  stop: function () {
     if (this.state === "idle") return;
     if (this.state === "recording") this.accMs += Date.now() - this.segAt;
-    const track = {
+    this.state = "idle";
+    this.ui();
+    if (this.points.length < 2) {
+      delLS(LS.rec);
+      toast("Track discarded - too few points", "warn");
+      return;
+    }
+    pendingTrack = {
       id: this.id,
       name: this.name,
       difficulty: this.diff,
@@ -1110,20 +1179,7 @@ const Rec = {
       distanceM: this.dist,
       points: this.points.slice()
     };
-    this.state = "idle";
-    delLS(LS.rec);
-    this.ui();
-    if (track.points.length < 2) {
-      toast("Track discarded - too few points", "warn");
-      return;
-    }
-    try {
-      await DB.put("tracks", track);
-      await renderTracks();
-      toast("Saved: " + track.name + " (" + fmtDist(track.distanceM) + ")", "ok");
-    } catch (e) {
-      toast("Could not save track", "err");
-    }
+    openSaveTrackModal();
   },
 
   push: function (p) {
@@ -1183,6 +1239,63 @@ const Rec = {
     updateStats();
   }
 };
+
+/* ---------------------------------------------------------------------
+   Save dialog. A stopped recording lives here until the driver either
+   names and saves it or explicitly discards it.
+   --------------------------------------------------------------------- */
+let pendingTrack = null;
+
+function setDiff(d) {
+  Array.prototype.forEach.call($("#tkDiff").children, function (b) {
+    b.classList.toggle("on", b.dataset.d === d);
+  });
+}
+
+function openSaveTrackModal() {
+  const t = pendingTrack;
+  if (!t) return;
+  $("#tkName").value = t.name;
+  $("#tkDate").textContent = fmtDate(t.startedAt);
+  $("#tkDist").textContent = fmtDist(t.distanceM);
+  $("#tkTime").textContent = fmtDur(t.durationMs);
+  $("#tkPts").textContent = t.points.length;
+  setDiff(t.difficulty);
+  $("#trackModal").classList.remove("hidden");
+  setTimeout(function () { $("#tkName").select(); }, 60);
+}
+
+async function savePendingTrack() {
+  if (!pendingTrack) { $("#trackModal").classList.add("hidden"); return; }
+  const t = pendingTrack;
+  t.name = ($("#tkName").value || "").trim() || ("Track " + fmtDate(t.startedAt));
+  const on = $("#tkDiff").querySelector("button.on");
+  t.difficulty = on ? on.dataset.d : "Medium";
+  try {
+    await DB.put("tracks", t);
+  } catch (e) {
+    toast("Could not save track - storage unavailable", "err");
+    return;                       /* keep the dialog open so nothing is lost */
+  }
+  delLS(LS.rec);
+  pendingTrack = null;
+  $("#trackModal").classList.add("hidden");
+  await renderTracks();
+  toast("Saved: " + t.name + " (" + fmtDist(t.distanceM) + ")", "ok");
+}
+
+async function discardPendingTrack() {
+  if (!pendingTrack) { $("#trackModal").classList.add("hidden"); return; }
+  const yes = await ask("Discard this recording? It will not be saved.", "Discard", "Discard Track");
+  if (!yes) return;
+  pendingTrack = null;
+  delLS(LS.rec);
+  Rec.points = []; Rec.dist = 0; Rec.accMs = 0;
+  trailLine.setLatLngs([]); trailCasing.setLatLngs([]);
+  $("#trackModal").classList.add("hidden");
+  updateStats();
+  toast("Recording discarded", "warn");
+}
 
 /* =====================================================================
    GPX export
@@ -1287,41 +1400,65 @@ async function renderTracks() {
 async function showTrackOnMap(id) {
   ghostLayer.clearLayers();
   if (shownTrackId === id) { shownTrackId = null; renderTracks(); return; }
-  const t = await DB.get("tracks", id);
-  if (!t || !t.points.length) return;
+  let t;
+  try {
+    t = await DB.get("tracks", id);
+  } catch (e) {
+    toast("Could not read that track", "err");
+    return;
+  }
+  if (!t || !t.points || !t.points.length) { toast("Track has no points", "warn"); return; }
   const ll = t.points.map((p) => [p.lat, p.lng]);
   L.polyline(ll, { color: "#0D100F", weight: 8, opacity: .8 }).addTo(ghostLayer);
   L.polyline(ll, { color: "#E8B923", weight: 3.5, opacity: .95, dashArray: "1 7", lineCap: "round" }).addTo(ghostLayer);
   shownTrackId = id;
-  if (S.follow) pauseFollow();
-  resyncing = true;
+  if (S.follow) pauseFollow();          /* the map now belongs to the driver */
   fitVisible(L.latLngBounds(ll));
-  resyncing = false;
   renderTracks();
   closeDrawer();
-  toast(t.name, "ok");
+  toast(t.name + " - " + fmtDist(t.distanceM), "ok");
 }
 
 /* =====================================================================
    Waypoints
    ===================================================================== */
+/* Line-art glyphs for every waypoint category and POI kind, drawn in the
+   same 24x24 stroke style as the rest of the interface. Size and colour
+   come from CSS so one definition serves pins, list rows and the picker. */
+const ICONS = {
+  camp:      '<path d="M12 3.2c2.6 3 3.7 4.9 3.7 6.7a3.7 3.7 0 0 1-7.4 0c0-1.8 1.1-3.7 3.7-6.7z"/><path d="M3.5 20.2 20.5 15.6M3.5 15.6 20.5 20.2"/>',
+  water:     '<path d="M12 3.5s-6 6.9-6 10.4a6 6 0 0 0 12 0c0-3.5-6-10.4-6-10.4z"/>',
+  fuel:      '<path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/>',
+  obstacle:  '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4"/><path d="M12 17.3v.1"/>',
+  photo:     '<path d="M3 7.5h4L9 5h6l2 2.5h4v12H3z"/><circle cx="12" cy="13.6" r="3.5"/>',
+  flag:      '<path d="M6 21V3.5"/><path d="M6 4.5h12l-2.8 4 2.8 4H6z"/>',
+  viewpoint: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.7"/>',
+  toilets:   '<path d="M5 3.5h4.5V10H5z"/><path d="M4 10h13.5c0 4.2-2.6 6.2-5.7 6.2h-1.9C6.4 16.2 4 14.2 4 10z"/><path d="M10.7 16.2v3.3M7.7 19.5h6"/>',
+  parking:   '<path d="M8.5 20.5v-17h4.7a4.6 4.6 0 0 1 0 9.2H8.5"/>',
+  spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>'
+};
+function catIcon(kind, color) {
+  return '<svg viewBox="0 0 24 24"' + (color ? ' style="color:' + color + '"' : "") + ">" +
+         (ICONS[kind] || ICONS.flag) + "</svg>";
+}
+
 const CATS = {
-  camp:     { label: "Camp",     code: "CP", color: "#8FB93E" },
-  water:    { label: "Water",    code: "WT", color: "#5FA8C8" },
-  fuel:     { label: "Fuel",     code: "FU", color: "#E8B923" },
-  obstacle: { label: "Obstacle", code: "OB", color: "#B9432E" },
-  photo:    { label: "Photo",    code: "PH", color: "#D8CBAA" },
-  flag:     { label: "Flag",     code: "FL", color: "#C1552C" }
+  camp:     { label: "Camp",     color: "#8FB93E" },
+  water:    { label: "Water",    color: "#5FA8C8" },
+  fuel:     { label: "Fuel",     color: "#E8B923" },
+  obstacle: { label: "Obstacle", color: "#B9432E" },
+  photo:    { label: "Photo",    color: "#D8CBAA" },
+  flag:     { label: "Flag",     color: "#C1552C" }
 };
 let waypoints = loadLS(LS.wpts, []);
 
-function pinIcon(color, code, isPoi) {
+function pinIcon(color, kind, isPoi) {
   return L.divIcon({
     className: "pin" + (isPoi ? " poi" : ""),
     iconSize: isPoi ? [22, 22] : [26, 26],
     iconAnchor: isPoi ? [11, 11] : [13, 24],
     popupAnchor: [0, isPoi ? -12 : -22],
-    html: '<div class="upright"><div class="badge" style="background:' + color + '"><span>' + code + "</span></div></div>"
+    html: '<div class="upright"><div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div></div>"
   });
 }
 
@@ -1329,7 +1466,7 @@ function renderWaypoints() {
   wptLayer.clearLayers();
   waypoints.forEach(function (w) {
     const c = CATS[w.cat] || CATS.flag;
-    const m = L.marker([w.lat, w.lng], { icon: pinIcon(c.color, c.code, false) });
+    const m = L.marker([w.lat, w.lng], { icon: pinIcon(c.color, w.cat, false) });
     m.bindPopup(
       '<div class="pop-t" style="color:' + c.color + '">' + esc(w.name) + "</div>" +
       '<div class="pop-m">' + c.label.toUpperCase() + " &middot; " + w.lat.toFixed(5) + ", " + w.lng.toFixed(5) + "</div>" +
@@ -1345,7 +1482,7 @@ function renderWaypoints() {
   box.innerHTML = waypoints.slice().sort((a, b) => b.ts - a.ts).map(function (w) {
     const c = CATS[w.cat] || CATS.flag;
     return '<div class="card" data-id="' + w.id + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:' + c.color + '">' + c.code + "</div>" +
+      '<div class="card-top"><div class="dotmark" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(w.name) + "</div>" +
       '<div class="card-m"><span>' + c.label.toUpperCase() + "</span><span>" + w.lat.toFixed(4) + ", " +
       w.lng.toFixed(4) + "</span><span>" + fmtDate(w.ts) + "</span></div></div></div>" +
@@ -1400,8 +1537,8 @@ const wpFormEl = $("#wpForm");
 (function buildCatGrid() {
   $("#wpCats").innerHTML = Object.keys(CATS).map(function (k) {
     const c = CATS[k];
-    return '<button type="button" data-cat="' + k + '"><span class="sq" style="background:' + c.color +
-           '"></span>' + c.label + "</button>";
+    return '<button type="button" data-cat="' + k + '">' + catIcon(k, c.color) +
+           "<em>" + c.label + "</em></button>";
   }).join("");
 })();
 
@@ -1492,13 +1629,13 @@ map.on("click", function (e) {
    POIs from the OpenStreetMap Overpass API (cached in IndexedDB)
    ===================================================================== */
 const POI_META = {
-  fuel:      { label: "Fuel",      code: "FU", color: "#E8B923" },
-  water:     { label: "Water",     code: "WT", color: "#5FA8C8" },
-  camp:      { label: "Campsite",  code: "CP", color: "#8FB93E" },
-  viewpoint: { label: "Viewpoint", code: "VP", color: "#D8CBAA" },
-  toilets:   { label: "Toilets",   code: "WC", color: "#9C8FB0" },
-  parking:   { label: "Parking",   code: "PK", color: "#8A9A8F" },
-  spring:    { label: "Spring",    code: "SP", color: "#5FA8C8" }
+  fuel:      { label: "Fuel",      color: "#E8B923" },
+  water:     { label: "Water",     color: "#5FA8C8" },
+  camp:      { label: "Campsite",  color: "#8FB93E" },
+  viewpoint: { label: "Viewpoint", color: "#D8CBAA" },
+  toilets:   { label: "Toilets",   color: "#9C8FB0" },
+  parking:   { label: "Parking",   color: "#8A9A8F" },
+  spring:    { label: "Spring",    color: "#5FA8C8" }
 };
 function poiKind(tags) {
   if (!tags) return null;
@@ -1591,7 +1728,7 @@ function renderPois() {
   const vis = S.poiOn ? pois.filter((p) => !hiddenPoi.has(p.id)) : [];
   vis.forEach(function (p) {
     const m = POI_META[p.kind];
-    const mk = L.marker([p.lat, p.lng], { icon: pinIcon(m.color, m.code, true) });
+    const mk = L.marker([p.lat, p.lng], { icon: pinIcon(m.color, p.kind, true) });
     mk.bindPopup(
       '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
       '<div class="pop-m">' + m.label.toUpperCase() + " &middot; OSM</div>" +
@@ -1611,7 +1748,7 @@ function renderPois() {
   box.innerHTML = sorted.map(function (p) {
     const m = POI_META[p.kind];
     return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' + m.code + "</div>" +
+      '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' + catIcon(p.kind) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
@@ -1987,24 +2124,17 @@ $("#btnSim").addEventListener("click", function () { Sim.toggle(); });
 /* ---- recording ---- */
 $("#btnRec").addEventListener("click", function () {
   if (Rec.state !== "idle") { toast("Use the panel above to pause or stop", "warn"); return; }
-  $("#tkName").value = "Trail " + fmtDate(Date.now()).replace(" ", " ");
-  $("#tkDate").textContent = fmtDate(Date.now());
-  $("#tkFix").textContent = view.has ? view.cur.lat.toFixed(4) + ", " + view.cur.lng.toFixed(4) : "waiting for fix";
-  $("#trackModal").classList.remove("hidden");
-  setTimeout(function () { $("#tkName").select(); }, 60);
+  Rec.start();                    /* naming happens at the end, not the start */
 });
 $("#tkDiff").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-d]");
-  if (!b) return;
-  Array.prototype.forEach.call(this.children, (c) => c.classList.remove("on"));
-  b.classList.add("on");
+  if (b) setDiff(b.dataset.d);
 });
-$("#tkCancel").addEventListener("click", function () { $("#trackModal").classList.add("hidden"); });
-$("#tkStart").addEventListener("click", function () {
-  const diff = ($("#tkDiff").querySelector("button.on") || {}).dataset.d || "Medium";
-  $("#trackModal").classList.add("hidden");
-  Rec.start(($("#tkName").value || "").trim(), diff);
-});
+$("#tkDiscard").addEventListener("click", discardPendingTrack);
+$("#tkSave").addEventListener("click", savePendingTrack);
+$("#askYes").addEventListener("click", function () { closeAsk(true); });
+$("#askNo").addEventListener("click", function () { closeAsk(false); });
+$("#tkName").addEventListener("keydown", function (e) { if (e.key === "Enter") savePendingTrack(); });
 $("#btnRecPause").addEventListener("click", function () {
   if (Rec.state === "recording") Rec.pause(); else Rec.resume();
 });
@@ -2062,7 +2192,7 @@ $("#trackList").addEventListener("click", async function (e) {
   if (b.dataset.act === "gpx") exportTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "del") {
-    if (!confirm("Delete this track permanently?")) return;
+    if (!(await ask("Delete this track permanently? The GPX can no longer be exported.", "Delete", "Delete Track"))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
     await DB.del("tracks", id);
     renderTracks();
@@ -2101,15 +2231,16 @@ $("#areaList").addEventListener("click", async function (e) {
     resyncing = false;
     closeDrawer();
   } else if (b.dataset.act === "del") {
-    if (!confirm("Delete this area and its cached tiles?")) return;
+    if (!(await ask("Delete this area and the map tiles it cached for offline use?", "Delete", "Delete Area"))) return;
     deleteArea(id);
   }
 });
 
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
+  if (askOpen()) { closeAsk(false); return; }
   if (wpFormOpen) { closeWpForm(); return; }
-  if (!$("#trackModal").classList.contains("hidden")) { $("#trackModal").classList.add("hidden"); return; }
+  if (!$("#trackModal").classList.contains("hidden")) return;   /* save or discard only */
   if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
   if (drawMode) { endDrawMode(); return; }
   closeDrawer();
