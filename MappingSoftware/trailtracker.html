@@ -94,12 +94,27 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
+#orientCtl{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 36px);z-index:450}
+#btnOrient{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
+  display:flex;align-items:center;justify-content:center;transition:background .14s,border-color .14s}
+#btnOrient svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.8;stroke-linecap:round;
+  stroke-linejoin:round;transform-origin:50% 50%}
+#btnOrient svg text{stroke:none;fill:var(--sand);font-family:var(--mono);font-weight:700}
+#btnOrient svg .solid{fill:var(--sand);stroke:none}
+#btnOrient.on{background:rgba(193,85,44,.2);border-color:var(--rust)}
+#btnOrient.on svg{stroke:var(--rust)}
+#btnOrient.on svg text{fill:var(--rust)}
+#btnOrient.on svg .solid{fill:var(--rust)}
 #followBadge{position:absolute;left:50%;transform:translateX(-50%);top:12px;z-index:450;
   font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
 
 /* ---------- markers ---------- */
 .upright{transform:rotate(calc(-1 * var(--maprot)));transform-origin:50% 50%}
+/* Counter-rotation must pivot on the anchor, not the icon centre, or the
+   teardrop tip swings off its coordinate as the map turns. */
+.pin .upright{transform-origin:13px 31px}
+.pin.poi .upright{transform-origin:50% 50%}
 .gps-icon{background:none;border:none}
 .gps-rot{width:44px;height:44px;transform-origin:50% 50%;will-change:transform}
 .gps-rot svg{width:44px;height:44px;overflow:visible;display:block}
@@ -108,7 +123,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .gps-halo{fill:rgba(143,185,62,.16);stroke:rgba(143,185,62,.5);stroke-width:1}
 .sim .gps-halo{fill:rgba(232,185,35,.16);stroke:rgba(232,185,35,.5)}
 .pin{background:none;border:none}
-.pin .badge{width:26px;height:26px;border-radius:50% 50% 50% 2px;transform:rotate(45deg);
+.pin .badge{width:26px;height:26px;border-radius:50% 50% 2px 50%;transform:rotate(45deg);
   border:1.5px solid #0D100F;display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 5px rgba(0,0,0,.55)}
 .pin .badge svg{width:14px;height:14px;transform:rotate(-45deg);stroke:#14181B;fill:none;
@@ -204,7 +219,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .card-m{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.06em;margin-top:3px;
   display:flex;flex-wrap:wrap;gap:3px 10px}
 .card-n{font-size:11.5px;color:rgba(216,203,170,.7);margin-top:5px;line-height:1.35;word-break:break-word}
-.card-acts{display:flex;gap:5px;margin-top:9px}
+.card-acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
@@ -257,6 +272,10 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
 #askModal{z-index:1050;background:rgba(6,8,7,.45)}
 .askmsg{font-size:13px;line-height:1.5;color:var(--sand)}
+.fld2{display:flex;gap:8px}
+.fld2 .fld{flex:1;min-width:0}
+input[type=date],input[type=time]{color-scheme:dark}
+.modal-body{min-height:0}
 .hint{font-size:10.5px;color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
 .bignum{font-family:var(--mono);font-size:26px;color:var(--sand);letter-spacing:.02em}
 .bignum.over{color:var(--danger)}
@@ -296,9 +315,6 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
     </button>
     <div class="brand"><span class="b1">TRAIL</span><span class="b2">TRACKER</span></div>
     <div id="gpsPill"><span class="dot"></span><span id="gpsText">NO FIX</span></div>
-    <button id="btnNorth" class="icon-btn" aria-label="North lock">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2.1 5-5 2.1 2.1-5z" fill="currentColor"/></svg>
-    </button>
   </header>
 
   <div id="statsbar">
@@ -314,6 +330,15 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
     <div id="zoomCtl">
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
+    </div>
+    <div id="orientCtl">
+      <button id="btnOrient" aria-label="Map orientation: north up or heading up">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 7.6 15.8 14 12 20.4 8.2 14Z"/>
+          <path class="solid" d="M12 7.6 15.8 14H8.2Z"/>
+          <text id="orientText" x="12" y="5.6" font-size="7.5" text-anchor="middle">N</text>
+        </svg>
+      </button>
     </div>
     <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
     <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
@@ -365,7 +390,6 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
     </button>
   </div>
   <div class="dr-body">
-
     <details open>
       <summary>
         <svg viewBox="0 0 24 24"><path d="M4 19l5-14 6 9 5-6"/></svg>
@@ -474,10 +498,10 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   </div>
 </div>
 
-<!-- save dialog: shown when a recording is stopped, not when it starts -->
+<!-- track dialog: names and logs a stopped recording, and edits a saved one -->
 <div id="trackModal" class="modal hidden">
   <div class="modal-box">
-    <div class="modal-head"><div class="t">Save Track</div></div>
+    <div class="modal-head"><div class="t" id="tkTitle">Save Track</div></div>
     <div class="modal-body">
       <div class="fld">
         <label>Track name</label>
@@ -491,9 +515,22 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
           <button data-d="Hard">Hard</button>
         </div>
       </div>
-      <div class="kv"><span>Date</span><b id="tkDate">--</b></div>
-      <div class="kv"><span>Distance</span><b id="tkDist">--</b></div>
-      <div class="kv"><span>Moving time</span><b id="tkTime">--</b></div>
+      <div class="fld2">
+        <div class="fld"><label>Date</label><input id="tkDate" type="date"></div>
+        <div class="fld"><label>Distance (km)</label><input id="tkDist" type="number" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="fld2">
+        <div class="fld"><label>Time started</label><input id="tkStart" type="time" step="1"></div>
+        <div class="fld"><label>Time finished</label><input id="tkEnd" type="time" step="1"></div>
+      </div>
+      <div class="fld2">
+        <div class="fld"><label>Total time</label><input id="tkTotal" type="text" inputmode="numeric" placeholder="h:mm:ss"></div>
+        <div class="fld"><label>Avg speed (km/h)</label><input id="tkAvg" type="number" step="0.1" inputmode="decimal"></div>
+      </div>
+      <div class="fld2">
+        <div class="fld"><label>Max elevation (m)</label><input id="tkEleMax" type="number" step="1" inputmode="numeric"></div>
+        <div class="fld"><label>Min elevation (m)</label><input id="tkEleMin" type="number" step="1" inputmode="numeric"></div>
+      </div>
       <div class="kv"><span>Track points</span><b id="tkPts">--</b></div>
     </div>
     <div class="modal-foot">
@@ -1026,7 +1063,10 @@ function frame(ts) {
   else document.documentElement.style.setProperty("--maprot", "0deg");
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
-  if (gpsRotEl) gpsRotEl.style.transform = "rotate(" + (view.hdgCur + view.mapRot).toFixed(1) + "deg)";
+  /* The arrow lives inside the rotated map, so the map rotation is already
+     applied to it - only the heading goes here, or it is counted twice. */
+  if (gpsRotEl) gpsRotEl.style.transform = "rotate(" + view.hdgCur.toFixed(1) + "deg)";
+
 }
 requestAnimationFrame(frame);
 
@@ -1168,6 +1208,13 @@ const Rec = {
       toast("Track discarded - too few points", "warn");
       return;
     }
+    let lo = null, hi = null;
+    for (let i = 0; i < this.points.length; i++) {
+      const a = this.points[i].alt;
+      if (a == null || !isFinite(a)) continue;
+      if (lo === null || a < lo) lo = a;
+      if (hi === null || a > hi) hi = a;
+    }
     pendingTrack = {
       id: this.id,
       name: this.name,
@@ -1177,6 +1224,9 @@ const Rec = {
       endedAt: Date.now(),
       durationMs: this.accMs,
       distanceM: this.dist,
+      avgSpeedKmh: this.accMs > 0 ? this.dist / (this.accMs / 1000) * 3.6 : 0,
+      eleMin: lo,
+      eleMax: hi,
       points: this.points.slice()
     };
     openSaveTrackModal();
@@ -1241,10 +1291,14 @@ const Rec = {
 };
 
 /* ---------------------------------------------------------------------
-   Save dialog. A stopped recording lives here until the driver either
-   names and saves it or explicitly discards it.
+   Track dialog. Serves two jobs with one form: naming and logging a
+   recording that has just been stopped, and editing a saved track later.
+   Every logged value is its own field and every one of them is editable -
+   a stop you forgot, an altimeter that drifted, a name typed in a hurry.
    --------------------------------------------------------------------- */
-let pendingTrack = null;
+let pendingTrack = null;      /* a stopped recording awaiting its name */
+let dialogMode = "save";      /* "save" | "edit" */
+let editingId = null;
 
 function setDiff(d) {
   Array.prototype.forEach.call($("#tkDiff").children, function (b) {
@@ -1252,25 +1306,169 @@ function setDiff(d) {
   });
 }
 
+/* Values that older tracks were saved without are derived from the points. */
+function trackStats(t) {
+  let lo = null, hi = null;
+  const pts = t.points || [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i].alt;
+    if (a == null || !isFinite(a)) continue;
+    if (lo === null || a < lo) lo = a;
+    if (hi === null || a > hi) hi = a;
+  }
+  return {
+    eleMin: t.eleMin != null ? t.eleMin : lo,
+    eleMax: t.eleMax != null ? t.eleMax : hi,
+    avg: t.avgSpeedKmh != null ? t.avgSpeedKmh
+       : (t.durationMs > 0 ? t.distanceM / (t.durationMs / 1000) * 3.6 : 0)
+  };
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+function toDateInput(ms) {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+}
+function toTimeInput(ms) {
+  const d = new Date(ms);
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+}
+function fromInputs(dateStr, timeStr, fallback) {
+  const d = (dateStr || "").split("-").map(Number);
+  const t = (timeStr || "").split(":").map(Number);
+  if (d.length < 3 || t.length < 2 || d.some(isNaN) || t.some(isNaN)) return fallback;
+  const ms = new Date(d[0], d[1] - 1, d[2], t[0], t[1], t[2] || 0).getTime();
+  return isNaN(ms) ? fallback : ms;
+}
+function fmtDurFull(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return Math.floor(s / 3600) + ":" + pad2(Math.floor((s % 3600) / 60)) + ":" + pad2(s % 60);
+}
+function parseDur(str) {                 /* "1:23:45", "23:45" or "45" */
+  const parts = String(str || "").trim().split(":");
+  if (!parts.length) return null;
+  let sec = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const n = Number(parts[i].trim());
+    if (parts[i].trim() === "" || isNaN(n)) return null;
+    sec = sec * 60 + n;
+  }
+  return Math.round(sec * 1000);
+}
+
+function fillTrackDialog(t) {
+  const st = trackStats(t);
+  $("#tkName").value = t.name || "";
+  setDiff(t.difficulty || "Medium");
+  $("#tkDate").value = toDateInput(t.startedAt);
+  $("#tkStart").value = toTimeInput(t.startedAt);
+  $("#tkEnd").value = toTimeInput(t.endedAt);
+  $("#tkTotal").value = fmtDurFull(t.durationMs);
+  $("#tkDist").value = (t.distanceM / 1000).toFixed(2);
+  $("#tkAvg").value = st.avg.toFixed(1);
+  $("#tkEleMax").value = st.eleMax == null ? "" : Math.round(st.eleMax);
+  $("#tkEleMin").value = st.eleMin == null ? "" : Math.round(st.eleMin);
+  $("#tkPts").textContent = (t.points || []).length;
+}
+
+/* Read every field back onto the track. Blank or unparseable entries keep
+   whatever the track already had rather than writing junk. */
+function readTrackDialog(t) {
+  t.name = ($("#tkName").value || "").trim() || ("Track " + fmtDate(t.startedAt));
+  const on = $("#tkDiff").querySelector("button.on");
+  t.difficulty = on ? on.dataset.d : "Medium";
+
+  const date = $("#tkDate").value;
+  const start = fromInputs(date, $("#tkStart").value, t.startedAt);
+  let end = fromInputs(date, $("#tkEnd").value, t.endedAt);
+  if (end < start) end += 86400000;             /* finished after midnight */
+  t.startedAt = start;
+  t.endedAt = end;
+  t.date = new Date(start).toISOString();
+
+  const dur = parseDur($("#tkTotal").value);
+  t.durationMs = (dur != null && dur >= 0) ? dur : Math.max(0, end - start);
+
+  const km = parseFloat($("#tkDist").value);
+  if (isFinite(km) && km >= 0) t.distanceM = km * 1000;
+
+  const avg = parseFloat($("#tkAvg").value);
+  t.avgSpeedKmh = (isFinite(avg) && avg >= 0) ? avg
+    : (t.durationMs > 0 ? t.distanceM / (t.durationMs / 1000) * 3.6 : 0);
+
+  const hi = parseFloat($("#tkEleMax").value);
+  const lo = parseFloat($("#tkEleMin").value);
+  t.eleMax = isFinite(hi) ? hi : null;
+  t.eleMin = isFinite(lo) ? lo : null;
+  if (t.eleMax != null && t.eleMin != null && t.eleMax < t.eleMin) {
+    const swap = t.eleMax; t.eleMax = t.eleMin; t.eleMin = swap;
+  }
+  return t;
+}
+
+/* Derived fields follow their inputs until the driver overrides them. */
+function recalcAvg() {
+  const ms = parseDur($("#tkTotal").value);
+  const km = parseFloat($("#tkDist").value);
+  if (ms && ms > 0 && isFinite(km)) $("#tkAvg").value = (km / (ms / 3600000)).toFixed(1);
+}
+function recalcTotal() {
+  const date = $("#tkDate").value;
+  const start = fromInputs(date, $("#tkStart").value, null);
+  let end = fromInputs(date, $("#tkEnd").value, null);
+  if (start == null || end == null) return;
+  if (end < start) end += 86400000;
+  $("#tkTotal").value = fmtDurFull(end - start);
+  recalcAvg();
+}
+
 function openSaveTrackModal() {
-  const t = pendingTrack;
-  if (!t) return;
-  $("#tkName").value = t.name;
-  $("#tkDate").textContent = fmtDate(t.startedAt);
-  $("#tkDist").textContent = fmtDist(t.distanceM);
-  $("#tkTime").textContent = fmtDur(t.durationMs);
-  $("#tkPts").textContent = t.points.length;
-  setDiff(t.difficulty);
+  if (!pendingTrack) return;
+  dialogMode = "save";
+  editingId = null;
+  $("#tkTitle").textContent = "Save Track";
+  $("#tkDiscard").textContent = "Discard";
+  $("#tkSave").textContent = "Save Track";
+  fillTrackDialog(pendingTrack);
   $("#trackModal").classList.remove("hidden");
   setTimeout(function () { $("#tkName").select(); }, 60);
 }
 
-async function savePendingTrack() {
-  if (!pendingTrack) { $("#trackModal").classList.add("hidden"); return; }
-  const t = pendingTrack;
-  t.name = ($("#tkName").value || "").trim() || ("Track " + fmtDate(t.startedAt));
-  const on = $("#tkDiff").querySelector("button.on");
-  t.difficulty = on ? on.dataset.d : "Medium";
+async function openEditTrack(id) {
+  let t;
+  try { t = await DB.get("tracks", id); } catch (e) { toast("Could not read that track", "err"); return; }
+  if (!t) { toast("Track not found", "err"); return; }
+  dialogMode = "edit";
+  editingId = id;
+  pendingTrack = null;
+  $("#tkTitle").textContent = "Edit Track";
+  $("#tkDiscard").textContent = "Cancel";
+  $("#tkSave").textContent = "Save Changes";
+  fillTrackDialog(t);
+  $("#trackModal").classList.remove("hidden");
+  setTimeout(function () { $("#tkName").select(); }, 60);
+}
+
+async function saveTrackDialog() {
+  if (dialogMode === "edit") {
+    let t;
+    try { t = await DB.get("tracks", editingId); } catch (e) { t = null; }
+    if (!t) { toast("Track no longer exists", "err"); closeTrackDialog(); return; }
+    readTrackDialog(t);
+    try {
+      await DB.put("tracks", t);
+    } catch (e) {
+      toast("Could not save changes - storage unavailable", "err");
+      return;
+    }
+    closeTrackDialog();
+    await renderTracks();
+    toast("Updated: " + t.name, "ok");
+    return;
+  }
+
+  if (!pendingTrack) { closeTrackDialog(); return; }
+  const t = readTrackDialog(pendingTrack);
   try {
     await DB.put("tracks", t);
   } catch (e) {
@@ -1279,20 +1477,27 @@ async function savePendingTrack() {
   }
   delLS(LS.rec);
   pendingTrack = null;
-  $("#trackModal").classList.add("hidden");
+  closeTrackDialog();
   await renderTracks();
   toast("Saved: " + t.name + " (" + fmtDist(t.distanceM) + ")", "ok");
 }
 
-async function discardPendingTrack() {
-  if (!pendingTrack) { $("#trackModal").classList.add("hidden"); return; }
-  const yes = await ask("Discard this recording? It will not be saved.", "Discard", "Discard Track");
-  if (!yes) return;
+function closeTrackDialog() {
+  $("#trackModal").classList.add("hidden");
+  editingId = null;
+  dialogMode = "save";
+}
+
+/* The left-hand button: Cancel while editing, Discard while saving. */
+async function trackDialogSecondary() {
+  if (dialogMode === "edit") { closeTrackDialog(); return; }
+  if (!pendingTrack) { closeTrackDialog(); return; }
+  if (!(await ask("Discard this recording? It will not be saved.", "Discard", "Discard Track"))) return;
   pendingTrack = null;
   delLS(LS.rec);
   Rec.points = []; Rec.dist = 0; Rec.accMs = 0;
   trailLine.setLatLngs([]); trailCasing.setLatLngs([]);
-  $("#trackModal").classList.add("hidden");
+  closeTrackDialog();
   updateStats();
   toast("Recording discarded", "warn");
 }
@@ -1320,8 +1525,15 @@ function buildGPX(track) {
           'xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">');
   L1.push("  <metadata>");
   L1.push("    <name>" + xs(track.name) + "</name>");
-  L1.push("    <desc>Difficulty: " + xs(track.difficulty) + " | Distance: " + fmtDist(track.distanceM) +
-          " | Moving time: " + fmtDur(track.durationMs) + "</desc>");
+  const gst = trackStats(track);
+  const eleTxt = (gst.eleMin != null && gst.eleMax != null)
+    ? " | Elevation: " + Math.round(gst.eleMin) + "-" + Math.round(gst.eleMax) + " m" : "";
+  L1.push("    <desc>Difficulty: " + xs(track.difficulty) +
+          " | Distance: " + fmtDist(track.distanceM) +
+          " | Started: " + fmtDate(track.startedAt) +
+          " | Finished: " + fmtDate(track.endedAt) +
+          " | Total time: " + fmtDurFull(track.durationMs) +
+          " | Avg speed: " + gst.avg.toFixed(1) + " km/h" + eleTxt + "</desc>");
   L1.push("    <time>" + gpxTime(track.startedAt) + "</time>");
   L1.push("  </metadata>");
   wpts.forEach(function (w) {
@@ -1382,16 +1594,25 @@ async function renderTracks() {
   const box = $("#trackList");
   if (!list.length) { box.innerHTML = '<div class="empty">No tracks recorded yet.</div>'; return; }
   box.innerHTML = list.map(function (t) {
-    const spd = t.durationMs > 0 ? (t.distanceM / (t.durationMs / 1000) * 3.6) : 0;
+    const st = trackStats(t);
+    const ele = (st.eleMin != null && st.eleMax != null)
+      ? Math.round(st.eleMin) + "-" + Math.round(st.eleMax) + " m ele" : "";
     return '<div class="card" data-id="' + t.id + '">' +
       '<div class="card-top"><div class="card-t">' + esc(t.name) + "</div>" +
       '<span class="tag ' + t.difficulty.toLowerCase() + '">' + esc(t.difficulty) + "</span></div>" +
-      '<div class="card-m"><span>' + fmtDate(t.startedAt) + "</span><span>" + fmtDist(t.distanceM) +
-      "</span><span>" + fmtDur(t.durationMs) + "</span><span>" + spd.toFixed(0) + " km/h avg</span>" +
-      "<span>" + t.points.length + " pts</span></div>" +
+      '<div class="card-m">' +
+        "<span>" + toDateInput(t.startedAt) + "</span>" +
+        "<span>" + toTimeInput(t.startedAt).slice(0, 5) + " - " + toTimeInput(t.endedAt).slice(0, 5) + "</span>" +
+        "<span>" + fmtDist(t.distanceM) + "</span>" +
+        "<span>" + fmtDur(t.durationMs) + "</span>" +
+        "<span>" + st.avg.toFixed(1) + " km/h avg</span>" +
+        (ele ? "<span>" + ele + "</span>" : "") +
+        "<span>" + (t.points || []).length + " pts</span>" +
+      "</div>" +
       '<div class="card-acts">' +
       '<button class="btn xs primary" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
+      '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button>' +
       "</div></div>";
   }).join("");
@@ -1456,8 +1677,8 @@ function pinIcon(color, kind, isPoi) {
   return L.divIcon({
     className: "pin" + (isPoi ? " poi" : ""),
     iconSize: isPoi ? [22, 22] : [26, 26],
-    iconAnchor: isPoi ? [11, 11] : [13, 24],
-    popupAnchor: [0, isPoi ? -12 : -22],
+    iconAnchor: isPoi ? [11, 11] : [13, 31],   /* the tip, now pointing down, marks the spot */
+    popupAnchor: [0, isPoi ? -12 : -34],
     html: '<div class="upright"><div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div></div>"
   });
 }
@@ -2083,14 +2304,28 @@ $("#btnMenu").addEventListener("click", openDrawer);
 $("#btnCloseDrawer").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
 
-$("#btnNorth").addEventListener("click", function () {
-  S.northLock = !S.northLock;
+/* Map orientation lives on the map itself, bottom right, the same size as
+   the zoom buttons. Active (heading up) turns rust, and the needle rotates
+   to keep pointing at true north - so it doubles as a north indicator. */
+function syncNorthUI() {
+  const headingUp = !S.northLock;
+  $("#btnOrient").classList.toggle("on", headingUp);
+  const ot = $("#orientText");
+  ot.textContent = headingUp ? "HDG" : "N";       /* the label above the needle */
+  $("#btnOrient").setAttribute("aria-pressed", headingUp ? "true" : "false");
+  $("#btnOrient").title = headingUp ? "Heading up - tap for north up" : "North up - tap for heading up";
+}
+
+function setNorthLock(lock, announce) {
+  S.northLock = !!lock;
   saveSettings();
-  this.classList.toggle("on", !S.northLock);
   if (S.northLock) { view.mapRot = 0; rotWrap.style.transform = ""; }
   syncDragMode();
-  toast(S.northLock ? "North up" : "Heading up", "ok");
-});
+  syncNorthUI();
+  if (announce) toast(S.northLock ? "North up" : "Heading up", "ok");
+}
+
+$("#btnOrient").addEventListener("click", function () { setNorthLock(!S.northLock, true); });
 
 $("#btnZin").addEventListener("click", function () {
   resyncing = true; map.setZoom(Math.min(CFG.MAX_Z, map.getZoom() + 1)); resyncing = false; schedulePoi();
@@ -2121,7 +2356,15 @@ $("#wpName").addEventListener("keydown", function (e) { if (e.key === "Enter") s
 
 $("#btnSim").addEventListener("click", function () { Sim.toggle(); });
 
-/* ---- recording ---- */
+/* ---- recording and the track dialog ---- */
+$("#tkDiscard").addEventListener("click", trackDialogSecondary);
+$("#tkSave").addEventListener("click", saveTrackDialog);
+$("#tkName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveTrackDialog(); });
+["#tkDate", "#tkStart", "#tkEnd"].forEach(function (sel) {
+  $(sel).addEventListener("change", recalcTotal);
+});
+$("#tkTotal").addEventListener("input", recalcAvg);
+$("#tkDist").addEventListener("input", recalcAvg);
 $("#btnRec").addEventListener("click", function () {
   if (Rec.state !== "idle") { toast("Use the panel above to pause or stop", "warn"); return; }
   Rec.start();                    /* naming happens at the end, not the start */
@@ -2130,11 +2373,8 @@ $("#tkDiff").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-d]");
   if (b) setDiff(b.dataset.d);
 });
-$("#tkDiscard").addEventListener("click", discardPendingTrack);
-$("#tkSave").addEventListener("click", savePendingTrack);
 $("#askYes").addEventListener("click", function () { closeAsk(true); });
 $("#askNo").addEventListener("click", function () { closeAsk(false); });
-$("#tkName").addEventListener("keydown", function (e) { if (e.key === "Enter") savePendingTrack(); });
 $("#btnRecPause").addEventListener("click", function () {
   if (Rec.state === "recording") Rec.pause(); else Rec.resume();
 });
@@ -2191,6 +2431,7 @@ $("#trackList").addEventListener("click", async function (e) {
   const id = b.closest(".card").dataset.id;
   if (b.dataset.act === "gpx") exportTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
+  else if (b.dataset.act === "edit") openEditTrack(id);
   else if (b.dataset.act === "del") {
     if (!(await ask("Delete this track permanently? The GPX can no longer be exported.", "Delete", "Delete Track"))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
@@ -2240,7 +2481,10 @@ document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
   if (askOpen()) { closeAsk(false); return; }
   if (wpFormOpen) { closeWpForm(); return; }
-  if (!$("#trackModal").classList.contains("hidden")) return;   /* save or discard only */
+  if (!$("#trackModal").classList.contains("hidden")) {
+    if (dialogMode === "edit") closeTrackDialog();   /* editing is safe to abandon */
+    return;                                          /* an unsaved recording is not */
+  }
   if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
   if (drawMode) { endDrawMode(); return; }
   closeDrawer();
@@ -2250,7 +2494,7 @@ document.addEventListener("keydown", function (e) {
    Boot
    ===================================================================== */
 (function init() {
-  $("#btnNorth").classList.toggle("on", !S.northLock);
+  syncNorthUI();
   syncPoiSwitch();
   updateFollowUI();
   syncDragMode();
