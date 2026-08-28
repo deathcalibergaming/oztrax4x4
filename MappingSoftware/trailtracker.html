@@ -76,6 +76,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat:last-child{border-right:none}
 .stat label{font-size:8.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
 .stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--sand)}
+.stat b em{font-style:normal;color:var(--rust);letter-spacing:.04em;margin-right:5px}
 .stat i{font-size:8px;font-style:normal;color:var(--dim);letter-spacing:.08em}
 .stat.rec b{color:var(--rust)}
 
@@ -319,7 +320,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 
   <div id="statsbar">
     <div class="stat"><label>Speed</label><b id="stSpeed">--</b><i>km/h</i></div>
-    <div class="stat"><label>Heading</label><b id="stHdg">--</b><i>deg</i></div>
+    <div class="stat"><label>Heading</label><b><em id="stCard"></em><span id="stHdg">--</span></b><i>deg</i></div>
     <div class="stat"><label>Alt</label><b id="stAlt">--</b><i>m</i></div>
     <div class="stat" id="stDistBox"><label>Dist</label><b id="stDist">0.00</b><i>km</i></div>
     <div class="stat" id="stTimeBox"><label>Time</label><b id="stTime">00:00</b><i>h:m:s</i></div>
@@ -1137,9 +1138,17 @@ function updateGpsPill() {
   txt.textContent = view.acc != null ? "GPS " + Math.round(view.acc) + "m" : "GPS";
 }
 
+/* 16-point compass, so 091 reads "091 E" at a glance */
+const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                 "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+function cardinal(deg) {
+  return COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+}
+
 function updateStats() {
   $("#stSpeed").textContent = view.has ? (view.speed * 3.6).toFixed(0) : "--";
-  $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur)).padStart(3, "0") : "--";
+  $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
+  $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
   $("#stAlt").textContent = (view.alt != null) ? Math.round(view.alt) : "--";
   const rec = Rec.state !== "idle";
   $("#stDistBox").classList.toggle("rec", rec);
