@@ -88,14 +88,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
-#attrib{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
+/* Kept clear of the orientation button, which now sits in the bottom right
+   corner of the panel stack: 8px gutter + its 38px + 8px of breathing room. */
+#attrib{position:absolute;right:54px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
   font-size:8.5px;color:rgba(216,203,170,.45);background:rgba(20,24,27,.6);padding:2px 6px;border-radius:3px;
   pointer-events:none;letter-spacing:.02em}
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
-#orientCtl{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 36px);z-index:450}
+/* Sits at the foot of the panel stack rather than floating at a fixed
+   offset, so the recording and navigation panels push up off it instead of
+   landing on top. Right aligned, and it does not stretch to the column. */
+#orientCtl{align-self:flex-end}
 #btnOrient{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   display:flex;align-items:center;justify-content:center;transition:background .14s,border-color .14s}
 #btnOrient svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.8;stroke-linecap:round;
@@ -405,15 +410,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
     </div>
-    <div id="orientCtl">
-      <button id="btnOrient" aria-label="Map orientation: north up or heading up">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 7.6 15.8 14 12 20.4 8.2 14Z"/>
-          <path class="solid" d="M12 7.6 15.8 14H8.2Z"/>
-          <text id="orientText" x="12" y="5.6" font-size="7.5" text-anchor="middle">N</text>
-        </svg>
-      </button>
-    </div>
     <div id="mapChips">
       <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
       <button id="poiFilterChip" class="mapchip hidden">
@@ -466,6 +462,18 @@ input[type=date],input[type=time]{color-scheme:dark}
         <button class="btn sm dangerb" id="btnRecStop">Stop &amp; Save</button>
       </div>
     </div>
+      <!-- Last in the stack, so panels grow upward from it and can never
+           cover it. It used to float free at a fixed offset and the
+           recording panel sat straight on top of it. -->
+      <div id="orientCtl">
+        <button id="btnOrient" aria-label="Map orientation: north up or heading up">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 7.6 15.8 14 12 20.4 8.2 14Z"/>
+            <path class="solid" d="M12 7.6 15.8 14H8.2Z"/>
+            <text id="orientText" x="12" y="5.6" font-size="7.5" text-anchor="middle">N</text>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <nav id="actionbar">
@@ -572,6 +580,8 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
+        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while recording or navigating</span></div>
+        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page and the recording stops with it. This holds the screen awake while there is something to record. Pressing the power button still stops tracking - no web page can log a track with the screen off.</div>
         <div id="gpsDiag" class="diag"></div>
         <div id="gpsNote" class="poi-status"></div>
         <div class="row" style="margin-top:11px">
@@ -768,6 +778,8 @@ const CFG = {
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
+  REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
+                              not a straight line the vehicle actually drove */
   MIN_Z: 3, MAX_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
@@ -991,11 +1003,13 @@ const S = Object.assign({
   northLock: true,      /* true = north up, false = heading up */
   follow: true,
   poiOn: true,
+  keepAwake: true,      /* hold the screen on while recording or navigating */
   zoom: 15
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
-  saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, zoom: S.zoom });
+  saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn,
+                        keepAwake: S.keepAwake, zoom: S.zoom });
 }
 
 /* live view state driven by the animation loop */
@@ -1446,10 +1460,36 @@ const Rec = {
     openSaveTrackModal();
   },
 
+  /* Points carry a gap flag when the recorder was asleep across them, so the
+     line is drawn as separate runs rather than one stroke jumping the hole. */
+  segments: function () {
+    const segs = [];
+    let cur = [];
+    this.points.forEach(function (p) {
+      if (p.gap && cur.length) { segs.push(cur); cur = []; }
+      cur.push([p.lat, p.lng]);
+    });
+    if (cur.length) segs.push(cur);
+    return segs;
+  },
+
+  redraw: function () {
+    const segs = this.segments();
+    trailLine.setLatLngs(segs);
+    trailCasing.setLatLngs(segs);
+  },
+
   push: function (p) {
     this.points.push(p);
-    trailLine.addLatLng([p.lat, p.lng]);
-    trailCasing.addLatLng([p.lat, p.lng]);
+    if (p.gap) { this.redraw(); return; }        /* a break needs the whole line rebuilt */
+    /* Once the line has been split, addLatLng on its own appends to the
+       first run, not the current one, so the target ring is named. */
+    const ll = [p.lat, p.lng];
+    [trailLine, trailCasing].forEach(function (line) {
+      const rings = line.getLatLngs();
+      if (rings.length && Array.isArray(rings[0])) line.addLatLng(ll, rings[rings.length - 1]);
+      else line.addLatLng(ll);
+    });
   },
 
   onFix: function (fix) {
@@ -1460,7 +1500,11 @@ const Rec = {
     if (prev) {
       const d = haversine(prev, p);
       if (d < 2.5) return;                                        /* jitter filter */
-      this.dist += d;
+      /* The phone slept, or the app was in the background. We have no idea
+         what route was taken across the silence, so the distance is not
+         claimed and the line is broken instead of guessing a straight run. */
+      if (p.t - prev.t > CFG.REC_GAP_MS) p.gap = true;
+      else this.dist += d;
     }
     this.push(p);
     if (this.points.length % 8 === 0) this.persist();
@@ -1482,8 +1526,7 @@ const Rec = {
     this.startedAt = r.startedAt; this.accMs = r.accMs || 0; this.segAt = Date.now();
     this.points = r.points; this.dist = r.dist || 0;
     this.state = "paused";                    /* always resume in a safe state */
-    const ll = this.points.map((p) => [p.lat, p.lng]);
-    trailLine.setLatLngs(ll); trailCasing.setLatLngs(ll);
+    this.redraw();                            /* keeps any recorded gaps broken */
     this.ui();
     if (this.points.length) toast("Recovered paused recording", "warn");
   },
@@ -1500,6 +1543,7 @@ const Rec = {
     $("#recDot").classList.toggle("pause", this.state === "paused");
     $("#btnRecPause").textContent = this.state === "paused" ? "Resume" : "Pause";
     $("#btnRecPause").className = "btn sm " + (this.state === "paused" ? "go" : "warnb");
+    if (typeof Wake !== "undefined") Wake.apply();   /* hold the screen while recording */
     updateStats();
   }
 };
@@ -1761,8 +1805,12 @@ function buildGPX(track) {
   L1.push("  <trk>");
   L1.push("    <name>" + xs(track.name) + "</name>");
   L1.push("    <type>" + xs(track.difficulty) + "</type>");
+  /* A gap becomes a new <trkseg>, which is exactly what the element is for:
+     one continuous run of recorded positions. Mapping tools then leave the
+     hole alone instead of drawing a line across country nobody drove. */
   L1.push("    <trkseg>");
-  track.points.forEach(function (p) {
+  track.points.forEach(function (p, i) {
+    if (p.gap && i > 0) { L1.push("    </trkseg>"); L1.push("    <trkseg>"); }
     L1.push('      <trkpt lat="' + p.lat.toFixed(7) + '" lon="' + p.lng.toFixed(7) + '">');
     if (p.alt != null && isFinite(p.alt)) L1.push("        <ele>" + Number(p.alt).toFixed(1) + "</ele>");
     if (p.t) L1.push("        <time>" + gpxTime(p.t) + "</time>");
@@ -1843,9 +1891,18 @@ async function showTrackOnMap(id) {
     return;
   }
   if (!t || !t.points || !t.points.length) { toast("Track has no points", "warn"); return; }
+  /* Same treatment as the live trail: a recorded gap breaks the line rather
+     than being drawn as a stretch that was never travelled. */
+  const segs = [];
+  let cur = [];
+  t.points.forEach(function (p) {
+    if (p.gap && cur.length) { segs.push(cur); cur = []; }
+    cur.push([p.lat, p.lng]);
+  });
+  if (cur.length) segs.push(cur);
   const ll = t.points.map((p) => [p.lat, p.lng]);
-  L.polyline(ll, { color: "#0D100F", weight: 8, opacity: .8 }).addTo(ghostLayer);
-  L.polyline(ll, { color: "#E8B923", weight: 3.5, opacity: .95, dashArray: "1 7", lineCap: "round" }).addTo(ghostLayer);
+  L.polyline(segs, { color: "#0D100F", weight: 8, opacity: .8 }).addTo(ghostLayer);
+  L.polyline(segs, { color: "#E8B923", weight: 3.5, opacity: .95, dashArray: "1 7", lineCap: "round" }).addTo(ghostLayer);
   shownTrackId = id;
   if (S.follow) pauseFollow();          /* the map now belongs to the driver */
   fitVisible(L.latLngBounds(ll));
@@ -3352,6 +3409,7 @@ function navArrive() {
 function showNavPanel() {
   $("#navName").textContent = Nav.dest ? Nav.dest.name : "Destination";
   $("#navPanel").classList.remove("hidden");
+  if (typeof Wake !== "undefined") Wake.apply();   /* and while navigating */
 }
 function setNavNote(s) { Nav.note = s || ""; $("#navNote").textContent = Nav.note; }
 
@@ -3366,6 +3424,7 @@ function cancelNav(quiet) {
   navDestMk.clearLayers();
   $("#navPanel").classList.add("hidden");
   setNavNote("");
+  if (typeof Wake !== "undefined") Wake.apply();
   if (!quiet) toast("Navigation cancelled", "warn");
 }
 /* Cumulative distance along SIM_ROUTE, built once on first use. */
@@ -3589,6 +3648,11 @@ function renderGpsPanel() {
   row("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
   row("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
   row("Watching", GPS.watching ? "yes" : "no", GPS.watching ? "ok" : "warn");
+  /* Wake is defined further down the file; guard so an early render is safe */
+  if (typeof Wake !== "undefined") {
+    row("Screen wake lock", Wake.status(),
+        Wake.lock ? "ok" : !Wake.supported || !S.keepAwake ? "warn" : "warn");
+  }
   row("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
   row("Errors", String(GPS.errors), GPS.errors ? "bad" : "ok");
 
@@ -3626,6 +3690,69 @@ function renderGpsPanel() {
   }
 }
 
+/* =====================================================================
+   Keeping the screen alive
+   A phone that dims and sleeps takes the page down with it: the browser
+   freezes a hidden tab, watchPosition stops delivering, and the recording
+   simply stops. The Screen Wake Lock API is the only lever a web page has,
+   and it holds off the automatic sleep while something is actually being
+   recorded or navigated to.
+
+   What it cannot do is survive the power button. Nothing on the web can:
+   there is no background location for a page, and only a native app with a
+   foreground service can log a track with the screen off. That limit is
+   stated in the GPS panel rather than left for the driver to discover
+   halfway along a track.
+   ===================================================================== */
+const Wake = {
+  lock: null,
+  supported: ("wakeLock" in navigator),
+  note: "",
+  busy: false,
+
+  /* true when something worth staying awake for is happening */
+  wanted: function () {
+    if (!S.keepAwake) return false;
+    return Rec.state === "recording" || (typeof Nav !== "undefined" && Nav.active);
+  },
+
+  apply: async function () {
+    if (!this.supported || this.busy) return;
+    const want = this.wanted();
+    if (want && !this.lock && !document.hidden) {
+      this.busy = true;
+      try {
+        this.lock = await navigator.wakeLock.request("screen");
+        this.note = "held";
+        /* Android drops the lock whenever the tab is hidden, so this fires
+           on every glance at another app; apply() puts it back on return. */
+        this.lock.addEventListener("release", function () {
+          Wake.lock = null;
+          Wake.note = "released by the system";
+          renderGpsPanel();
+        });
+      } catch (e) {
+        this.note = "refused: " + (e.message || e.name);
+      } finally {
+        this.busy = false;
+      }
+    } else if (!want && this.lock) {
+      this.busy = true;
+      try { await this.lock.release(); } catch (e) { /* already gone */ }
+      this.lock = null;
+      this.note = "not needed";
+      this.busy = false;
+    }
+    renderGpsPanel();
+  },
+
+  status: function () {
+    if (!this.supported) return "not supported by this browser";
+    if (!S.keepAwake) return "switched off";
+    if (this.lock) return "holding the screen on";
+    return this.wanted() ? (this.note || "not held") : "idle - nothing being recorded";
+  }
+};
 /* =====================================================================
    UI wiring
    ===================================================================== */
@@ -3814,6 +3941,15 @@ $("#btnGpsAsk").addEventListener("click", function () { requestGeoOnce(); });
 $("#btnGpsRefresh").addEventListener("click", function () {
   readGeoPermission().then(renderGpsPanel);
 });
+function syncAwakeSwitch() { $("#swAwake").classList.toggle("on", S.keepAwake); }
+$("#swAwake").addEventListener("click", function () {
+  S.keepAwake = !S.keepAwake;
+  saveSettings();
+  syncAwakeSwitch();
+  Wake.apply();
+  toast(S.keepAwake ? "Screen will stay on while recording" : "Screen may sleep - recording will stop with it",
+        S.keepAwake ? "ok" : "warn");
+});
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
   fetchPois(true);
@@ -3929,6 +4065,7 @@ document.addEventListener("keydown", function (e) {
 (function init() {
   syncNorthUI();
   syncPoiSwitch();
+  syncAwakeSwitch();
   updateFollowUI();
   syncDragMode();
   Rec.restore();
@@ -3949,8 +4086,24 @@ document.addEventListener("keydown", function (e) {
   window.addEventListener("beforeunload", function () {
     if (Rec.state !== "idle") Rec.persist();
   });
+  /* Going away: save the recording, since the browser may freeze or discard
+     the page at any point once it is hidden. Coming back: the system will
+     have dropped the wake lock, so take it again, and if the gap was long
+     enough that fixes were genuinely missed, say so rather than let a
+     straight line across the missing stretch pass for a recorded track. */
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden && Rec.state !== "idle") Rec.persist();
+    if (document.hidden) {
+      if (Rec.state !== "idle") Rec.persist();
+      return;
+    }
+    Wake.apply();
+    if (Rec.state === "recording" && GPS.lastAt) {
+      const gap = Date.now() - GPS.lastAt;
+      if (gap > CFG.REC_GAP_MS) {
+        toast("No fixes for " + Math.round(gap / 1000) + "s - the track has a gap here", "warn");
+      }
+    }
+    renderGpsPanel();
   });
 })();
 </script>
