@@ -482,6 +482,9 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
         <input id="poiSearch" type="search" placeholder="Search nearby, or Enter to search Australia" autocomplete="off">
         <div id="poiStatus" class="poi-status"></div>
+        <div class="row hidden" id="poiOsmRow">
+          <button class="btn sm warnb" id="btnPoiOsm">Load POIs From OpenStreetMap</button>
+        </div>
         <div id="poiList" class="list scrollarea"></div>
         <div class="row" id="geoRow">
           <button class="btn sm ghost" id="btnGeoSearch">Search All Of Australia</button>
@@ -674,7 +677,6 @@ const CFG = {
   OVERPASS: ["https://overpass-api.de/api/interpreter",
              "https://overpass.openstreetmap.fr/api/interpreter",
              "https://overpass.private.coffee/api/interpreter",
-             "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
              "https://overpass.kumi.systems/api/interpreter"],
   POI_RADIUS: 5000,        /* metres around you */
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
@@ -682,6 +684,9 @@ const CFG = {
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
   POI_TIMEOUT: 8000,       /* give up on a mirror rather than let it hang the queue */
   OSRM: "https://router.project-osrm.org",
+  /* the canonical OSM API: reachable where the Overpass mirrors are not,
+     but it returns the whole map extract, so it is offered rather than used */
+  OSM_API: "https://api.openstreetmap.org/api/0.6/map",
   NAV_TIMEOUT: 15000,
   NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
   NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
@@ -2126,6 +2131,7 @@ async function fetchPois(force) {
         .catch(function () {});
       setPois(items);
       poiRetryAt = 0;
+      $("#poiOsmRow").classList.add("hidden");
       setPoiStatus(items.length ? items.length + " within 5 km of here"
                                 : "Nothing mapped within 5 km of here");
     } else if (cached) {
@@ -2137,12 +2143,87 @@ async function fetchPois(force) {
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       setPoiStatus("Could not reach the POI service - retrying shortly, or tap Refresh");
+      $("#poiOsmRow").classList.remove("hidden");   /* offer the heavier source */
     }
   } finally {
     poiBusy = false;
   }
 }
 
+
+/* ---------------------------------------------------------------------
+   Fallback POI source: the canonical OSM API. It is reachable on networks
+   where every Overpass mirror is not, but /map returns the entire extract
+   for the box - about 2 MB for a 5 km radius against roughly 20 KB from
+   Overpass - so it is offered on a button rather than used automatically.
+   --------------------------------------------------------------------- */
+function bboxAround(a, m) {
+  const dLat = m / 111320;
+  const dLng = m / (111320 * Math.cos(rad(a.lat)));
+  return [(a.lng - dLng).toFixed(5), (a.lat - dLat).toFixed(5),
+          (a.lng + dLng).toFixed(5), (a.lat + dLat).toFixed(5)].join(",");
+}
+
+function parseOsmXml(text, a) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) return [];
+  const coords = {};
+  const nodes = doc.getElementsByTagName("node");
+  for (let i = 0; i < nodes.length; i++) {
+    coords[nodes[i].getAttribute("id")] =
+      { lat: +nodes[i].getAttribute("lat"), lng: +nodes[i].getAttribute("lon") };
+  }
+  const out = [];
+  function collect(el, type) {
+    const tags = {};
+    const kids = el.children;
+    for (let j = 0; j < kids.length; j++) {
+      if (kids[j].tagName === "tag") tags[kids[j].getAttribute("k")] = kids[j].getAttribute("v");
+    }
+    const kind = poiKind(tags);
+    if (!kind) return;
+    let lat, lng;
+    if (type === "node") {
+      lat = +el.getAttribute("lat"); lng = +el.getAttribute("lon");
+    } else {
+      let sla = 0, slo = 0, c = 0;                 /* a way's centre is good enough to pin */
+      for (let j = 0; j < kids.length; j++) {
+        if (kids[j].tagName !== "nd") continue;
+        const p = coords[kids[j].getAttribute("ref")];
+        if (p) { sla += p.lat; slo += p.lng; c++; }
+      }
+      if (!c) return;
+      lat = sla / c; lng = slo / c;
+    }
+    const p = {
+      id: type + "/" + el.getAttribute("id"), kind: kind, lat: lat, lng: lng,
+      name: tags.name || tags.operator || tags.brand || POI_META[kind].label,
+      info: [tags.brand, tags.fee ? "fee: " + tags.fee : "", tags.water_source,
+             tags.drinking_water, tags.opening_hours].filter(Boolean).join(" | ")
+    };
+    if (haversine(a, p) <= CFG.POI_RADIUS * 1.05) out.push(p);
+  }
+  for (let i = 0; i < nodes.length; i++) collect(nodes[i], "node");
+  const ways = doc.getElementsByTagName("way");
+  for (let i = 0; i < ways.length; i++) collect(ways[i], "way");
+  return out;
+}
+
+async function osmApiPois(a) {
+  const url = CFG.OSM_API + "?bbox=" + bboxAround(a, CFG.POI_RADIUS);
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, 60000);
+  try {
+    const resp = await fetch(url, { signal: ctl.signal });
+    if (!resp.ok) throw new Error("http " + resp.status);
+    const text = await resp.text();
+    return { items: parseOsmXml(text, a), bytes: text.length };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(bail);
+  }
+}
 function setPois(items) {
   pois = items || [];
   renderPois();
@@ -3098,6 +3179,24 @@ $("#geoList").addEventListener("click", function (e) {
     saveWaypoints();
     toast("Saved: " + card.dataset.name, "ok");
   }
+});
+$("#btnPoiOsm").addEventListener("click", async function () {
+  if (poiBusy) return;
+  poiBusy = true;
+  setPoiStatus("Downloading map extract, about 2 MB...");
+  const a = poiAnchor();
+  const r = await osmApiPois(a);
+  poiBusy = false;
+  if (!r) { setPoiStatus("OpenStreetMap download failed - check your connection"); return; }
+  poiCentre = a;
+  poiRetryAt = 0;
+  await DB.put("poi", { ts: Date.now(), items: r.items, lat: a.lat, lng: a.lng }, poiKey(a))
+    .catch(function () {});
+  setPois(r.items);
+  $("#poiOsmRow").classList.add("hidden");
+  refreshStorageStats();
+  setPoiStatus(r.items.length + " within 5 km (OpenStreetMap, " + fmtBytes(r.bytes) + ")");
+  toast(r.items.length + " POIs loaded", "ok");
 });
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
