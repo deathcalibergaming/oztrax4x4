@@ -830,6 +830,8 @@ const CFG = {
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
   POI_DUP_M: 200,          /* same name inside this radius is one place mapped twice */
+  HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
+  HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   MIN_Z: 3, MAX_Z: 17,
@@ -1069,7 +1071,7 @@ const view = {
   has: false,
   cur: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
   tgt: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
-  hdgCur: 0, hdgTgt: 0,
+  hdgCur: 0, hdgTgt: 0, hdgFrom: "",
   mapRot: 0,
   sim: false,
   speed: 0, alt: null, acc: null, lastFixAt: 0
@@ -1306,14 +1308,110 @@ map.on("zoomend", function () {
 });
 map.on("moveend", function () { if (!resyncing) schedulePoi(); });
 
+
+/* =====================================================================
+   Compass
+   The GPS reports course over dirt - the direction the vehicle is
+   travelling - which is exactly nothing while you are stopped. Standing
+   still and turning the phone in your hand left the arrow frozen and the
+   heading readout stale, because there was no second fix to derive a
+   bearing from. The magnetometer answers a different question: which way
+   the phone itself is pointing, whether or not it is moving.
+
+   So the two are used for what each is good at. Above walking pace the
+   GPS course wins, since it is what the vehicle is actually doing and is
+   not thrown by the steel and wiring around a phone in a cradle. Below
+   that the compass takes over and the arrow turns on the spot.
+   ===================================================================== */
+const Compass = {
+  heading: null,       /* degrees, screen-top relative to true-ish north */
+  raw: null,           /* what the sensor said, before screen rotation */
+  at: 0,
+  source: "",          /* which event and field it came from */
+  state: "off",        /* off | listening | live | denied | unsupported */
+  needsPermission: false,
+
+  fresh: function () {
+    return this.heading != null && (Date.now() - this.at) < CFG.HDG_STALE;
+  },
+
+  /* The screen can be rotated relative to the device, and the sensor speaks
+     in device terms, so landscape has to be added back on or the arrow is
+     ninety degrees out exactly when the map is most useful. */
+  screenAngle: function () {
+    if (screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
+    return (typeof window.orientation === "number") ? window.orientation : 0;
+  },
+
+  onReading: function (e) {
+    let h = null, src = "";
+    /* iOS hands over a compass heading directly, already true-north based */
+    if (typeof e.webkitCompassHeading === "number" && isFinite(e.webkitCompassHeading)) {
+      h = e.webkitCompassHeading;
+      src = "webkitCompassHeading";
+    } else if (e.alpha != null && isFinite(e.alpha) && (e.absolute || e.type === "deviceorientationabsolute")) {
+      /* alpha counts anticlockwise from north, a compass counts clockwise */
+      h = 360 - e.alpha;
+      src = e.type + " alpha";
+    }
+    if (h == null) return;
+    Compass.raw = h;
+    Compass.heading = ((h + Compass.screenAngle()) % 360 + 360) % 360;
+    Compass.at = Date.now();
+    Compass.source = src;
+    Compass.state = "live";
+  },
+
+  attach: function () {
+    const abs = "ondeviceorientationabsolute" in window;
+    window.addEventListener(abs ? "deviceorientationabsolute" : "deviceorientation",
+                            this.onReading, true);
+    this.state = "listening";
+  },
+
+  start: function () {
+    if (!window.DeviceOrientationEvent) { this.state = "unsupported"; return Promise.resolve(false); }
+    /* iOS will not report anything until asked, and will only ask from a
+       user gesture, so this is called from the GPS panel button as well */
+    if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      this.needsPermission = true;
+      return DeviceOrientationEvent.requestPermission().then(function (r) {
+        if (r === "granted") { Compass.attach(); return true; }
+        Compass.state = "denied";
+        return false;
+      }).catch(function () { Compass.state = "denied"; return false; });
+    }
+    this.attach();
+    return Promise.resolve(true);
+  },
+
+  status: function () {
+    if (this.state === "unsupported") return "not supported by this browser";
+    if (this.state === "denied") return "permission refused";
+    if (this.fresh()) return Math.round(this.heading) + " deg (" + this.source + ")";
+    if (this.state === "listening") return "listening - no reading yet";
+    return "off";
+  }
+};
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
+let statsTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
   prevTs = ts;
   const kp = 1 - Math.pow(1 - CFG.LERP_POS, dt / 16.7);
   const kh = 1 - Math.pow(1 - CFG.LERP_HDG, dt / 16.7);
+
+  /* Which way to face. Driving, the GPS course is the honest answer and is
+     not upset by the steel of the vehicle; stopped, it reports nothing at
+     all, so the magnetometer takes over and the arrow turns on the spot. */
+  if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN) {
+    view.hdgTgt = Compass.heading;
+    view.hdgFrom = "compass";
+  } else if (view.has) {
+    view.hdgFrom = Sim.active ? "simulated" : "gps course";
+  }
 
   view.cur.lat += (view.tgt.lat - view.cur.lat) * kp;
   view.cur.lng += (view.tgt.lng - view.cur.lng) * kp;
@@ -1332,6 +1430,10 @@ function frame(ts) {
      applied to it - only the heading goes here, or it is counted twice. */
   if (gpsRotEl) gpsRotEl.style.transform = "rotate(" + view.hdgCur.toFixed(1) + "deg)";
 
+  /* The readout used to change only when a fix arrived, so turning on the
+     spot left it stale. Ten times a second is smooth to read without
+     rewriting the panel on every frame. */
+  if (ts - statsTick > 100) { statsTick = ts; updateStats(); }
 }
 requestAnimationFrame(frame);
 
@@ -3787,11 +3889,22 @@ function renderGpsPanel() {
         (f.altAcc == null ? "" : " (+/- " + Math.round(f.altAcc) + " m)"),
         f.alt == null ? "warn" : "ok");
     row("Speed", f.spd == null ? "not reported" : (f.spd * 3.6).toFixed(1) + " km/h");
-    row("Heading", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
+    row("GPS course", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
         : Math.round(f.hdg) + " deg");
   } else {
     row("Last fix", "none yet", "bad");
   }
+  /* The compass is what makes the arrow turn while you stand still, so its
+     working is worth showing - including the raw sensor value, because if
+     the arrow points the wrong way it is almost always a screen-rotation or
+     sign error and these two numbers say which. */
+  row("Compass", Compass.status(), Compass.fresh() ? "ok" : "warn");
+  if (Compass.raw != null) {
+    row("Compass raw", Math.round(Compass.raw) + " deg, screen " + Compass.screenAngle() + " deg");
+  }
+  row("Arrow follows", view.hdgFrom || "nothing yet",
+      view.hdgFrom === "compass" || view.hdgFrom === "gps course" ? "ok" : "warn");
+
   if (GPS.lastErr) {
     const names = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
     row("Last error", (names[GPS.lastErr.code] || GPS.lastErr.code) +
@@ -4057,7 +4170,12 @@ $("#btnKindsNone").addEventListener("click", function () {
   saveLS(LS.hiddenKinds, Array.from(hiddenKinds));
   renderPois();
 });
-$("#btnGpsAsk").addEventListener("click", function () { requestGeoOnce(); });
+$("#btnGpsAsk").addEventListener("click", function () {
+  requestGeoOnce();
+  /* iOS only hands over the magnetometer when asked from a tap, so this
+     button doubles as the compass prompt */
+  Compass.start().then(renderGpsPanel);
+});
 $("#btnGpsRefresh").addEventListener("click", function () {
   readGeoPermission().then(renderGpsPanel);
 });
@@ -4197,6 +4315,7 @@ document.addEventListener("keydown", function (e) {
   refreshStorageStats();
   if (S.follow) applyFollowTransform(true);
   startGeo();
+  Compass.start().then(renderGpsPanel);
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
 
