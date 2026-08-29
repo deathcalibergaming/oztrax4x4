@@ -158,7 +158,28 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act.rec span{color:var(--danger)}
 
 /* ---------- recording panel ---------- */
-#recPanel{position:absolute;left:8px;right:8px;bottom:calc(var(--actH) + var(--safeB) + 12px);z-index:500;
+#panelStack{position:absolute;left:8px;right:8px;bottom:calc(var(--actH) + var(--safeB) + 12px);z-index:500;
+  display:flex;flex-direction:column;gap:7px;pointer-events:none}
+#panelStack > *{pointer-events:auto}
+#navPanel{background:rgba(23,28,25,.96);border:1px solid rgba(79,168,232,.45);border-radius:10px;padding:9px 10px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.np-top{display:flex;align-items:center;gap:8px}
+.np-ico{width:15px;height:15px;stroke:#4FA8E8;fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
+.np-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7FC1F0}
+.np-x{width:26px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.np-x svg{width:15px;height:15px;stroke:var(--dim);fill:none;stroke-width:2;stroke-linecap:round}
+.np-x:active{background:rgba(216,203,170,.12)}
+.np-figs{display:flex;margin-top:7px}
+.np-figs > div{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
+  border-right:1px solid var(--line)}
+.np-figs > div:last-child{border-right:none}
+.np-figs b{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--sand);line-height:1.05}
+.np-figs i{font-size:8px;font-style:normal;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+.np-note{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--warn);
+  margin-top:6px;text-align:center}
+.np-note:empty{display:none}
+#recPanel{z-index:500;
   background:rgba(23,28,25,.96);border:1px solid rgba(185,67,46,.45);border-radius:10px;padding:9px 10px;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .rp-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
@@ -353,6 +374,22 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
     </div>
 
+    <div id="panelStack">
+      <div id="navPanel" class="hidden">
+        <div class="np-top">
+          <svg class="np-ico" viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg>
+          <span class="np-name" id="navName">DESTINATION</span>
+          <button class="np-x" id="btnNavCancel" aria-label="Cancel navigation">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="np-figs">
+          <div><b id="navDist">--</b><i>remaining</i></div>
+          <div><b id="navTime">--</b><i>travel time</i></div>
+          <div><b id="navEta">--</b><i>arrive</i></div>
+        </div>
+        <div class="np-note" id="navNote"></div>
+      </div>
     <div id="recPanel" class="hidden">
       <div class="rp-top">
         <span class="rec-dot" id="recDot"></span>
@@ -363,6 +400,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <button class="btn sm warnb" id="btnRecPause">Pause</button>
         <button class="btn sm dangerb" id="btnRecStop">Stop &amp; Save</button>
       </div>
+    </div>
     </div>
 
     <nav id="actionbar">
@@ -622,6 +660,11 @@ const CFG = {
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
   POI_TIMEOUT: 12000,      /* give up on a mirror rather than let it hang the queue */
+  OSRM: "https://router.project-osrm.org",
+  NAV_TIMEOUT: 15000,
+  NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
+  NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
+  NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
   POI_REFETCH: 2500,       /* refetch once you have travelled this far */
   MIN_Z: 3, MAX_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
@@ -927,6 +970,10 @@ const tiles = new OfflineTileLayer(CFG.TILE_URL, {
 tiles.addTo(map);
 
 /* ---- layers ---- */
+/* route first so the recorded trail always draws on top of it */
+const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
+const navLine     = L.polyline([], { color: "#4FA8E8", weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
+const navDestMk   = L.layerGroup().addTo(map);
 const trailCasing = L.polyline([], { color: "#0D100F", weight: 9, opacity: .85, lineCap: "round", lineJoin: "round" }).addTo(map);
 const trailLine   = L.polyline([], { color: "#8FB93E", weight: 4, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
 const ghostLayer  = L.layerGroup().addTo(map);   /* saved tracks shown on map */
@@ -1142,6 +1189,7 @@ function pushPosition(fix) {
 
   Rec.onFix(fix, lastFixPt);
   fetchPois();                 /* keeps the 5 km bubble ahead of the vehicle */
+  if (Nav.active) navProgress();
   lastFixPt = pt;
   syncDragMode();
   updateGpsPill();
@@ -1741,7 +1789,8 @@ function renderWaypoints() {
       '<div class="card-m"><span>' + c.label.toUpperCase() + "</span><span>" + w.lat.toFixed(4) + ", " +
       w.lng.toFixed(4) + "</span><span>" + fmtDate(w.ts) + "</span></div></div></div>" +
       (w.note ? '<div class="card-n">' + esc(w.note) + "</div>" : "") +
-      '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
+      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+      '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button></div>' +
       '</div>';
   }).join("");
@@ -2095,7 +2144,8 @@ function renderPois() {
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
       (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
-      '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
+      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+      '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="hide">Hide</button></div></div>';
   }).join("");
 }
@@ -2170,7 +2220,8 @@ function renderGeo() {
       '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
       fmtDist(geoDist(r)) + " away</span></div></div></div>" +
       (r.where ? '<div class="card-n">' + esc(r.where) + "</div>" : "") +
-      '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
+      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+      '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="save">Save Waypoint</button></div></div>';
   }).join("");
 }
@@ -2507,6 +2558,185 @@ const SIM_ROUTE = [
   [-31.16040,138.40101],[-31.15677,138.40036],[-31.15196,138.39954],[-31.14764,138.39877],
   [-31.14422,138.39817],[-31.14330,138.39802]
 ];
+
+/* =====================================================================
+   Navigation. Routes come from the public OSRM router over OpenStreetMap
+   data, so the line follows real roads and tracks. This is a follow-the-
+   line aid with distance and time remaining, not turn-by-turn guidance.
+   ===================================================================== */
+const Nav = {
+  active: false,
+  dest: null,            /* {lat,lng,name} */
+  coords: [],            /* route geometry, [lat,lng] pairs */
+  cum: [],               /* cumulative metres along the route */
+  duration: 0,           /* seconds for the whole route, as routed */
+  idx: 0,                /* cursor into coords, so progress is cheap */
+  busy: false,
+  lastCalc: 0,
+  note: ""
+};
+
+function fmtClock(ms) {
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function navFrom() {
+  if (view.has) return { lat: view.cur.lat, lng: view.cur.lng };
+  const c = visibleBounds().getCenter();
+  return { lat: c.lat, lng: c.lng };
+}
+
+async function osrmRoute(from, to) {
+  const url = CFG.OSRM + "/route/v1/driving/" +
+    from.lng.toFixed(6) + "," + from.lat.toFixed(6) + ";" +
+    to.lng.toFixed(6) + "," + to.lat.toFixed(6) +
+    "?overview=full&geometries=geojson&alternatives=false";
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.NAV_TIMEOUT);
+  try {
+    const resp = await fetch(url, { signal: ctl.signal });
+    if (!resp.ok) throw new Error("http " + resp.status);
+    const data = await resp.json();
+    const r = data.routes && data.routes[0];
+    if (!r || !r.geometry || !r.geometry.coordinates.length) return null;
+    return {
+      coords: r.geometry.coordinates.map((c) => [c[1], c[0]]),   /* lon,lat -> lat,lng */
+      distance: r.distance,
+      duration: r.duration
+    };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
+function navBuildCum() {
+  Nav.cum = [0];
+  for (let i = 1; i < Nav.coords.length; i++) {
+    Nav.cum[i] = Nav.cum[i - 1] + haversine(
+      { lat: Nav.coords[i - 1][0], lng: Nav.coords[i - 1][1] },
+      { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
+  }
+}
+
+async function navigateTo(dest, quiet) {
+  if (!dest || !isFinite(dest.lat) || !isFinite(dest.lng)) return;
+  if (Nav.busy) return;
+  Nav.busy = true;
+  Nav.dest = { lat: dest.lat, lng: dest.lng, name: dest.name || "Destination" };
+  setNavNote("");
+  if (!quiet) { showNavPanel(); setNavNote("Finding a route..."); }
+
+  const r = await osrmRoute(navFrom(), Nav.dest);
+  Nav.busy = false;
+  Nav.lastCalc = Date.now();
+
+  if (!r) {
+    Nav.note = "No route found - check your connection";
+    if (!Nav.active) { Nav.active = false; }
+    setNavNote(Nav.note);
+    if (!quiet) toast("Could not find a route", "err");
+    return;
+  }
+
+  Nav.active = true;
+  Nav.coords = r.coords;
+  Nav.duration = r.duration;
+  Nav.idx = 0;
+  navBuildCum();
+  navLine.setLatLngs(Nav.coords);
+  navCasing.setLatLngs(Nav.coords);
+  navDestMk.clearLayers();
+  L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon("#4FA8E8", "flag", false) })
+    .bindPopup('<div class="pop-t" style="color:#7FC1F0">' + esc(Nav.dest.name) + "</div>")
+    .addTo(navDestMk);
+  setNavNote("");
+  showNavPanel();
+  navProgress();
+  if (!quiet) {
+    closeDrawer();
+    toast("Navigating to " + Nav.dest.name, "ok");
+  }
+}
+
+/* Progress is measured against the nearest point on the route. The cursor
+   only ever scans a window around where we were last, so a 600 km route
+   costs the same per fix as a short one. */
+function navNearestIdx() {
+  const p = navFrom();
+  const n = Nav.coords.length;
+  let best = Infinity, bestI = Nav.idx;
+  const lo = Math.max(0, Nav.idx - 20), hi = Math.min(n - 1, Nav.idx + 200);
+  for (let i = lo; i <= hi; i++) {
+    const d = haversine(p, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
+    if (d < best) { best = d; bestI = i; }
+  }
+  /* if the window did not find anything close, fall back to a full scan */
+  if (best > CFG.NAV_OFF_ROUTE) {
+    for (let i = 0; i < n; i++) {
+      const d = haversine(p, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
+      if (d < best) { best = d; bestI = i; }
+    }
+  }
+  return { i: bestI, off: best };
+}
+
+function navProgress() {
+  if (!Nav.active || !Nav.coords.length) return;
+  const near = navNearestIdx();
+  Nav.idx = near.i;
+
+  const total = Nav.cum[Nav.cum.length - 1] || 0;
+  const remain = Math.max(0, total - Nav.cum[near.i]);
+  /* scale the routed duration by how much of the route is left */
+  const secs = total > 0 ? Nav.duration * (remain / total) : 0;
+
+  $("#navDist").textContent = fmtDist(remain);
+  $("#navTime").textContent = secs >= 3600
+    ? Math.floor(secs / 3600) + "h " + String(Math.round((secs % 3600) / 60)).padStart(2, "0") + "m"
+    : Math.max(1, Math.round(secs / 60)) + " min";
+  $("#navEta").textContent = fmtClock(Date.now() + secs * 1000);
+
+  const toDest = haversine(navFrom(), Nav.dest);
+  if (toDest <= CFG.NAV_ARRIVE) { navArrive(); return; }
+
+  if (near.off > CFG.NAV_OFF_ROUTE) {
+    setNavNote("Off route by " + fmtDist(near.off) + " - recalculating");
+    if (!Nav.busy && Date.now() - Nav.lastCalc > CFG.NAV_RECALC_GAP && view.has) {
+      navigateTo(Nav.dest, true);
+    }
+  } else if (Nav.note) {
+    setNavNote("");
+  }
+}
+
+function navArrive() {
+  const name = Nav.dest ? Nav.dest.name : "destination";
+  cancelNav(true);
+  toast("Arrived at " + name, "ok");
+}
+
+function showNavPanel() {
+  $("#navName").textContent = Nav.dest ? Nav.dest.name : "Destination";
+  $("#navPanel").classList.remove("hidden");
+}
+function setNavNote(s) { Nav.note = s || ""; $("#navNote").textContent = Nav.note; }
+
+function cancelNav(quiet) {
+  Nav.active = false;
+  Nav.dest = null;
+  Nav.coords = [];
+  Nav.cum = [];
+  Nav.idx = 0;
+  navLine.setLatLngs([]);
+  navCasing.setLatLngs([]);
+  navDestMk.clearLayers();
+  $("#navPanel").classList.add("hidden");
+  setNavNote("");
+  if (!quiet) toast("Navigation cancelled", "warn");
+}
 /* Cumulative distance along SIM_ROUTE, built once on first use. */
 let simCum = null;
 function simRouteInit() {
@@ -2730,12 +2960,15 @@ $("#poiSearch").addEventListener("keydown", function (e) {
   if (e.key === "Enter") { e.preventDefault(); geoSearch(this.value); }
 });
 $("#btnGeoSearch").addEventListener("click", function () { geoSearch($("#poiSearch").value); });
+$("#btnNavCancel").addEventListener("click", function () { cancelNav(); });
 $("#geoList").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const card = b.closest(".card");
   const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
-  if (b.dataset.act === "go") {
+  if (b.dataset.act === "nav") {
+    navigateTo({ lat: lat, lng: lng, name: card.dataset.name });
+  } else if (b.dataset.act === "go") {
     gotoLatLng(lat, lng, 14);
     fetchPois(true);                 /* pull the POIs for where we just landed */
     toast(card.dataset.name, "ok");
@@ -2798,7 +3031,8 @@ $("#wptList").addEventListener("click", function (e) {
   const id = b.closest(".card").dataset.id;
   const w = waypoints.find((x) => x.id === id);
   if (!w) return;
-  if (b.dataset.act === "go") gotoLatLng(w.lat, w.lng);
+  if (b.dataset.act === "nav") navigateTo({ lat: w.lat, lng: w.lng, name: w.name });
+  else if (b.dataset.act === "go") gotoLatLng(w.lat, w.lng);
   else if (b.dataset.act === "del") deleteWaypoint(id);
 });
 
@@ -2806,7 +3040,12 @@ $("#poiList").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const card = b.closest(".card");
-  if (b.dataset.act === "go") gotoLatLng(parseFloat(card.dataset.lat), parseFloat(card.dataset.lng));
+  const plat = parseFloat(card.dataset.lat), plng = parseFloat(card.dataset.lng);
+  if (b.dataset.act === "nav") {
+    const p = pois.find((x) => x.id === card.dataset.id);
+    navigateTo({ lat: plat, lng: plng, name: p ? p.name : "POI" });
+  }
+  else if (b.dataset.act === "go") gotoLatLng(plat, plng);
   else if (b.dataset.act === "hide") hidePoi(card.dataset.id);
 });
 
@@ -2814,7 +3053,9 @@ $("#areaList").addEventListener("click", async function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const id = b.closest(".card").dataset.id;
-  if (b.dataset.act === "go") {
+  if (b.dataset.act === "nav") {
+    navigateTo({ lat: lat, lng: lng, name: card.dataset.name });
+  } else if (b.dataset.act === "go") {
     const a = await DB.get("areas", id);
     if (!a) return;
     if (S.follow) pauseFollow();
