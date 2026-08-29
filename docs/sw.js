@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v25";
+const CACHE = "trailtracker-v26";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -71,41 +71,49 @@ self.addEventListener("fetch", function (e) {
   /* A launch must not wait on the network. Serve the cached page straight
      away and refresh the copy in the background for next time. */
   if (req.mode === "navigate") {
-    e.respondWith((async function () {
+    /* One request, shared by both halves. respondWith can answer from cache
+       and settle in a millisecond, and once it settles the browser is free to
+       shut the worker down - so the refresh, the comparison and the flag have
+       to be handed to waitUntil or they are killed halfway through. They were
+       not, which is why no update was ever announced: the page was served,
+       the worker went away, and the comparison that would have raised the
+       chip never finished. */
+    const netP = fetch(req).catch(function () { return null; });
+
+    e.waitUntil((async function () {
+      const r = await netP;
+      if (!r || !r.ok) return;
       const cache = await caches.open(CACHE);
+      const hit = await cache.match("./index.html");
+      const store = r.clone();
+      if (hit) {
+        const [was, now] = await Promise.all([hit.clone().text(), r.clone().text()]);
+        /* The message is for a page already open. A page still parsing when
+           this lands has no listener yet, which is why the flag is written as
+           well - the next launch reads it without having had to be listening
+           at the right moment. */
+        await setUpdateFlag(was !== now);
+        if (was !== now) await announceUpdate();
+      }
+      await cache.put("./index.html", store);
+    })());
+
+    e.respondWith((async function () {
       /* A deliberate refresh - pull to refresh, or ctrl+shift+R - sets the
          request cache mode to reload. Answering that from cache made it
          impossible to pull a new version down on demand: you always saw the
-         previous one once, with no way to insist. So a forced reload goes to
-         the network first and only falls back to cache if there is no signal. */
+         previous one once, with no way to insist. */
       const forced = req.cache === "reload" || req.cache === "no-cache";
       if (forced) {
-        try {
-          const fresh = await fetch(req);
-          if (fresh && fresh.ok) { cache.put("./index.html", fresh.clone()); return fresh; }
-        } catch (err) { /* offline: the cached copy below still serves */ }
+        const r = await netP;
+        if (r && r.ok) return r.clone();
       }
+      const cache = await caches.open(CACHE);
       const hit = await cache.match("./index.html");
-      /* Refresh in the background either way, and if what comes back is not
-         what was just served, say so. Launching offline has to stay instant,
-         so the page is never held up waiting for this - but nor should the
-         driver be left a version behind with no way of knowing it. */
-      const net = fetch(req).then(async function (r) {
-        if (!r || !r.ok) return r;
-        const copy = r.clone();
-        if (hit) {
-          const [was, now] = await Promise.all([hit.clone().text(), r.clone().text()]);
-          /* The message is for a page already open. A page still parsing when
-             this lands has no listener yet and never hears it, which is why
-             the flag is written as well - the next launch reads it and can
-             say so without having had to be listening at the right moment. */
-          await setUpdateFlag(was !== now);
-          if (was !== now) announceUpdate();
-        }
-        cache.put("./index.html", copy);
-        return r;
-      }).catch(function () { return null; });
-      return hit || (await net) || new Response(
+      if (hit) return hit;
+      const r = await netP;
+      if (r && r.ok) return r.clone();
+      return new Response(
         "<h1>TrailTracker</h1><p>Not cached yet - open this page once with a connection.</p>",
         { headers: { "Content-Type": "text/html" }, status: 503 });
     })());
@@ -133,7 +141,7 @@ self.addEventListener("fetch", function (e) {
    is on the server. The page decides what to do about it - it does not get
    reloaded from under a driver mid-navigation. */
 async function announceUpdate() {
-  const clients = await self.clients.matchAll({ type: "window" });
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   clients.forEach(function (c) { c.postMessage({ type: "update-ready" }); });
 }
 
