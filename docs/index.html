@@ -1173,6 +1173,24 @@ function toast(msg, kind) {
    real app. It only exists when the page is served; opened as a file there
    is nothing to register and the app behaves exactly as it always has.
    ===================================================================== */
+/* Reading the flag the worker leaves behind. The message it also sends only
+   reaches a page that was already open and listening; a page still parsing
+   when the worker finishes comparing never hears it, which is why the chip
+   never appeared on the launch that found the update. The flag survives that,
+   and survives the new worker clearing out the old caches. Checked a few
+   times because the comparison finishes a second or two after the page does,
+   and again on coming back to the app. */
+async function checkUpdateFlag() {
+  if (updateReady || !("caches" in window)) return;
+  try {
+    const s = await caches.open("trailtracker-state");
+    if (await s.match("./__update-ready__")) {
+      updateReady = true;
+      showUpdateBar();
+    }
+  } catch (e) { /* storage unavailable: nothing to say */ }
+}
+
 let updateReady = false;
 function showUpdateBar() {
   const chip = document.getElementById("updateChip");
@@ -1198,6 +1216,10 @@ function showUpdateBar() {
     updateReady = true;
     showUpdateBar();
   });
+  /* and the flag, for the launch that finds the update while still parsing.
+     The comparison finishes a second or two after the page does, so this
+     looks more than once rather than guessing when. */
+  [1500, 4000, 9000].forEach(function (ms) { setTimeout(checkUpdateFlag, ms); });
 })();
 
 /* =====================================================================
@@ -4809,6 +4831,7 @@ document.addEventListener("keydown", function (e) {
       return;
     }
     Wake.apply();
+    checkUpdateFlag();
     if (Rec.state === "recording" && GPS.lastAt) {
       const gap = Date.now() - GPS.lastAt;
       if (gap > CFG.REC_GAP_MS) {

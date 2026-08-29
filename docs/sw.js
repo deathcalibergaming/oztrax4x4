@@ -6,7 +6,20 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v24";
+const CACHE = "trailtracker-v25";
+
+/* A second cache that survives an activate, because the flag saying "there is
+   a newer page" has to outlive the version that noticed. The worker that spots
+   the change is the old one; the new one activates moments later and clears
+   every cache but its own, which would take the flag with it. */
+const STATE = "trailtracker-state";
+const UPDATE_FLAG = "./__update-ready__";
+
+async function setUpdateFlag(on) {
+  const s = await caches.open(STATE);
+  if (on) await s.put(UPDATE_FLAG, new Response("1"));
+  else await s.delete(UPDATE_FLAG);
+}
 
 const SHELL = [
   "./",
@@ -37,7 +50,9 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil((async function () {
     const names = await caches.keys();
-    await Promise.all(names.map(function (n) { return n === CACHE ? null : caches.delete(n); }));
+    await Promise.all(names.map(function (n) {
+      return (n === CACHE || n === STATE) ? null : caches.delete(n);
+    }));
     await self.clients.claim();
   })());
 });
@@ -80,6 +95,11 @@ self.addEventListener("fetch", function (e) {
         const copy = r.clone();
         if (hit) {
           const [was, now] = await Promise.all([hit.clone().text(), r.clone().text()]);
+          /* The message is for a page already open. A page still parsing when
+             this lands has no listener yet and never hears it, which is why
+             the flag is written as well - the next launch reads it and can
+             say so without having had to be listening at the right moment. */
+          await setUpdateFlag(was !== now);
           if (was !== now) announceUpdate();
         }
         cache.put("./index.html", copy);
@@ -129,6 +149,7 @@ self.addEventListener("message", function (e) {
       const cache = await caches.open(CACHE);
       const r = await fetch("./index.html", { cache: "reload" });
       if (r && r.ok) await cache.put("./index.html", r);
+      await setUpdateFlag(false);      /* taken, so stop saying so */
     } catch (err) { /* offline: the reload will serve what is already cached */ }
     if (e.source) e.source.postMessage({ type: "shell-refreshed" });
   })());
