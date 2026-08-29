@@ -108,12 +108,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button:active{background:var(--rust)}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
-   saying. Amber while it runs, since a simulated position is not a real one
-   and should not be mistaken for one at a glance. */
+   saying. Running, it fills solid rust and keeps its sand glyph - the same
+   look the whole column wears while pressed, held down for as long as the
+   drive is fake. A 20% amber wash said the same thing too quietly to catch
+   in sunlight, which is the one place it matters. */
 #btnSim svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
-#btnSim.on{background:rgba(232,185,35,.2);border-color:var(--warn)}
-#btnSim.on svg{stroke:var(--warn);fill:var(--warn)}
+#btnSim.on{background:var(--rust);border-color:var(--rust)}
+#btnSim.on svg{stroke:var(--sand);fill:var(--sand)}
 /* Recentring is a map control rather than an action on the trip, and it is
    wanted in the same breath as a zoom - the driver has been looking around
    and wants the vehicle back - so it joins the zoom column and takes its size,
