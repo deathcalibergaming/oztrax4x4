@@ -1388,14 +1388,17 @@ const Compass = {
   status: function () {
     if (this.state === "unsupported") return "not supported by this browser";
     if (this.state === "denied") return "permission refused";
-    if (this.fresh()) return Math.round(this.heading) + " deg (" + this.source + ")";
+    if (this.fresh()) {
+      return Math.round(this.heading) + " deg " + cardinal(this.heading) +
+             " (" + this.source + ")";
+    }
     if (this.state === "listening") return "listening - no reading yet";
     return "off";
   }
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0;
+let statsTick = 0, gpsTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -1434,6 +1437,15 @@ function frame(ts) {
      spot left it stale. Ten times a second is smooth to read without
      rewriting the panel on every frame. */
   if (ts - statsTick > 100) { statsTick = ts; updateStats(); }
+
+  /* While the GPS panel is open on screen, keep it live. Checking whether the
+     compass reads true means turning the phone and watching the number move,
+     which is impossible if the panel only redraws when a fix lands. */
+  if (ts - gpsTick > 250 && $("#drawer").classList.contains("open") &&
+      $("#secGps").open) {
+    gpsTick = ts;
+    renderGpsPanel();
+  }
 }
 requestAnimationFrame(frame);
 
