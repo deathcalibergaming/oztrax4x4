@@ -348,6 +348,12 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
   background:var(--dim);transition:transform .16s,background .16s}
 .sw.on{background:rgba(193,85,44,.3);border-color:var(--rust)}
+/* The chosen unit reads like the switch below it: the same rust wash and
+   border, and the sand the rest of the menu is written in. It used to borrow
+   .primary, whose near-black text landed on .ghost's transparent background -
+   dark on dark, and no highlight at all, since ghost won the background. */
+#btnUnitMetric.on,#btnUnitImperial.on{
+  background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
 /* ---------- floating form (clamped to viewport) ---------- */
@@ -4753,8 +4759,8 @@ $("#btnGpsRefresh").addEventListener("click", function () {
    the lists, the map popups and the labels that name a unit. */
 function syncUnitButtons() {
   const im = imperial();
-  $("#btnUnitMetric").classList.toggle("primary", !im);
-  $("#btnUnitImperial").classList.toggle("primary", im);
+  $("#btnUnitMetric").classList.toggle("on", !im);
+  $("#btnUnitImperial").classList.toggle("on", im);
   $("#unitNote").textContent = im
     ? "Miles, miles per hour and feet. Tracks are still recorded and exported in metres - GPX has no choice about that - so switching back changes nothing you have saved."
     : "Kilometres, km/h and metres.";
