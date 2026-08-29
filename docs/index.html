@@ -925,11 +925,11 @@ input[type=date],input[type=time]{color-scheme:dark}
 <!-- in-app confirmation: browsers suppress window.confirm in installed PWAs -->
 <div id="askModal" class="modal hidden">
   <div class="modal-box" style="width:min(320px,100%)">
-    <div class="modal-head"><div class="t" id="askTitle">Confirm</div></div>
+    <div class="modal-head"><div class="t" id="askTitle">Are You Sure?</div></div>
     <div class="modal-body"><div id="askMsg" class="askmsg"></div></div>
     <div class="modal-foot">
-      <button class="btn sm ghost" id="askNo">Cancel</button>
-      <button class="btn sm dangerb" id="askYes">Confirm</button>
+      <button class="btn sm ghost" id="askNo">No</button>
+      <button class="btn sm dangerb" id="askYes">Yes</button>
     </div>
   </div>
 </div>
@@ -1078,10 +1078,14 @@ function saveLS(key, val) {
    --------------------------------------------------------------------- */
 let askResolve = null;
 
-function ask(msg, yesLabel, title) {
-  $("#askTitle").textContent = title || "Confirm";
+/* A confirmation asks one question and offers two answers. Naming the action
+   in the title, the message and the button said "discard" three times over
+   and still left the driver reading to find which button meant what. */
+function ask(msg, yesLabel, title, noLabel) {
+  $("#askTitle").textContent = title || "Are You Sure?";
   $("#askMsg").textContent = msg;
-  $("#askYes").textContent = yesLabel || "Confirm";
+  $("#askYes").textContent = yesLabel || "Yes";
+  $("#askNo").textContent = noLabel || "No";
   $("#askModal").classList.remove("hidden");
   return new Promise(function (res) { askResolve = res; });
 }
@@ -2122,7 +2126,7 @@ function closeTrackDialog() {
 async function trackDialogSecondary() {
   if (dialogMode === "edit") { closeTrackDialog(); return; }
   if (!pendingTrack) { closeTrackDialog(); return; }
-  if (!(await ask("Discard this recording? It will not be saved.", "Discard", "Discard Track"))) return;
+  if (!(await ask("This recording will not be saved."))) return;
   pendingTrack = null;
   delLS(LS.rec);
   Rec.points = []; Rec.dist = 0; Rec.accMs = 0;
@@ -4532,7 +4536,7 @@ $("#trackList").addEventListener("click", async function (e) {
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "edit") openEditTrack(id);
   else if (b.dataset.act === "del") {
-    if (!(await ask("Delete this track permanently? The GPX can no longer be exported.", "Delete", "Delete Track"))) return;
+    if (!(await ask("This track will be deleted for good, and its GPX can no longer be exported."))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
     await DB.del("tracks", id);
     renderTracks();
@@ -4577,7 +4581,7 @@ $("#areaList").addEventListener("click", async function (e) {
     resyncing = false;
     closeDrawer();
   } else if (b.dataset.act === "del") {
-    if (!(await ask("Delete this area and the map tiles it cached for offline use?", "Delete", "Delete Area"))) return;
+    if (!(await ask("This area and the offline map tiles it cached will be deleted."))) return;
     deleteArea(id);
   }
 });
