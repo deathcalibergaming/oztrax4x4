@@ -3279,7 +3279,20 @@ async function geoSearch(q) {
     const resp = await fetch(url, { headers: { "Accept": "application/json" } });
     if (!resp.ok) throw new Error("http " + resp.status);
     const rows = await resp.json();
-    geoResults = (rows || []).map(function (r) {
+    /* Local government areas - Adelaide City Council, Mount Barker District
+       Council - are not somewhere you drive to, and being large they sort
+       near the top and push the town you asked for below them.
+
+       The telling field is addresstype, not category: Port Augusta the town
+       and Port Augusta City Council are both boundary/administrative, and
+       only addresstype separates them into "town" and "administrative".
+       National and conservation parks come back as "nature_reserve", so they
+       are not touched. Dropped only while something else survives, so
+       searching a council by name still answers. */
+    const raw = rows || [];
+    const isLga = function (r) { return r.addresstype === "administrative"; };
+    const kept = raw.filter(function (r) { return !isLga(r); });
+    geoResults = (kept.length ? kept : raw).map(function (r) {
       const parts = String(r.display_name || "").split(",").map((s) => s.trim());
       return {
         id: "geo" + r.place_id,
