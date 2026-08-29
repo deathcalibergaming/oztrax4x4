@@ -116,6 +116,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .mapchip:active{background:rgba(216,203,170,.16)}
 #poiOfferChip,#poiKindChip{border-color:var(--warn);color:var(--warn)}
+#updateChip{border-color:var(--green);color:var(--green)}
 #followBadge{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
 
@@ -541,6 +542,10 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button id="poiOfferChip" class="mapchip hidden">
         <svg viewBox="0 0 24 24"><path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M4 17v3h16v-3"/></svg>
         <span id="poiOfferText">LOAD POIS HERE</span>
+      </button>
+      <button id="updateChip" class="mapchip hidden">
+        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/></svg>
+        <span>New version - tap to load</span>
       </button>
     </div>
     <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
@@ -1074,12 +1079,30 @@ function toast(msg, kind) {
    real app. It only exists when the page is served; opened as a file there
    is nothing to register and the app behaves exactly as it always has.
    ===================================================================== */
+let updateReady = false;
+function showUpdateBar() {
+  const chip = document.getElementById("updateChip");
+  if (chip) chip.classList.remove("hidden");
+  toast("A newer version is ready", "ok");
+}
+
 (function registerWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol !== "http:" && location.protocol !== "https:") return;
   window.addEventListener("load", function () {
     navigator.serviceWorker.register(new URL("sw.js", location.href).href)
       .catch(function (e) { console.warn("offline shell unavailable:", e.message); });
+  });
+  /* The shell is served from cache so a launch is instant with no signal,
+     which used to mean quietly running a version behind after every deploy
+     with nothing to say so. The worker now compares what it served against
+     what the server has and speaks up; reloading stays the driver's call,
+     because pulling the page out from under someone mid-navigation is worse
+     than being a version behind. */
+  navigator.serviceWorker.addEventListener("message", function (e) {
+    if (!e.data || e.data.type !== "update-ready" || updateReady) return;
+    updateReady = true;
+    showUpdateBar();
   });
 })();
 
@@ -1133,7 +1156,7 @@ const S = Object.assign({
   northLock: true,      /* true = north up, false = heading up */
   follow: true,
   poiOn: true,
-  keepAwake: true,      /* hold the screen on while recording or navigating */
+  keepAwake: true,      /* hold the screen on the whole time the app is open */
   zoom: 15
 }, loadLS(LS.settings, {}));
 
@@ -4237,6 +4260,24 @@ $("#geoList").addEventListener("click", function (e) {
 });
 $("#btnPoiOsm").addEventListener("click", function () { reloadPois(); });
 $("#poiOfferChip").addEventListener("click", function () { reloadPois(); });
+/* Have the worker replace the cached page before reloading, so the reload
+   cannot be answered with the copy being replaced. Falls through on a timer
+   so a worker that never answers still gets the driver a reload. */
+$("#updateChip").addEventListener("click", function () {
+  toast("Loading the new version...", "ok");
+  const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (!sw) { location.reload(); return; }
+  let done = false;
+  const go = function () { if (!done) { done = true; location.reload(); } };
+  navigator.serviceWorker.addEventListener("message", function onMsg(e) {
+    if (e.data && e.data.type === "shell-refreshed") {
+      navigator.serviceWorker.removeEventListener("message", onMsg);
+      go();
+    }
+  });
+  sw.postMessage("refresh-shell");
+  setTimeout(go, 2500);
+});
 $("#poiKindChip").addEventListener("click", function () {
   hiddenKinds = new Set();
   saveLS(LS.hiddenKinds, []);
