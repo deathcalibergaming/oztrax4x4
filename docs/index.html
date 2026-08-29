@@ -987,6 +987,7 @@ const CFG = {
   PLACE_DUP_M: 25000,      /* and a searched place this close to its own name is one town */
   PLACE_SMALL_RANK: 19,    /* a place this rank or higher is a dot on the map, not a town */
   PLACE_SERVICE_KM: 6,     /* how far from one to look for the roadhouse it is named after */
+  SERVICE_SAME_M: 400,     /* two service names this close, one inside the other, are one stop */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -3313,12 +3314,33 @@ async function nearbyServices(place) {
       };
       if (haversine(place, item) <= CFG.PLACE_SERVICE_KM * 1000) out.push(item);
     });
-    return out;
+    return foldSameBusiness(out);
   } catch (e) {
     return [];                                     /* no signal: the place still stands */
   } finally {
     clearTimeout(bail);
   }
+}
+
+/* One business often carries two names in OSM - Desert Oaks Resort on the
+   motel and Erldunda Desert Oaks Resort on the caravan site beside it, ninety
+   metres apart. Where one name contains the other and they are close enough
+   to walk between, they are the same stop, and the longer name is the one
+   that says where it is. */
+function foldSameBusiness(list) {
+  const out = [];
+  list.forEach(function (item) {
+    const words = item.name.toLowerCase().trim();
+    for (let i = 0; i < out.length; i++) {
+      const other = out[i].name.toLowerCase().trim();
+      const related = words.indexOf(other) !== -1 || other.indexOf(words) !== -1;
+      if (!related || haversine(out[i], item) > CFG.SERVICE_SAME_M) continue;
+      if (words.length > other.length) out[i] = item;   /* keep the fuller name */
+      return;
+    }
+    out.push(item);
+  });
+  return out;
 }
 
 async function geoSearch(q) {
@@ -3386,6 +3408,7 @@ async function geoSearch(q) {
         /* a boundary is an area whose centroid may be nowhere useful; a
            place is a point somebody put where the place actually is */
         area: r.category === "boundary",
+        atype: r.addresstype || "",
         rank: isFinite(r.place_rank) ? r.place_rank : 99,
         imp: isFinite(r.importance) ? r.importance : 0,
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
@@ -3407,6 +3430,17 @@ async function geoSearch(q) {
         }));
       }
     }
+
+    /* The homestead itself is somebody's front gate rather than a
+       destination, and now that it has led us to the roadhouse it has done
+       its job. Dropped last, not with the councils and the roads earlier,
+       because dropping it before the lookup would take the roadhouse with
+       it - it is the only thing carrying the name you searched. Kept if it
+       is all there is, so a search for a station still answers. */
+    const notDwelling = geoResults.filter(function (p) {
+      return p.atype !== "isolated_dwelling" && p.atype !== "farm";
+    });
+    if (notDwelling.length) geoResults = notDwelling;
 
     geoResults.sort((a, b) => geoDist(a) - geoDist(b));
     geoNote = geoResults.length ? geoResults.length + " found in Australia"
