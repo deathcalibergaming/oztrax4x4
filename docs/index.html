@@ -760,11 +760,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
-        <div class="sublabel">Units
-          <button class="btn xs ghost" id="btnUnitMetric">Metric</button>
-          <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
-        </div>
-        <div class="poi-status" id="unitNote"></div>
         <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
         <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
         <div id="gpsDiag" class="diag"></div>
@@ -773,6 +768,24 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm primary" id="btnGpsAsk">Request A Fix Now</button>
           <button class="btn sm ghost" id="btnGpsRefresh">Refresh</button>
         </div>
+      </div>
+    </details>
+
+    <!-- Units are not a property of the GPS, which is where they used to sit -
+         they decide how every distance in the app reads. This is the shelf for
+         that kind of choice, and the place anything else of the sort should go
+         rather than being tucked into whichever section is nearest. -->
+    <details id="secSettings">
+      <summary>
+        <svg viewBox="0 0 24 24"><path d="M4 8h7M15.2 8h4.8M4 16h3M11.2 16h8.8"/><circle cx="13" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/></svg>
+        Settings <span class="chev"></span>
+      </summary>
+      <div class="sec-body">
+        <div class="sublabel">Units
+          <button class="btn xs ghost" id="btnUnitMetric">Metric</button>
+          <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
+        </div>
+        <div class="poi-status" id="unitNote"></div>
       </div>
     </details>
 
