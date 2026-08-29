@@ -332,6 +332,17 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .float-head .t{flex:1;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .float-body{padding:12px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
 .fld{margin-bottom:11px}
+/* A 12 hour picker built from selects rather than <input type="time">. The
+   native control renders in the browser's own locale, which showed 24 hour
+   in the field while offering a 12 hour wheel to set it - the same time in
+   two formats, a foot apart. Selects look the same everywhere and give
+   Android its own wheel for each part. */
+.timepick{display:flex;align-items:center;gap:4px}
+.timepick select{flex:1 1 auto;min-width:0;background:#0F1311;color:var(--sand);
+  border:1px solid var(--line2);border-radius:6px;padding:9px 6px;font-family:var(--mono);
+  font-size:13px;-webkit-appearance:none;appearance:none;text-align:center}
+.timepick .tp-ap{flex:0 0 auto;width:62px}
+.timepick b{color:var(--dim);font-family:var(--mono);flex:0 0 auto}
 .fld label{display:block;font-size:9px;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
 .seg{display:flex;gap:0;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
 .seg button{flex:1;padding:9px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
@@ -790,8 +801,20 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="fld"><label>Distance (km)</label><input id="tkDist" type="number" step="0.01" inputmode="decimal"></div>
       </div>
       <div class="fld2">
-        <div class="fld"><label>Time started</label><input id="tkStart" type="time" step="1"></div>
-        <div class="fld"><label>Time finished</label><input id="tkEnd" type="time" step="1"></div>
+        <div class="fld"><label>Time started</label>
+          <div class="timepick" id="tkStart">
+            <select class="tp-h" aria-label="Hour started"></select><b>:</b>
+            <select class="tp-m" aria-label="Minute started"></select>
+            <select class="tp-ap" aria-label="AM or PM"><option value="am">AM</option><option value="pm">PM</option></select>
+          </div>
+        </div>
+        <div class="fld"><label>Time finished</label>
+          <div class="timepick" id="tkEnd">
+            <select class="tp-h" aria-label="Hour finished"></select><b>:</b>
+            <select class="tp-m" aria-label="Minute finished"></select>
+            <select class="tp-ap" aria-label="AM or PM"><option value="am">AM</option><option value="pm">PM</option></select>
+          </div>
+        </div>
       </div>
       <div class="fld2">
         <div class="fld"><label>Total time</label><input id="tkTotal" type="text" inputmode="numeric" placeholder="h:mm:ss"></div>
@@ -1852,6 +1875,43 @@ function toTimeInput(ms) {
   const d = new Date(ms);
   return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
 }
+
+/* The 12 hour picker. Options are built once on first use, and the seconds
+   the picker does not show are carried on the element, so opening a dialog
+   and saving it without touching the time gives back the timestamp it
+   started with rather than quietly rounding it to the minute. */
+function fillTimePick(el) {
+  if (el.dataset.filled) return;
+  const h = el.querySelector(".tp-h"), m = el.querySelector(".tp-m");
+  let oh = "", om = "";
+  for (let i = 1; i <= 12; i++) oh += '<option value="' + i + '">' + i + "</option>";
+  for (let i = 0; i < 60; i++) om += '<option value="' + i + '">' + pad2(i) + "</option>";
+  h.innerHTML = oh; m.innerHTML = om;
+  el.dataset.filled = "1";
+}
+
+function setTimePick(el, ms) {
+  fillTimePick(el);
+  const d = new Date(ms);
+  const h24 = d.getHours();
+  el.querySelector(".tp-h").value = String(h24 % 12 || 12);
+  el.querySelector(".tp-m").value = String(d.getMinutes());
+  el.querySelector(".tp-ap").value = h24 < 12 ? "am" : "pm";
+  el.dataset.secs = String(d.getSeconds());
+}
+
+/* Returns "HH:MM:SS" in 24 hour form, which is what fromInputs parses and
+   what every other part of the app already speaks. */
+function readTimePick(el) {
+  fillTimePick(el);
+  let h = parseInt(el.querySelector(".tp-h").value, 10);
+  const m = parseInt(el.querySelector(".tp-m").value, 10);
+  const ap = el.querySelector(".tp-ap").value;
+  if (!isFinite(h) || !isFinite(m)) return "";
+  if (ap === "pm" && h !== 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return pad2(h) + ":" + pad2(m) + ":" + pad2(parseInt(el.dataset.secs || "0", 10) || 0);
+}
 function fromInputs(dateStr, timeStr, fallback) {
   const d = (dateStr || "").split("-").map(Number);
   const t = (timeStr || "").split(":").map(Number);
@@ -1880,8 +1940,8 @@ function fillTrackDialog(t) {
   $("#tkName").value = t.name || "";
   setDiff(t.difficulty || "Medium");
   $("#tkDate").value = toDateInput(t.startedAt);
-  $("#tkStart").value = toTimeInput(t.startedAt);
-  $("#tkEnd").value = toTimeInput(t.endedAt);
+  setTimePick($("#tkStart"), t.startedAt);
+  setTimePick($("#tkEnd"), t.endedAt);
   $("#tkTotal").value = fmtDurFull(t.durationMs);
   $("#tkDist").value = (t.distanceM / 1000).toFixed(2);
   $("#tkAvg").value = st.avg.toFixed(1);
@@ -1898,8 +1958,8 @@ function readTrackDialog(t) {
   t.difficulty = on ? on.dataset.d : "Medium";
 
   const date = $("#tkDate").value;
-  const start = fromInputs(date, $("#tkStart").value, t.startedAt);
-  let end = fromInputs(date, $("#tkEnd").value, t.endedAt);
+  const start = fromInputs(date, readTimePick($("#tkStart")), t.startedAt);
+  let end = fromInputs(date, readTimePick($("#tkEnd")), t.endedAt);
   if (end < start) end += 86400000;             /* finished after midnight */
   t.startedAt = start;
   t.endedAt = end;
@@ -1933,8 +1993,8 @@ function recalcAvg() {
 }
 function recalcTotal() {
   const date = $("#tkDate").value;
-  const start = fromInputs(date, $("#tkStart").value, null);
-  let end = fromInputs(date, $("#tkEnd").value, null);
+  const start = fromInputs(date, readTimePick($("#tkStart")), null);
+  let end = fromInputs(date, readTimePick($("#tkEnd")), null);
   if (start == null || end == null) return;
   if (end < start) end += 86400000;
   $("#tkTotal").value = fmtDurFull(end - start);
