@@ -388,7 +388,8 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
    border, and the sand the rest of the menu is written in. It used to borrow
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
-#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on{
+#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
+#btnKindsAll.on,#btnKindsNone.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -3405,6 +3406,18 @@ function renderPoiFilters() {
     counts[p.kind] = (counts[p.kind] || 0) + 1;
   });
   const kinds = POI_ORDER.filter(function (k) { return counts[k] || hiddenKinds.has(k); });
+
+  /* All On and All Off report which way the categories sit, the way Metric
+     and Imperial do, rather than being two buttons that only ever look
+     unpressed. Neither is lit while the selection is a mixture, which is
+     most of the time, and neither before any category exists to be counted.
+     Judged on the chips actually on screen: hiddenKinds remembers categories
+     that were switched off somewhere else and are not loaded here. */
+  const anyOn = kinds.some(function (k) { return !hiddenKinds.has(k); });
+  const anyOff = kinds.some(function (k) { return hiddenKinds.has(k); });
+  $("#btnKindsAll").classList.toggle("on", anyOn && !anyOff);
+  $("#btnKindsNone").classList.toggle("on", anyOff && !anyOn);
+
   if (!kinds.length) {
     box.innerHTML = '<div class="empty">Categories appear here once POIs load.</div>';
     return;
