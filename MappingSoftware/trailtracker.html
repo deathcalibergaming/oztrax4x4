@@ -106,21 +106,22 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #btnOrient.on svg{stroke:var(--rust)}
 #btnOrient.on svg text{fill:var(--rust)}
 #btnOrient.on svg .solid{fill:var(--rust)}
+/* Every floating label on the map lives in this one column. They used to be
+   positioned independently and the follow badge landed on top of the POI
+   chip on a phone-width screen; stacking them makes that impossible. */
 #mapChips{position:absolute;left:8px;top:12px;z-index:450;display:flex;flex-direction:column;
-  align-items:flex-start;gap:6px;max-width:calc(100% - 120px)}
-#poiFilterChip,#poiOfferChip{display:flex;align-items:center;gap:6px;max-width:100%;
+  align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
+#mapChips > *{pointer-events:auto;max-width:100%}
+.mapchip{display:flex;align-items:center;gap:6px;
   background:rgba(20,24,27,.92);border:1px solid var(--rust);border-radius:20px;
   padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust);
   text-transform:uppercase}
-#poiFilterChip span,#poiOfferChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#poiFilterChip svg,#poiOfferChip svg{width:13px;height:13px;stroke:var(--rust);fill:none;
+.mapchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
   stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-#poiOfferChip{border-color:var(--warn);color:var(--warn)}
-#poiOfferChip svg{stroke:var(--warn)}
-#poiFilterChip:active{background:rgba(193,85,44,.25)}
-#poiOfferChip:active{background:rgba(232,185,35,.22)}
-#followBadge{position:absolute;left:50%;transform:translateX(-50%);top:12px;z-index:450;
-  font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
+.mapchip:active{background:rgba(216,203,170,.16)}
+#poiOfferChip,#poiKindChip{border-color:var(--warn);color:var(--warn)}
+#followBadge{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
 
 /* ---------- markers ---------- */
@@ -153,6 +154,23 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-m{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.05em}
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:12.5px}
 .pop-a{display:flex;gap:6px;margin-top:9px}
+/* a pile of pins collapsed into one: the count replaces the glyph */
+.pin.poi.cluster .badge{border-style:solid;opacity:.97;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
+.pin.poi.cluster .cnum{font-family:var(--mono);font-size:11px;font-weight:700;color:#14181B;
+  letter-spacing:0;line-height:1}
+/* the list a cluster popup shows: one tappable row per place underneath */
+.pop-rows{margin-top:7px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+  -webkit-overflow-scrolling:touch}
+.pop-row{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;text-align:left;
+  background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:5px;padding:6px 8px;
+  color:var(--sand);font:inherit;cursor:pointer}
+.pop-row:active{background:rgba(216,203,170,.12)}
+.pop-row-t{flex:1;min-width:0;display:block;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.pop-row-t i{display:block;font-family:var(--mono);font-size:9px;font-style:normal;color:var(--dim);
+  letter-spacing:.06em;margin-top:1px}
+.dotmark.sm{width:18px;height:18px;border-radius:3px}
+.dotmark.sm svg{width:11px;height:11px}
 
 /* ---------- action bar ---------- */
 #actionbar{position:absolute;left:8px;right:8px;bottom:calc(6px + var(--safeB));height:var(--actH);
@@ -254,6 +272,20 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .diag .bad{color:#E07C63}
 .diag .warn{color:var(--warn)}
 .poi-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
+.sublabel{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:10px 2px 6px}
+.sublabel .btn{margin-left:auto}
+.sublabel .btn + .btn{margin-left:0}
+/* one tap per category, sized for a thumb on a corrugated road */
+.kchips{display:flex;flex-wrap:wrap;gap:5px}
+.kchip{display:flex;align-items:center;gap:5px;min-height:34px;padding:5px 9px 5px 6px;
+  border-radius:17px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
+  font-size:11.5px;cursor:pointer;opacity:.55}
+.kchip svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.kchip i{font-family:var(--mono);font-style:normal;font-size:9.5px;opacity:.75}
+.kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
+.kchip:active{background:rgba(216,203,170,.14)}
 .empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
 .card-top{display:flex;align-items:flex-start;gap:8px}
@@ -382,13 +414,17 @@ input[type=date],input[type=time]{color-scheme:dark}
         </svg>
       </button>
     </div>
-    <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
     <div id="mapChips">
-      <button id="poiFilterChip" class="hidden">
+      <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
+      <button id="poiFilterChip" class="mapchip hidden">
         <span id="poiFilterText">FILTER</span>
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <button id="poiOfferChip" class="hidden">
+      <button id="poiKindChip" class="mapchip hidden">
+        <span id="poiKindText">CATEGORIES HIDDEN</span>
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <button id="poiOfferChip" class="mapchip hidden">
         <svg viewBox="0 0 24 24"><path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M4 17v3h16v-3"/></svg>
         <span id="poiOfferText">LOAD POIS HERE</span>
       </button>
@@ -494,8 +530,13 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
         <input id="poiSearch" type="search" placeholder="Search nearby, or Enter to search Australia" autocomplete="off">
         <div id="poiStatus" class="poi-status"></div>
+        <div class="sublabel">Categories
+          <button class="btn xs ghost" id="btnKindsAll">All On</button>
+          <button class="btn xs ghost" id="btnKindsNone">All Off</button>
+        </div>
+        <div id="poiKinds" class="kchips"></div>
         <div class="row hidden" id="poiOsmRow">
-          <button class="btn sm warnb" id="btnPoiOsm">Load POIs From OpenStreetMap</button>
+          <button class="btn sm warnb" id="btnPoiOsm">Reload POIs Here</button>
         </div>
         <div id="poiList" class="list scrollarea"></div>
         <div class="row" id="geoRow">
@@ -521,6 +562,21 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div id="areaList" class="list"></div>
         <div class="row">
           <button class="btn sm primary" id="btnNewArea">Download New Area</button>
+        </div>
+      </div>
+    </details>
+
+    <details id="secGps">
+      <summary>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8.5"/><path d="M12 1.2v3.4M12 19.4v3.4M1.2 12h3.4M19.4 12h3.4"/></svg>
+        GPS &amp; Location <span class="chev"></span>
+      </summary>
+      <div class="sec-body">
+        <div id="gpsDiag" class="diag"></div>
+        <div id="gpsNote" class="poi-status"></div>
+        <div class="row" style="margin-top:11px">
+          <button class="btn sm primary" id="btnGpsAsk">Request A Fix Now</button>
+          <button class="btn sm ghost" id="btnGpsRefresh">Refresh</button>
         </div>
       </div>
     </details>
@@ -685,33 +741,37 @@ input[type=date],input[type=time]{color-scheme:dark}
 
 const CFG = {
   TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-  /* public Overpass mirrors, tried in order until one answers */
-  OVERPASS: ["https://overpass-api.de/api/interpreter",
-             "https://overpass.openstreetmap.fr/api/interpreter",
-             "https://overpass.private.coffee/api/interpreter",
-             "https://overpass.kumi.systems/api/interpreter"],
+  /* POIs come from OpenStreetMap's own API, which returns a full map extract
+     with every tag intact - that is what lets a free camp be told apart from
+     a paid one. Overpass used to sit in front of it, but every public mirror
+     was unreachable from the field, so it is gone. */
+  OSM_API: "https://api.openstreetmap.org/api/0.6/map",
+  OSM_TIMEOUT: 45000,
+  /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
+     radius does in any town, so fall back through smaller radii */
+  OSM_RADII: [5000, 2500, 1200, 700],
+  /* Photon is the standby: a search index rather than a map extract, so it
+     answers in about a second anywhere and never chokes on a dense city,
+     at the cost of carrying only the headline tags. */
+  PHOTON: "https://photon.komoot.io/reverse",
+  PHOTON_TIMEOUT: 12000,
+  PHOTON_LIMIT: 50,
   POI_RADIUS: 5000,        /* metres around you */
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
-  POI_TIMEOUT: 8000,       /* give up on a mirror rather than let it hang the queue */
   OSRM: "https://router.project-osrm.org",
-  /* the canonical OSM API: reachable where the Overpass mirrors are not,
-     but it returns the whole map extract, so it is offered rather than used */
-  OSM_API: "https://api.openstreetmap.org/api/0.6/map",
   NAV_TIMEOUT: 15000,
-  OSM_TIMEOUT: 90000,      /* the extract is small gzipped but outback data is slow */
-  /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
-     radius does in any town, so fall back through smaller radii */
-  OSM_RADII: [5000, 2500, 1200, 700],
   NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
   NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
   NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
-  POI_REFETCH: 2500,       /* refetch once you have travelled this far */
+  POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
+                              bubble still leaves 1.5 km loaded ahead of you */
+  POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
   MIN_Z: 3, MAX_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
-  POI_EMPTY_TTL: 15 * 60 * 1000,   /* a mirror with an empty database must not poison a spot for a week */
+  POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
   LERP_POS: 0.16, LERP_HDG: 0.13,
   SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
@@ -722,6 +782,7 @@ const LS = {
   wpts: "tt.waypoints",
   settings: "tt.settings",
   hiddenPoi: "tt.hiddenPoi",
+  hiddenKinds: "tt.hiddenKinds",
   trail: "tt.trail",
   lastPos: "tt.lastPos"
 };
@@ -1148,8 +1209,14 @@ function updateFollowUI() {
   $("#btnCenter").classList.toggle("on", !S.follow);
 }
 
-map.on("dragstart", function () { if (S.follow) pauseFollow(); });
-map.on("zoomend", function () { S.zoom = map.getZoom(); saveSettings(); schedulePoi(); });
+/* Clusters are grouped in screen pixels, so a zoom changes which pins share
+   a cell and the layer has to be rebuilt, not just refetched. */
+map.on("zoomend", function () {
+  S.zoom = map.getZoom();
+  saveSettings();
+  renderPois();
+  schedulePoi();
+});
 map.on("moveend", function () { if (!resyncing) schedulePoi(); });
 
 /* ---- 60fps animation loop ---- */
@@ -1780,7 +1847,13 @@ const ICONS = {
   rest:      '<path d="M3 11h18"/><path d="M6 11 4 20M18 11l2 9M7.5 15.5h9"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
   shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
   info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7v.1"/>',
-  spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>'
+  spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>',
+  /* a tent on its own is the free camp; the paid one carries a coin, which
+     reads at 22px where a "$" glyph on its own does not */
+  campfree:  '<path d="M12 2.8c2.6 3 3.7 4.9 3.7 6.7a3.7 3.7 0 0 1-7.4 0c0-1.8 1.1-3.7 3.7-6.7z"/><path d="M2.6 19.4 21.4 14.4M2.6 14.4 21.4 19.4"/>',
+  camppaid:  '<path d="M10 2.8c2.3 2.7 3.3 4.4 3.3 6a3.3 3.3 0 0 1-6.6 0c0-1.6 1-3.3 3.3-6z"/><path d="M2 17.6 13.6 14M2 14 10 16.5"/><circle cx="17.6" cy="17.4" r="4.2"/><path d="M17.6 15.1v4.6M16.3 16.2h2.2a.95.95 0 0 1 0 1.9h-1.6a.95.95 0 0 0 0 1.9h2.2"/>',
+  /* trolley for a supermarket, so it is not mistaken for the general store */
+  supermarket: '<path d="M2.5 4h2.7l2.6 10.4h9.3"/><path d="M6.3 6.8h14.2l-1.7 5.9H7.8"/><circle cx="9.4" cy="19.2" r="1.6"/><circle cx="17.4" cy="19.2" r="1.6"/>'
 };
 function catIcon(kind, color) {
   return '<svg viewBox="0 0 24 24"' + (color ? ' style="color:' + color + '"' : "") + ">" +
@@ -1974,44 +2047,111 @@ map.on("click", function (e) {
 /* =====================================================================
    POIs from the OpenStreetMap Overpass API (cached in IndexedDB)
    ===================================================================== */
+/* Order here is the order the filter chips appear in, so it runs roughly
+   from "will end your trip if you miss it" down to "nice to know". */
 const POI_META = {
-  fuel:      { label: "Fuel",       color: "#E8B923" },
-  water:     { label: "Water",      color: "#5FA8C8" },
-  camp:      { label: "Campsite",   color: "#8FB93E" },
-  rest:      { label: "Rest area",  color: "#A8794F" },
-  viewpoint: { label: "Viewpoint",  color: "#D8CBAA" },
-  toilets:   { label: "Toilets",    color: "#9C8FB0" },
-  parking:   { label: "Parking",    color: "#8A9A8F" },
-  spring:    { label: "Spring",     color: "#5FA8C8" },
-  shop:      { label: "Supplies",   color: "#4FA89B" },
-  info:      { label: "Information",color: "#C77B9E" }
+  fuel:        { label: "Fuel",        icon: "fuel",        color: "#E8B923" },
+  water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
+  spring:      { label: "Spring",      icon: "spring",      color: "#4F8FB0" },
+  campfree:    { label: "Free camp",   icon: "campfree",    color: "#8FB93E" },
+  camp:        { label: "Paid camp",   icon: "camppaid",    color: "#6E8C4B" },
+  rest:        { label: "Rest area",   icon: "rest",        color: "#A8794F" },
+  supermarket: { label: "Supermarket", icon: "supermarket", color: "#4FA89B" },
+  shop:        { label: "Supplies",    icon: "shop",        color: "#2E7C74" },
+  toilets:     { label: "Toilets",     icon: "toilets",     color: "#9C8FB0" },
+  parking:     { label: "Parking",     icon: "parking",     color: "#8A9A8F" },
+  viewpoint:   { label: "Viewpoint",   icon: "viewpoint",   color: "#D8CBAA" },
+  info:        { label: "Information", icon: "info",        color: "#C77B9E" }
+};
+const POI_ORDER = Object.keys(POI_META);
+function poiIcon(kind) { return (POI_META[kind] || {}).icon || kind; }
+
+/* A camp with no fee tag at all is the common case in the outback, and
+   calling it paid would send you past the free ones. Anything that is not
+   positively marked as costing money is treated as free, and the popup
+   says which of the two it was so the guess is visible. */
+function campIsFree(tags) {
+  const fee = (tags.fee || "").toLowerCase();
+  if (fee === "yes" || fee === "customers" || fee === "some") return false;
+  if (tags.charge) return false;
+  if (tags["camp_site"] === "serviced" || tags.tourism === "caravan_site") {
+    return fee === "no";        /* serviced parks charge unless they say not */
+  }
+  return true;
+}
+
+/* shelter_type values that mean street furniture rather than somewhere to
+   spend the night */
+const NOT_A_CAMP = {
+  public_transport: 1, picnic_shelter: 1, gazebo: 1, pavilion: 1,
+  changing_rooms: 1, field_shelter: 1, sun_shelter: 1, bicycle_parking: 1
 };
 
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
   if (!tags) return null;
-  const a = tags.amenity, t = tags.tourism;
+  const a = tags.amenity, t = tags.tourism, hw = tags.highway;
   if (a === "fuel") return "fuel";
   if (a === "drinking_water" || tags.man_made === "water_well" ||
       tags.man_made === "water_tank" || tags.man_made === "watering_place") return "water";
+  if (tags.natural === "spring") return "spring";
   if (a === "toilets") return "toilets";
   if (a === "parking") return "parking";
-  if (a === "shelter" || t === "wilderness_hut" || t === "alpine_hut") return "camp";
-  if (t === "camp_site" || t === "caravan_site" || t === "camp_pitch") return "camp";
-  if (t === "picnic_site" || tags.highway === "rest_area") return "rest";
+  if (t === "wilderness_hut" || t === "alpine_hut") return "campfree";
+  /* a hut you can sleep in is a free camp; a bus stop is not, and town
+     streets are full of amenity=shelter that you would never camp under */
+  if (a === "shelter" && !NOT_A_CAMP[tags.shelter_type || ""]) return "campfree";
+  if (t === "camp_site" || t === "caravan_site" || t === "camp_pitch") {
+    return campIsFree(tags) ? "campfree" : "camp";
+  }
+  /* an informal overnight stop: a rest area that says you may sleep there */
+  if (hw === "rest_area" &&
+      (tags.caravan === "yes" || tags.tents === "yes" || tags.camping === "yes" ||
+       tags.overnight === "yes" || tags.motorhome === "yes")) return "campfree";
+  if (t === "picnic_site" || hw === "rest_area") return "rest";
   if (t === "viewpoint") return "viewpoint";
   if (t === "information" || a === "ranger_station") return "info";
-  if (tags.natural === "spring") return "spring";
+  /* supplies split out from the weekly shop: in a town of eighty buildings a
+     supermarket pin among forty other shop pins is the one you want */
+  if (tags.shop === "supermarket" || tags.shop === "grocery" ||
+      tags.shop === "convenience" || tags.shop === "general" ||
+      tags.shop === "department_store") return "supermarket";
   if (tags.shop) return "shop";
   return null;
 }
 
+/* One line of useful extra detail for the popup, drawn from whatever the
+   mapper bothered to record. */
+function poiInfoLine(tags, kind) {
+  const bits = [];
+  if (kind === "campfree" || kind === "camp") {
+    const fee = (tags.fee || "").toLowerCase();
+    bits.push(fee === "no" ? "Free (tagged fee=no)"
+            : fee === "yes" || tags.charge ? "Fee" + (tags.charge ? ": " + tags.charge : "")
+            : kind === "campfree" ? "No fee recorded" : "Fee");
+    if (tags.backcountry === "yes") bits.push("backcountry");
+    if (tags.toilets === "yes") bits.push("toilets");
+    if (tags.drinking_water === "yes") bits.push("drinking water");
+    if (tags.shower === "yes") bits.push("showers");
+    if (tags.tents === "yes") bits.push("tents");
+    if (tags.caravans === "yes" || tags.caravan === "yes") bits.push("caravans");
+  }
+  if (kind === "fuel") {
+    if (tags["fuel:diesel"] === "yes") bits.push("diesel");
+    if (tags.opening_hours) bits.push(tags.opening_hours);
+  }
+  if (tags.access && tags.access !== "yes") bits.push("access: " + tags.access);
+  if (tags.description) bits.push(tags.description);
+  return bits.join(" · ");
+}
+
 let pois = [];
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
+/* whole categories switched off, e.g. every car park in a town centre */
+let hiddenKinds = new Set(loadLS(LS.hiddenKinds, []));
 let poiTimer = null, poiBusy = false, poiCentre = null, poiQuery = "";
 let poiRetryAt = 0;      /* set after a failure so a flat spot does not become a request storm */
-let poiMirror = 0;       /* the mirror that answered last time, tried first next time */
 let poiStatus = "";
 
 function setPoiStatus(s) {
@@ -2028,9 +2168,12 @@ function poiAnchor() {
   return { lat: c.lat, lng: c.lng };
 }
 
+/* The v2 prefix retires every cell cached before supermarkets were split out
+   of general supplies and free camps out of paid ones - those entries carry
+   the old categories and would show the wrong icons for a week. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v2:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -2039,44 +2182,95 @@ function schedulePoi() {
   poiTimer = setTimeout(fetchPois, 900);
 }
 
-/* Everything within POI_RADIUS of the anchor. "nwr" rather than "node" so
-   the many campgrounds, rest areas and car parks mapped as areas come back
-   too; "out center" gives each of those a single point to pin. */
-function poiQueryFor(a) {
-  const r = CFG.POI_RADIUS;
-  const at = "(around:" + r + "," + a.lat.toFixed(5) + "," + a.lng.toFixed(5) + ")";
-  return "[out:json][timeout:25];(" +
-    'nwr' + at + '["amenity"~"^(fuel|drinking_water|toilets|parking|shelter|ranger_station)$"];' +
-    'nwr' + at + '["tourism"~"^(camp_site|caravan_site|camp_pitch|picnic_site|viewpoint|wilderness_hut|alpine_hut|information)$"];' +
-    'nwr' + at + '["highway"="rest_area"];' +
-    'nwr' + at + '["natural"="spring"];' +
-    'nwr' + at + '["man_made"~"^(water_well|water_tank|watering_place)$"];' +
-    'nwr' + at + '["shop"~"^(convenience|supermarket|general|department_store)$"];' +
-    ");out center 400;";
+/* ---------------------------------------------------------------------
+   Standby POI source: Photon, a search index over OpenStreetMap. It is a
+   different shape of service to a map extract - it answers in about a
+   second anywhere on earth and never chokes on a city - but it carries
+   only the headline tags, so a camp found this way has no fee recorded.
+   Tags are sent in groups because the server caps each answer at fifty
+   results; one group per cap stops a town full of car parks crowding out
+   its only fuel station.
+   --------------------------------------------------------------------- */
+const PHOTON_GROUPS = [
+  ["amenity:fuel"],
+  ["amenity:drinking_water", "man_made:water_well", "man_made:water_tank",
+   "man_made:watering_place", "natural:spring"],
+  ["tourism:camp_site", "tourism:caravan_site", "tourism:camp_pitch",
+   "tourism:wilderness_hut", "tourism:alpine_hut", "amenity:shelter"],
+  ["tourism:picnic_site", "highway:rest_area"],
+  ["shop:supermarket", "shop:convenience", "shop:general",
+   "shop:department_store", "shop:grocery"],
+  ["amenity:toilets", "amenity:parking", "tourism:viewpoint",
+   "tourism:information", "amenity:ranger_station"]
+];
+const PHOTON_TYPE = { N: "node", W: "way", R: "relation" };
+
+async function photonGroup(a, tags) {
+  const q = CFG.PHOTON + "?lat=" + a.lat.toFixed(5) + "&lon=" + a.lng.toFixed(5) +
+            "&radius=" + Math.ceil(CFG.POI_RADIUS / 1000) +
+            "&limit=" + CFG.PHOTON_LIMIT +
+            tags.map(function (t) { return "&osm_tag=" + encodeURIComponent(t); }).join("");
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.PHOTON_TIMEOUT);
+  try {
+    const r = await fetch(q, { signal: ctl.signal });
+    if (!r.ok) throw new Error("http " + r.status);
+    const j = await r.json();
+    return { features: j.features || [], bytes: JSON.stringify(j).length };
+  } finally {
+    clearTimeout(bail);
+  }
 }
 
-function parsePois(data, a) {
-  const seen = {};
-  const out = [];
-  (data.elements || []).forEach(function (el) {
-    const kind = poiKind(el.tags);
-    if (!kind) return;
-    const lat = el.lat != null ? el.lat : (el.center && el.center.lat);
-    const lng = el.lon != null ? el.lon : (el.center && el.center.lon);
-    if (lat == null || lng == null) return;
-    const id = el.type + "/" + el.id;
-    if (seen[id]) return;
-    seen[id] = 1;
-    const t = el.tags || {};
-    const p = {
-      id: id, kind: kind, lat: lat, lng: lng,
-      name: t.name || t.operator || t.brand || POI_META[kind].label,
-      info: [t.brand, t.fee ? "fee: " + t.fee : "", t.water_source, t.drinking_water,
-             t.opening_hours, t.backcountry === "yes" ? "backcountry" : ""].filter(Boolean).join(" | ")
-    };
-    if (haversine(a, p) <= reach) out.push(p);
+/* Returns {items,bytes,secs} or {error}. Groups run together: six small
+   requests in parallel cost about the same wall clock as one. */
+async function photonPois(a) {
+  const t0 = Date.now();
+  const results = await Promise.allSettled(PHOTON_GROUPS.map(function (g) {
+    return photonGroup(a, g);
+  }));
+  const ok = results.filter(function (r) { return r.status === "fulfilled"; });
+  if (!ok.length) {
+    const why = results[0] && results[0].reason;
+    return { error: why && why.name === "AbortError"
+      ? "search index timed out" : "could not reach the search index" };
+  }
+  const seen = {}, out = [];
+  let bytes = 0;
+  ok.forEach(function (r) {
+    bytes += r.value.bytes;
+    r.value.features.forEach(function (f) {
+      const p = f.properties || {}, g = f.geometry || {};
+      if (!g.coordinates) return;
+      const tags = {};
+      if (p.osm_key) tags[p.osm_key] = p.osm_value;
+      if (p.name) tags.name = p.name;
+      const kind = poiKind(tags);
+      if (!kind) return;
+      const id = (PHOTON_TYPE[p.osm_type] || "node") + "/" + p.osm_id;
+      if (seen[id]) return;
+      seen[id] = 1;
+      const item = {
+        id: id, kind: kind, lat: g.coordinates[1], lng: g.coordinates[0],
+        name: p.name || POI_META[kind].label,
+        info: poiInfoLine(tags, kind),
+        thin: true                     /* headline tags only - no fee recorded */
+      };
+      if (haversine(a, item) <= CFG.POI_RADIUS * 1.05) out.push(item);
+    });
   });
-  return out;
+  return { items: out, bytes: bytes,
+           secs: Math.round((Date.now() - t0) / 100) / 10,
+           partial: ok.length < PHOTON_GROUPS.length };
+}
+
+/* Two sources, one list. Where both know a place the extract wins, because
+   it is the one carrying the fee tag that tells a free camp from a paid one. */
+function mergePois(primary, extra) {
+  const byId = {};
+  primary.forEach(function (p) { byId[p.id] = p; });
+  extra.forEach(function (p) { if (!byId[p.id]) byId[p.id] = p; });
+  return Object.keys(byId).map(function (k) { return byId[k]; });
 }
 
 async function fetchPois(force) {
@@ -2100,66 +2294,62 @@ async function fetchPois(force) {
       return;
     }
 
-    setPoiStatus("Searching within 5 km...");
-    const body = "data=" + encodeURIComponent(poiQueryFor(a));
-    let items = null;
-    /* Start with whichever mirror answered last time, so the usual case is a
-       single quick request; only a real outage walks the whole list.
-       An empty answer is not taken at face value: a mirror running a broken
-       or partial database returns 200 with nothing in it, so a second mirror
-       has to agree before we believe a place really has nothing. */
-    const n = CFG.OVERPASS.length;
-    let empty = null, emptyAgreed = 0;
-    for (let k = 0; k < n && items === null; k++) {
-      const i = (poiMirror + k) % n;
-      if (k > 0) setPoiStatus("Searching within 5 km... (" + (k + 1) + " of " + n + ")");
-      const ctl = new AbortController();
-      const bail = setTimeout(function () { ctl.abort(); }, CFG.POI_TIMEOUT);
-      try {
-        const resp = await fetch(CFG.OVERPASS[i], {
-          signal: ctl.signal,
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: body
-        });
-        if (!resp.ok) throw new Error("http " + resp.status);
-        const parsed = parsePois(await resp.json(), a);
-        if (parsed.length) {
-          items = parsed;
-          poiMirror = i;
+    /* The extract first: it is the only source that records whether a camp
+       charges. If the box is too dense even at the smallest radius, or the
+       API is down, the search index takes over. */
+    setPoiStatus("Loading map data within 5 km...");
+    const osm = await osmApiPois(a);
+    let items = null, note = "";
+
+    if (!osm.error) {
+      items = osm.items;
+      note = "OpenStreetMap, " + fmtBytes(osm.bytes) + " uncompressed, " + osm.secs + "s";
+      /* a dense town shrinks the box, so widen the net again with the index */
+      if (osm.radius < CFG.POI_RADIUS) {
+        setPoiStatus("Dense area - filling out to 5 km...");
+        const ph = await photonPois(a);
+        if (!ph.error) {
+          const before = items.length;
+          items = mergePois(items, ph.items);
+          note = "full detail within " + (osm.radius / 1000) + " km, " +
+                 (items.length - before) + " more out to 5 km";
         } else {
-          empty = parsed;
-          emptyAgreed++;
-          if (emptyAgreed >= 2) { items = parsed; poiMirror = i; }
+          note = "OpenStreetMap, full detail within " + (osm.radius / 1000) + " km only";
         }
-      } catch (e) {
-        /* dead, slow or rate-limited: move on to the next mirror */
-      } finally {
-        clearTimeout(bail);
+      }
+    } else {
+      setPoiStatus("Map data unavailable - trying the search index...");
+      const ph = await photonPois(a);
+      if (!ph.error) {
+        items = ph.items;
+        note = "search index, " + fmtBytes(ph.bytes) + ", " + ph.secs + "s" +
+               (ph.partial ? ", partial" : "") + " - no camp fees recorded";
+      } else {
+        note = osm.error + "; " + ph.error;
       }
     }
-    /* only one mirror answered at all, and it had nothing */
-    if (items === null && empty) items = empty;
 
     if (items) {
       poiCentre = a;
+      poiRetryAt = 0;
       await DB.put("poi", { ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
       setPois(items);
-      poiRetryAt = 0;
+      refreshStorageStats();
       offerOsmPois(false);
-      setPoiStatus(items.length ? items.length + " within 5 km of here"
-                                : "Nothing mapped within 5 km of here");
+      setPoiStatus(items.length
+        ? items.length + " within 5 km (" + note + ")"
+        : "Nothing mapped within 5 km of here (" + note + ")");
     } else if (cached) {
-      /* the service is unreachable but we have been here before - stale beats
-         empty, and poiCentre stays unset so a later attempt still happens */
+      /* both sources are unreachable but we have been here before - stale
+         beats empty, and poiCentre stays unset so a later attempt happens */
       setPois(cached.items);
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      setPoiStatus(cached.items.length + " within 5 km (cached - service unreachable)");
+      setPoiStatus(cached.items.length + " within 5 km (cached - " + note + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      setPoiStatus("Could not reach the POI service - retrying shortly, or tap Refresh");
-      offerOsmPois(true);                           /* offer the heavier source */
+      setPoiStatus("No POIs: " + note);
+      offerOsmPois(true);
     }
   } finally {
     poiBusy = false;
@@ -2168,11 +2358,10 @@ async function fetchPois(force) {
 
 
 /* ---------------------------------------------------------------------
-   Fallback POI source: the canonical OSM API. It is reachable on networks
-   where every Overpass mirror is not, but /map returns the entire extract
-   for the box - about 1.7 MB of XML for a 5 km radius, though it gzips to
-   roughly 170 KB over the wire, so the cost is closer to eight map tiles
-   than to a photograph. Still offered on a button so the driver chooses.
+   The map extract from OpenStreetMap's own API. Every tag survives, which
+   is what lets a free camp be told apart from a paid one, but /map hands
+   back the whole box - roughly 130 KB over the wire for a 5 km radius in
+   open country, since the XML compresses hard.
    --------------------------------------------------------------------- */
 function bboxAround(a, m) {
   const dLat = m / 111320;
@@ -2216,13 +2405,16 @@ function parseOsmXml(text, a, radius) {
     const p = {
       id: type + "/" + el.getAttribute("id"), kind: kind, lat: lat, lng: lng,
       name: tags.name || tags.operator || tags.brand || POI_META[kind].label,
-      info: [tags.brand, tags.fee ? "fee: " + tags.fee : "", tags.water_source,
-             tags.drinking_water, tags.opening_hours].filter(Boolean).join(" | ")
+      info: poiInfoLine(tags, kind)
     };
     if (haversine(a, p) <= reach) out.push(p);
   }
   for (let i = 0; i < nodes.length; i++) collect(nodes[i], "node");
   const ways = doc.getElementsByTagName("way");
+  /* Nodes and ways only. Anything mapped as a multipolygon relation is
+     skipped: its centre would have to be assembled from member ways, and
+     across the sample areas checked, relations here were roads, trails and
+     boundaries rather than places worth pinning. */
   for (let i = 0; i < ways.length; i++) collect(ways[i], "way");
   return out;
 }
@@ -2281,38 +2473,22 @@ async function osmApiPois(a) {
   return { error: lastError };
 }
 
-/* One path for the heavier OSM API load, reached from the menu button and
-   from the chip that appears on the map when a POI fetch comes back empty
-   handed - the drawer is usually shut at that moment. */
-async function loadPoisFromOsmApi() {
-  if (poiBusy) return;
+/* The manual retry, reached from the menu button and from the chip that
+   appears on the map when a fetch comes back empty handed - the drawer is
+   usually shut at that moment. It is the same path as the automatic fetch,
+   forced past the distance check and the failure backoff. */
+async function reloadPois() {
+  if (poiBusy) { toast("Already loading POIs", "warn"); return; }
   const place = (poiPlace && haversine(poiAnchor(), poiPlace) < 3000) ? poiPlace.name : null;
-  poiBusy = true;
-  offerOsmPois(false);
-  /* roughly 170 KB over the wire - the extract is large but gzips hard */
-  setPoiStatus("Downloading map data, usually under 200 KB...");
-  toast("Downloading POIs" + (place ? " for " + place : "") + "...", "warn");
-  const a = poiAnchor();
-  const r = await osmApiPois(a);
-  poiBusy = false;
-
-  if (r.error) {
-    setPoiStatus("OpenStreetMap: " + r.error);
-    offerOsmPois(true);
-    toast("POI download failed", "err");
-    return;
+  const before = pois.length;
+  toast("Loading POIs" + (place ? " for " + place : "") + "...", "warn");
+  await fetchPois(true);
+  if (pois.length) {
+    toast(pois.length + " POIs loaded" + (place ? " for " + place : ""),
+          pois.length > before ? "ok" : "warn");
+  } else {
+    toast("No POIs loaded - see the status line in the menu", "err");
   }
-  poiCentre = a;
-  poiRetryAt = 0;
-  await DB.put("poi", { ts: Date.now(), items: r.items, lat: a.lat, lng: a.lng }, poiKey(a))
-    .catch(function () {});
-  setPois(r.items);
-  refreshStorageStats();
-  const km = (r.radius / 1000);
-  setPoiStatus(r.items.length + " within " + km + " km (OpenStreetMap, " +
-               fmtBytes(r.bytes) + " uncompressed, " + r.secs + "s)");
-  if (r.radius < CFG.POI_RADIUS) toast("Dense area - loaded " + km + " km around you", "warn");
-  toast(r.items.length + " POIs loaded" + (place ? " for " + place : ""), "ok");
 }
 
 /* The map-side offer, since a failed load usually happens with the menu shut.
@@ -2339,50 +2515,142 @@ function setPois(items) {
 
 function poiMatches(p, q) {
   if (!q) return true;
-  const m = POI_META[p.kind];
-  return (p.name + " " + (p.info || "") + " " + m.label + " " + p.kind).toLowerCase().indexOf(q) !== -1;
+  const m = POI_META[p.kind] || {};
+  return (p.name + " " + (p.info || "") + " " + (m.label || "") + " " + p.kind)
+         .toLowerCase().indexOf(q) !== -1;
 }
+
+/* Everything the driver has not switched off, one place, so the map, the
+   list, the counts and the chips can never disagree with each other. */
+function visiblePois() {
+  if (!S.poiOn) return [];
+  return pois.filter(function (p) {
+    return POI_META[p.kind] && !hiddenPoi.has(p.id) && !hiddenKinds.has(p.kind);
+  });
+}
+
+function poiPopupHtml(p, here) {
+  const m = POI_META[p.kind];
+  return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
+    '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
+    (p.thin ? "INDEX" : "OSM") + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
+    (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
+    '<div class="pop-a">' +
+    '<button class="btn xs primary" onclick="navigateToPoi(\'' + p.id + '\')">Navigate</button>' +
+    '<button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>';
+}
+
+/* Two pins a few metres apart land on the same few pixels and only the top
+   one can be tapped, which in a town centre hides the fuel behind a car
+   park. Anything sharing a cell of the screen grid collapses into a single
+   numbered marker whose popup lists what is underneath it. */
+function clusterPois(list) {
+  const cell = CFG.POI_CLUSTER_PX;
+  const z = map.getZoom();
+  const buckets = {};
+  const order = [];
+  list.forEach(function (p) {
+    const pt = map.project([p.lat, p.lng], z);
+    const k = Math.round(pt.x / cell) + ":" + Math.round(pt.y / cell);
+    if (!buckets[k]) { buckets[k] = []; order.push(k); }
+    buckets[k].push(p);
+  });
+  return order.map(function (k) { return buckets[k]; });
+}
+
+function clusterIcon(group) {
+  /* colour it by whichever category in the pile matters most, using the
+     order POI_META is declared in - fuel beats parking */
+  let best = group[0].kind, bestAt = POI_ORDER.indexOf(group[0].kind);
+  group.forEach(function (p) {
+    const at = POI_ORDER.indexOf(p.kind);
+    if (at > -1 && (bestAt === -1 || at < bestAt)) { best = p.kind; bestAt = at; }
+  });
+  const c = POI_META[best].color;
+  return L.divIcon({
+    className: "pin poi cluster",
+    iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
+    html: '<div class="upright"><div class="badge" style="background:' + c + '">' +
+          '<span class="cnum">' + group.length + "</span></div></div>"
+  });
+}
+
+function clusterPopupHtml(group, here) {
+  const rows = group.slice()
+    .sort(function (a, b) { return haversine(here, a) - haversine(here, b); })
+    .map(function (p) {
+      const m = POI_META[p.kind];
+      return '<button class="pop-row" onclick="showPoi(\'' + p.id + '\')">' +
+        '<span class="dotmark sm" style="background:' + m.color + '">' +
+        catIcon(poiIcon(p.kind)) + "</span>" +
+        '<span class="pop-row-t">' + esc(p.name) +
+        "<i>" + m.label.toUpperCase() + " &middot; " + fmtDist(haversine(here, p)) +
+        "</i></span></button>";
+    }).join("");
+  return '<div class="pop-t">' + group.length + " here</div>" +
+         '<div class="pop-m">TAP ONE TO OPEN IT</div>' +
+         '<div class="pop-rows">' + rows + "</div>";
+}
+
+/* Open one POI out of a cluster: its own marker is not on the map, so the
+   popup is opened at its coordinates instead. */
+function showPoi(id) {
+  const p = pois.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  const here = (view.has ? view.cur : poiAnchor());
+  L.popup({ className: "tt-pop" })
+    .setLatLng([p.lat, p.lng])
+    .setContent(poiPopupHtml(p, here))
+    .openOn(map);
+}
+window.showPoi = showPoi;
 
 function renderPois() {
   poiLayer.clearLayers();
-  const vis = S.poiOn ? pois.filter((p) => !hiddenPoi.has(p.id)) : [];
+  const vis = visiblePois();
   const here = (view.has ? view.cur : poiAnchor());
-  const hits = vis.filter((p) => poiMatches(p, poiQuery))
-                  .sort((a, b) => haversine(here, a) - haversine(here, b));
+  const hits = vis.filter(function (p) { return poiMatches(p, poiQuery); })
+                  .sort(function (a, b) { return haversine(here, a) - haversine(here, b); });
 
   /* a search narrows the map as well as the list, which is the only sane way
      to find one thing among the eighty car parks a town centre returns */
-  (poiQuery ? hits : vis).forEach(function (p) {
-    const m = POI_META[p.kind];
-    const mk = L.marker([p.lat, p.lng], { icon: pinIcon(m.color, p.kind, true) });
-    mk.bindPopup(
-      '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
-      '<div class="pop-m">' + m.label.toUpperCase() + " &middot; OSM &middot; " +
-      fmtDist(haversine(here, p)) + " away</div>" +
-      (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
-      '<div class="pop-a"><button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>'
-    );
-    mk.addTo(poiLayer);
+  clusterPois(poiQuery ? hits : vis).forEach(function (group) {
+    if (group.length === 1) {
+      const p = group[0], m = POI_META[p.kind];
+      L.marker([p.lat, p.lng], { icon: pinIcon(m.color, poiIcon(p.kind), true) })
+        .bindPopup(poiPopupHtml(p, here), { className: "tt-pop" })
+        .addTo(poiLayer);
+    } else {
+      L.marker([group[0].lat, group[0].lng], { icon: clusterIcon(group) })
+        .bindPopup(clusterPopupHtml(group, here), { className: "tt-pop" })
+        .addTo(poiLayer);
+    }
   });
   $("#cntPois").textContent = poiQuery ? hits.length + "/" + vis.length : vis.length;
 
+  renderPoiFilters();
+
   /* a filter hides pins on the map too, so it has to be visible from the map */
-  const chip = $("#poiFilterChip");
-  chip.classList.toggle("hidden", !poiQuery);
+  $("#poiFilterChip").classList.toggle("hidden", !poiQuery);
   if (poiQuery) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
+  const off = hiddenKinds.size;
+  $("#poiKindChip").classList.toggle("hidden", !off || !S.poiOn);
+  if (off) $("#poiKindText").textContent = off + (off === 1 ? " category" : " categories") + " hidden";
 
   const box = $("#poiList");
   if (!hits.length) {
     box.innerHTML = '<div class="empty">' +
       (!S.poiOn ? "POI display is off."
         : poiQuery ? "Nothing matches &ldquo;" + esc(poiQuery) + "&rdquo; within 5 km."
+        : hiddenKinds.size && pois.length ? "Every loaded category is switched off."
         : "No POIs loaded yet.") + "</div>";
     return;
   }
   box.innerHTML = hits.slice(0, 120).map(function (p) {
     const m = POI_META[p.kind];
     return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' + catIcon(p.kind) + "</div>" +
+      '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' +
+      catIcon(poiIcon(p.kind)) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
@@ -2393,7 +2661,34 @@ function renderPois() {
   }).join("");
 }
 
+/* One chip per category that is actually present in the loaded set, with
+   its count, so switching every car park off is one tap from the menu. */
+function renderPoiFilters() {
+  const box = $("#poiKinds");
+  if (!box) return;
+  const counts = {};
+  pois.forEach(function (p) {
+    if (!POI_META[p.kind] || hiddenPoi.has(p.id)) return;
+    counts[p.kind] = (counts[p.kind] || 0) + 1;
+  });
+  const kinds = POI_ORDER.filter(function (k) { return counts[k] || hiddenKinds.has(k); });
+  if (!kinds.length) {
+    box.innerHTML = '<div class="empty">Categories appear here once POIs load.</div>';
+    return;
+  }
+  box.innerHTML = kinds.map(function (k) {
+    const m = POI_META[k], on = !hiddenKinds.has(k);
+    return '<button class="kchip' + (on ? " on" : "") + '" data-kind="' + k + '" ' +
+      'aria-pressed="' + on + '" style="--kc:' + m.color + '">' +
+      catIcon(m.icon) + "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
+  }).join("");
+}
 
+function setKindHidden(kind, hidden) {
+  if (hidden) hiddenKinds.add(kind); else hiddenKinds.delete(kind);
+  saveLS(LS.hiddenKinds, Array.from(hiddenKinds));
+  renderPois();
+}
 /* =====================================================================
    Place search beyond the 5 km bubble, via OSM's Nominatim geocoder.
    Its usage policy forbids autocomplete-style traffic, so this never
@@ -2476,6 +2771,15 @@ function hidePoi(id) {
   toast("POI hidden", "warn");
 }
 window.hidePoi = hidePoi;
+
+/* Reached from a popup, where the only handle we have on the place is its id */
+function navigateToPoi(id) {
+  const p = pois.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  map.closePopup();
+  navigateTo({ lat: p.lat, lng: p.lng, name: p.name });
+}
+window.navigateToPoi = navigateToPoi;
 
 /* =====================================================================
    Offline area download
@@ -2722,10 +3026,10 @@ async function runDiagnostics() {
   box.innerHTML = '<div><span>Testing...</span><b></b></div>';
   const rows = [];
 
-  rows.push({ label: "Page origin", cls: location.protocol === "file:" ? "warn" : "ok",
-              text: location.protocol === "file:" ? "file:// (origin null)" : location.protocol });
+  rows.push({ label: "Page scheme", cls: window.isSecureContext ? "ok" : "warn",
+              text: location.protocol + (location.protocol === "file:" ? " (origin null)" : "") });
   rows.push({ label: "GPS allowed here", cls: insecureContext() ? "bad" : "ok",
-              text: insecureContext() ? "no - needs https" : "yes (secure context)" });
+              text: insecureContext() ? "no - " + contextNote() : "yes (secure context)" });
   rows.push({ label: "Browser reports", cls: navigator.onLine ? "ok" : "bad",
               text: navigator.onLine ? "online" : "offline" });
 
@@ -2736,15 +3040,12 @@ async function runDiagnostics() {
   rows.push(await probe("Map tiles (Esri)",
     CFG.TILE_URL.replace("{z}", "8").replace("{x}", "230").replace("{y}", "150"), { mode: "cors" }));
 
-  const body = "data=" + encodeURIComponent("[out:json][timeout:10];out count;");
-  for (let i = 0; i < CFG.OVERPASS.length; i++) {
-    const host = CFG.OVERPASS[i].replace("https://", "").split("/")[0];
-    rows.push(await probe("POIs: " + host, CFG.OVERPASS[i], {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body
-    }));
-  }
+  /* a deliberately tiny box, so this measures reachability rather than the
+     size of the extract the real fetch would pull down */
+  rows.push(await probe("POIs: OpenStreetMap",
+    CFG.OSM_API + "?bbox=138.4200,-31.8880,138.4230,-31.8860", null, 20000));
+  rows.push(await probe("POIs: Photon index",
+    CFG.PHOTON + "?lat=-31.88753&lon=138.42284&radius=1&limit=1&osm_tag=amenity:fuel"));
 
   rows.push(await probe("Place search", CFG.NOMINATIM + "?format=jsonv2&limit=1&q=hawker"));
   rows.push(await probe("Routing", CFG.OSRM + "/route/v1/driving/138.42,-31.88;138.43,-31.89?overview=false"));
@@ -3128,24 +3429,77 @@ const Sim = {
    Real GPS
    ===================================================================== */
 let geoWatch = null;
-/* Chrome only hands out location in a secure context. A page opened straight
-   from a file is not one, so the GPS is refused no matter what the phone's
-   location settings say - worth saying plainly rather than blaming the
-   permission the driver has already granted. */
-function insecureContext() {
-  return !window.isSecureContext && location.protocol !== "http:";
+/* Everything we know about the location subsystem, kept live so the GPS
+   panel can show what is actually happening instead of guessing. */
+const GPS = {
+  fixes: 0, errors: 0, last: null, lastErr: null, lastAt: 0, startedAt: 0,
+  perm: "unknown", watching: false
+};
+
+/* A browser only hands out location in a "secure context". Opening the file
+   straight off the phone gives a context that is not one, and the request is
+   refused no matter what the phone location settings say. Which scheme you
+   actually landed on matters: a file downloaded and tapped from the Android
+   downloads list opens as content:// rather than file://, and that is the
+   case people hit without ever realising the address changed. */
+function insecureContext() { return !window.isSecureContext; }
+
+function contextNote() {
+  const p = location.protocol;
+  if (window.isSecureContext) return "secure context - location allowed";
+  if (p === "content:") return "opened from the Android downloads list (content://), which is never a secure context";
+  if (p === "file:") return "opened as a local file (file://), which this browser does not treat as secure";
+  if (p === "http:") return "plain http on a remote host is not a secure context - https or localhost is needed";
+  return p + " is not a secure context";
 }
 
+/* The Geolocation API deliberately exposes no satellite list, constellation
+   or C/No figures - only a fused position and its accuracy - so a satellite
+   count is not something any web page can show. The accuracy radius is the
+   usable proxy: a few metres means the GNSS chip has a fix of its own, and a
+   few hundred to a few thousand means the position came from wifi or towers. */
+function fixSource(acc) {
+  if (acc == null) return "unknown";
+  if (acc <= 12) return "GNSS - good satellite fix";
+  if (acc <= 35) return "GNSS - weak or few satellites";
+  if (acc <= 200) return "wifi or fused, not satellites";
+  return "mobile network only";
+}
+
+async function readGeoPermission() {
+  if (!navigator.permissions || !navigator.permissions.query) return "not reported";
+  try {
+    const st = await navigator.permissions.query({ name: "geolocation" });
+    GPS.perm = st.state;
+    if (!st._tt) { st._tt = 1; st.onchange = function () { GPS.perm = st.state; renderGpsPanel(); }; }
+    return st.state;
+  } catch (e) { return "not reported"; }
+}
+
+/* The request is made whether or not the context looks secure. Refusing to
+   ask would hide the browser own answer, and browsers do not all agree on
+   which schemes count - better to ask and report exactly what came back. */
 function startGeo() {
-  if (!navigator.geolocation) { toast("Geolocation unavailable", "err"); return; }
+  if (!navigator.geolocation) { toast("Geolocation unavailable on this browser", "err"); return; }
   if (geoWatch != null) return;
+  GPS.startedAt = Date.now();
+  GPS.watching = true;
+  readGeoPermission().then(renderGpsPanel);
   if (insecureContext()) {
     $("#gpsText").textContent = "NO HTTPS";
-    toast("GPS needs https - opened from a file, Android will not allow it", "err");
-    return;
+    toast("Location will likely be refused: " + contextNote(), "warn");
   }
   geoWatch = navigator.geolocation.watchPosition(function (pos) {
     const c = pos.coords;
+    GPS.fixes++;
+    GPS.lastAt = Date.now();
+    GPS.lastErr = null;
+    GPS.last = {
+      lat: c.latitude, lng: c.longitude, acc: c.accuracy,
+      alt: c.altitude, altAcc: c.altitudeAccuracy,
+      spd: c.speed, hdg: c.heading, t: pos.timestamp || Date.now()
+    };
+    renderGpsPanel();
     pushPosition({
       lat: c.latitude, lng: c.longitude,
       alt: c.altitude, acc: c.accuracy,
@@ -3154,9 +3508,12 @@ function startGeo() {
       sim: false, t: pos.timestamp || Date.now()
     });
   }, function (err) {
+    GPS.errors++;
+    GPS.lastErr = { code: err.code, msg: err.message || "", at: Date.now() };
+    readGeoPermission().then(renderGpsPanel);
     if (err.code === 1) {
       toast(insecureContext()
-        ? "GPS needs https - a page opened from a file cannot use location"
+        ? "Location refused: " + contextNote()
         : "Location permission denied - allow it for this site", "err");
     } else if (err.code === 2) {
       toast("Position unavailable - no GPS signal yet", "warn");
@@ -3164,6 +3521,83 @@ function startGeo() {
       toast("Waiting for GPS fix...", "warn");
     }
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+}
+
+/* A one-shot request, so the panel has a button that provokes the permission
+   prompt on demand rather than only at startup. */
+function requestGeoOnce() {
+  if (!navigator.geolocation) { toast("Geolocation unavailable on this browser", "err"); return; }
+  toast("Asking for a fix...", "warn");
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    GPS.fixes++;
+    GPS.lastAt = Date.now();
+    GPS.lastErr = null;
+    const c = pos.coords;
+    GPS.last = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, alt: c.altitude,
+                 altAcc: c.altitudeAccuracy, spd: c.speed, hdg: c.heading,
+                 t: pos.timestamp || Date.now() };
+    toast("Fix: " + c.latitude.toFixed(5) + ", " + c.longitude.toFixed(5) +
+          " to " + Math.round(c.accuracy) + " m", "ok");
+    renderGpsPanel();
+    startGeo();
+  }, function (err) {
+    GPS.errors++;
+    GPS.lastErr = { code: err.code, msg: err.message || "", at: Date.now() };
+    const why = err.code === 1 ? (insecureContext() ? contextNote() : "permission denied")
+              : err.code === 2 ? "position unavailable - no signal or location services off"
+              : "timed out waiting for a fix";
+    toast("No fix: " + why, "err");
+    readGeoPermission().then(renderGpsPanel);
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 });
+}
+
+function renderGpsPanel() {
+  const box = $("#gpsDiag");
+  if (!box) return;
+  const rows = [];
+  const f = GPS.last;
+  function row(k, v, cls) { rows.push({ k: k, v: v, cls: cls || "" }); }
+
+  row("Page scheme", location.protocol, window.isSecureContext ? "ok" : "bad");
+  row("Secure context", window.isSecureContext ? "yes" : "no", window.isSecureContext ? "ok" : "bad");
+  row("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
+  row("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
+  row("Watching", GPS.watching ? "yes" : "no", GPS.watching ? "ok" : "warn");
+  row("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
+  row("Errors", String(GPS.errors), GPS.errors ? "bad" : "ok");
+
+  if (f) {
+    const age = Math.round((Date.now() - GPS.lastAt) / 1000);
+    row("Last fix", age + "s ago", age < 15 ? "ok" : "warn");
+    row("Position", f.lat.toFixed(6) + ", " + f.lng.toFixed(6), "ok");
+    row("Accuracy", Math.round(f.acc) + " m", f.acc <= 35 ? "ok" : "warn");
+    row("Likely source", fixSource(f.acc), f.acc <= 35 ? "ok" : "warn");
+    row("Altitude", f.alt == null ? "not reported" : Math.round(f.alt) + " m" +
+        (f.altAcc == null ? "" : " (+/- " + Math.round(f.altAcc) + " m)"),
+        f.alt == null ? "warn" : "ok");
+    row("Speed", f.spd == null ? "not reported" : (f.spd * 3.6).toFixed(1) + " km/h");
+    row("Heading", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
+        : Math.round(f.hdg) + " deg");
+  } else {
+    row("Last fix", "none yet", "bad");
+  }
+  if (GPS.lastErr) {
+    const names = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
+    row("Last error", (names[GPS.lastErr.code] || GPS.lastErr.code) +
+        (GPS.lastErr.msg ? " - " + GPS.lastErr.msg : ""), "bad");
+  }
+
+  box.innerHTML = rows.map(function (r) {
+    return "<div><span>" + esc(r.k) + '</span><b class="' + r.cls + '">' + esc(r.v) + "</b></div>";
+  }).join("");
+
+  const note = $("#gpsNote");
+  if (note) {
+    note.textContent = window.isSecureContext
+      ? "The web location API reports a fused position and its accuracy only. It exposes no satellite list or signal strengths, so the accuracy radius above is the best available read on whether the fix came from satellites."
+      : contextNote() + ". Serve this file over https, or from http://localhost on the phone itself, and location will work.";
+    note.className = "poi-status" + (window.isSecureContext ? "" : " bad-note");
+  }
 }
 
 /* =====================================================================
@@ -3174,6 +3608,7 @@ function openDrawer() {
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
   renderTracks(); renderWaypoints(); renderPois(); renderAreas(); refreshStorageStats();
+  readGeoPermission().then(renderGpsPanel);
 }
 function closeDrawer() {
   $("#drawer").classList.remove("open");
@@ -3326,8 +3761,33 @@ $("#geoList").addEventListener("click", function (e) {
     toast("Saved: " + card.dataset.name, "ok");
   }
 });
-$("#btnPoiOsm").addEventListener("click", function () { loadPoisFromOsmApi(); });
-$("#poiOfferChip").addEventListener("click", function () { loadPoisFromOsmApi(); });
+$("#btnPoiOsm").addEventListener("click", function () { reloadPois(); });
+$("#poiOfferChip").addEventListener("click", function () { reloadPois(); });
+$("#poiKindChip").addEventListener("click", function () {
+  hiddenKinds = new Set();
+  saveLS(LS.hiddenKinds, []);
+  renderPois();
+  toast("All categories shown", "ok");
+});
+$("#poiKinds").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-kind]");
+  if (!b) return;
+  setKindHidden(b.dataset.kind, b.classList.contains("on"));
+});
+$("#btnKindsAll").addEventListener("click", function () {
+  hiddenKinds = new Set();
+  saveLS(LS.hiddenKinds, []);
+  renderPois();
+});
+$("#btnKindsNone").addEventListener("click", function () {
+  hiddenKinds = new Set(POI_ORDER);
+  saveLS(LS.hiddenKinds, Array.from(hiddenKinds));
+  renderPois();
+});
+$("#btnGpsAsk").addEventListener("click", function () { requestGeoOnce(); });
+$("#btnGpsRefresh").addEventListener("click", function () {
+  readGeoPermission().then(renderGpsPanel);
+});
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
   fetchPois(true);
@@ -3454,6 +3914,7 @@ document.addEventListener("keydown", function (e) {
   refreshStorageStats();
   if (S.follow) applyFollowTransform(true);
   startGeo();
+  renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
 
   if (navigator.storage && navigator.storage.persist) {
