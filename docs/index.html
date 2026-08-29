@@ -389,6 +389,54 @@ input[type=date],input[type=time]{color-scheme:dark}
 .scrollarea{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
 .float-body{min-height:0}
 .float-head,.modal-foot{flex:0 0 auto}
+
+/* ---------- landscape ----------
+   Turned sideways a phone has plenty of width and almost no height, and the
+   portrait stack of title bar, stats row and action bar ate 182 px of 375,
+   leaving the map a letterbox. So the furniture moves to the edges: the
+   stats become an instrument column down the left, the action bar a rail
+   down the right, and the map keeps the whole middle at full height.
+   Bounded by height so a tablet or a desktop window keeps the portrait
+   arrangement it is already suited to. */
+@media (orientation: landscape) and (max-height: 520px) {
+  #app{display:grid;
+    grid-template-columns:156px 1fr;
+    grid-template-rows:calc(40px + var(--safeT)) 1fr;
+    grid-template-areas:"top top" "stats stage"}
+  #topbar{grid-area:top;height:auto}
+  #stage{grid-area:stage}
+
+  /* the instrument column: one stat per row, label left, reading right */
+  #statsbar{grid-area:stats;height:auto;flex-direction:column;
+    border-bottom:none;border-right:1px solid var(--line)}
+  .stat{flex:1 1 0;flex-direction:row;align-items:center;gap:6px;padding:0 10px;
+    border-right:none;border-bottom:1px solid var(--line)}
+  .stat:last-child{border-bottom:none}
+  .stat label{flex:1;min-width:0;text-align:left;font-size:8px}
+  .stat b{font-size:15px}
+  .stat i{flex:0 0 auto;min-width:26px;text-align:right}
+
+  /* the action bar becomes a rail down the right of the map */
+  #actionbar{left:auto;right:8px;top:8px;bottom:calc(8px + var(--safeB));
+    height:auto;width:62px;flex-direction:column;padding:5px;gap:5px}
+  .act{gap:3px}
+  .act svg{width:20px;height:20px}
+  .act span{font-size:8px;letter-spacing:.05em}
+
+  /* everything that used to hug the bottom or the right now clears the rail */
+  #panelStack{right:78px;bottom:calc(8px + var(--safeB))}
+  #attrib{right:78px;bottom:calc(8px + var(--safeB))}
+  #zoomCtl{right:78px;flex-direction:row}
+  #mapChips{max-width:calc(100% - 200px)}
+
+  /* short screen: the menu and the popups have to give ground */
+  .scrollarea{max-height:38vh}
+  .pop-rows{max-height:38vh}
+  #drawer{width:min(70vw,340px)}
+  .dr-head{height:calc(42px + var(--safeT))}
+  .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:8px;line-height:1.4}
+  summary{padding:12px 14px}
+}
 </style>
 </head>
 <body>
@@ -781,6 +829,7 @@ const CFG = {
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
+  POI_DUP_M: 200,          /* same name inside this radius is one place mapped twice */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   MIN_Z: 3, MAX_Z: 17,
@@ -2239,6 +2288,7 @@ let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
 let hiddenKinds = new Set(loadLS(LS.hiddenKinds, []));
 let poiTimer = null, poiBusy = false, poiCentre = null, poiQuery = "";
 let poiRetryAt = 0;      /* set after a failure so a flat spot does not become a request storm */
+let poiDupCount = 0;    /* copies of a place dropped by the last dedupe */
 let poiStatus = "";
 
 function setPoiStatus(s) {
@@ -2424,8 +2474,11 @@ async function fetchPois(force) {
       setPois(items);
       refreshStorageStats();
       offerOsmPois(false);
-      setPoiStatus(items.length
-        ? items.length + " within 5 km (" + note + ")"
+      /* count what is actually on the map, after copies of the same place
+         have been folded together, not what came back off the wire */
+      setPoiStatus(pois.length
+        ? pois.length + " within 5 km (" + note +
+          (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
         : "Nothing mapped within 5 km of here (" + note + ")");
     } else if (cached) {
       /* both sources are unreachable but we have been here before - stale
@@ -2595,8 +2648,55 @@ function offerOsmPois(show) {
   $("#poiOfferChip").classList.toggle("hidden", !show);
   if (show) $("#poiOfferText").textContent = poiOfferLabel();
 }
+/* A POI with no name of its own is shown under its category label, so
+   "Parking" and "Free camp" are captions rather than names. Six unnamed car
+   parks scattered across a town all read "Parking" and are emphatically not
+   the same place, which is why only a name that came out of OSM counts. */
+function hasRealName(p) {
+  const m = POI_META[p.kind];
+  return !!p.name && !!m && p.name !== m.label;
+}
+
+/* The same shop is often mapped twice - once as a node, once as the building
+   - and the two copies can carry different tags, so Hawker General Store
+   arrives as both a supermarket and a general store twelve metres apart.
+   Matching on name within POI_DUP_M keeps distinct branches of a chain, and
+   the survivor is whichever category ranks highest in POI_ORDER, which is
+   ordered by what matters to a driver: the supermarket beats the supplies.
+   Full detail from the map extract beats a thin hit from the search index,
+   since only the extract carries the fee tag. */
+function dedupeByName(items) {
+  const groups = {};
+  const out = [];
+  items.forEach(function (p) {
+    if (!hasRealName(p)) { out.push(p); return; }       /* captions never merge */
+    const key = p.name.toLowerCase().replace(/\s+/g, " ").trim();
+    const bucket = groups[key] || (groups[key] = []);
+    /* one cluster per real place: same name far away is a different branch */
+    let joined = false;
+    for (let i = 0; i < bucket.length && !joined; i++) {
+      if (haversine(bucket[i][0], p) <= CFG.POI_DUP_M) { bucket[i].push(p); joined = true; }
+    }
+    if (!joined) bucket.push([p]);
+  });
+  let removed = 0;
+  Object.keys(groups).forEach(function (key) {
+    groups[key].forEach(function (cluster) {
+      removed += cluster.length - 1;
+      out.push(cluster.reduce(function (best, p) {
+        const a = POI_ORDER.indexOf(best.kind), b = POI_ORDER.indexOf(p.kind);
+        if (b !== a) return b < a ? p : best;           /* better category wins */
+        if (!!best.thin !== !!p.thin) return best.thin ? p : best;   /* fuller record wins */
+        return best;
+      }));
+    });
+  });
+  poiDupCount = removed;
+  return out;
+}
+
 function setPois(items) {
-  pois = items || [];
+  pois = dedupeByName(items || []);
   renderPois();
 }
 
@@ -2699,9 +2799,13 @@ function renderPois() {
   const hits = vis.filter(function (p) { return poiMatches(p, poiQuery); })
                   .sort(function (a, b) { return haversine(here, a) - haversine(here, b); });
 
-  /* a search narrows the map as well as the list, which is the only sane way
-     to find one thing among the eighty car parks a town centre returns */
-  clusterPois(poiQuery ? hits : vis).forEach(function (group) {
+  /* A search narrows the map as well as the list, which is the only sane way
+     to find one thing among the eighty car parks a town centre returns - but
+     only while it is actually finding something. Typing a town name matches
+     nothing nearby, and blanking the map for that is no help to anyone, so a
+     filter with no hits leaves the pins alone. */
+  const filtering = !!poiQuery && hits.length > 0;
+  clusterPois(filtering ? hits : vis).forEach(function (group) {
     if (group.length === 1) {
       const p = group[0], m = POI_META[p.kind];
       L.marker([p.lat, p.lng], { icon: pinIcon(m.color, poiIcon(p.kind), true) })
@@ -2717,9 +2821,11 @@ function renderPois() {
 
   renderPoiFilters();
 
-  /* a filter hides pins on the map too, so it has to be visible from the map */
-  $("#poiFilterChip").classList.toggle("hidden", !poiQuery);
-  if (poiQuery) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
+  /* The chip exists because a filter hides pins on the map, so it only earns
+     its place while pins are actually hidden. */
+  const hidingPins = filtering && hits.length < vis.length;
+  $("#poiFilterChip").classList.toggle("hidden", !hidingPins);
+  if (hidingPins) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
   const off = hiddenKinds.size;
   $("#poiKindChip").classList.toggle("hidden", !off || !S.poiOn);
   if (off) $("#poiKindText").textContent = off + (off === 1 ? " category" : " categories") + " hidden";
@@ -2796,6 +2902,12 @@ async function geoSearch(q) {
   if (geoBusy) return;
   const wait = CFG.GEO_MIN_GAP - (Date.now() - geoAt);
   if (wait > 0) { toast("Hold on a moment", "warn"); return; }
+
+  /* The box filters nearby POIs while you type and searches the country when
+     you commit. A town name matches nothing nearby, so pressing enter used to
+     leave the map filtered down to nothing behind the results, waiting to be
+     cleared by hand. Committing to a place search ends the local filter. */
+  if (poiQuery) { poiQuery = ""; renderPois(); }
 
   geoBusy = true;
   geoAt = Date.now();
