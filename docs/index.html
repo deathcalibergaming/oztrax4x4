@@ -398,7 +398,12 @@ input[type=date],input[type=time]{color-scheme:dark}
 #stage.drawing{cursor:crosshair}
 
 /* ---------- toast ---------- */
-#toast{position:fixed;left:50%;transform:translateX(-50%) translateY(14px);bottom:calc(var(--actH) + var(--safeB) + 22px);
+/* Sits just under the stats row at the top of the map, where it is read
+   without looking away from the road, rather than down by the action bar
+   where a hand rests. Stays fixed and above the drawer and the modals, so a
+   message raised from either is not hidden behind it. */
+#toast{position:fixed;left:50%;transform:translateX(-50%) translateY(-14px);
+  top:calc(var(--topH) + var(--safeT) + var(--statsH) + 12px);
   z-index:1100;background:#0E1210;border:1px solid var(--line2);border-radius:7px;padding:10px 15px;
   font-size:12px;letter-spacing:.03em;box-shadow:0 8px 22px rgba(0,0,0,.6);opacity:0;pointer-events:none;
   transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center}
@@ -504,6 +509,11 @@ input[type=date],input[type=time]{color-scheme:dark}
   #zoomCtl{right:70px;flex-direction:row}
   /* the zoom row grew by a button, so the chips have to stop sooner */
   #mapChips{max-width:calc(100% - 215px)}
+
+  /* In landscape the stats are a column down the left and the map starts
+     below the title bar, so the toast follows the map: under the bar, and
+     centred on the map rather than on the screen. */
+  #toast{top:calc(40px + var(--safeT) + 12px);left:calc(50% + 40px)}
 
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
