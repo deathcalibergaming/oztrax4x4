@@ -426,22 +426,58 @@ input[type=date],input[type=time]{color-scheme:dark}
   .act svg{width:18px;height:18px}
   .act span{font-size:7.5px;letter-spacing:.04em}
 
-  /* The panels are the driver's business for a few seconds at a time and the
-     map is their business for the rest of it, so in landscape they shrink to
-     what the numbers and buttons actually need and stop short of spanning
-     the map, leaving the country ahead visible past them. */
-  #panelStack{right:70px;bottom:calc(8px + var(--safeB));max-width:420px;gap:6px}
-  #navPanel,#recPanel{padding:6px 8px}
-  #panelStack .np-top,#panelStack .rp-top{margin-bottom:5px}
-  #panelStack .np-name,#panelStack .rp-name{font-size:10px}
-  #panelStack .np-ico{width:12px;height:12px}
-  #panelStack .np-figs{margin-top:4px}
-  #panelStack .np-figs b{font-size:11px}
-  #panelStack .np-figs i{font-size:6.5px;letter-spacing:.04em}
-  #panelStack .np-btns{margin-top:5px}
-  #panelStack .np-btns .btn,#panelStack .rp-btns .btn{
-    padding:7px 4px;min-height:30px;font-size:8px;letter-spacing:.03em}
-  #panelStack .np-note{font-size:8px;margin-top:4px}
+  /* Half height, by laying each panel out along its width instead of down
+     its height: name, readings and buttons on one line, the pair spanning
+     the map. Flex bases are kept small enough that the line holds together
+     on a phone-width landscape, so wrapping only happens on a genuinely
+     narrow screen - or when the off-route note appears, which takes the
+     second row to itself. The row gap is the padding above the buttons when
+     they do drop. */
+  #panelStack{right:70px;bottom:calc(8px + var(--safeB));gap:6px}
+  #navPanel,#recPanel{padding:5px 8px;flex-direction:row;align-items:center;
+    flex-wrap:wrap;column-gap:9px;row-gap:4px}
+  /* A destination reads longer than a track name, and a 12 hour ETA is wider
+     than a 24 hour one, so the two are not made to share the width equally
+     - the navigation side gets the room it needs to spell its name out. */
+  #panelStack #navPanel{flex:63 1 0}
+  #panelStack #recPanel{flex:37 1 0}
+  /* The name keeps its place on the left and wraps to a second line there
+     rather than being cut to three letters with an ellipsis. Two lines of it
+     at this size still sit inside the height the buttons already take, so
+     the panel does not grow to accommodate a long destination. */
+  #panelStack #navPanel .np-top,#panelStack #recPanel .rp-top{margin-bottom:0;
+    min-width:0;align-items:center}
+  /* the navigation side carries three readings and a button, so its name
+     column starts wider; the recording side has only its buttons */
+  #panelStack #navPanel .np-top{flex:1 1 92px}
+  #panelStack #recPanel .rp-top{flex:1 1 64px}
+  #panelStack #navPanel .np-name,#panelStack #recPanel .rp-name{
+    font-size:8.5px;line-height:1.2;letter-spacing:.03em;white-space:normal;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #panelStack #navPanel .np-ico{width:12px;height:12px}
+  /* The three readings are given equal columns and spread across the space
+     up to the button, rather than bunching against the name. Nudged down by
+     the half of the label sitting under each number, so the numbers line up
+     with the arrow beside the destination instead of floating above it. */
+  #panelStack #navPanel .np-figs{margin-top:0;flex:1 1 auto;min-width:0;
+    position:relative;top:4px}
+  #panelStack #navPanel .np-figs > div{flex:1 1 0;min-width:0;padding:0 7px}
+  #panelStack #navPanel .np-figs b{font-size:11.5px}
+  /* Shorter words for the same meaning, so the numbers keep their room and
+     stay the size they need to be read at a glance. */
+  #panelStack #navPanel .np-figs i{font-size:0;letter-spacing:0}
+  #panelStack #navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT"}
+  #panelStack #navPanel .np-figs > div:nth-child(2) i::after{content:"TIME"}
+  #panelStack #navPanel .np-figs > div:nth-child(3) i::after{content:"ETA"}
+  #panelStack #navPanel .np-figs i::after{font-size:6.5px;letter-spacing:.1em}
+  #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{margin-top:0;flex:0 0 auto}
+  /* The readings ran up against the cancel button and read as sitting on it,
+     so the button is pushed off them by more than the column gap alone. */
+  #panelStack #navPanel .np-btns{margin-left:10px}
+  #panelStack #navPanel .np-btns .btn{font-size:0;padding:7px 12px;min-height:32px}
+  #panelStack #navPanel .np-btns .btn::after{content:"CANCEL";font-size:9px;letter-spacing:.08em}
+  #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:32px;white-space:nowrap;flex:0 0 auto}
+  #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
 
   /* everything that used to hug the bottom or the right now clears the rail */
   #attrib{right:70px;bottom:calc(8px + var(--safeB))}
@@ -455,6 +491,15 @@ input[type=date],input[type=time]{color-scheme:dark}
   .dr-head{height:calc(42px + var(--safeT))}
   .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:8px;line-height:1.4}
   summary{padding:12px 14px}
+}
+
+/* A small landscape screen cannot hold name, readings and buttons on one
+   line without clipping something, so there the buttons take a row of their
+   own and stretch across it rather than being squeezed to nothing. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 720px) {
+  #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{flex:1 1 100%}
+  #panelStack #navPanel .np-btns .btn,#panelStack #recPanel .rp-btns .btn{flex:1 1 auto}
+  #panelStack #navPanel .np-top,#panelStack #recPanel .rp-top{flex:1 1 auto}
 }
 </style>
 </head>
@@ -913,11 +958,23 @@ function fmtBytes(b) {
   if (b < 1073741824) return (b / 1048576).toFixed(1) + " MB";
   return (b / 1073741824).toFixed(2) + " GB";
 }
+/* Clock times read as 12 hour throughout, the way a watch and a road sign
+   do. Durations stay as they are - an elapsed 14:07 is not a time of day -
+   and the time inputs in the track dialog keep their 24 hour value, because
+   that is the only format <input type="time"> accepts; the browser shows it
+   to the driver in whatever their phone is set to. */
+function fmtClock(ts) {
+  const d = new Date(ts);
+  let h = d.getHours();
+  const ap = h < 12 ? "am" : "pm";
+  h = h % 12 || 12;
+  return h + ":" + String(d.getMinutes()).padStart(2, "0") + " " + ap;
+}
 function fmtDate(ts) {
   const d = new Date(ts);
   const p = (n) => String(n).padStart(2, "0");
   return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
-         " " + p(d.getHours()) + ":" + p(d.getMinutes());
+         " " + fmtClock(ts);
 }
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
@@ -3508,10 +3565,7 @@ const Nav = {
   note: ""
 };
 
-function fmtClock(ms) {
-  const d = new Date(ms);
-  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-}
+
 
 function navFrom() {
   if (view.has) return { lat: view.cur.lat, lng: view.cur.lng };
