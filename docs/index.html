@@ -987,10 +987,11 @@ function fmtBytes(b) {
   return (b / 1073741824).toFixed(2) + " GB";
 }
 /* Clock times read as 12 hour throughout, the way a watch and a road sign
-   do. Durations stay as they are - an elapsed 14:07 is not a time of day -
-   and the time inputs in the track dialog keep their 24 hour value, because
-   that is the only format <input type="time"> accepts; the browser shows it
-   to the driver in whatever their phone is set to. */
+   do. Durations stay as they are - an elapsed 14:07 is not a time of day.
+   The track dialog carries its times as 24 hour "HH:MM:SS" internally, since
+   that is what fromInputs parses, but shows them through a 12 hour picker
+   rather than a native time input, which renders in the browser locale and
+   showed 24 hour on a phone set to 12. */
 function fmtClock(ts) {
   const d = new Date(ts);
   let h = d.getHours();
