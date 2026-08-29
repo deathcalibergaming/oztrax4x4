@@ -103,6 +103,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   stroke-linecap:round;stroke-linejoin:round}
 #btnSim.on{background:rgba(232,185,35,.2);border-color:var(--warn)}
 #btnSim.on svg{stroke:var(--warn);fill:var(--warn)}
+/* Recentring is a map control rather than an action on the trip, and it is
+   wanted in the same breath as a zoom - the driver has been looking around
+   and wants the vehicle back - so it joins the zoom column and takes its size
+   from the rule above. Rust while follow is paused, which is the only time it
+   has anything to do. */
+#btnCenter svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+#btnCenter .solid{fill:var(--sand);stroke:none}
+#btnCenter.on{background:rgba(193,85,44,.2);border-color:var(--rust)}
+#btnCenter.on svg{stroke:var(--rust)}
+#btnCenter.on .solid{fill:var(--rust)}
 /* Now an action bar button like the others, so its size, spacing and label
    styling all come from .act. Only the filled half of the needle needs
    saying, since .act colours strokes but not fills. The needle deliberately
@@ -532,8 +543,8 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* everything that used to hug the bottom or the right now clears the rail */
   #attrib{right:70px;bottom:calc(8px + var(--safeB))}
   #zoomCtl{right:70px;flex-direction:row}
-  /* the zoom row grew by a button, so the chips have to stop sooner */
-  #mapChips{max-width:calc(100% - 215px)}
+  /* the zoom row is four buttons wide now, so the chips have to stop sooner */
+  #mapChips{max-width:calc(100% - 259px)}
 
   /* In landscape the stats are a column down the left and the map starts
      below the title bar, so the toast follows the map: under the bar, and
@@ -583,6 +594,9 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div id="zoomCtl">
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
+      <button id="btnCenter" aria-label="Recentre on vehicle" title="Recentre on vehicle">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle class="solid" cx="12" cy="12" r="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
       <button id="btnSim" aria-label="Simulated drive" title="Simulated drive">
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
       </button>
@@ -651,9 +665,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       </button>
       <button class="act" id="btnWpt">
         <svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Waypoint</span>
-      </button>
-      <button class="act" id="btnCenter">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Recenter</span>
       </button>
       <!-- The needle keeps pointing at true north, so it doubles as a
            compass; the mode is spelled out in the label rather than
