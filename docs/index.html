@@ -3256,6 +3256,12 @@ function dedupePlaces(list) {
   Object.keys(groups).forEach(function (key) {
     groups[key].forEach(function (cluster) {
       out.push(cluster.reduce(function (best, p) {
+        /* A place mapped as both an area and a point comes back twice. The
+           point is where somebody put the place; the area answer is the
+           middle of its bounding box, which for a locality the size of Ghan
+           - roughly 200 km by 400 km - is a spot in the scrub. Take the
+           point. */
+        if (p.area !== best.area) return p.area ? best : p;
         if (p.rank !== best.rank) return p.rank < best.rank ? p : best;  /* bigger place */
         return p.imp > best.imp ? p : best;                              /* then better known */
       }));
@@ -3326,6 +3332,9 @@ async function geoSearch(q) {
            suburb inside it 18 - and importance breaks a tie between two of
            the same size. Both are kept so the duplicate pass can tell which
            of two identical names is the one you meant. */
+        /* a boundary is an area whose centroid may be nowhere useful; a
+           place is a point somebody put where the place actually is */
+        area: r.category === "boundary",
         rank: isFinite(r.place_rank) ? r.place_rank : 99,
         imp: isFinite(r.importance) ? r.importance : 0,
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
