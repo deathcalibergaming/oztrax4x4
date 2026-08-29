@@ -175,6 +175,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   letter-spacing:.06em;margin-top:1px}
 .dotmark.sm{width:18px;height:18px;border-radius:3px}
 .dotmark.sm svg{width:11px;height:11px}
+/* A waypoint in a list wears its teardrop, the same as the pin on the map:
+   the corner points down-left once rotated, and the glyph is turned back so
+   it stays upright. Rotating a 22px square puts its corners 31px apart, so
+   this one is smaller with room either side rather than crowding the name. */
+.dotmark.wpt{width:19px;height:19px;margin:2px 6px 2px 2px;
+  border-radius:50% 50% 2px 50%;transform:rotate(45deg);
+  border:1.5px solid #0D100F;box-shadow:0 2px 5px rgba(0,0,0,.55)}
+.dotmark.wpt svg{width:12px;height:12px;transform:rotate(-45deg)}
+
 /* A POI in a list wears the same badge it wears on the map - a dashed circle
    rather than the solid rounded square a waypoint gets - so the row and the
    pin it refers to are recognisably the same thing. */
@@ -305,10 +314,13 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .sublabel .btn + .btn{margin-left:0}
 /* one tap per category, sized for a thumb on a corrugated road */
 .kchips{display:flex;flex-wrap:wrap;gap:5px}
-.kchip{display:flex;align-items:center;gap:5px;min-height:34px;padding:5px 9px 5px 6px;
+.kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 9px 5px 5px;
   border-radius:17px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
   font-size:11.5px;cursor:pointer;opacity:.55}
-.kchip svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;
+/* the chip carries the same dashed circle the category's pins wear, so the
+   filter and the thing it filters look like each other */
+.kchip .dotmark{width:20px;height:20px}
+.kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .kchip i{font-family:var(--mono);font-style:normal;font-size:9.5px;opacity:.75}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
@@ -2360,7 +2372,7 @@ function renderWaypoints() {
   box.innerHTML = waypoints.slice().sort((a, b) => b.ts - a.ts).map(function (w) {
     const c = CATS[w.cat] || CATS.flag;
     return '<div class="card" data-id="' + w.id + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
+      '<div class="card-top"><div class="dotmark wpt" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(w.name) + "</div>" +
       '<div class="card-m"><span>' + c.label.toUpperCase() + "</span><span>" + w.lat.toFixed(4) + ", " +
       w.lng.toFixed(4) + "</span><span>" + fmtDate(w.ts) + "</span></div></div></div>" +
@@ -3197,7 +3209,8 @@ function renderPoiFilters() {
     const m = POI_META[k], on = !hiddenKinds.has(k);
     return '<button class="kchip' + (on ? " on" : "") + '" data-kind="' + k + '" ' +
       'aria-pressed="' + on + '" style="--kc:' + m.color + '">' +
-      catIcon(m.icon) + "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
+      '<span class="dotmark poi" style="background:' + m.color + '">' + catIcon(m.icon) + "</span>" +
+      "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
   }).join("");
 }
 
