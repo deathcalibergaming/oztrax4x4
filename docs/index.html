@@ -760,8 +760,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
-        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
-        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
         <div id="gpsDiag" class="diag"></div>
         <div id="gpsNote" class="poi-status"></div>
         <div class="row" style="margin-top:11px">
@@ -786,6 +784,10 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
         </div>
         <div class="poi-status" id="unitNote"></div>
+        <div class="sublabel">Screen</div>
+        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
+        <div class="poi-status" id="awakeState"></div>
+        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
       </div>
     </details>
 
@@ -1769,10 +1771,11 @@ function frame(ts) {
   /* While the GPS panel is open on screen, keep it live. Checking whether the
      compass reads true means turning the phone and watching the number move,
      which is impossible if the panel only redraws when a fix lands. */
-  if (ts - gpsTick > 250 && $("#drawer").classList.contains("open") &&
-      $("#secGps").open) {
-    gpsTick = ts;
-    renderGpsPanel();
+  if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
+    if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
+    /* the wake lock reads the same way: it is handed back and taken again
+       while you watch, so a stale line is worse than none */
+    else if ($("#secSettings").open) { gpsTick = ts; syncAwakeSwitch(); }
   }
 }
 requestAnimationFrame(frame);
@@ -4627,6 +4630,7 @@ const Wake = {
           Wake.lock = null;
           Wake.note = "released by the system";
           renderGpsPanel();
+          syncAwakeSwitch();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -4641,6 +4645,7 @@ const Wake = {
       this.busy = false;
     }
     renderGpsPanel();
+    syncAwakeSwitch();
   },
 
   status: function () {
@@ -4659,6 +4664,7 @@ function openDrawer() {
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
   renderTracks(); renderWaypoints(); renderAreas(); refreshStorageStats();
+  syncAwakeSwitch();
   readGeoPermission().then(renderGpsPanel);
 }
 /* Closing the drawer always means the same thing - get out of the way, the
@@ -4891,7 +4897,14 @@ function setUnits(u) {
 }
 $("#btnUnitMetric").addEventListener("click", function () { setUnits("metric"); });
 $("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial"); });
-function syncAwakeSwitch() { $("#swAwake").classList.toggle("on", S.keepAwake); }
+/* The switch used to sit inches above the GPS diagnostics, which report
+   whether the lock was actually granted - Android hands it back on every
+   glance at another app. Moved to Settings it needs to say so itself,
+   or the driver is toggling a switch with no way to see it took. */
+function syncAwakeSwitch() {
+  $("#swAwake").classList.toggle("on", S.keepAwake);
+  if (typeof Wake !== "undefined") $("#awakeState").textContent = "Wake lock: " + Wake.status();
+}
 $("#swAwake").addEventListener("click", function () {
   S.keepAwake = !S.keepAwake;
   saveSettings();
