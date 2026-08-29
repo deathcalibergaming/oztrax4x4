@@ -400,34 +400,53 @@ input[type=date],input[type=time]{color-scheme:dark}
    arrangement it is already suited to. */
 @media (orientation: landscape) and (max-height: 520px) {
   #app{display:grid;
-    grid-template-columns:156px 1fr;
+    grid-template-columns:80px 1fr;
     grid-template-rows:calc(40px + var(--safeT)) 1fr;
     grid-template-areas:"top top" "stats stage"}
   #topbar{grid-area:top;height:auto}
   #stage{grid-area:stage}
 
-  /* the instrument column: one stat per row, label left, reading right */
+  /* The instrument column, at half the width it started out. Too narrow now
+     for a label and its reading side by side, so each stat stacks the way it
+     does in portrait, just smaller. */
   #statsbar{grid-area:stats;height:auto;flex-direction:column;
     border-bottom:none;border-right:1px solid var(--line)}
-  .stat{flex:1 1 0;flex-direction:row;align-items:center;gap:6px;padding:0 10px;
-    border-right:none;border-bottom:1px solid var(--line)}
+  .stat{flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:0;
+    padding:0 3px;border-right:none;border-bottom:1px solid var(--line)}
   .stat:last-child{border-bottom:none}
-  .stat label{flex:1;min-width:0;text-align:left;font-size:8px}
-  .stat b{font-size:15px}
-  .stat i{flex:0 0 auto;min-width:26px;text-align:right}
+  .stat label{font-size:7px;letter-spacing:.08em}
+  .stat b{font-size:13px}
+  .stat b em{margin-right:3px}
+  .stat i{font-size:7px}
 
   /* the action bar becomes a rail down the right of the map */
   #actionbar{left:auto;right:8px;top:8px;bottom:calc(8px + var(--safeB));
-    height:auto;width:62px;flex-direction:column;padding:5px;gap:5px}
-  .act{gap:3px}
-  .act svg{width:20px;height:20px}
-  .act span{font-size:8px;letter-spacing:.05em}
+    height:auto;width:56px;flex-direction:column;padding:4px;gap:4px}
+  .act{gap:2px}
+  .act svg{width:18px;height:18px}
+  .act span{font-size:7.5px;letter-spacing:.04em}
+
+  /* The panels are the driver's business for a few seconds at a time and the
+     map is their business for the rest of it, so in landscape they shrink to
+     what the numbers and buttons actually need and stop short of spanning
+     the map, leaving the country ahead visible past them. */
+  #panelStack{right:70px;bottom:calc(8px + var(--safeB));max-width:420px;gap:6px}
+  #navPanel,#recPanel{padding:6px 8px}
+  #panelStack .np-top,#panelStack .rp-top{margin-bottom:5px}
+  #panelStack .np-name,#panelStack .rp-name{font-size:10px}
+  #panelStack .np-ico{width:12px;height:12px}
+  #panelStack .np-figs{margin-top:4px}
+  #panelStack .np-figs b{font-size:11px}
+  #panelStack .np-figs i{font-size:6.5px;letter-spacing:.04em}
+  #panelStack .np-btns{margin-top:5px}
+  #panelStack .np-btns .btn,#panelStack .rp-btns .btn{
+    padding:7px 4px;min-height:30px;font-size:8px;letter-spacing:.03em}
+  #panelStack .np-note{font-size:8px;margin-top:4px}
 
   /* everything that used to hug the bottom or the right now clears the rail */
-  #panelStack{right:78px;bottom:calc(8px + var(--safeB))}
-  #attrib{right:78px;bottom:calc(8px + var(--safeB))}
-  #zoomCtl{right:78px;flex-direction:row}
-  #mapChips{max-width:calc(100% - 200px)}
+  #attrib{right:70px;bottom:calc(8px + var(--safeB))}
+  #zoomCtl{right:70px;flex-direction:row}
+  #mapChips{max-width:calc(100% - 190px)}
 
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
