@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v10";
+const CACHE = "trailtracker-v11";
 
 const SHELL = [
   "./",
@@ -71,8 +71,18 @@ self.addEventListener("fetch", function (e) {
         } catch (err) { /* offline: the cached copy below still serves */ }
       }
       const hit = await cache.match("./index.html");
-      const net = fetch(req).then(function (r) {
-        if (r && r.ok) cache.put("./index.html", r.clone());
+      /* Refresh in the background either way, and if what comes back is not
+         what was just served, say so. Launching offline has to stay instant,
+         so the page is never held up waiting for this - but nor should the
+         driver be left a version behind with no way of knowing it. */
+      const net = fetch(req).then(async function (r) {
+        if (!r || !r.ok) return r;
+        const copy = r.clone();
+        if (hit) {
+          const [was, now] = await Promise.all([hit.clone().text(), r.clone().text()]);
+          if (was !== now) announceUpdate();
+        }
+        cache.put("./index.html", copy);
         return r;
       }).catch(function () { return null; });
       return hit || (await net) || new Response(
@@ -98,7 +108,28 @@ self.addEventListener("fetch", function (e) {
   })());
 });
 
-/* Lets the page tell a waiting worker to take over straight away */
+
+/* Tell every open copy of the page that what it is running is no longer what
+   is on the server. The page decides what to do about it - it does not get
+   reloaded from under a driver mid-navigation. */
+async function announceUpdate() {
+  const clients = await self.clients.matchAll({ type: "window" });
+  clients.forEach(function (c) { c.postMessage({ type: "update-ready" }); });
+}
+
+/* Lets the page tell a waiting worker to take over straight away, and lets it
+   ask for the cached shell to be replaced before it reloads - relying on the
+   reload alone would mean guessing what cache mode the browser attaches to
+   it, and guessing wrong hands back the very page being replaced. */
 self.addEventListener("message", function (e) {
-  if (e.data === "skipWaiting") self.skipWaiting();
+  if (e.data === "skipWaiting") { self.skipWaiting(); return; }
+  if (e.data !== "refresh-shell") return;
+  e.waitUntil((async function () {
+    try {
+      const cache = await caches.open(CACHE);
+      const r = await fetch("./index.html", { cache: "reload" });
+      if (r && r.ok) await cache.put("./index.html", r);
+    } catch (err) { /* offline: the reload will serve what is already cached */ }
+    if (e.source) e.source.postMessage({ type: "shell-refreshed" });
+  })());
 });
