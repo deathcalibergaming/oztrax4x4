@@ -695,8 +695,8 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
-        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while recording or navigating</span></div>
-        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page and the recording stops with it. This holds the screen awake while there is something to record. Pressing the power button still stops tracking - no web page can log a track with the screen off.</div>
+        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
+        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
         <div id="gpsDiag" class="diag"></div>
         <div id="gpsNote" class="poi-status"></div>
         <div class="row" style="margin-top:11px">
@@ -4029,10 +4029,13 @@ const Wake = {
   note: "",
   busy: false,
 
-  /* true when something worth staying awake for is happening */
+  /* Held the whole time the app is open, not only while a track is running.
+     A map being read at a camp or a junction is as much a reason to keep the
+     screen alive as a recording is, and going dark mid-look is the thing
+     that gets noticed. The system takes the lock back whenever the page is
+     hidden, so nothing is held once the driver leaves the app. */
   wanted: function () {
-    if (!S.keepAwake) return false;
-    return Rec.state === "recording" || (typeof Nav !== "undefined" && Nav.active);
+    return !!S.keepAwake;
   },
 
   apply: async function () {
@@ -4069,7 +4072,7 @@ const Wake = {
     if (!this.supported) return "not supported by this browser";
     if (!S.keepAwake) return "switched off";
     if (this.lock) return "holding the screen on";
-    return this.wanted() ? (this.note || "not held") : "idle - nothing being recorded";
+    return this.note || "not held";
   }
 };
 /* =====================================================================
@@ -4270,7 +4273,8 @@ $("#swAwake").addEventListener("click", function () {
   saveSettings();
   syncAwakeSwitch();
   Wake.apply();
-  toast(S.keepAwake ? "Screen will stay on while recording" : "Screen may sleep - recording will stop with it",
+  toast(S.keepAwake ? "Screen will stay on while the app is open"
+                    : "Screen may sleep - a recording stops with it",
         S.keepAwake ? "ok" : "warn");
 });
 $("#btnPoiRefresh").addEventListener("click", function () {
@@ -4401,6 +4405,7 @@ document.addEventListener("keydown", function (e) {
   if (S.follow) applyFollowTransform(true);
   startGeo();
   Compass.start().then(renderGpsPanel);
+  Wake.apply();                 /* the screen is wanted from the moment it opens */
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
 
