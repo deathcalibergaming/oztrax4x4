@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v3";
+const CACHE = "trailtracker-v4";
 
 const SHELL = [
   "./",
@@ -58,6 +58,18 @@ self.addEventListener("fetch", function (e) {
   if (req.mode === "navigate") {
     e.respondWith((async function () {
       const cache = await caches.open(CACHE);
+      /* A deliberate refresh - pull to refresh, or ctrl+shift+R - sets the
+         request cache mode to reload. Answering that from cache made it
+         impossible to pull a new version down on demand: you always saw the
+         previous one once, with no way to insist. So a forced reload goes to
+         the network first and only falls back to cache if there is no signal. */
+      const forced = req.cache === "reload" || req.cache === "no-cache";
+      if (forced) {
+        try {
+          const fresh = await fetch(req);
+          if (fresh && fresh.ok) { cache.put("./index.html", fresh.clone()); return fresh; }
+        } catch (err) { /* offline: the cached copy below still serves */ }
+      }
       const hit = await cache.match("./index.html");
       const net = fetch(req).then(function (r) {
         if (r && r.ok) cache.put("./index.html", r.clone());
