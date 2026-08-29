@@ -213,6 +213,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
+.poi-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
 .empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
 .card-top{display:flex;align-items:flex-start;gap:8px}
@@ -302,7 +303,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 #toast.ok{border-color:rgba(143,185,62,.5);color:var(--green)}
 #toast.warn{border-color:rgba(232,185,35,.5);color:var(--warn)}
 #toast.err{border-color:rgba(185,67,46,.6);color:#E07C63}
-.scrollarea{max-height:190px;overflow-y:auto;overscroll-behavior:contain}
+.scrollarea{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
 .float-body{min-height:0}
 .float-head,.modal-foot{flex:0 0 auto}
 </style>
@@ -424,7 +425,16 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
+        <input id="poiSearch" type="search" placeholder="Search nearby, or Enter to search Australia" autocomplete="off">
+        <div id="poiStatus" class="poi-status"></div>
         <div id="poiList" class="list scrollarea"></div>
+        <div class="row" id="geoRow">
+          <button class="btn sm ghost" id="btnGeoSearch">Search All Of Australia</button>
+        </div>
+        <div id="geoWrap" class="hidden">
+          <div class="poi-status" id="geoStatus"></div>
+          <div id="geoList" class="list scrollarea"></div>
+        </div>
         <div class="row">
           <button class="btn sm ghost" id="btnPoiRefresh">Refresh</button>
           <button class="btn sm ghost" id="btnPoiRestore">Restore Hidden</button>
@@ -602,13 +612,23 @@ input[type=date],input[type=time]{color-scheme:dark}
 
 const CFG = {
   TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-  OVERPASS: "https://overpass-api.de/api/interpreter",
+  /* public Overpass mirrors, tried in order until one answers */
+  OVERPASS: ["https://overpass-api.de/api/interpreter",
+             "https://overpass.private.coffee/api/interpreter",
+             "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+             "https://overpass.kumi.systems/api/interpreter"],
+  POI_RADIUS: 5000,        /* metres around you */
+  NOMINATIM: "https://nominatim.openstreetmap.org/search",
+  GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
+  POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
+  POI_TIMEOUT: 12000,      /* give up on a mirror rather than let it hang the queue */
+  POI_REFETCH: 2500,       /* refetch once you have travelled this far */
   MIN_Z: 3, MAX_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
   RESYNC_FRAC: 0.30,
   LERP_POS: 0.16, LERP_HDG: 0.13,
-  SIM_START: [-31.4500, 138.6500],
+  SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
   SIM_TICK: 100, SIM_SCALE: 2
 };
 
@@ -1121,6 +1141,7 @@ function pushPosition(fix) {
   saveLS(LS.lastPos, { lat: pt.lat, lng: pt.lng });
 
   Rec.onFix(fix, lastFixPt);
+  fetchPois();                 /* keeps the 5 km bubble ahead of the vehicle */
   lastFixPt = pt;
   syncDragMode();
   updateGpsPill();
@@ -1665,6 +1686,9 @@ const ICONS = {
   viewpoint: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.7"/>',
   toilets:   '<path d="M5 3.5h4.5V10H5z"/><path d="M4 10h13.5c0 4.2-2.6 6.2-5.7 6.2h-1.9C6.4 16.2 4 14.2 4 10z"/><path d="M10.7 16.2v3.3M7.7 19.5h6"/>',
   parking:   '<path d="M8.5 20.5v-17h4.7a4.6 4.6 0 0 1 0 9.2H8.5"/>',
+  rest:      '<path d="M3 11h18"/><path d="M6 11 4 20M18 11l2 9M7.5 15.5h9"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
+  shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
+  info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7v.1"/>',
   spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>'
 };
 function catIcon(kind, color) {
@@ -1859,39 +1883,62 @@ map.on("click", function (e) {
    POIs from the OpenStreetMap Overpass API (cached in IndexedDB)
    ===================================================================== */
 const POI_META = {
-  fuel:      { label: "Fuel",      color: "#E8B923" },
-  water:     { label: "Water",     color: "#5FA8C8" },
-  camp:      { label: "Campsite",  color: "#8FB93E" },
-  viewpoint: { label: "Viewpoint", color: "#D8CBAA" },
-  toilets:   { label: "Toilets",   color: "#9C8FB0" },
-  parking:   { label: "Parking",   color: "#8A9A8F" },
-  spring:    { label: "Spring",    color: "#5FA8C8" }
+  fuel:      { label: "Fuel",       color: "#E8B923" },
+  water:     { label: "Water",      color: "#5FA8C8" },
+  camp:      { label: "Campsite",   color: "#8FB93E" },
+  rest:      { label: "Rest area",  color: "#A8794F" },
+  viewpoint: { label: "Viewpoint",  color: "#D8CBAA" },
+  toilets:   { label: "Toilets",    color: "#9C8FB0" },
+  parking:   { label: "Parking",    color: "#8A9A8F" },
+  spring:    { label: "Spring",     color: "#5FA8C8" },
+  shop:      { label: "Supplies",   color: "#4FA89B" },
+  info:      { label: "Information",color: "#C77B9E" }
 };
+
+/* OSM tagging is inconsistent in the outback, so several tags map onto the
+   same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
   if (!tags) return null;
-  if (tags.amenity === "fuel") return "fuel";
-  if (tags.amenity === "drinking_water") return "water";
-  if (tags.amenity === "toilets") return "toilets";
-  if (tags.amenity === "parking") return "parking";
-  if (tags.tourism === "camp_site" || tags.tourism === "caravan_site") return "camp";
-  if (tags.tourism === "viewpoint") return "viewpoint";
-  if (tags.tourism === "picnic_site") return "camp";
+  const a = tags.amenity, t = tags.tourism;
+  if (a === "fuel") return "fuel";
+  if (a === "drinking_water" || tags.man_made === "water_well" ||
+      tags.man_made === "water_tank" || tags.man_made === "watering_place") return "water";
+  if (a === "toilets") return "toilets";
+  if (a === "parking") return "parking";
+  if (a === "shelter" || t === "wilderness_hut" || t === "alpine_hut") return "camp";
+  if (t === "camp_site" || t === "caravan_site" || t === "camp_pitch") return "camp";
+  if (t === "picnic_site" || tags.highway === "rest_area") return "rest";
+  if (t === "viewpoint") return "viewpoint";
+  if (t === "information" || a === "ranger_station") return "info";
   if (tags.natural === "spring") return "spring";
+  if (tags.shop) return "shop";
   return null;
 }
 
 let pois = [];
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
-let poiTimer = null, poiBusy = false, lastPoiKey = null;
+let poiTimer = null, poiBusy = false, poiCentre = null, poiQuery = "";
+let poiRetryAt = 0;      /* set after a failure so a flat spot does not become a request storm */
+let poiStatus = "";
 
-function poiCell(b) {
-  const spanLat = b.getNorth() - b.getSouth(), spanLng = b.getEast() - b.getWest();
-  const raw = Math.max(spanLat, spanLng, 0.02);
-  const g = Math.pow(2, Math.ceil(Math.log(raw) / Math.LN2));
-  const s = Math.floor(b.getSouth() / g) * g, w = Math.floor(b.getWest() / g) * g;
-  const n = Math.ceil(b.getNorth() / g) * g, e = Math.ceil(b.getEast() / g) * g;
-  return { s: s, w: w, n: n, e: e, g: g,
-           key: g.toFixed(4) + "|" + s.toFixed(4) + "," + w.toFixed(4) + "," + n.toFixed(4) + "," + e.toFixed(4) };
+function setPoiStatus(s) {
+  poiStatus = s;
+  const el = $("#poiStatus");
+  if (el) el.textContent = s;
+}
+
+/* POIs follow the vehicle while it is being followed, and the map view when
+   the driver has panned off to look ahead. */
+function poiAnchor() {
+  if (S.follow && view.has) return { lat: view.cur.lat, lng: view.cur.lng };
+  const c = visibleBounds().getCenter();
+  return { lat: c.lat, lng: c.lng };
+}
+
+function poiKey(a) {
+  const g = 0.02;                                   /* ~2.2km cache grid */
+  return "r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+         (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
 function schedulePoi() {
@@ -1899,50 +1946,100 @@ function schedulePoi() {
   poiTimer = setTimeout(fetchPois, 900);
 }
 
+/* Everything within POI_RADIUS of the anchor. "nwr" rather than "node" so
+   the many campgrounds, rest areas and car parks mapped as areas come back
+   too; "out center" gives each of those a single point to pin. */
+function poiQueryFor(a) {
+  const r = CFG.POI_RADIUS;
+  const at = "(around:" + r + "," + a.lat.toFixed(5) + "," + a.lng.toFixed(5) + ")";
+  return "[out:json][timeout:25];(" +
+    'nwr' + at + '["amenity"~"^(fuel|drinking_water|toilets|parking|shelter|ranger_station)$"];' +
+    'nwr' + at + '["tourism"~"^(camp_site|caravan_site|camp_pitch|picnic_site|viewpoint|wilderness_hut|alpine_hut|information)$"];' +
+    'nwr' + at + '["highway"="rest_area"];' +
+    'nwr' + at + '["natural"="spring"];' +
+    'nwr' + at + '["man_made"~"^(water_well|water_tank|watering_place)$"];' +
+    'nwr' + at + '["shop"~"^(convenience|supermarket|general|department_store)$"];' +
+    ");out center 400;";
+}
+
+function parsePois(data, a) {
+  const seen = {};
+  const out = [];
+  (data.elements || []).forEach(function (el) {
+    const kind = poiKind(el.tags);
+    if (!kind) return;
+    const lat = el.lat != null ? el.lat : (el.center && el.center.lat);
+    const lng = el.lon != null ? el.lon : (el.center && el.center.lon);
+    if (lat == null || lng == null) return;
+    const id = el.type + "/" + el.id;
+    if (seen[id]) return;
+    seen[id] = 1;
+    const t = el.tags || {};
+    const p = {
+      id: id, kind: kind, lat: lat, lng: lng,
+      name: t.name || t.operator || t.brand || POI_META[kind].label,
+      info: [t.brand, t.fee ? "fee: " + t.fee : "", t.water_source, t.drinking_water,
+             t.opening_hours, t.backcountry === "yes" ? "backcountry" : ""].filter(Boolean).join(" | ")
+    };
+    if (haversine(a, p) <= CFG.POI_RADIUS * 1.05) out.push(p);
+  });
+  return out;
+}
+
 async function fetchPois(force) {
-  if (!S.poiOn) return;
-  if (map.getZoom() < 11) { return; }
-  const cell = poiCell(visibleBounds());
-  if ((cell.n - cell.s) > 1.2 || (cell.e - cell.w) > 1.2) return;   /* too broad to be useful */
-  if (!force && cell.key === lastPoiKey) return;
-  lastPoiKey = cell.key;
+  if (!S.poiOn || poiBusy) return;
+  const a = poiAnchor();
+  /* cheap to call on every fix: returns unless you have travelled far enough */
+  if (!force && poiCentre && haversine(poiCentre, a) < CFG.POI_REFETCH) return;
+  if (!force && Date.now() < poiRetryAt) return;
 
-  try {
-    const hit = await DB.get("poi", cell.key);
-    if (hit && !force && (Date.now() - hit.ts) < CFG.POI_TTL) { setPois(hit.items); return; }
-  } catch (e) { /* ignore */ }
-
-  if (poiBusy) return;
   poiBusy = true;
-  const bbox = cell.s.toFixed(5) + "," + cell.w.toFixed(5) + "," + cell.n.toFixed(5) + "," + cell.e.toFixed(5);
-  const q = "[out:json][timeout:25];(" +
-    'node["amenity"~"^(fuel|drinking_water|toilets|parking)$"](' + bbox + ");" +
-    'node["tourism"~"^(camp_site|caravan_site|viewpoint|picnic_site)$"](' + bbox + ");" +
-    'node["natural"="spring"](' + bbox + ");" +
-    ");out body 300;";
   try {
-    const resp = await fetch(CFG.OVERPASS, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "data=" + encodeURIComponent(q)
-    });
-    if (!resp.ok) throw new Error("overpass " + resp.status);
-    const data = await resp.json();
-    const items = (data.elements || []).map(function (el) {
-      const kind = poiKind(el.tags);
-      if (!kind || el.lat == null) return null;
-      const t = el.tags || {};
-      return {
-        id: "osm" + el.id, kind: kind, lat: el.lat, lng: el.lon,
-        name: t.name || t.operator || POI_META[kind].label,
-        info: [t.brand, t.fee ? "fee: " + t.fee : "", t.water_source, t.drinking_water,
-               t.backcountry === "yes" ? "backcountry" : ""].filter(Boolean).join(" | ")
-      };
-    }).filter(Boolean);
-    await DB.put("poi", { ts: Date.now(), items: items }, cell.key).catch(function () {});
-    setPois(items);
-  } catch (e) {
-    /* offline or rate limited - keep whatever is on screen */
+    const key = poiKey(a);
+    try {
+      const hit = await DB.get("poi", key);
+      if (hit && !force && (Date.now() - hit.ts) < CFG.POI_TTL) {
+        poiCentre = a;
+        setPois(hit.items);
+        setPoiStatus(hit.items.length + " within 5 km (cached)");
+        return;
+      }
+    } catch (e) { /* idb unavailable - go to the network */ }
+
+    setPoiStatus("Searching within 5 km...");
+    const body = "data=" + encodeURIComponent(poiQueryFor(a));
+    let items = null;
+    for (let i = 0; i < CFG.OVERPASS.length && items === null; i++) {
+      const ctl = new AbortController();
+      const bail = setTimeout(function () { ctl.abort(); }, CFG.POI_TIMEOUT);
+      try {
+        const resp = await fetch(CFG.OVERPASS[i], {
+          signal: ctl.signal,
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: body
+        });
+        if (!resp.ok) throw new Error("http " + resp.status);
+        items = parsePois(await resp.json(), a);
+      } catch (e) {
+        /* dead, slow or rate-limited: move on to the next mirror */
+      } finally {
+        clearTimeout(bail);
+      }
+    }
+
+    if (items) {
+      poiCentre = a;
+      await DB.put("poi", { ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, key)
+        .catch(function () {});
+      setPois(items);
+      poiRetryAt = 0;
+      setPoiStatus(items.length ? items.length + " within 5 km of here"
+                                : "Nothing mapped within 5 km of here");
+    } else {
+      poiRetryAt = Date.now() + CFG.POI_BACKOFF;
+      setPoiStatus("Could not reach the POI service - retrying shortly, or tap Refresh");
+    }
   } finally {
     poiBusy = false;
   }
@@ -1953,40 +2050,130 @@ function setPois(items) {
   renderPois();
 }
 
+function poiMatches(p, q) {
+  if (!q) return true;
+  const m = POI_META[p.kind];
+  return (p.name + " " + (p.info || "") + " " + m.label + " " + p.kind).toLowerCase().indexOf(q) !== -1;
+}
+
 function renderPois() {
   poiLayer.clearLayers();
   const vis = S.poiOn ? pois.filter((p) => !hiddenPoi.has(p.id)) : [];
-  vis.forEach(function (p) {
+  const here = (view.has ? view.cur : poiAnchor());
+  const hits = vis.filter((p) => poiMatches(p, poiQuery))
+                  .sort((a, b) => haversine(here, a) - haversine(here, b));
+
+  /* a search narrows the map as well as the list, which is the only sane way
+     to find one thing among the eighty car parks a town centre returns */
+  (poiQuery ? hits : vis).forEach(function (p) {
     const m = POI_META[p.kind];
     const mk = L.marker([p.lat, p.lng], { icon: pinIcon(m.color, p.kind, true) });
     mk.bindPopup(
       '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
-      '<div class="pop-m">' + m.label.toUpperCase() + " &middot; OSM</div>" +
+      '<div class="pop-m">' + m.label.toUpperCase() + " &middot; OSM &middot; " +
+      fmtDist(haversine(here, p)) + " away</div>" +
       (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
       '<div class="pop-a"><button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>'
     );
     mk.addTo(poiLayer);
   });
-  $("#cntPois").textContent = vis.length;
+  $("#cntPois").textContent = poiQuery ? hits.length + "/" + vis.length : vis.length;
+
   const box = $("#poiList");
-  if (!vis.length) {
-    box.innerHTML = '<div class="empty">' + (S.poiOn ? "No POIs loaded for this view." : "POI display is off.") + "</div>";
+  if (!hits.length) {
+    box.innerHTML = '<div class="empty">' +
+      (!S.poiOn ? "POI display is off."
+        : poiQuery ? "Nothing matches &ldquo;" + esc(poiQuery) + "&rdquo; within 5 km."
+        : "No POIs loaded yet.") + "</div>";
     return;
   }
-  const here = view.cur;
-  const sorted = vis.slice().sort((a, b) => haversine(here, a) - haversine(here, b)).slice(0, 60);
-  box.innerHTML = sorted.map(function (p) {
+  box.innerHTML = hits.slice(0, 120).map(function (p) {
     const m = POI_META[p.kind];
     return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
       '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' + catIcon(p.kind) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
+      (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
       '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="hide">Hide</button></div></div>';
   }).join("");
 }
 
+
+/* =====================================================================
+   Place search beyond the 5 km bubble, via OSM's Nominatim geocoder.
+   Its usage policy forbids autocomplete-style traffic, so this never
+   fires per keystroke: typing filters what is already loaded, and the
+   wider search runs only when you press Enter or the button, no more
+   than once every GEO_MIN_GAP.
+   ===================================================================== */
+let geoResults = [], geoBusy = false, geoAt = 0, geoNote = "";
+
+function geoDist(r) {
+  const here = view.has ? view.cur : poiAnchor();
+  return haversine(here, r);
+}
+
+async function geoSearch(q) {
+  q = (q || "").trim();
+  if (q.length < 3) { toast("Type at least three characters", "warn"); return; }
+  if (geoBusy) return;
+  const wait = CFG.GEO_MIN_GAP - (Date.now() - geoAt);
+  if (wait > 0) { toast("Hold on a moment", "warn"); return; }
+
+  geoBusy = true;
+  geoAt = Date.now();
+  geoNote = "Searching Australia for “" + q + "”...";
+  geoResults = [];
+  renderGeo();
+
+  const here = view.has ? view.cur : poiAnchor();
+  /* viewbox biases results towards the driver without excluding the rest */
+  const url = CFG.NOMINATIM + "?format=jsonv2&limit=12&countrycodes=au&addressdetails=1" +
+    "&q=" + encodeURIComponent(q) +
+    "&viewbox=" + [here.lng - 6, here.lat + 6, here.lng + 6, here.lat - 6].map((n) => n.toFixed(3)).join(",");
+  try {
+    const resp = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!resp.ok) throw new Error("http " + resp.status);
+    const rows = await resp.json();
+    geoResults = (rows || []).map(function (r) {
+      const parts = String(r.display_name || "").split(",").map((s) => s.trim());
+      return {
+        id: "geo" + r.place_id,
+        name: r.name || parts[0] || q,
+        where: parts.slice(1, 3).join(", "),
+        kind: (r.addresstype || r.type || r.category || "place").replace(/_/g, " "),
+        lat: parseFloat(r.lat), lng: parseFloat(r.lon)
+      };
+    }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
+    geoResults.sort((a, b) => geoDist(a) - geoDist(b));
+    geoNote = geoResults.length ? geoResults.length + " found in Australia"
+                                : "Nothing found for “" + q + "”";
+  } catch (e) {
+    geoNote = "Place search needs a connection";
+  }
+  geoBusy = false;
+  renderGeo();
+}
+
+function renderGeo() {
+  const wrap = $("#geoWrap"), box = $("#geoList");
+  if (!geoNote && !geoResults.length) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  $("#geoStatus").textContent = geoNote;
+  box.innerHTML = geoResults.map(function (r) {
+    return '<div class="card" data-lat="' + r.lat + '" data-lng="' + r.lng +
+      '" data-name="' + esc(r.name) + '">' +
+      '<div class="card-top"><div class="dotmark" style="background:#C77B9E">' + catIcon("flag") + "</div>" +
+      '<div style="flex:1;min-width:0"><div class="card-t">' + esc(r.name) + "</div>" +
+      '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
+      fmtDist(geoDist(r)) + " away</span></div></div></div>" +
+      (r.where ? '<div class="card-n">' + esc(r.where) + "</div>" : "") +
+      '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
+      '<button class="btn xs ghost" data-act="save">Save Waypoint</button></div></div>';
+  }).join("");
+}
 function hidePoi(id) {
   hiddenPoi.add(id);
   saveLS(LS.hiddenPoi, Array.from(hiddenPoi));
@@ -2223,9 +2410,137 @@ async function clearTileCache() {
 /* =====================================================================
    Simulated drive - procedural route near the Flinders Ranges, SA
    ===================================================================== */
+
+/* Real road geometry for the simulated drive: the Outback Highway (B83)
+   north from Hawker to Parachilna through the Flinders Ranges, 88 km.
+   Fetched from the OSRM router over OpenStreetMap data, so the demo
+   marker tracks the actual alignment instead of wandering off-road. */
+const SIM_ROUTE = [
+  [-31.88753,138.42284],[-31.88740,138.42271],[-31.88774,138.42219],[-31.88806,138.42169],
+  [-31.88825,138.42141],[-31.88842,138.42115],[-31.88849,138.42104],[-31.88786,138.42019],
+  [-31.88777,138.42007],[-31.88716,138.41937],[-31.88628,138.41833],[-31.88593,138.41804],
+  [-31.88522,138.41737],[-31.88491,138.41709],[-31.88377,138.41626],[-31.88302,138.41583],
+  [-31.88044,138.41421],[-31.87770,138.41261],[-31.86029,138.40242],[-31.86027,138.40241],
+  [-31.84298,138.39229],[-31.84283,138.39220],[-31.84247,138.39199],[-31.83732,138.38898],
+  [-31.83085,138.38529],[-31.82809,138.38381],[-31.82564,138.38254],[-31.82391,138.38143],
+  [-31.82268,138.38039],[-31.81962,138.37712],[-31.81777,138.37503],[-31.81494,138.37188],
+  [-31.81371,138.37037],[-31.81298,138.36971],[-31.81179,138.36896],[-31.81079,138.36822],
+  [-31.81022,138.36767],[-31.80908,138.36609],[-31.80773,138.36412],[-31.80720,138.36363],
+  [-31.80596,138.36277],[-31.80403,138.36222],[-31.80120,138.36129],[-31.79983,138.36084],
+  [-31.79907,138.36040],[-31.79243,138.35531],[-31.79157,138.35473],[-31.79123,138.35459],
+  [-31.79050,138.35430],[-31.78938,138.35394],[-31.78925,138.35390],[-31.78863,138.35370],
+  [-31.78816,138.35346],[-31.78771,138.35323],[-31.78732,138.35295],[-31.78701,138.35273],
+  [-31.78672,138.35237],[-31.78399,138.34900],[-31.78188,138.34612],[-31.78133,138.34483],
+  [-31.78101,138.34355],[-31.78074,138.34227],[-31.78043,138.34130],[-31.78001,138.34035],
+  [-31.77902,138.33913],[-31.77805,138.33830],[-31.77162,138.33493],[-31.76902,138.33360],
+  [-31.76798,138.33321],[-31.76581,138.33250],[-31.76448,138.33206],[-31.76407,138.33192],
+  [-31.76312,138.33161],[-31.76216,138.33130],[-31.76164,138.33118],[-31.76149,138.33117],
+  [-31.76084,138.33116],[-31.76040,138.33122],[-31.76002,138.33129],[-31.75967,138.33138],
+  [-31.75910,138.33163],[-31.75785,138.33229],[-31.75716,138.33265],[-31.75549,138.33355],
+  [-31.75425,138.33422],[-31.75093,138.33589],[-31.74987,138.33632],[-31.74783,138.33684],
+  [-31.74484,138.33769],[-31.74353,138.33806],[-31.74100,138.33877],[-31.74064,138.33889],
+  [-31.73957,138.33924],[-31.73933,138.33933],[-31.73754,138.34010],[-31.73538,138.34108],
+  [-31.72859,138.34413],[-31.70705,138.35398],[-31.70166,138.35645],[-31.70028,138.35708],
+  [-31.69984,138.35728],[-31.68976,138.36192],[-31.68465,138.36423],[-31.67806,138.36728],
+  [-31.67196,138.37005],[-31.67141,138.37030],[-31.66371,138.37380],[-31.66264,138.37429],
+  [-31.65610,138.37729],[-31.65094,138.37967],[-31.64863,138.38072],[-31.64418,138.38274],
+  [-31.63687,138.38608],[-31.62952,138.38942],[-31.62923,138.38956],[-31.62779,138.39021],
+  [-31.62770,138.39025],[-31.62445,138.39173],[-31.61982,138.39385],[-31.61306,138.39696],
+  [-31.61115,138.39784],[-31.60411,138.40103],[-31.60176,138.40220],[-31.60041,138.40305],
+  [-31.59898,138.40421],[-31.59781,138.40537],[-31.59558,138.40805],[-31.59311,138.41104],
+  [-31.59187,138.41224],[-31.59087,138.41311],[-31.58984,138.41384],[-31.58849,138.41464],
+  [-31.58659,138.41562],[-31.58626,138.41578],[-31.57973,138.41908],[-31.57803,138.41998],
+  [-31.57643,138.42084],[-31.57135,138.42398],[-31.57133,138.42398],[-31.56916,138.42541],
+  [-31.56669,138.42698],[-31.56549,138.42769],[-31.56405,138.42828],[-31.56364,138.42843],
+  [-31.56318,138.42855],[-31.56294,138.42862],[-31.56268,138.42867],[-31.56212,138.42878],
+  [-31.56188,138.42882],[-31.56165,138.42885],[-31.56143,138.42888],[-31.56118,138.42889],
+  [-31.56083,138.42892],[-31.56052,138.42892],[-31.56018,138.42893],[-31.55989,138.42893],
+  [-31.55969,138.42893],[-31.55940,138.42891],[-31.55902,138.42888],[-31.55889,138.42886],
+  [-31.55866,138.42882],[-31.55847,138.42880],[-31.55830,138.42877],[-31.55804,138.42873],
+  [-31.55772,138.42866],[-31.55744,138.42859],[-31.55714,138.42852],[-31.55705,138.42850],
+  [-31.55687,138.42844],[-31.55663,138.42837],[-31.55639,138.42829],[-31.55620,138.42822],
+  [-31.55598,138.42814],[-31.55570,138.42804],[-31.55541,138.42792],[-31.55517,138.42782],
+  [-31.55504,138.42777],[-31.55482,138.42767],[-31.55058,138.42577],[-31.55027,138.42563],
+  [-31.54947,138.42531],[-31.54893,138.42511],[-31.54855,138.42495],[-31.54841,138.42489],
+  [-31.54795,138.42472],[-31.54774,138.42465],[-31.54760,138.42460],[-31.54741,138.42455],
+  [-31.54723,138.42451],[-31.54693,138.42445],[-31.54670,138.42441],[-31.54648,138.42438],
+  [-31.54623,138.42435],[-31.54604,138.42434],[-31.54572,138.42433],[-31.54533,138.42436],
+  [-31.54506,138.42438],[-31.54428,138.42443],[-31.54390,138.42447],[-31.53804,138.42510],
+  [-31.52883,138.42617],[-31.51869,138.42730],[-31.50723,138.42857],[-31.50585,138.42866],
+  [-31.50395,138.42881],[-31.50349,138.42885],[-31.50163,138.42889],[-31.49836,138.42883],
+  [-31.49643,138.42878],[-31.49575,138.42877],[-31.49465,138.42875],[-31.49332,138.42880],
+  [-31.49224,138.42889],[-31.49132,138.42897],[-31.49082,138.42901],[-31.48919,138.42927],
+  [-31.48717,138.42959],[-31.48498,138.42999],[-31.48343,138.43029],[-31.48121,138.43068],
+  [-31.47955,138.43089],[-31.47821,138.43095],[-31.47687,138.43095],[-31.47575,138.43086],
+  [-31.47519,138.43078],[-31.47462,138.43068],[-31.47247,138.43018],[-31.46911,138.42923],
+  [-31.46735,138.42876],[-31.46603,138.42855],[-31.46493,138.42839],[-31.46350,138.42836],
+  [-31.46248,138.42834],[-31.45980,138.42852],[-31.45971,138.42853],[-31.45852,138.42865],
+  [-31.45783,138.42868],[-31.45613,138.42877],[-31.45509,138.42870],[-31.45404,138.42848],
+  [-31.45313,138.42825],[-31.45196,138.42782],[-31.45108,138.42743],[-31.44883,138.42601],
+  [-31.44660,138.42458],[-31.44484,138.42357],[-31.44456,138.42345],[-31.44403,138.42324],
+  [-31.44397,138.42321],[-31.44321,138.42290],[-31.44276,138.42276],[-31.44165,138.42241],
+  [-31.44016,138.42211],[-31.43894,138.42192],[-31.43058,138.42129],[-31.43019,138.42127],
+  [-31.42268,138.42075],[-31.42132,138.42066],[-31.41997,138.42056],[-31.41988,138.42056],
+  [-31.41768,138.42038],[-31.41052,138.41979],[-31.40153,138.41896],[-31.40107,138.41892],
+  [-31.39989,138.41881],[-31.39873,138.41872],[-31.39642,138.41852],[-31.39221,138.41816],
+  [-31.38375,138.41739],[-31.37172,138.41632],[-31.37154,138.41631],[-31.36969,138.41614],
+  [-31.36742,138.41593],[-31.36315,138.41559],[-31.36286,138.41559],[-31.36185,138.41559],
+  [-31.36161,138.41560],[-31.36104,138.41563],[-31.36080,138.41564],[-31.35994,138.41576],
+  [-31.35912,138.41587],[-31.35775,138.41610],[-31.35484,138.41664],[-31.35271,138.41694],
+  [-31.35143,138.41705],[-31.34995,138.41705],[-31.34887,138.41701],[-31.34714,138.41679],
+  [-31.34558,138.41653],[-31.34019,138.41554],[-31.33663,138.41488],[-31.33420,138.41442],
+  [-31.33115,138.41384],[-31.33104,138.41381],[-31.33042,138.41370],[-31.32948,138.41353],
+  [-31.32871,138.41342],[-31.32828,138.41338],[-31.32765,138.41334],[-31.32662,138.41330],
+  [-31.32495,138.41327],[-31.31651,138.41297],[-31.31148,138.41280],[-31.30828,138.41273],
+  [-31.30618,138.41265],[-31.30416,138.41257],[-31.29935,138.41244],[-31.29633,138.41238],
+  [-31.28892,138.41213],[-31.28398,138.41200],[-31.28030,138.41186],[-31.27920,138.41180],
+  [-31.27810,138.41168],[-31.27672,138.41145],[-31.27527,138.41115],[-31.27065,138.41003],
+  [-31.26783,138.40936],[-31.26635,138.40900],[-31.26483,138.40867],[-31.26311,138.40840],
+  [-31.26164,138.40819],[-31.26067,138.40810],[-31.26041,138.40808],[-31.25284,138.40738],
+  [-31.24903,138.40702],[-31.24338,138.40651],[-31.24129,138.40631],[-31.24101,138.40629],
+  [-31.23905,138.40610],[-31.23770,138.40598],[-31.23411,138.40564],[-31.22920,138.40518],
+  [-31.22296,138.40458],[-31.21750,138.40407],[-31.21139,138.40351],[-31.20632,138.40304],
+  [-31.20343,138.40277],[-31.19547,138.40201],[-31.18973,138.40149],[-31.18818,138.40140],
+  [-31.18665,138.40136],[-31.18511,138.40137],[-31.18045,138.40154],[-31.17633,138.40169],
+  [-31.17253,138.40185],[-31.16901,138.40192],[-31.16739,138.40196],[-31.16697,138.40193],
+  [-31.16598,138.40183],[-31.16573,138.40180],[-31.16446,138.40168],[-31.16253,138.40138],
+  [-31.16040,138.40101],[-31.15677,138.40036],[-31.15196,138.39954],[-31.14764,138.39877],
+  [-31.14422,138.39817],[-31.14330,138.39802]
+];
+/* Cumulative distance along SIM_ROUTE, built once on first use. */
+let simCum = null;
+function simRouteInit() {
+  if (simCum) return;
+  simCum = [0];
+  for (let i = 1; i < SIM_ROUTE.length; i++) {
+    simCum[i] = simCum[i - 1] + haversine(
+      { lat: SIM_ROUTE[i - 1][0], lng: SIM_ROUTE[i - 1][1] },
+      { lat: SIM_ROUTE[i][0], lng: SIM_ROUTE[i][1] });
+  }
+}
+function simRouteLength() { simRouteInit(); return simCum[simCum.length - 1]; }
+
+/* Position and bearing a given distance along the highway. */
+function simRouteAt(m) {
+  simRouteInit();
+  const total = simCum[simCum.length - 1];
+  m = clamp(m, 0, total);
+  let i = 1;
+  while (i < simCum.length - 1 && simCum[i] < m) i++;
+  const span = Math.max(1e-6, simCum[i] - simCum[i - 1]);
+  const f = (m - simCum[i - 1]) / span;
+  const a = { lat: SIM_ROUTE[i - 1][0], lng: SIM_ROUTE[i - 1][1] };
+  const b = { lat: SIM_ROUTE[i][0], lng: SIM_ROUTE[i][1] };
+  return {
+    lat: a.lat + (b.lat - a.lat) * f,
+    lng: a.lng + (b.lng - a.lng) * f,
+    hdg: bearing(a, b),
+    frac: total > 0 ? m / total : 0
+  };
+}
+
 const Sim = {
-  active: false, timer: null, t: 0,
-  lat: CFG.SIM_START[0], lng: CFG.SIM_START[1], hdg: 68,
+  active: false, timer: null, t: 0, along: 0, dir: 1,
 
   toggle: function () { this.active ? this.stop() : this.start(); },
 
@@ -2233,14 +2548,13 @@ const Sim = {
     if (this.timer) clearInterval(this.timer);   /* never leak a second ticker */
     this.active = true;
     this.t = 0;
-    const base = view.has ? view.cur : { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] };
-    this.lat = base.lat; this.lng = base.lng;
-    this.hdg = 68;
+    this.along = 0;                              /* start at Hawker */
+    this.dir = 1;
     const self = this;
     this.timer = setInterval(function () { self.step(); }, CFG.SIM_TICK);
     $("#btnSim").classList.add("on");
     if (!S.follow) resumeFollow();
-    toast("Simulated drive running", "warn");
+    toast("Simulated drive: Hawker to Parachilna", "warn");
     updateGpsPill();
   },
 
@@ -2257,18 +2571,21 @@ const Sim = {
   step: function () {
     this.t++;
     const t = this.t;
-    /* meandering track: two slow sine terms plus a little noise */
-    this.hdg += Math.sin(t / 17) * 2.1 + Math.sin(t / 53) * 1.3 + (Math.random() - 0.5) * 0.7;
-    this.hdg = (this.hdg + 360) % 360;
-    const spd = 8 + 3 * Math.sin(t / 40) + Math.sin(t / 7) * 0.6;  /* m/s before time compression */
-    const d = spd * (CFG.SIM_TICK / 1000) * CFG.SIM_SCALE;
-    const br = rad(this.hdg);
-    this.lat += deg(d * Math.cos(br) / R_EARTH);
-    this.lng += deg(d * Math.sin(br) / (R_EARTH * Math.cos(rad(this.lat))));
+    /* highway speed, easing up and down the way a real drive does */
+    const spd = 11 + 2.5 * Math.sin(t / 40) + Math.sin(t / 7) * 0.6;  /* m/s before time compression */
+    this.along += this.dir * spd * (CFG.SIM_TICK / 1000) * CFG.SIM_SCALE;
+
+    const total = simRouteLength();
+    if (this.along >= total) { this.along = total; this.dir = -1; }   /* turn around and head back */
+    else if (this.along <= 0) { this.along = 0; this.dir = 1; }
+
+    const p = simRouteAt(this.along);
+    const hdg = this.dir > 0 ? p.hdg : (p.hdg + 180) % 360;
+    /* the range drops away northward towards Parachilna */
+    const alt = 330 - 170 * p.frac + 45 * Math.sin(t / 61) + 12 * Math.sin(t / 13);
     pushPosition({
-      lat: this.lat, lng: this.lng,
-      alt: 320 + 90 * Math.sin(t / 61) + 25 * Math.sin(t / 13),
-      acc: 4, spd: spd * CFG.SIM_SCALE, hdg: this.hdg, sim: true, t: Date.now()
+      lat: p.lat, lng: p.lng, alt: alt,
+      acc: 4, spd: spd * CFG.SIM_SCALE, hdg: hdg, sim: true, t: Date.now()
     });
   }
 };
@@ -2404,8 +2721,33 @@ $("#swPoi").addEventListener("click", function () {
   saveSettings(); syncPoiSwitch(); renderPois();
   if (S.poiOn) fetchPois(true);
 });
+$("#poiSearch").addEventListener("input", function () {
+  poiQuery = this.value.trim().toLowerCase();
+  if (!poiQuery) { geoResults = []; geoNote = ""; renderGeo(); }   /* clearing the box clears both lists */
+  renderPois();
+});
+$("#poiSearch").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") { e.preventDefault(); geoSearch(this.value); }
+});
+$("#btnGeoSearch").addEventListener("click", function () { geoSearch($("#poiSearch").value); });
+$("#geoList").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const card = b.closest(".card");
+  const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
+  if (b.dataset.act === "go") {
+    gotoLatLng(lat, lng, 14);
+    fetchPois(true);                 /* pull the POIs for where we just landed */
+    toast(card.dataset.name, "ok");
+  } else if (b.dataset.act === "save") {
+    waypoints.push({ id: uid(), lat: lat, lng: lng, name: card.dataset.name,
+                     cat: "flag", note: "From place search", ts: Date.now() });
+    saveWaypoints();
+    toast("Saved: " + card.dataset.name, "ok");
+  }
+});
 $("#btnPoiRefresh").addEventListener("click", function () {
-  lastPoiKey = null;
+  poiCentre = null;
   fetchPois(true);
   toast("Refreshing POIs", "ok");
 });
