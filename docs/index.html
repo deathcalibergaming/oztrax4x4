@@ -1247,30 +1247,19 @@ function clearFollowTransform() {
   rotWrap.style.transform = "";
   document.documentElement.style.setProperty("--maprot", "0deg");
 }
-
-/* When the map is visually rotated, Leaflet's own pointer maths no longer
-   lines up with the screen, so dragging is handed off to a gesture guard
-   that simply drops out of follow mode. */
+/* Dragging stays enabled in every mode. It used to be switched off whenever
+   the map was rotated, because Leaflet's pointer maths does not account for
+   the rotation, and a gesture guard dropped out of follow mode instead. That
+   cost the driver a whole gesture: the first drag released follow and moved
+   nothing, and only the second one panned. Since dragstart pauses follow and
+   pausing clears the rotation in the same frame, Leaflet is square with the
+   screen from the first moved pixel, and one drag does what it looks like. */
 function syncDragMode() {
-  const rotated = S.follow && !S.northLock && view.has;
-  if (rotated) { if (map.dragging.enabled()) map.dragging.disable(); }
-  else { if (!map.dragging.enabled()) map.dragging.enable(); }
+  /* box selection borrows the drag gesture, so leave it alone while armed */
+  if (typeof drawMode !== "undefined" && drawMode) return;
+  if (!map.dragging.enabled()) map.dragging.enable();
 }
 
-let guard = null;
-stageEl.addEventListener("pointerdown", function (e) {
-  if (e.target.closest("#actionbar,#recPanel,#zoomCtl,#drawHint")) { guard = null; return; }
-  if (!S.follow || map.dragging.enabled()) { guard = null; return; }
-  guard = { x: e.clientX, y: e.clientY };
-}, { passive: true });
-stageEl.addEventListener("pointermove", function (e) {
-  if (!guard) return;
-  if (Math.abs(e.clientX - guard.x) > 10 || Math.abs(e.clientY - guard.y) > 10) {
-    guard = null;
-    pauseFollow();
-  }
-}, { passive: true });
-stageEl.addEventListener("pointerup", function () { guard = null; }, { passive: true });
 
 function pauseFollow() {
   if (!S.follow) return;
@@ -1300,6 +1289,12 @@ function updateFollowUI() {
   $("#followBadge").classList.toggle("hidden", S.follow);
   $("#btnCenter").classList.toggle("on", !S.follow);
 }
+
+/* Dragging the map means the driver wants to look somewhere other than at the
+   vehicle, so following stops. Without this the follow loop re-centres on the
+   vehicle every frame and the map springs straight back, which reads as the
+   map simply refusing to be dragged. */
+map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
