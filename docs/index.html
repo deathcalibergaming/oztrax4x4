@@ -30,7 +30,18 @@
   --maprot:0deg;
   --safeT:env(safe-area-inset-top,0px);
   --safeB:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
 }
+/* Nothing else in the app is white, and the default scrollbar was: a bright
+   strip down the side of every list. The track gives way to whatever panel
+   is behind it and the thumb is sand at hairline weight, so a long list
+   reads as one dark surface rather than a page with a chrome edge. */
+*{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px;
+  border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(216,203,170,.45);background-clip:content-box}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:var(--ink);color:var(--sand);
   font-family:var(--ui);font-size:15px;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
