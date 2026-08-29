@@ -903,9 +903,17 @@ function toast(msg, kind) {
       { src: iconURL, sizes: "192x192", type: "image/svg+xml", purpose: "maskable" }
     ]
   };
-  const blobURL = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+  /* Served over http(s) there are real files sitting next to this page, and
+     Chrome will only offer to install an app whose manifest and icons it can
+     actually fetch - a blob manifest with data: icons fails that test. Opened
+     straight off the phone as a file there are no neighbouring files, so the
+     inline copy stands in and the page stays genuinely self contained. */
+  const served = location.protocol === "http:" || location.protocol === "https:";
   const l = document.createElement("link");
-  l.rel = "manifest"; l.href = blobURL;
+  l.rel = "manifest";
+  l.href = served
+    ? new URL("manifest.webmanifest", location.href).href
+    : URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
   document.head.appendChild(l);
   const fav = document.createElement("link");
   fav.rel = "icon"; fav.type = "image/svg+xml"; fav.href = iconURL;
@@ -913,6 +921,24 @@ function toast(msg, kind) {
   const apple = document.createElement("link");
   apple.rel = "apple-touch-icon"; apple.href = iconURL;
   document.head.appendChild(apple);
+})();
+
+/* =====================================================================
+   Offline shell
+   The map tiles and the POI data already cache themselves in IndexedDB,
+   but the page and the mapping library came off the network every launch,
+   so a cold start with no signal showed nothing at all. A service worker
+   fixes that, and it is also what lets Android offer to install this as a
+   real app. It only exists when the page is served; opened as a file there
+   is nothing to register and the app behaves exactly as it always has.
+   ===================================================================== */
+(function registerWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "http:" && location.protocol !== "https:") return;
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register(new URL("sw.js", location.href).href)
+      .catch(function (e) { console.warn("offline shell unavailable:", e.message); });
+  });
 })();
 
 /* =====================================================================
