@@ -985,6 +985,8 @@ const CFG = {
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
   POI_DUP_M: 200,          /* same name inside this radius is one place mapped twice */
   PLACE_DUP_M: 25000,      /* and a searched place this close to its own name is one town */
+  PLACE_SMALL_RANK: 19,    /* a place this rank or higher is a dot on the map, not a town */
+  PLACE_SERVICE_KM: 6,     /* how far from one to look for the roadhouse it is named after */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -3270,6 +3272,55 @@ function dedupePlaces(list) {
   return out;
 }
 
+/* Out here the name on the map and the place you actually stop at are rarely
+   the same thing. Erldunda is a homestead; the fuel, the beds and the food
+   are at the Desert Oaks Resort three kilometres up the road, and OSM knows
+   them by that name rather than the one you searched. Nominatim will not
+   bridge that - asking it for "erldunda" returns the homestead and nothing
+   else, at any limit - so when a search lands on somewhere too small to have
+   its own services listed, the roadhouse beside it is fetched separately and
+   offered alongside.
+
+   Only for small places. A city already answers with itself, and hanging
+   four service stations off Adelaide would be noise. */
+const SERVICE_TAGS = ["amenity:fuel", "tourism:motel", "tourism:hotel",
+                      "amenity:restaurant", "amenity:cafe", "tourism:caravan_site"];
+
+async function nearbyServices(place) {
+  const q = CFG.PHOTON + "?lat=" + place.lat.toFixed(5) + "&lon=" + place.lng.toFixed(5) +
+            "&radius=" + CFG.PLACE_SERVICE_KM + "&limit=12" +
+            SERVICE_TAGS.map(function (t) { return "&osm_tag=" + encodeURIComponent(t); }).join("");
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.PHOTON_TIMEOUT);
+  try {
+    const r = await fetch(q, { signal: ctl.signal });
+    if (!r.ok) return [];
+    const j = await r.json();
+    const seen = {}, out = [];
+    (j.features || []).forEach(function (f) {
+      const p = f.properties || {}, g = f.geometry || {};
+      if (!g.coordinates || !p.name) return;
+      const key = p.name.toLowerCase().trim();
+      if (seen[key]) return;                       /* one line per business */
+      seen[key] = 1;
+      const item = {
+        id: "svc" + (p.osm_id || key),
+        name: p.name,
+        where: [p.city, p.state].filter(Boolean).join(", "),
+        kind: String(p.osm_value || "service").replace(/_/g, " "),
+        area: false, rank: 30, imp: 0,
+        lat: g.coordinates[1], lng: g.coordinates[0]
+      };
+      if (haversine(place, item) <= CFG.PLACE_SERVICE_KM * 1000) out.push(item);
+    });
+    return out;
+  } catch (e) {
+    return [];                                     /* no signal: the place still stands */
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
 async function geoSearch(q) {
   q = (q || "").trim();
   if (q.length < 3) { toast("Type at least three characters", "warn"); return; }
@@ -3341,6 +3392,22 @@ async function geoSearch(q) {
       };
     }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
     geoResults = dedupePlaces(geoResults);
+
+    /* A homestead or a locality is a name on a map rather than a place to
+       pull in, so look beside it for the roadhouse that carries the fuel and
+       the beds. One extra request, and only when the answer needs it. */
+    const small = geoResults.filter(function (p) { return p.rank >= CFG.PLACE_SMALL_RANK; });
+    if (small.length) {
+      const svc = await nearbyServices(small[0]);
+      if (svc.length) {
+        const have = {};
+        geoResults.forEach(function (p) { have[p.name.toLowerCase().trim()] = 1; });
+        geoResults = geoResults.concat(svc.filter(function (s) {
+          return !have[s.name.toLowerCase().trim()];
+        }));
+      }
+    }
+
     geoResults.sort((a, b) => geoDist(a) - geoDist(b));
     geoNote = geoResults.length ? geoResults.length + " found in Australia"
                                 : "Nothing found for “" + q + "”";
