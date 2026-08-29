@@ -565,10 +565,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   </header>
 
   <div id="statsbar">
-    <div class="stat"><label>Speed</label><b id="stSpeed">--</b><i>km/h</i></div>
+    <div class="stat"><label>Speed</label><b id="stSpeed">--</b><i id="uSpeed">km/h</i></div>
     <div class="stat"><label>Heading</label><b><em id="stCard"></em><span id="stHdg">--</span></b><i>deg</i></div>
-    <div class="stat"><label>Alt</label><b id="stAlt">--</b><i>m</i></div>
-    <div class="stat" id="stDistBox"><label>Dist</label><b id="stDist">0.00</b><i>km</i></div>
+    <div class="stat"><label>Alt</label><b id="stAlt">--</b><i id="uAlt">m</i></div>
+    <div class="stat" id="stDistBox"><label>Dist</label><b id="stDist">0.00</b><i id="uDist">km</i></div>
     <div class="stat" id="stTimeBox"><label>Time</label><b id="stTime">00:00</b><i>h:m:s</i></div>
   </div>
 
@@ -745,6 +745,11 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
+        <div class="sublabel">Units
+          <button class="btn xs ghost" id="btnUnitMetric">Metric</button>
+          <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
+        </div>
+        <div class="poi-status" id="unitNote"></div>
         <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
         <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
         <div id="gpsDiag" class="diag"></div>
@@ -832,7 +837,7 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
       <div class="fld2">
         <div class="fld"><label>Date</label><input id="tkDate" type="date"></div>
-        <div class="fld"><label>Distance (km)</label><input id="tkDist" type="number" step="0.01" inputmode="decimal"></div>
+        <div class="fld"><label id="lblDist">Distance (km)</label><input id="tkDist" type="number" step="0.01" inputmode="decimal"></div>
       </div>
       <div class="fld2">
         <div class="fld"><label>Time started</label>
@@ -852,11 +857,11 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
       <div class="fld2">
         <div class="fld"><label>Total time</label><input id="tkTotal" type="text" inputmode="numeric" placeholder="h:mm:ss"></div>
-        <div class="fld"><label>Avg speed (km/h)</label><input id="tkAvg" type="number" step="0.1" inputmode="decimal"></div>
+        <div class="fld"><label id="lblAvg">Avg speed (km/h)</label><input id="tkAvg" type="number" step="0.1" inputmode="decimal"></div>
       </div>
       <div class="fld2">
-        <div class="fld"><label>Max elevation (m)</label><input id="tkEleMax" type="number" step="1" inputmode="numeric"></div>
-        <div class="fld"><label>Min elevation (m)</label><input id="tkEleMin" type="number" step="1" inputmode="numeric"></div>
+        <div class="fld"><label id="lblEleMax">Max elevation (m)</label><input id="tkEleMax" type="number" step="1" inputmode="numeric"></div>
+        <div class="fld"><label id="lblEleMin">Min elevation (m)</label><input id="tkEleMin" type="number" step="1" inputmode="numeric"></div>
       </div>
       <div class="kv"><span>Track points</span><b id="tkPts">--</b></div>
     </div>
@@ -1042,10 +1047,52 @@ function fmtDur(ms) {
   const p = (n) => String(n).padStart(2, "0");
   return h > 0 ? h + ":" + p(m) + ":" + p(ss) : p(m) + ":" + p(ss);
 }
+/* =====================================================================
+   Units
+   Everything is stored, recorded and exported in metres and metres per
+   second, whatever this is set to. Only the display converts, so a track
+   saved on one setting reads correctly on the other, and the GPX stays
+   valid - the format is metres by specification and cannot follow a
+   preference.
+   ===================================================================== */
+const MI_PER_KM = 0.621371192, FT_PER_M = 3.280839895, MPH_PER_MPS = 2.236936292;
+
+function imperial() { return S.units === "imperial"; }
+
+/* The POI bubble is a fixed five kilometres whatever this says - only the
+   way it is described changes, so "within 5 km" reads "within 3.1 mi". */
+function poiRadiusText() {
+  return imperial()
+    ? (CFG.POI_RADIUS / 1000 * MI_PER_KM).toFixed(1) + " mi"
+    : (CFG.POI_RADIUS / 1000) + " km";
+}
+
 function fmtDist(m) {
   if (!isFinite(m)) return "--";
+  if (imperial()) {
+    const ft = m * FT_PER_M;
+    return ft < 1000 ? Math.round(ft) + " ft" : (m / 1000 * MI_PER_KM).toFixed(2) + " mi";
+  }
   return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(2) + " km";
 }
+
+/* The stats row prints its number and its unit separately, so these hand
+   back the figure alone and unitLabel supplies the caption under it. */
+function dispSpeed(mps) { return (mps || 0) * (imperial() ? MPH_PER_MPS : 3.6); }
+function dispAlt(m) { return m * (imperial() ? FT_PER_M : 1); }
+function dispKm(m) { return m / 1000 * (imperial() ? MI_PER_KM : 1); }
+function unitLabel(what) {
+  const im = imperial();
+  if (what === "speed") return im ? "mph" : "km/h";
+  if (what === "alt") return im ? "ft" : "m";
+  return im ? "mi" : "km";
+}
+
+/* The other way, for the fields in the track dialog that are typed into */
+function kmToStore(v) { return v * 1000 / (imperial() ? MI_PER_KM : 1); }
+function altToStore(v) { return v / (imperial() ? FT_PER_M : 1); }
+function speedToStoreKmh(v) { return imperial() ? v / MPH_PER_MPS * 3.6 : v; }
+
 function fmtBytes(b) {
   if (!isFinite(b) || b <= 0) return "0 MB";
   if (b < 1048576) return (b / 1024).toFixed(0) + " KB";
@@ -1273,11 +1320,12 @@ const S = Object.assign({
   follow: true,
   poiOn: true,
   keepAwake: true,      /* hold the screen on the whole time the app is open */
+  units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
-  saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn,
+  saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, zoom: S.zoom });
 }
 
@@ -1741,15 +1789,27 @@ function cardinal(deg) {
 }
 
 function updateStats() {
-  $("#stSpeed").textContent = view.has ? (view.speed * 3.6).toFixed(0) : "--";
+  $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
-  $("#stAlt").textContent = (view.alt != null) ? Math.round(view.alt) : "--";
+  $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";
   const rec = Rec.state !== "idle";
   $("#stDistBox").classList.toggle("rec", rec);
   $("#stTimeBox").classList.toggle("rec", rec);
-  $("#stDist").textContent = (Rec.dist / 1000).toFixed(2);
+  $("#stDist").textContent = dispKm(Rec.dist).toFixed(2);
   $("#stTime").textContent = fmtDur(Rec.elapsed());
+}
+
+/* The captions under the stats, and the two labels in the track dialog that
+   name a unit, are rewritten rather than duplicated per setting. */
+function syncUnitLabels() {
+  $("#uSpeed").textContent = unitLabel("speed");
+  $("#uAlt").textContent = unitLabel("alt");
+  $("#uDist").textContent = unitLabel("dist");
+  $("#lblDist").textContent = "Distance (" + unitLabel("dist") + ")";
+  $("#lblAvg").textContent = "Avg speed (" + unitLabel("speed") + ")";
+  $("#lblEleMax").textContent = "Max elevation (" + unitLabel("alt") + ")";
+  $("#lblEleMin").textContent = "Min elevation (" + unitLabel("alt") + ")";
 }
 setInterval(function () { updateGpsPill(); updateStats(); }, 500);
 
@@ -2036,10 +2096,11 @@ function fillTrackDialog(t) {
   setTimePick($("#tkStart"), t.startedAt);
   setTimePick($("#tkEnd"), t.endedAt);
   $("#tkTotal").value = fmtDurFull(t.durationMs);
-  $("#tkDist").value = (t.distanceM / 1000).toFixed(2);
-  $("#tkAvg").value = st.avg.toFixed(1);
-  $("#tkEleMax").value = st.eleMax == null ? "" : Math.round(st.eleMax);
-  $("#tkEleMin").value = st.eleMin == null ? "" : Math.round(st.eleMin);
+  /* shown in whichever units are set, converted back on save */
+  $("#tkDist").value = dispKm(t.distanceM).toFixed(2);
+  $("#tkAvg").value = (imperial() ? st.avg * MI_PER_KM : st.avg).toFixed(1);
+  $("#tkEleMax").value = st.eleMax == null ? "" : Math.round(dispAlt(st.eleMax));
+  $("#tkEleMin").value = st.eleMin == null ? "" : Math.round(dispAlt(st.eleMin));
   $("#tkPts").textContent = (t.points || []).length;
 }
 
@@ -2061,17 +2122,18 @@ function readTrackDialog(t) {
   const dur = parseDur($("#tkTotal").value);
   t.durationMs = (dur != null && dur >= 0) ? dur : Math.max(0, end - start);
 
+  /* typed in whichever units are set, stored in metres and km/h */
   const km = parseFloat($("#tkDist").value);
-  if (isFinite(km) && km >= 0) t.distanceM = km * 1000;
+  if (isFinite(km) && km >= 0) t.distanceM = kmToStore(km);
 
   const avg = parseFloat($("#tkAvg").value);
-  t.avgSpeedKmh = (isFinite(avg) && avg >= 0) ? avg
+  t.avgSpeedKmh = (isFinite(avg) && avg >= 0) ? speedToStoreKmh(avg)
     : (t.durationMs > 0 ? t.distanceM / (t.durationMs / 1000) * 3.6 : 0);
 
   const hi = parseFloat($("#tkEleMax").value);
   const lo = parseFloat($("#tkEleMin").value);
-  t.eleMax = isFinite(hi) ? hi : null;
-  t.eleMin = isFinite(lo) ? lo : null;
+  t.eleMax = isFinite(hi) ? altToStore(hi) : null;
+  t.eleMin = isFinite(lo) ? altToStore(lo) : null;
   if (t.eleMax != null && t.eleMin != null && t.eleMax < t.eleMin) {
     const swap = t.eleMax; t.eleMax = t.eleMin; t.eleMin = swap;
   }
@@ -2272,7 +2334,8 @@ async function renderTracks() {
   box.innerHTML = list.map(function (t) {
     const st = trackStats(t);
     const ele = (st.eleMin != null && st.eleMax != null)
-      ? Math.round(st.eleMin) + "-" + Math.round(st.eleMax) + " m ele" : "";
+      ? Math.round(dispAlt(st.eleMin)) + "-" + Math.round(dispAlt(st.eleMax)) +
+        " " + unitLabel("alt") + " ele" : "";
     return '<div class="card" data-id="' + t.id + '">' +
       '<div class="card-top"><div class="card-t">' + esc(t.name) + "</div>" +
       '<span class="tag ' + t.difficulty.toLowerCase() + '">' + esc(t.difficulty) + "</span></div>" +
@@ -2281,7 +2344,8 @@ async function renderTracks() {
         "<span>" + toTimeInput(t.startedAt).slice(0, 5) + " - " + toTimeInput(t.endedAt).slice(0, 5) + "</span>" +
         "<span>" + fmtDist(t.distanceM) + "</span>" +
         "<span>" + fmtDur(t.durationMs) + "</span>" +
-        "<span>" + st.avg.toFixed(1) + " km/h avg</span>" +
+        "<span>" + (imperial() ? st.avg * MI_PER_KM : st.avg).toFixed(1) +
+          " " + unitLabel("speed") + " avg</span>" +
         (ele ? "<span>" + ele + "</span>" : "") +
         "<span>" + (t.points || []).length + " pts</span>" +
       "</div>" +
@@ -2652,6 +2716,16 @@ let poiRetryAt = 0;      /* set after a failure so a flat spot does not become a
 let poiDupCount = 0;    /* copies of a place dropped by the last dedupe */
 let poiStatus = "";
 
+let poiStatusNote = null;      /* the last successful fetch, kept so units can redraw it */
+
+function poiStatusText() {
+  if (poiStatusNote == null) return poiStatus;
+  return pois.length
+    ? pois.length + " within " + poiRadiusText() + " (" + poiStatusNote +
+      (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
+    : "Nothing mapped within " + poiRadiusText() + " of here (" + poiStatusNote + ")";
+}
+
 function setPoiStatus(s) {
   poiStatus = s;
   const el = $("#poiStatus");
@@ -2788,14 +2862,14 @@ async function fetchPois(force) {
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
       setPois(cached.items);
-      setPoiStatus(cached.items.length + " within 5 km (cached)");
+      setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
 
     /* The extract first: it is the only source that records whether a camp
        charges. If the box is too dense even at the smallest radius, or the
        API is down, the search index takes over. */
-    setPoiStatus("Loading map data within 5 km...");
+    setPoiStatus("Loading map data within " + poiRadiusText() + "...");
     const osm = await osmApiPois(a);
     let items = null, note = "";
 
@@ -2837,16 +2911,17 @@ async function fetchPois(force) {
       offerOsmPois(false);
       /* count what is actually on the map, after copies of the same place
          have been folded together, not what came back off the wire */
-      setPoiStatus(pois.length
-        ? pois.length + " within 5 km (" + note +
-          (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
-        : "Nothing mapped within 5 km of here (" + note + ")");
+      /* Remembered as its parts rather than a finished string, so switching
+         units rewrites it instead of leaving "within 5 km" sitting under a
+         list that now reads in miles. */
+      poiStatusNote = note;
+      setPoiStatus(poiStatusText());
     } else if (cached) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
       setPois(cached.items);
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      setPoiStatus(cached.items.length + " within 5 km (cached - " + note + ")");
+      setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       setPoiStatus("No POIs: " + note);
@@ -3195,7 +3270,7 @@ function renderPois() {
   if (!hits.length) {
     box.innerHTML = '<div class="empty">' +
       (!S.poiOn ? "POI display is off."
-        : poiQuery ? "Nothing matches &ldquo;" + esc(poiQuery) + "&rdquo; within 5 km."
+        : poiQuery ? "Nothing matches &ldquo;" + esc(poiQuery) + "&rdquo; within " + poiRadiusText() + "."
         : hiddenKinds.size && pois.length ? "Every loaded category is switched off."
         : "No POIs loaded yet.") + "</div>";
     return;
@@ -4375,12 +4450,15 @@ function renderGpsPanel() {
     const age = Math.round((Date.now() - GPS.lastAt) / 1000);
     row("Last fix", age + "s ago", age < 15 ? "ok" : "warn");
     row("Position", f.lat.toFixed(6) + ", " + f.lng.toFixed(6), "ok");
-    row("Accuracy", Math.round(f.acc) + " m", f.acc <= 35 ? "ok" : "warn");
+    row("Accuracy", Math.round(dispAlt(f.acc)) + " " + unitLabel("alt"),
+        f.acc <= 35 ? "ok" : "warn");
     row("Likely source", fixSource(f.acc), f.acc <= 35 ? "ok" : "warn");
-    row("Altitude", f.alt == null ? "not reported" : Math.round(f.alt) + " m" +
-        (f.altAcc == null ? "" : " (+/- " + Math.round(f.altAcc) + " m)"),
+    row("Altitude", f.alt == null ? "not reported"
+        : Math.round(dispAlt(f.alt)) + " " + unitLabel("alt") +
+          (f.altAcc == null ? "" : " (+/- " + Math.round(dispAlt(f.altAcc)) + " " + unitLabel("alt") + ")"),
         f.alt == null ? "warn" : "ok");
-    row("Speed", f.spd == null ? "not reported" : (f.spd * 3.6).toFixed(1) + " km/h");
+    row("Speed", f.spd == null ? "not reported"
+        : dispSpeed(f.spd).toFixed(1) + " " + unitLabel("speed"));
     row("GPS course", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
         : Math.round(f.hdg) + " deg");
   } else {
@@ -4671,11 +4749,40 @@ $("#btnGpsAsk").addEventListener("click", function () {
 $("#btnGpsRefresh").addEventListener("click", function () {
   readGeoPermission().then(renderGpsPanel);
 });
+/* Nothing stored changes, so switching redraws and that is all: the stats,
+   the lists, the map popups and the labels that name a unit. */
+function syncUnitButtons() {
+  const im = imperial();
+  $("#btnUnitMetric").classList.toggle("primary", !im);
+  $("#btnUnitImperial").classList.toggle("primary", im);
+  $("#unitNote").textContent = im
+    ? "Miles, miles per hour and feet. Tracks are still recorded and exported in metres - GPX has no choice about that - so switching back changes nothing you have saved."
+    : "Kilometres, km/h and metres.";
+  syncUnitLabels();
+}
+function setUnits(u) {
+  if (S.units === u) return;
+  S.units = u;
+  saveSettings();
+  syncUnitButtons();
+  updateStats();
+  if (poiStatusNote != null) setPoiStatus(poiStatusText());
+  renderPois();
+  renderWaypoints();
+  renderTracks();
+  renderNavList();
+  if (Nav.active) navProgress();
+  map.closePopup();
+  toast(u === "imperial" ? "Miles and mph" : "Kilometres and km/h", "ok");
+}
+$("#btnUnitMetric").addEventListener("click", function () { setUnits("metric"); });
+$("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial"); });
 function syncAwakeSwitch() { $("#swAwake").classList.toggle("on", S.keepAwake); }
 $("#swAwake").addEventListener("click", function () {
   S.keepAwake = !S.keepAwake;
   saveSettings();
   syncAwakeSwitch();
+  syncUnitButtons();
   Wake.apply();
   toast(S.keepAwake ? "Screen will stay on while the app is open"
                     : "Screen may sleep - a recording stops with it",
@@ -4798,6 +4905,7 @@ document.addEventListener("keydown", function (e) {
   syncNorthUI();
   syncPoiSwitch();
   syncAwakeSwitch();
+  syncUnitButtons();
   updateFollowUI();
   syncDragMode();
   Rec.restore();
