@@ -106,13 +106,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #btnOrient.on svg{stroke:var(--rust)}
 #btnOrient.on svg text{fill:var(--rust)}
 #btnOrient.on svg .solid{fill:var(--rust)}
-#poiFilterChip{position:absolute;left:8px;top:12px;z-index:450;display:flex;align-items:center;gap:6px;
-  max-width:calc(100% - 120px);background:rgba(20,24,27,.9);border:1px solid var(--rust);border-radius:20px;
+#mapChips{position:absolute;left:8px;top:12px;z-index:450;display:flex;flex-direction:column;
+  align-items:flex-start;gap:6px;max-width:calc(100% - 120px)}
+#poiFilterChip,#poiOfferChip{display:flex;align-items:center;gap:6px;max-width:100%;
+  background:rgba(20,24,27,.92);border:1px solid var(--rust);border-radius:20px;
   padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust);
   text-transform:uppercase}
-#poiFilterChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#poiFilterChip svg{width:13px;height:13px;stroke:var(--rust);fill:none;stroke-width:2.2;stroke-linecap:round;flex:0 0 auto}
+#poiFilterChip span,#poiOfferChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#poiFilterChip svg,#poiOfferChip svg{width:13px;height:13px;stroke:var(--rust);fill:none;
+  stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+#poiOfferChip{border-color:var(--warn);color:var(--warn)}
+#poiOfferChip svg{stroke:var(--warn)}
 #poiFilterChip:active{background:rgba(193,85,44,.25)}
+#poiOfferChip:active{background:rgba(232,185,35,.22)}
 #followBadge{position:absolute;left:50%;transform:translateX(-50%);top:12px;z-index:450;
   font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
@@ -377,10 +383,16 @@ input[type=date],input[type=time]{color-scheme:dark}
       </button>
     </div>
     <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
-    <button id="poiFilterChip" class="hidden">
-      <span id="poiFilterText">FILTER</span>
-      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
+    <div id="mapChips">
+      <button id="poiFilterChip" class="hidden">
+        <span id="poiFilterText">FILTER</span>
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <button id="poiOfferChip" class="hidden">
+        <svg viewBox="0 0 24 24"><path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M4 17v3h16v-3"/></svg>
+        <span id="poiOfferText">LOAD POIS HERE</span>
+      </button>
+    </div>
     <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
     <div id="drawRect" class="hidden"></div>
     <div id="drawHint" class="hidden">
@@ -688,6 +700,10 @@ const CFG = {
      but it returns the whole map extract, so it is offered rather than used */
   OSM_API: "https://api.openstreetmap.org/api/0.6/map",
   NAV_TIMEOUT: 15000,
+  OSM_TIMEOUT: 90000,      /* the extract is small gzipped but outback data is slow */
+  /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
+     radius does in any town, so fall back through smaller radii */
+  OSM_RADII: [5000, 2500, 1200, 700],
   NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
   NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
   NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
@@ -2058,7 +2074,7 @@ function parsePois(data, a) {
       info: [t.brand, t.fee ? "fee: " + t.fee : "", t.water_source, t.drinking_water,
              t.opening_hours, t.backcountry === "yes" ? "backcountry" : ""].filter(Boolean).join(" | ")
     };
-    if (haversine(a, p) <= CFG.POI_RADIUS * 1.05) out.push(p);
+    if (haversine(a, p) <= reach) out.push(p);
   });
   return out;
 }
@@ -2131,7 +2147,7 @@ async function fetchPois(force) {
         .catch(function () {});
       setPois(items);
       poiRetryAt = 0;
-      $("#poiOsmRow").classList.add("hidden");
+      offerOsmPois(false);
       setPoiStatus(items.length ? items.length + " within 5 km of here"
                                 : "Nothing mapped within 5 km of here");
     } else if (cached) {
@@ -2143,7 +2159,7 @@ async function fetchPois(force) {
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       setPoiStatus("Could not reach the POI service - retrying shortly, or tap Refresh");
-      $("#poiOsmRow").classList.remove("hidden");   /* offer the heavier source */
+      offerOsmPois(true);                           /* offer the heavier source */
     }
   } finally {
     poiBusy = false;
@@ -2154,8 +2170,9 @@ async function fetchPois(force) {
 /* ---------------------------------------------------------------------
    Fallback POI source: the canonical OSM API. It is reachable on networks
    where every Overpass mirror is not, but /map returns the entire extract
-   for the box - about 2 MB for a 5 km radius against roughly 20 KB from
-   Overpass - so it is offered on a button rather than used automatically.
+   for the box - about 1.7 MB of XML for a 5 km radius, though it gzips to
+   roughly 170 KB over the wire, so the cost is closer to eight map tiles
+   than to a photograph. Still offered on a button so the driver chooses.
    --------------------------------------------------------------------- */
 function bboxAround(a, m) {
   const dLat = m / 111320;
@@ -2164,9 +2181,10 @@ function bboxAround(a, m) {
           (a.lng + dLng).toFixed(5), (a.lat + dLat).toFixed(5)].join(",");
 }
 
-function parseOsmXml(text, a) {
+function parseOsmXml(text, a, radius) {
+  const reach = (radius || CFG.POI_RADIUS) * 1.05;
   const doc = new DOMParser().parseFromString(text, "application/xml");
-  if (doc.getElementsByTagName("parsererror").length) return [];
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("unparseable");
   const coords = {};
   const nodes = doc.getElementsByTagName("node");
   for (let i = 0; i < nodes.length; i++) {
@@ -2201,7 +2219,7 @@ function parseOsmXml(text, a) {
       info: [tags.brand, tags.fee ? "fee: " + tags.fee : "", tags.water_source,
              tags.drinking_water, tags.opening_hours].filter(Boolean).join(" | ")
     };
-    if (haversine(a, p) <= CFG.POI_RADIUS * 1.05) out.push(p);
+    if (haversine(a, p) <= reach) out.push(p);
   }
   for (let i = 0; i < nodes.length; i++) collect(nodes[i], "node");
   const ways = doc.getElementsByTagName("way");
@@ -2209,20 +2227,110 @@ function parseOsmXml(text, a) {
   return out;
 }
 
+/* Returns {items,bytes,secs,radius} or {error}. The API refuses any box
+   holding more than 50000 nodes, which a 5 km radius does in any built up
+   area, so shrink the radius until it fits rather than giving up. */
 async function osmApiPois(a) {
-  const url = CFG.OSM_API + "?bbox=" + bboxAround(a, CFG.POI_RADIUS);
-  const ctl = new AbortController();
-  const bail = setTimeout(function () { ctl.abort(); }, 60000);
-  try {
-    const resp = await fetch(url, { signal: ctl.signal });
-    if (!resp.ok) throw new Error("http " + resp.status);
-    const text = await resp.text();
-    return { items: parseOsmXml(text, a), bytes: text.length };
-  } catch (e) {
-    return null;
-  } finally {
+  const t0 = Date.now();
+  let lastError = "could not reach the server";
+
+  for (let i = 0; i < CFG.OSM_RADII.length; i++) {
+    const radius = CFG.OSM_RADII[i];
+    if (i > 0) setPoiStatus("Area too dense - retrying within " + (radius / 1000) + " km...");
+    const url = CFG.OSM_API + "?bbox=" + bboxAround(a, radius);
+    const ctl = new AbortController();
+    const bail = setTimeout(function () { ctl.abort(); }, CFG.OSM_TIMEOUT);
+    let resp;
+    try {
+      resp = await fetch(url, { signal: ctl.signal });
+    } catch (e) {
+      clearTimeout(bail);
+      const secs = Math.round((Date.now() - t0) / 1000);
+      return { error: e.name === "AbortError"
+        ? "timed out after " + secs + "s - the connection is too slow"
+        : "could not reach the server (" + secs + "s) - blocked or offline" };
+    }
+    if (!resp.ok) {
+      let why = "";
+      try { why = await resp.text(); } catch (e) { /* body is optional */ }
+      clearTimeout(bail);
+      /* too many nodes: worth another go over a smaller box */
+      if (resp.status === 400 && /too many nodes/i.test(why)) {
+        lastError = "even a " + (radius / 1000) + " km box is too dense here";
+        continue;
+      }
+      return { error: resp.status === 509
+        ? "rate limited (509) - try again in a few minutes"
+        : "server returned HTTP " + resp.status };
+    }
+    let text;
+    try {
+      text = await resp.text();
+    } catch (e) {
+      clearTimeout(bail);
+      return { error: "download interrupted after " + Math.round((Date.now() - t0) / 1000) + "s" };
+    }
     clearTimeout(bail);
+    try {
+      return { items: parseOsmXml(text, a, radius), bytes: text.length,
+               secs: Math.round((Date.now() - t0) / 1000), radius: radius };
+    } catch (e) {
+      return { error: "could not read the map extract (" + fmtBytes(text.length) + ")" };
+    }
   }
+  return { error: lastError };
+}
+
+/* One path for the heavier OSM API load, reached from the menu button and
+   from the chip that appears on the map when a POI fetch comes back empty
+   handed - the drawer is usually shut at that moment. */
+async function loadPoisFromOsmApi() {
+  if (poiBusy) return;
+  const place = (poiPlace && haversine(poiAnchor(), poiPlace) < 3000) ? poiPlace.name : null;
+  poiBusy = true;
+  offerOsmPois(false);
+  /* roughly 170 KB over the wire - the extract is large but gzips hard */
+  setPoiStatus("Downloading map data, usually under 200 KB...");
+  toast("Downloading POIs" + (place ? " for " + place : "") + "...", "warn");
+  const a = poiAnchor();
+  const r = await osmApiPois(a);
+  poiBusy = false;
+
+  if (r.error) {
+    setPoiStatus("OpenStreetMap: " + r.error);
+    offerOsmPois(true);
+    toast("POI download failed", "err");
+    return;
+  }
+  poiCentre = a;
+  poiRetryAt = 0;
+  await DB.put("poi", { ts: Date.now(), items: r.items, lat: a.lat, lng: a.lng }, poiKey(a))
+    .catch(function () {});
+  setPois(r.items);
+  refreshStorageStats();
+  const km = (r.radius / 1000);
+  setPoiStatus(r.items.length + " within " + km + " km (OpenStreetMap, " +
+               fmtBytes(r.bytes) + " uncompressed, " + r.secs + "s)");
+  if (r.radius < CFG.POI_RADIUS) toast("Dense area - loaded " + km + " km around you", "warn");
+  toast(r.items.length + " POIs loaded" + (place ? " for " + place : ""), "ok");
+}
+
+/* The map-side offer, since a failed load usually happens with the menu shut.
+   The label is derived from where the anchor actually is rather than stored,
+   so jumping to another town renames it and driving away drops the name. */
+let poiPlace = null;         /* {name,lat,lng} of the last place jumped to */
+
+function poiOfferLabel() {
+  if (poiPlace && haversine(poiAnchor(), poiPlace) < 3000) {
+    return "Load POIs for " + poiPlace.name;
+  }
+  return "Load POIs here";
+}
+
+function offerOsmPois(show) {
+  $("#poiOsmRow").classList.toggle("hidden", !show);
+  $("#poiOfferChip").classList.toggle("hidden", !show);
+  if (show) $("#poiOfferText").textContent = poiOfferLabel();
 }
 function setPois(items) {
   pois = items || [];
@@ -2616,6 +2724,8 @@ async function runDiagnostics() {
 
   rows.push({ label: "Page origin", cls: location.protocol === "file:" ? "warn" : "ok",
               text: location.protocol === "file:" ? "file:// (origin null)" : location.protocol });
+  rows.push({ label: "GPS allowed here", cls: insecureContext() ? "bad" : "ok",
+              text: insecureContext() ? "no - needs https" : "yes (secure context)" });
   rows.push({ label: "Browser reports", cls: navigator.onLine ? "ok" : "bad",
               text: navigator.onLine ? "online" : "offline" });
 
@@ -3018,9 +3128,22 @@ const Sim = {
    Real GPS
    ===================================================================== */
 let geoWatch = null;
+/* Chrome only hands out location in a secure context. A page opened straight
+   from a file is not one, so the GPS is refused no matter what the phone's
+   location settings say - worth saying plainly rather than blaming the
+   permission the driver has already granted. */
+function insecureContext() {
+  return !window.isSecureContext && location.protocol !== "http:";
+}
+
 function startGeo() {
   if (!navigator.geolocation) { toast("Geolocation unavailable", "err"); return; }
   if (geoWatch != null) return;
+  if (insecureContext()) {
+    $("#gpsText").textContent = "NO HTTPS";
+    toast("GPS needs https - opened from a file, Android will not allow it", "err");
+    return;
+  }
   geoWatch = navigator.geolocation.watchPosition(function (pos) {
     const c = pos.coords;
     pushPosition({
@@ -3031,8 +3154,15 @@ function startGeo() {
       sim: false, t: pos.timestamp || Date.now()
     });
   }, function (err) {
-    if (err.code === 1) toast("Location permission denied", "err");
-    else if (!Sim.active && !view.has) toast("Waiting for GPS fix...", "warn");
+    if (err.code === 1) {
+      toast(insecureContext()
+        ? "GPS needs https - a page opened from a file cannot use location"
+        : "Location permission denied - allow it for this site", "err");
+    } else if (err.code === 2) {
+      toast("Position unavailable - no GPS signal yet", "warn");
+    } else if (!Sim.active && !view.has) {
+      toast("Waiting for GPS fix...", "warn");
+    }
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
 }
 
@@ -3170,9 +3300,25 @@ $("#geoList").addEventListener("click", function (e) {
   if (b.dataset.act === "nav") {
     navigateTo({ lat: lat, lng: lng, name: card.dataset.name });
   } else if (b.dataset.act === "go") {
+    const place = card.dataset.name;
+    poiPlace = { name: place, lat: lat, lng: lng };   /* names the offer chip */
     gotoLatLng(lat, lng, 14);
-    fetchPois(true);                 /* pull the POIs for where we just landed */
-    toast(card.dataset.name, "ok");
+    /* POIs follow you to the town you searched for, not the fix you left behind.
+       Judge success by what is actually near the town, not by a count that a
+       previous town's results would keep unchanged. */
+    fetchPois(true).then(function () {
+      const near = pois.filter(function (p) {
+        return haversine(p, { lat: lat, lng: lng }) <= CFG.POI_RADIUS * 1.1;
+      }).length;
+      if (near) {
+        offerOsmPois(false);
+        toast(near + " POIs around " + place, "ok");
+      } else {
+        offerOsmPois(true);
+        toast("No POIs for " + place + " yet - tap the chip to fetch them", "warn");
+      }
+    });
+    toast("Moved to " + place, "ok");
   } else if (b.dataset.act === "save") {
     waypoints.push({ id: uid(), lat: lat, lng: lng, name: card.dataset.name,
                      cat: "flag", note: "From place search", ts: Date.now() });
@@ -3180,24 +3326,8 @@ $("#geoList").addEventListener("click", function (e) {
     toast("Saved: " + card.dataset.name, "ok");
   }
 });
-$("#btnPoiOsm").addEventListener("click", async function () {
-  if (poiBusy) return;
-  poiBusy = true;
-  setPoiStatus("Downloading map extract, about 2 MB...");
-  const a = poiAnchor();
-  const r = await osmApiPois(a);
-  poiBusy = false;
-  if (!r) { setPoiStatus("OpenStreetMap download failed - check your connection"); return; }
-  poiCentre = a;
-  poiRetryAt = 0;
-  await DB.put("poi", { ts: Date.now(), items: r.items, lat: a.lat, lng: a.lng }, poiKey(a))
-    .catch(function () {});
-  setPois(r.items);
-  $("#poiOsmRow").classList.add("hidden");
-  refreshStorageStats();
-  setPoiStatus(r.items.length + " within 5 km (OpenStreetMap, " + fmtBytes(r.bytes) + ")");
-  toast(r.items.length + " POIs loaded", "ok");
-});
+$("#btnPoiOsm").addEventListener("click", function () { loadPoisFromOsmApi(); });
+$("#poiOfferChip").addEventListener("click", function () { loadPoisFromOsmApi(); });
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
   fetchPois(true);
@@ -3280,9 +3410,7 @@ $("#areaList").addEventListener("click", async function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const id = b.closest(".card").dataset.id;
-  if (b.dataset.act === "nav") {
-    navigateTo({ lat: lat, lng: lng, name: card.dataset.name });
-  } else if (b.dataset.act === "go") {
+  if (b.dataset.act === "go") {
     const a = await DB.get("areas", id);
     if (!a) return;
     if (S.follow) pauseFollow();
