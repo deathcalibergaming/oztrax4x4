@@ -383,7 +383,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
    border, and the sand the rest of the menu is written in. It used to borrow
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
-#btnUnitMetric.on,#btnUnitImperial.on{
+#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -784,10 +784,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
         </div>
         <div class="poi-status" id="unitNote"></div>
-        <div class="sublabel">Screen</div>
-        <div class="swrow"><div class="sw" id="swAwake"></div><span>Keep screen on while the app is open</span></div>
+        <div class="sublabel">Screen
+          <button class="btn xs ghost" id="btnAwakeOn">Stay On</button>
+          <button class="btn xs ghost" id="btnAwakeOff">May Sleep</button>
+        </div>
         <div class="poi-status" id="awakeState"></div>
-        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn this off if you want to leave the app open while parked.</div>
+        <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Choose May Sleep if you want to leave the app open while parked.</div>
       </div>
     </details>
 
@@ -1775,7 +1777,7 @@ function frame(ts) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
     /* the wake lock reads the same way: it is handed back and taken again
        while you watch, so a stale line is worse than none */
-    else if ($("#secSettings").open) { gpsTick = ts; syncAwakeSwitch(); }
+    else if ($("#secSettings").open) { gpsTick = ts; syncAwakeButtons(); }
   }
 }
 requestAnimationFrame(frame);
@@ -4630,7 +4632,7 @@ const Wake = {
           Wake.lock = null;
           Wake.note = "released by the system";
           renderGpsPanel();
-          syncAwakeSwitch();
+          syncAwakeButtons();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -4645,7 +4647,7 @@ const Wake = {
       this.busy = false;
     }
     renderGpsPanel();
-    syncAwakeSwitch();
+    syncAwakeButtons();
   },
 
   status: function () {
@@ -4664,7 +4666,7 @@ function openDrawer() {
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
   renderTracks(); renderWaypoints(); renderAreas(); refreshStorageStats();
-  syncAwakeSwitch();
+  syncAwakeButtons();
   readGeoPermission().then(renderGpsPanel);
 }
 /* Closing the drawer always means the same thing - get out of the way, the
@@ -4897,24 +4899,31 @@ function setUnits(u) {
 }
 $("#btnUnitMetric").addEventListener("click", function () { setUnits("metric"); });
 $("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial"); });
-/* The switch used to sit inches above the GPS diagnostics, which report
-   whether the lock was actually granted - Android hands it back on every
-   glance at another app. Moved to Settings it needs to say so itself,
-   or the driver is toggling a switch with no way to see it took. */
-function syncAwakeSwitch() {
-  $("#swAwake").classList.toggle("on", S.keepAwake);
+/* A pair of named choices rather than a switch, so the one other setting
+   in this panel and this one are read the same way - and the highlight is
+   the units rule itself rather than a copy of it, which is how the units
+   buttons came to be unreadable the last time it was restated.
+
+   The state line stays: moved away from the GPS diagnostics, the control
+   has to say for itself whether the lock was actually granted, since
+   Android hands it back on every glance at another app. */
+function syncAwakeButtons() {
+  $("#btnAwakeOn").classList.toggle("on", S.keepAwake);
+  $("#btnAwakeOff").classList.toggle("on", !S.keepAwake);
   if (typeof Wake !== "undefined") $("#awakeState").textContent = "Wake lock: " + Wake.status();
 }
-$("#swAwake").addEventListener("click", function () {
-  S.keepAwake = !S.keepAwake;
+function setKeepAwake(on) {
+  if (S.keepAwake === on) return;
+  S.keepAwake = on;
   saveSettings();
-  syncAwakeSwitch();
-  syncUnitButtons();
+  syncAwakeButtons();
   Wake.apply();
-  toast(S.keepAwake ? "Screen will stay on while the app is open"
-                    : "Screen may sleep - a recording stops with it",
-        S.keepAwake ? "ok" : "warn");
-});
+  toast(on ? "Screen will stay on while the app is open"
+           : "Screen may sleep - a recording stops with it",
+        on ? "ok" : "warn");
+}
+$("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
+$("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); });
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
   fetchPois(true);
@@ -5031,7 +5040,7 @@ document.addEventListener("keydown", function (e) {
 (function init() {
   syncNorthUI();
   syncPoiSwitch();
-  syncAwakeSwitch();
+  syncAwakeButtons();
   syncUnitButtons();
   updateFollowUI();
   syncDragMode();
