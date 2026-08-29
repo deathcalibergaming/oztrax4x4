@@ -4535,7 +4535,7 @@ function renderGpsPanel() {
   row("Watching", GPS.watching ? "yes" : "no", GPS.watching ? "ok" : "warn");
   /* Wake is defined further down the file; guard so an early render is safe */
   if (typeof Wake !== "undefined") {
-    row("Screen wake lock", Wake.status(),
+    row("Screen lock", Wake.status(),
         Wake.lock ? "ok" : !Wake.supported || !S.keepAwake ? "warn" : "warn");
   }
   row("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
@@ -4910,7 +4910,7 @@ $("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial
 function syncAwakeButtons() {
   $("#btnAwakeOn").classList.toggle("on", S.keepAwake);
   $("#btnAwakeOff").classList.toggle("on", !S.keepAwake);
-  if (typeof Wake !== "undefined") $("#awakeState").textContent = "Wake lock: " + Wake.status();
+  if (typeof Wake !== "undefined") $("#awakeState").textContent = "Screen lock: " + Wake.status();
 }
 function setKeepAwake(on) {
   if (S.keepAwake === on) return;
