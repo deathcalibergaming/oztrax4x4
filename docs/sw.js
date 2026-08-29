@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v13";
+const CACHE = "trailtracker-v14";
 
 const SHELL = [
   "./",
