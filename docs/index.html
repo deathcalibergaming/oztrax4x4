@@ -175,6 +175,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   letter-spacing:.06em;margin-top:1px}
 .dotmark.sm{width:18px;height:18px;border-radius:3px}
 .dotmark.sm svg{width:11px;height:11px}
+/* A POI in a list wears the same badge it wears on the map - a dashed circle
+   rather than the solid rounded square a waypoint gets - so the row and the
+   pin it refers to are recognisably the same thing. */
+.dotmark.poi{border-radius:50%;border:1.5px dashed #0D100F;opacity:.92;
+  box-shadow:0 2px 5px rgba(0,0,0,.55)}
+.dotmark.poi svg{width:12px;height:12px;stroke-width:2.2}
+.dotmark.sm.poi svg{width:11px;height:11px}
 
 /* ---------- action bar ---------- */
 #actionbar{position:absolute;left:8px;right:8px;bottom:calc(6px + var(--safeB));height:var(--actH);
@@ -3085,7 +3092,7 @@ function clusterPopupHtml(group, here) {
     .map(function (p) {
       const m = POI_META[p.kind];
       return '<button class="pop-row" onclick="showPoi(\'' + p.id + '\')">' +
-        '<span class="dotmark sm" style="background:' + m.color + '">' +
+        '<span class="dotmark sm poi" style="background:' + m.color + '">' +
         catIcon(poiIcon(p.kind)) + "</span>" +
         '<span class="pop-row-t">' + esc(p.name) +
         "<i>" + m.label.toUpperCase() + " &middot; " + fmtDist(haversine(here, p)) +
@@ -3159,7 +3166,7 @@ function renderPois() {
   box.innerHTML = hits.slice(0, 120).map(function (p) {
     const m = POI_META[p.kind];
     return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:' + m.color + '">' +
+      '<div class="card-top"><div class="dotmark poi" style="background:' + m.color + '">' +
       catIcon(poiIcon(p.kind)) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
