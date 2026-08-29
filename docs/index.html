@@ -972,6 +972,7 @@ const CFG = {
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
   POI_DUP_M: 200,          /* same name inside this radius is one place mapped twice */
+  PLACE_DUP_M: 25000,      /* and a searched place this close to its own name is one town */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -3219,6 +3220,37 @@ function geoDist(r) {
   return haversine(here, r);
 }
 
+/* Searching a city returns the city and the suburb of the same name inside
+   it, which is two lines saying Adelaide and no way to tell them apart. The
+   larger one is what somebody typing a city name meant, so same name and
+   close together collapses to whichever covers more ground.
+
+   Distance still has to agree: two towns called Springton on opposite sides
+   of the country are not one place, however alike their names read. */
+function dedupePlaces(list) {
+  const groups = {};
+  const out = [];
+  list.forEach(function (p) {
+    const key = (p.name || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!key) { out.push(p); return; }
+    const bucket = groups[key] || (groups[key] = []);
+    let joined = false;
+    for (let i = 0; i < bucket.length && !joined; i++) {
+      if (haversine(bucket[i][0], p) <= CFG.PLACE_DUP_M) { bucket[i].push(p); joined = true; }
+    }
+    if (!joined) bucket.push([p]);
+  });
+  Object.keys(groups).forEach(function (key) {
+    groups[key].forEach(function (cluster) {
+      out.push(cluster.reduce(function (best, p) {
+        if (p.rank !== best.rank) return p.rank < best.rank ? p : best;  /* bigger place */
+        return p.imp > best.imp ? p : best;                              /* then better known */
+      }));
+    });
+  });
+  return out;
+}
+
 async function geoSearch(q) {
   q = (q || "").trim();
   if (q.length < 3) { toast("Type at least three characters", "warn"); return; }
@@ -3254,9 +3286,16 @@ async function geoSearch(q) {
         name: r.name || parts[0] || q,
         where: parts.slice(1, 3).join(", "),
         kind: (r.addresstype || r.type || r.category || "place").replace(/_/g, " "),
+        /* place_rank counts up as a place gets smaller - a city is 16, the
+           suburb inside it 18 - and importance breaks a tie between two of
+           the same size. Both are kept so the duplicate pass can tell which
+           of two identical names is the one you meant. */
+        rank: isFinite(r.place_rank) ? r.place_rank : 99,
+        imp: isFinite(r.importance) ? r.importance : 0,
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
       };
     }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
+    geoResults = dedupePlaces(geoResults);
     geoResults.sort((a, b) => geoDist(a) - geoDist(b));
     geoNote = geoResults.length ? geoResults.length + " found in Australia"
                                 : "Nothing found for “" + q + "”";
