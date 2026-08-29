@@ -1014,7 +1014,12 @@ const CFG = {
      a paid one. Overpass used to sit in front of it, but every public mirror
      was unreachable from the field, so it is gone. */
   OSM_API: "https://api.openstreetmap.org/api/0.6/map",
-  OSM_TIMEOUT: 45000,
+  OSM_TIMEOUT: 45000,     /* the longest any one attempt may run */
+  /* ...and the longest the whole ladder may run. A timeout buys exactly one
+     more attempt, at the smallest box; the search index answers in about a
+     second and the driver is waiting. */
+  OSM_BUDGET: 60000,
+  OSM_MIN_TRY: 6000,      /* too little left on the clock to bother starting */
   /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
      radius does in any town, so fall back through smaller radii */
   OSM_RADII: [5000, 2500, 1200, 700],
@@ -3047,23 +3052,47 @@ function parseOsmXml(text, a, radius) {
    area, so shrink the radius until it fits rather than giving up. */
 async function osmApiPois(a) {
   const t0 = Date.now();
+  const deadline = t0 + CFG.OSM_BUDGET;
   let lastError = "could not reach the server";
+  let retryWhy = "";
 
   for (let i = 0; i < CFG.OSM_RADII.length; i++) {
     const radius = CFG.OSM_RADII[i];
-    if (i > 0) setPoiStatus("Area too dense - retrying within " + (radius / 1000) + " km...");
+    /* No sense starting a fetch there is no time left to finish. */
+    const left = deadline - Date.now();
+    if (i > 0 && left < CFG.OSM_MIN_TRY) break;
+    if (i > 0) setPoiStatus(retryWhy + " - retrying within " + (radius / 1000) + " km...");
     const url = CFG.OSM_API + "?bbox=" + bboxAround(a, radius);
     const ctl = new AbortController();
-    const bail = setTimeout(function () { ctl.abort(); }, CFG.OSM_TIMEOUT);
+    const bail = setTimeout(function () { ctl.abort(); }, Math.min(CFG.OSM_TIMEOUT, left));
     let resp;
     try {
       resp = await fetch(url, { signal: ctl.signal });
     } catch (e) {
       clearTimeout(bail);
       const secs = Math.round((Date.now() - t0) / 1000);
-      return { error: e.name === "AbortError"
-        ? "timed out after " + secs + "s - the connection is too slow"
-        : "could not reach the server (" + secs + "s) - blocked or offline" };
+      if (e.name !== "AbortError") {
+        return { error: "could not reach the server (" + secs + "s) - blocked or offline" };
+      }
+      /* A smaller box is worth one more try, because full detail in a
+         tight circle beats headline tags in a wide one - the extract is
+         the only source that says whether a camp charges, and Photon
+         fills the rest of the 5 km back in afterwards.
+
+         Straight to the smallest box, though, not down the ladder rung by
+         rung. Shrinking the radius barely shrinks the download: measured
+         at Hawker the 5 km box is 1.72 MB and the 700 m box is still
+         0.71 MB, because the extract carries every node of every way that
+         crosses the box and a highway drags its whole length in whatever
+         the radius. The rungs between cost seconds to save a third of the
+         bytes; the smallest box is the only one with a real chance of
+         landing on a link that just failed. (Density is the other story -
+         node counts do scale with area, so that ladder is walked in full.) */
+      lastError = "timed out after " + secs + "s - the connection is too slow";
+      if (i === CFG.OSM_RADII.length - 1) break;   /* nothing smaller left */
+      retryWhy = "Connection is slow";
+      i = CFG.OSM_RADII.length - 2;                /* the loop lands on the last */
+      continue;
     }
     if (!resp.ok) {
       let why = "";
@@ -3072,6 +3101,7 @@ async function osmApiPois(a) {
       /* too many nodes: worth another go over a smaller box */
       if (resp.status === 400 && /too many nodes/i.test(why)) {
         lastError = "even a " + (radius / 1000) + " km box is too dense here";
+        retryWhy = "Area too dense";
         continue;
       }
       return { error: resp.status === 509
