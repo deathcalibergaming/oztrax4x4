@@ -106,6 +106,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #btnOrient.on svg{stroke:var(--rust)}
 #btnOrient.on svg text{fill:var(--rust)}
 #btnOrient.on svg .solid{fill:var(--rust)}
+#poiFilterChip{position:absolute;left:8px;top:12px;z-index:450;display:flex;align-items:center;gap:6px;
+  max-width:calc(100% - 120px);background:rgba(20,24,27,.9);border:1px solid var(--rust);border-radius:20px;
+  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust);
+  text-transform:uppercase}
+#poiFilterChip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#poiFilterChip svg{width:13px;height:13px;stroke:var(--rust);fill:none;stroke-width:2.2;stroke-linecap:round;flex:0 0 auto}
+#poiFilterChip:active{background:rgba(193,85,44,.25)}
 #followBadge{position:absolute;left:50%;transform:translateX(-50%);top:12px;z-index:450;
   font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
@@ -167,9 +174,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-ico{width:15px;height:15px;stroke:#4FA8E8;fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
 .np-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7FC1F0}
-.np-x{width:26px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.np-x svg{width:15px;height:15px;stroke:var(--dim);fill:none;stroke-width:2;stroke-linecap:round}
-.np-x:active{background:rgba(216,203,170,.12)}
+.np-btns{display:flex;margin-top:8px}
+.np-btns .btn{padding:11px 12px;min-height:40px}
 .np-figs{display:flex;margin-top:7px}
 .np-figs > div{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
   border-right:1px solid var(--line)}
@@ -364,6 +370,10 @@ input[type=date],input[type=time]{color-scheme:dark}
       </button>
     </div>
     <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
+    <button id="poiFilterChip" class="hidden">
+      <span id="poiFilterText">FILTER</span>
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
     <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
     <div id="drawRect" class="hidden"></div>
     <div id="drawHint" class="hidden">
@@ -379,9 +389,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="np-top">
           <svg class="np-ico" viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg>
           <span class="np-name" id="navName">DESTINATION</span>
-          <button class="np-x" id="btnNavCancel" aria-label="Cancel navigation">
-            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
         </div>
         <div class="np-figs">
           <div><b id="navDist">--</b><i>remaining</i></div>
@@ -389,6 +396,9 @@ input[type=date],input[type=time]{color-scheme:dark}
           <div><b id="navEta">--</b><i>arrive</i></div>
         </div>
         <div class="np-note" id="navNote"></div>
+        <div class="np-btns">
+          <button class="btn sm" id="btnNavCancel">Cancel Navigation</button>
+        </div>
       </div>
     <div id="recPanel" class="hidden">
       <div class="rp-top">
@@ -659,7 +669,7 @@ const CFG = {
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
-  POI_TIMEOUT: 12000,      /* give up on a mirror rather than let it hang the queue */
+  POI_TIMEOUT: 8000,       /* give up on a mirror rather than let it hang the queue */
   OSRM: "https://router.project-osrm.org",
   NAV_TIMEOUT: 15000,
   NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
@@ -1968,6 +1978,7 @@ let pois = [];
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
 let poiTimer = null, poiBusy = false, poiCentre = null, poiQuery = "";
 let poiRetryAt = 0;      /* set after a failure so a flat spot does not become a request storm */
+let poiMirror = 0;       /* the mirror that answered last time, tried first next time */
 let poiStatus = "";
 
 function setPoiStatus(s) {
@@ -2045,20 +2056,24 @@ async function fetchPois(force) {
   poiBusy = true;
   try {
     const key = poiKey(a);
-    try {
-      const hit = await DB.get("poi", key);
-      if (hit && !force && (Date.now() - hit.ts) < CFG.POI_TTL) {
-        poiCentre = a;
-        setPois(hit.items);
-        setPoiStatus(hit.items.length + " within 5 km (cached)");
-        return;
-      }
-    } catch (e) { /* idb unavailable - go to the network */ }
+    let cached = null;
+    try { cached = await DB.get("poi", key); } catch (e) { /* idb unavailable */ }
+    if (cached && !force && (Date.now() - cached.ts) < CFG.POI_TTL) {
+      poiCentre = a;
+      setPois(cached.items);
+      setPoiStatus(cached.items.length + " within 5 km (cached)");
+      return;
+    }
 
     setPoiStatus("Searching within 5 km...");
     const body = "data=" + encodeURIComponent(poiQueryFor(a));
     let items = null;
-    for (let i = 0; i < CFG.OVERPASS.length && items === null; i++) {
+    /* Start with whichever mirror answered last time, so the usual case is a
+       single quick request; only a real outage walks the whole list. */
+    const n = CFG.OVERPASS.length;
+    for (let k = 0; k < n && items === null; k++) {
+      const i = (poiMirror + k) % n;
+      if (k > 0) setPoiStatus("Searching within 5 km... (" + (k + 1) + " of " + n + ")");
       const ctl = new AbortController();
       const bail = setTimeout(function () { ctl.abort(); }, CFG.POI_TIMEOUT);
       try {
@@ -2070,6 +2085,7 @@ async function fetchPois(force) {
         });
         if (!resp.ok) throw new Error("http " + resp.status);
         items = parsePois(await resp.json(), a);
+        poiMirror = i;
       } catch (e) {
         /* dead, slow or rate-limited: move on to the next mirror */
       } finally {
@@ -2085,6 +2101,12 @@ async function fetchPois(force) {
       poiRetryAt = 0;
       setPoiStatus(items.length ? items.length + " within 5 km of here"
                                 : "Nothing mapped within 5 km of here");
+    } else if (cached) {
+      /* the service is unreachable but we have been here before - stale beats
+         empty, and poiCentre stays unset so a later attempt still happens */
+      setPois(cached.items);
+      poiRetryAt = Date.now() + CFG.POI_BACKOFF;
+      setPoiStatus(cached.items.length + " within 5 km (cached - service unreachable)");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       setPoiStatus("Could not reach the POI service - retrying shortly, or tap Refresh");
@@ -2127,6 +2149,11 @@ function renderPois() {
     mk.addTo(poiLayer);
   });
   $("#cntPois").textContent = poiQuery ? hits.length + "/" + vis.length : vis.length;
+
+  /* a filter hides pins on the map too, so it has to be visible from the map */
+  const chip = $("#poiFilterChip");
+  chip.classList.toggle("hidden", !poiQuery);
+  if (poiQuery) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
 
   const box = $("#poiList");
   if (!hits.length) {
@@ -2961,6 +2988,13 @@ $("#poiSearch").addEventListener("keydown", function (e) {
 });
 $("#btnGeoSearch").addEventListener("click", function () { geoSearch($("#poiSearch").value); });
 $("#btnNavCancel").addEventListener("click", function () { cancelNav(); });
+$("#poiFilterChip").addEventListener("click", function () {
+  $("#poiSearch").value = "";
+  poiQuery = "";
+  geoResults = []; geoNote = ""; renderGeo();
+  renderPois();
+  toast("POI filter cleared", "ok");
+});
 $("#geoList").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
