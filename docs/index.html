@@ -3283,28 +3283,38 @@ async function geoSearch(q) {
   geoResults = [];
   renderNavList();
 
-  const here = view.has ? view.cur : poiAnchor();
-  /* viewbox biases results towards the driver without excluding the rest */
+  /* No viewbox. Biasing towards the driver sounds right and is not: searching
+     Ghan, a town in the Territory, filled all twelve slots with segments of
+     the Old Ghan Railway near the Flinders and never returned the town at
+     all. Raising the limit to thirty did not shift one of them - the bias
+     dominates the ranking outright. The list is sorted by distance here
+     anyway, so nearby places still come first without asking the server to
+     prefer them, and every small place checked - Blinman, Parachilna,
+     Wilpena Pound, Arkaroola, Innamincka - is still found without it. */
   const url = CFG.NOMINATIM + "?format=jsonv2&limit=12&countrycodes=au&addressdetails=1" +
-    "&q=" + encodeURIComponent(q) +
-    "&viewbox=" + [here.lng - 6, here.lat + 6, here.lng + 6, here.lat - 6].map((n) => n.toFixed(3)).join(",");
+    "&q=" + encodeURIComponent(q);
   try {
     const resp = await fetch(url, { headers: { "Accept": "application/json" } });
     if (!resp.ok) throw new Error("http " + resp.status);
     const rows = await resp.json();
-    /* Local government areas - Adelaide City Council, Mount Barker District
-       Council - are not somewhere you drive to, and being large they sort
-       near the top and push the town you asked for below them.
+    /* Two kinds of answer are not destinations. Local government areas -
+       Adelaide City Council, Port Augusta City Council - are not somewhere
+       you drive to, and being large they sort near the top and push the town
+       you asked for below them. Road and railway segments are worse: a named
+       track is chopped into dozens of pieces, so one search can come back as
+       twelve helpings of the same line.
 
        The telling field is addresstype, not category: Port Augusta the town
        and Port Augusta City Council are both boundary/administrative, and
        only addresstype separates them into "town" and "administrative".
        National and conservation parks come back as "nature_reserve", so they
-       are not touched. Dropped only while something else survives, so
-       searching a council by name still answers. */
+       are untouched. Both are dropped only while something else survives, so
+       searching a council or a track by name still answers. */
     const raw = rows || [];
-    const isLga = function (r) { return r.addresstype === "administrative"; };
-    const kept = raw.filter(function (r) { return !isLga(r); });
+    const notPlace = function (r) {
+      return r.addresstype === "administrative" || r.addresstype === "road";
+    };
+    const kept = raw.filter(function (r) { return !notPlace(r); });
     geoResults = (kept.length ? kept : raw).map(function (r) {
       const parts = String(r.display_name || "").split(",").map((s) => s.trim());
       return {
