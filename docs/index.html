@@ -118,6 +118,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    styling all come from .act. Only the filled half of the needle needs
    saying, since .act colours strokes but not fills. The needle deliberately
    does not rotate: the mode shows as a colour change and the label. */
+#btnPoi .solid{fill:var(--sand);stroke:none}
 #btnOrient .solid{fill:var(--sand);stroke:none}
 #btnOrient.on .solid{fill:var(--rust)}
 /* Every floating label on the map lives in this one column. They used to be
@@ -288,10 +289,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #scrim{position:fixed;inset:0;background:rgba(6,8,7,.62);z-index:900;opacity:0;pointer-events:none;
   transition:opacity .22s ease}
 #scrim.show{opacity:1;pointer-events:auto}
-#drawer{position:fixed;top:0;bottom:0;left:0;width:min(90vw,370px);z-index:950;background:var(--panel);
+#drawer,#poiPanel{position:fixed;top:0;bottom:0;left:0;width:min(90vw,370px);z-index:950;background:var(--panel);
   border-right:1px solid var(--line2);transform:translateX(-101%);transition:transform .24s cubic-bezier(.3,.7,.3,1);
   display:flex;flex-direction:column;box-shadow:8px 0 28px rgba(0,0,0,.5)}
-#drawer.open{transform:translateX(0)}
+#drawer.open,#poiPanel.open{transform:translateX(0)}
+/* The head carries the POI badge, since this panel has no summary row to
+   wear it, and the list is free to run the full height - a 320px cap inside
+   a panel of its own would only nest one scroller in another. */
+#poiHeadIcon{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;
+  stroke-linecap:round;flex:0 0 auto}
+#poiHeadIcon .solid{fill:var(--rust);stroke:none}
+#poiPanel #poiList{max-height:none}
 .dr-head{flex:0 0 auto;height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);display:flex;align-items:center;
   gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:#171C19}
 .dr-head .t{flex:1;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
@@ -554,7 +562,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
   .pop-rows{max-height:38vh}
-  #drawer{width:min(70vw,340px)}
+  #drawer,#poiPanel{width:min(70vw,340px)}
   .dr-head{height:calc(42px + var(--safeT))}
   .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:8px;line-height:1.4}
   summary{padding:12px 14px}
@@ -663,6 +671,9 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button class="act" id="btnNavTo">
         <svg viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg><span>Navigate</span>
       </button>
+      <button class="act" id="btnPoi" aria-label="Nearby POIs">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.1 3.1"/><circle class="solid" cx="12" cy="12" r="2.6"/></svg><span>POIs</span>
+      </button>
       <button class="act" id="btnWpt">
         <svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Waypoint</span>
       </button>
@@ -714,31 +725,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div id="wptList" class="list"></div>
         <div class="row">
           <button class="btn sm ghost" id="btnAddWptMenu">Add At Map Centre</button>
-        </div>
-      </div>
-    </details>
-
-    <details>
-      <summary>
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8.5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
-        Nearby POIs <span class="cnt" id="cntPois">0</span><span class="chev"></span>
-      </summary>
-      <div class="sec-body">
-        <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
-        <input id="poiSearch" type="search" placeholder="Filter nearby POIs" autocomplete="off">
-        <div id="poiStatus" class="poi-status"></div>
-        <div class="sublabel">Categories
-          <button class="btn xs ghost" id="btnKindsAll">All On</button>
-          <button class="btn xs ghost" id="btnKindsNone">All Off</button>
-        </div>
-        <div id="poiKinds" class="kchips"></div>
-        <div class="row hidden" id="poiOsmRow">
-          <button class="btn sm warnb" id="btnPoiOsm">Reload POIs Here</button>
-        </div>
-        <div id="poiList" class="list scrollarea"></div>
-        <div class="row">
-          <button class="btn sm ghost" id="btnPoiRefresh">Refresh</button>
-          <button class="btn sm ghost" id="btnPoiRestore">Restore Hidden</button>
         </div>
       </div>
     </details>
@@ -800,6 +786,39 @@ input[type=date],input[type=time]{color-scheme:dark}
   <div class="dr-foot">
     TrailTracker &middot; offline 4x4 trail log<br>
     Map tiles &copy; Esri &middot; POI data &copy; OpenStreetMap contributors (ODbL)
+  </div>
+</aside>
+
+<!-- Nearby POIs used to be a drawer section. It is the one list checked while
+     moving - fuel, water, a camp before dark - so it answers to the action
+     bar instead, and gets the drawer's chrome rather than a look of its own. -->
+<aside id="poiPanel" aria-hidden="true">
+  <div class="dr-head">
+    <svg id="poiHeadIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.1 3.1"/><circle class="solid" cx="12" cy="12" r="2.6"/></svg>
+    <div class="t">Nearby POIs <span class="cnt" id="cntPois">0</span></div>
+    <button id="btnClosePoi" class="icon-btn" aria-label="Close nearby POIs">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dr-body">
+    <div class="sec-body">
+        <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
+        <input id="poiSearch" type="search" placeholder="Filter nearby POIs" autocomplete="off">
+        <div id="poiStatus" class="poi-status"></div>
+        <div class="sublabel">Categories
+          <button class="btn xs ghost" id="btnKindsAll">All On</button>
+          <button class="btn xs ghost" id="btnKindsNone">All Off</button>
+        </div>
+        <div id="poiKinds" class="kchips"></div>
+        <div class="row hidden" id="poiOsmRow">
+          <button class="btn sm warnb" id="btnPoiOsm">Reload POIs Here</button>
+        </div>
+        <div id="poiList" class="list scrollarea"></div>
+        <div class="row">
+          <button class="btn sm ghost" id="btnPoiRefresh">Refresh</button>
+          <button class="btn sm ghost" id="btnPoiRestore">Restore Hidden</button>
+        </div>
+      </div>
   </div>
 </aside>
 
@@ -4581,19 +4600,43 @@ const Wake = {
    UI wiring
    ===================================================================== */
 function openDrawer() {
+  closePoiPanel();                    /* one sheet over the map at a time */
   $("#drawer").classList.add("open");
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
-  renderTracks(); renderWaypoints(); renderPois(); renderAreas(); refreshStorageStats();
+  renderTracks(); renderWaypoints(); renderAreas(); refreshStorageStats();
   readGeoPermission().then(renderGpsPanel);
 }
+/* Closing the drawer always means the same thing - get out of the way, the
+   map has something to show. The POI panel is over the same map, so every
+   caller that used to clear the drawer wants it cleared too. */
 function closeDrawer() {
   $("#drawer").classList.remove("open");
   $("#drawer").setAttribute("aria-hidden", "true");
+  closePoiPanel();
   $("#scrim").classList.remove("show");
 }
+/* Nearby POIs is checked on the move, so it hangs off the action bar rather
+   than the menu. Same sheet, same scrim, same back button. */
+function openPoiPanel() {
+  $("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+  $("#poiPanel").classList.add("open");
+  $("#poiPanel").setAttribute("aria-hidden", "false");
+  $("#scrim").classList.add("show");
+  renderPois();
+}
+function closePoiPanel() {
+  $("#poiPanel").classList.remove("open");
+  $("#poiPanel").setAttribute("aria-hidden", "true");
+}
+function poiPanelOpen() { return $("#poiPanel").classList.contains("open"); }
 $("#btnMenu").addEventListener("click", openDrawer);
 $("#btnCloseDrawer").addEventListener("click", closeDrawer);
+$("#btnPoi").addEventListener("click", function () {
+  if (poiPanelOpen()) closeDrawer(); else openPoiPanel();
+});
+$("#btnClosePoi").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
 
 /* Map orientation lives on the map itself, bottom right, the same size as
