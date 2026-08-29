@@ -689,7 +689,7 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
-        <input id="poiSearch" type="search" placeholder="Search nearby, or Enter to search Australia" autocomplete="off">
+        <input id="poiSearch" type="search" placeholder="Filter nearby POIs" autocomplete="off">
         <div id="poiStatus" class="poi-status"></div>
         <div class="sublabel">Categories
           <button class="btn xs ghost" id="btnKindsAll">All On</button>
@@ -700,13 +700,6 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm warnb" id="btnPoiOsm">Reload POIs Here</button>
         </div>
         <div id="poiList" class="list scrollarea"></div>
-        <div class="row" id="geoRow">
-          <button class="btn sm ghost" id="btnGeoSearch">Search All Of Australia</button>
-        </div>
-        <div id="geoWrap" class="hidden">
-          <div class="poi-status" id="geoStatus"></div>
-          <div id="geoList" class="list scrollarea"></div>
-        </div>
         <div class="row">
           <button class="btn sm ghost" id="btnPoiRefresh">Refresh</button>
           <button class="btn sm ghost" id="btnPoiRestore">Restore Hidden</button>
@@ -3268,7 +3261,7 @@ async function geoSearch(q) {
   geoAt = Date.now();
   geoNote = "Searching Australia for “" + q + "”...";
   geoResults = [];
-  renderGeo();
+  renderNavList();
 
   const here = view.has ? view.cur : poiAnchor();
   /* viewbox biases results towards the driver without excluding the rest */
@@ -3316,7 +3309,7 @@ async function geoSearch(q) {
     geoNote = "Place search needs a connection";
   }
   geoBusy = false;
-  renderGeo();
+  renderNavList();
 }
 
 /* One place card, and one set of actions behind it, so the drawer list and
@@ -3366,14 +3359,6 @@ function geoAction(act, card) {
   }
 }
 
-function renderGeo() {
-  const wrap = $("#geoWrap"), box = $("#geoList");
-  renderNavList();
-  if (!geoNote && !geoResults.length) { wrap.classList.add("hidden"); return; }
-  wrap.classList.remove("hidden");
-  $("#geoStatus").textContent = geoNote;
-  box.innerHTML = geoResults.map(geoCardHtml).join("");
-}
 
 /* =====================================================================
    Navigate popup
@@ -4444,27 +4429,19 @@ $("#swPoi").addEventListener("click", function () {
   saveSettings(); syncPoiSwitch(); renderPois();
   if (S.poiOn) fetchPois(true);
 });
+/* The box filters the POIs already loaded, and nothing else. Searching for a
+   town belongs to the Navigate button, which has a popup for it - one box
+   doing both jobs is what let a town name empty the map of every pin. */
 $("#poiSearch").addEventListener("input", function () {
   poiQuery = this.value.trim().toLowerCase();
-  if (!poiQuery) { geoResults = []; geoNote = ""; renderGeo(); }   /* clearing the box clears both lists */
   renderPois();
 });
-$("#poiSearch").addEventListener("keydown", function (e) {
-  if (e.key === "Enter") { e.preventDefault(); geoSearch(this.value); }
-});
-$("#btnGeoSearch").addEventListener("click", function () { geoSearch($("#poiSearch").value); });
 $("#btnNavCancel").addEventListener("click", function () { cancelNav(); });
 $("#poiFilterChip").addEventListener("click", function () {
   $("#poiSearch").value = "";
   poiQuery = "";
-  geoResults = []; geoNote = ""; renderGeo();
   renderPois();
   toast("POI filter cleared", "ok");
-});
-$("#geoList").addEventListener("click", function (e) {
-  const b = e.target.closest("button[data-act]");
-  if (!b) return;
-  geoAction(b.dataset.act, b.closest(".card"));
 });
 /* The popup gets out of the way once it has done its job - you asked to go
    somewhere, so the map is what you want to see next. Saving a waypoint
