@@ -240,6 +240,13 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
+.diag{font-family:var(--mono);font-size:9.5px;line-height:1.7;color:var(--dim);margin-top:9px}
+.diag:empty{display:none}
+.diag div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:2px 0}
+.diag b{font-weight:600}
+.diag .ok{color:var(--green)}
+.diag .bad{color:#E07C63}
+.diag .warn{color:var(--warn)}
 .poi-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
 .empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
@@ -512,7 +519,10 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="kv"><span>Cached tiles</span><b id="kvTiles">--</b></div>
         <div class="kv"><span>Cached POI cells</span><b id="kvPoi">--</b></div>
         <div class="kv"><span>Estimated usage</span><b id="kvUsage">--</b></div>
+        <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
+          <button class="btn sm ghost" id="btnDiag">Test Connection</button>
+          <button class="btn sm ghost" id="btnClearPoi">Clear POI Cache</button>
           <button class="btn sm dangerb" id="btnClearTiles">Clear Tile Cache</button>
         </div>
       </div>
@@ -662,6 +672,7 @@ const CFG = {
   TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
   /* public Overpass mirrors, tried in order until one answers */
   OVERPASS: ["https://overpass-api.de/api/interpreter",
+             "https://overpass.openstreetmap.fr/api/interpreter",
              "https://overpass.private.coffee/api/interpreter",
              "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
              "https://overpass.kumi.systems/api/interpreter"],
@@ -679,6 +690,7 @@ const CFG = {
   MIN_Z: 3, MAX_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
+  POI_EMPTY_TTL: 15 * 60 * 1000,   /* a mirror with an empty database must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
   LERP_POS: 0.16, LERP_HDG: 0.13,
   SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
@@ -2058,7 +2070,9 @@ async function fetchPois(force) {
     const key = poiKey(a);
     let cached = null;
     try { cached = await DB.get("poi", key); } catch (e) { /* idb unavailable */ }
-    if (cached && !force && (Date.now() - cached.ts) < CFG.POI_TTL) {
+    const cachedTtl = (cached && cached.items && cached.items.length)
+      ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
+    if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
       setPois(cached.items);
       setPoiStatus(cached.items.length + " within 5 km (cached)");
@@ -2069,8 +2083,12 @@ async function fetchPois(force) {
     const body = "data=" + encodeURIComponent(poiQueryFor(a));
     let items = null;
     /* Start with whichever mirror answered last time, so the usual case is a
-       single quick request; only a real outage walks the whole list. */
+       single quick request; only a real outage walks the whole list.
+       An empty answer is not taken at face value: a mirror running a broken
+       or partial database returns 200 with nothing in it, so a second mirror
+       has to agree before we believe a place really has nothing. */
     const n = CFG.OVERPASS.length;
+    let empty = null, emptyAgreed = 0;
     for (let k = 0; k < n && items === null; k++) {
       const i = (poiMirror + k) % n;
       if (k > 0) setPoiStatus("Searching within 5 km... (" + (k + 1) + " of " + n + ")");
@@ -2084,14 +2102,23 @@ async function fetchPois(force) {
           body: body
         });
         if (!resp.ok) throw new Error("http " + resp.status);
-        items = parsePois(await resp.json(), a);
-        poiMirror = i;
+        const parsed = parsePois(await resp.json(), a);
+        if (parsed.length) {
+          items = parsed;
+          poiMirror = i;
+        } else {
+          empty = parsed;
+          emptyAgreed++;
+          if (emptyAgreed >= 2) { items = parsed; poiMirror = i; }
+        }
       } catch (e) {
         /* dead, slow or rate-limited: move on to the next mirror */
       } finally {
         clearTimeout(bail);
       }
     }
+    /* only one mirror answered at all, and it had nothing */
+    if (items === null && empty) items = empty;
 
     if (items) {
       poiCentre = a;
@@ -2476,6 +2503,65 @@ async function refreshStorageStats() {
   } else { $("#kvUsage").textContent = "n/a"; }
 }
 
+
+/* ---------------------------------------------------------------------
+   Connection test. Everything this app pulls from the network is a
+   separate service, so when POIs stop arriving it matters whether the
+   phone is offline, whether one service is down, or whether the page is
+   being blocked from making cross-origin requests at all.
+   --------------------------------------------------------------------- */
+async function probe(label, url, opts, timeout) {
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, timeout || 9000);
+  const t0 = Date.now();
+  try {
+    const r = await fetch(url, Object.assign({ signal: ctl.signal }, opts || {}));
+    const ms = Date.now() - t0;
+    if (!r.ok) return { label: label, cls: "bad", text: "HTTP " + r.status + " (" + ms + "ms)" };
+    return { label: label, cls: "ok", text: "ok (" + ms + "ms)" };
+  } catch (e) {
+    const ms = Date.now() - t0;
+    const why = e.name === "AbortError" ? "timed out" : "blocked or unreachable";
+    return { label: label, cls: "bad", text: why + " (" + ms + "ms)" };
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
+async function runDiagnostics() {
+  const box = $("#diagOut");
+  box.innerHTML = '<div><span>Testing...</span><b></b></div>';
+  const rows = [];
+
+  rows.push({ label: "Page origin", cls: location.protocol === "file:" ? "warn" : "ok",
+              text: location.protocol === "file:" ? "file:// (origin null)" : location.protocol });
+  rows.push({ label: "Browser reports", cls: navigator.onLine ? "ok" : "bad",
+              text: navigator.onLine ? "online" : "offline" });
+
+  let idb = "blocked";
+  try { await DB.count("poi"); idb = "working"; } catch (e) { /* blocked */ }
+  rows.push({ label: "Offline storage", cls: idb === "working" ? "ok" : "bad", text: idb });
+
+  rows.push(await probe("Map tiles (Esri)",
+    CFG.TILE_URL.replace("{z}", "8").replace("{x}", "230").replace("{y}", "150"), { mode: "cors" }));
+
+  const body = "data=" + encodeURIComponent("[out:json][timeout:10];out count;");
+  for (let i = 0; i < CFG.OVERPASS.length; i++) {
+    const host = CFG.OVERPASS[i].replace("https://", "").split("/")[0];
+    rows.push(await probe("POIs: " + host, CFG.OVERPASS[i], {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body
+    }));
+  }
+
+  rows.push(await probe("Place search", CFG.NOMINATIM + "?format=jsonv2&limit=1&q=hawker"));
+  rows.push(await probe("Routing", CFG.OSRM + "/route/v1/driving/138.42,-31.88;138.43,-31.89?overview=false"));
+
+  box.innerHTML = rows.map(function (r) {
+    return "<div><span>" + esc(r.label) + '</span><b class="' + r.cls + '">' + esc(r.text) + "</b></div>";
+  }).join("");
+}
 async function clearTileCache() {
   try {
     await DB.clear("tiles");
@@ -3041,6 +3127,14 @@ $("#amCancel").addEventListener("click", function () {
 });
 $("#amGo").addEventListener("click", runAreaDownload);
 $("#btnClearTiles").addEventListener("click", clearTileCache);
+$("#btnDiag").addEventListener("click", runDiagnostics);
+$("#btnClearPoi").addEventListener("click", async function () {
+  try { await DB.clear("poi"); } catch (e) { /* nothing cached */ }
+  poiCentre = null; poiRetryAt = 0; setPois([]);
+  refreshStorageStats();
+  fetchPois(true);
+  toast("POI cache cleared - searching again", "ok");
+});
 
 /* ---- delegated list actions inside the drawer ---- */
 $("#trackList").addEventListener("click", async function (e) {
