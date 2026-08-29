@@ -1730,7 +1730,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -1773,6 +1773,10 @@ function frame(ts) {
   /* While the GPS panel is open on screen, keep it live. Checking whether the
      compass reads true means turning the phone and watching the number move,
      which is impossible if the panel only redraws when a fix lands. */
+  /* One sentinel history entry while anything is open, so the system back
+     button has something to pop that is not the page. */
+  if (ts - backTick > 150) { backTick = ts; syncBackGuard(); }
+
   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
     /* the wake lock reads the same way: it is handed back and taken again
@@ -5020,8 +5024,32 @@ $("#areaList").addEventListener("click", async function (e) {
   }
 });
 
-document.addEventListener("keydown", function (e) {
-  if (e.key !== "Escape") return;
+/* ---------------------------------------------------------------------
+   Dismissing whatever is on top of the map. A keyboard says it with Escape.
+   A phone says it with the system back button, and that one has to be
+   caught: with nothing to pop, Android leaves the page instead of shutting
+   the panel, which in a standalone PWA looks like the app closing itself.
+
+   So a sentinel history entry is held while anything is open, giving back
+   something to pop that is not the page. Whether one is held is checked in
+   the frame loop rather than wired into each open and close: there are
+   eight of those and missing one means a back press walks out of the app.
+   --------------------------------------------------------------------- */
+let backGuard = false;   /* we are holding a sentinel history entry */
+let selfPop = false;     /* the next popstate is our own tidying up */
+
+function anyOverlayOpen() {
+  return askOpen() || wpFormOpen ||
+         !$("#trackModal").classList.contains("hidden") ||
+         navModalOpen() ||
+         !$("#areaModal").classList.contains("hidden") ||
+         drawMode ||
+         $("#drawer").classList.contains("open") ||
+         poiPanelOpen();
+}
+
+/* Shuts the topmost thing, in the order they stack. */
+function dismissTop() {
   if (askOpen()) { closeAsk(false); return; }
   if (wpFormOpen) { closeWpForm(); return; }
   if (!$("#trackModal").classList.contains("hidden")) {
@@ -5032,6 +5060,32 @@ document.addEventListener("keydown", function (e) {
   if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
   if (drawMode) { endDrawMode(); return; }
   closeDrawer();
+}
+
+function syncBackGuard() {
+  const open = anyOverlayOpen();
+  if (open && !backGuard) {
+    backGuard = true;
+    history.pushState({ ttOverlay: 1 }, "");
+  } else if (!open && backGuard) {
+    backGuard = false;
+    selfPop = true;        /* the popstate this causes is not a back press */
+    history.back();
+  }
+}
+
+window.addEventListener("popstate", function () {
+  if (selfPop) { selfPop = false; return; }
+  backGuard = false;       /* whatever we held has just been popped */
+  if (anyOverlayOpen()) {
+    dismissTop();
+    syncBackGuard();       /* something still open? hold a fresh sentinel */
+  }
+});
+
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  dismissTop();
 });
 
 /* =====================================================================
