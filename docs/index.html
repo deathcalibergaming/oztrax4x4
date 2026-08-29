@@ -95,6 +95,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
+/* The simulated drive sits under the zoom buttons and takes their size and
+   styling from the rule above, so only the glyph and the running state need
+   saying. Amber while it runs, since a simulated position is not a real one
+   and should not be mistaken for one at a glance. */
+#btnSim svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+#btnSim.on{background:rgba(232,185,35,.2);border-color:var(--warn)}
+#btnSim.on svg{stroke:var(--warn);fill:var(--warn)}
 /* Now an action bar button like the others, so its size, spacing and label
    styling all come from .act. Only the filled half of the needle needs
    saying, since .act colours strokes but not fills. The needle deliberately
@@ -494,7 +502,8 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* everything that used to hug the bottom or the right now clears the rail */
   #attrib{right:70px;bottom:calc(8px + var(--safeB))}
   #zoomCtl{right:70px;flex-direction:row}
-  #mapChips{max-width:calc(100% - 190px)}
+  /* the zoom row grew by a button, so the chips have to stop sooner */
+  #mapChips{max-width:calc(100% - 215px)}
 
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
@@ -539,6 +548,9 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div id="zoomCtl">
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
+      <button id="btnSim" aria-label="Simulated drive" title="Simulated drive">
+        <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
+      </button>
     </div>
     <div id="mapChips">
       <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
@@ -617,8 +629,8 @@ input[type=date],input[type=time]{color-scheme:dark}
           <path class="solid" d="M12 4.4 17 14.2H7Z"/>
         </svg><span id="orientLabel">N Up</span>
       </button>
-      <button class="act" id="btnSim">
-        <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg><span>Simulate</span>
+      <button class="act" id="btnNavTo">
+        <svg viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg><span>Navigate</span>
       </button>
     </nav>
   </div>
@@ -834,6 +846,34 @@ input[type=date],input[type=time]{color-scheme:dark}
 </div>
 
 <!-- offline area modal -->
+<!-- Places, not POIs: towns, roadhouses, landmarks - anywhere you would say
+     you were heading to, rather than the fuel and water within 5 km that the
+     POI list already covers. -->
+<div id="navModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="t">Navigate To</div>
+      <button class="icon-btn" id="nmClose" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="fld">
+        <label>Search for a place</label>
+        <input id="nmQuery" type="search" placeholder="Town, roadhouse, landmark" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="row">
+        <button class="btn sm primary" id="nmSearch">Search</button>
+      </div>
+      <div id="nmStatus" class="poi-status"></div>
+      <div id="nmList" class="list scrollarea"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm ghost" id="nmCancel">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="areaModal" class="modal hidden">
   <div class="modal-box">
     <div class="modal-head"><div class="t" id="amTitle">Download Area</div></div>
@@ -3213,23 +3253,93 @@ async function geoSearch(q) {
   renderGeo();
 }
 
+/* One place card, and one set of actions behind it, so the drawer list and
+   the Navigate popup cannot drift apart. */
+function geoCardHtml(r) {
+  return '<div class="card" data-lat="' + r.lat + '" data-lng="' + r.lng +
+    '" data-name="' + esc(r.name) + '">' +
+    '<div class="card-top"><div class="dotmark" style="background:#C77B9E">' + catIcon("flag") + "</div>" +
+    '<div style="flex:1;min-width:0"><div class="card-t">' + esc(r.name) + "</div>" +
+    '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
+    fmtDist(geoDist(r)) + " away</span></div></div></div>" +
+    (r.where ? '<div class="card-n">' + esc(r.where) + "</div>" : "") +
+    '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+    '<button class="btn xs ghost" data-act="go">Go To</button>' +
+    '<button class="btn xs ghost" data-act="save">Save Waypoint</button></div></div>';
+}
+
+function geoAction(act, card) {
+  const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
+  const place = card.dataset.name;
+  if (act === "nav") {
+    navigateTo({ lat: lat, lng: lng, name: place });
+  } else if (act === "go") {
+    poiPlace = { name: place, lat: lat, lng: lng };   /* names the offer chip */
+    gotoLatLng(lat, lng, 14);
+    /* POIs follow you to the town you searched for, not the fix you left behind.
+       Judge success by what is actually near the town, not by a count that a
+       previous town's results would keep unchanged. */
+    fetchPois(true).then(function () {
+      const near = pois.filter(function (p) {
+        return haversine(p, { lat: lat, lng: lng }) <= CFG.POI_RADIUS * 1.1;
+      }).length;
+      if (near) {
+        offerOsmPois(false);
+        toast(near + " POIs around " + place, "ok");
+      } else {
+        offerOsmPois(true);
+        toast("No POIs for " + place + " yet - tap the chip to fetch them", "warn");
+      }
+    });
+    toast("Moved to " + place, "ok");
+  } else if (act === "save") {
+    waypoints.push({ id: uid(), lat: lat, lng: lng, name: place,
+                     cat: "flag", note: "From place search", ts: Date.now() });
+    saveWaypoints();
+    toast("Saved: " + place, "ok");
+  }
+}
+
 function renderGeo() {
   const wrap = $("#geoWrap"), box = $("#geoList");
+  renderNavList();
   if (!geoNote && !geoResults.length) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
   $("#geoStatus").textContent = geoNote;
-  box.innerHTML = geoResults.map(function (r) {
-    return '<div class="card" data-lat="' + r.lat + '" data-lng="' + r.lng +
-      '" data-name="' + esc(r.name) + '">' +
-      '<div class="card-top"><div class="dotmark" style="background:#C77B9E">' + catIcon("flag") + "</div>" +
-      '<div style="flex:1;min-width:0"><div class="card-t">' + esc(r.name) + "</div>" +
-      '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
-      fmtDist(geoDist(r)) + " away</span></div></div></div>" +
-      (r.where ? '<div class="card-n">' + esc(r.where) + "</div>" : "") +
-      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
-      '<button class="btn xs ghost" data-act="go">Go To</button>' +
-      '<button class="btn xs ghost" data-act="save">Save Waypoint</button></div></div>';
-  }).join("");
+  box.innerHTML = geoResults.map(geoCardHtml).join("");
+}
+
+/* =====================================================================
+   Navigate popup
+   Places rather than POIs: towns, roadhouses, landmarks - anywhere you
+   would say you were heading to. The 5 km POI list already covers the
+   fuel and water around you, and mixing the two made the search box in
+   the drawer do two jobs at once.
+   ===================================================================== */
+function openNavModal() {
+  $("#navModal").classList.remove("hidden");
+  renderNavList();
+  setTimeout(function () { $("#nmQuery").focus(); }, 60);
+}
+function closeNavModal() { $("#navModal").classList.add("hidden"); }
+function navModalOpen() { return !$("#navModal").classList.contains("hidden"); }
+
+function renderNavList() {
+  const box = $("#nmList");
+  if (!box) return;
+  $("#nmStatus").textContent = geoNote ||
+    (geoResults.length ? geoResults.length + " places found" : "");
+  if (!geoResults.length) {
+    box.innerHTML = '<div class="empty">' +
+      (geoBusy ? "Searching..." : "Type a place and press Search.") + "</div>";
+    return;
+  }
+  box.innerHTML = geoResults.map(geoCardHtml).join("");
+}
+
+function navModalSearch() {
+  const q = $("#nmQuery").value;
+  geoSearch(q);
 }
 function hidePoi(id) {
   hiddenPoi.add(id);
@@ -4288,36 +4398,23 @@ $("#poiFilterChip").addEventListener("click", function () {
 $("#geoList").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
-  const card = b.closest(".card");
-  const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
-  if (b.dataset.act === "nav") {
-    navigateTo({ lat: lat, lng: lng, name: card.dataset.name });
-  } else if (b.dataset.act === "go") {
-    const place = card.dataset.name;
-    poiPlace = { name: place, lat: lat, lng: lng };   /* names the offer chip */
-    gotoLatLng(lat, lng, 14);
-    /* POIs follow you to the town you searched for, not the fix you left behind.
-       Judge success by what is actually near the town, not by a count that a
-       previous town's results would keep unchanged. */
-    fetchPois(true).then(function () {
-      const near = pois.filter(function (p) {
-        return haversine(p, { lat: lat, lng: lng }) <= CFG.POI_RADIUS * 1.1;
-      }).length;
-      if (near) {
-        offerOsmPois(false);
-        toast(near + " POIs around " + place, "ok");
-      } else {
-        offerOsmPois(true);
-        toast("No POIs for " + place + " yet - tap the chip to fetch them", "warn");
-      }
-    });
-    toast("Moved to " + place, "ok");
-  } else if (b.dataset.act === "save") {
-    waypoints.push({ id: uid(), lat: lat, lng: lng, name: card.dataset.name,
-                     cat: "flag", note: "From place search", ts: Date.now() });
-    saveWaypoints();
-    toast("Saved: " + card.dataset.name, "ok");
-  }
+  geoAction(b.dataset.act, b.closest(".card"));
+});
+/* The popup gets out of the way once it has done its job - you asked to go
+   somewhere, so the map is what you want to see next. Saving a waypoint
+   leaves it open, since that is not a decision to leave the search over. */
+$("#nmList").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  geoAction(b.dataset.act, b.closest(".card"));
+  if (b.dataset.act === "nav" || b.dataset.act === "go") closeNavModal();
+});
+$("#btnNavTo").addEventListener("click", openNavModal);
+$("#nmClose").addEventListener("click", closeNavModal);
+$("#nmCancel").addEventListener("click", closeNavModal);
+$("#nmSearch").addEventListener("click", navModalSearch);
+$("#nmQuery").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") { e.preventDefault(); navModalSearch(); }
 });
 $("#btnPoiOsm").addEventListener("click", function () { reloadPois(); });
 $("#poiOfferChip").addEventListener("click", function () { reloadPois(); });
@@ -4483,6 +4580,7 @@ document.addEventListener("keydown", function (e) {
     if (dialogMode === "edit") closeTrackDialog();   /* editing is safe to abandon */
     return;                                          /* an unsaved recording is not */
   }
+  if (navModalOpen()) { closeNavModal(); return; }
   if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
   if (drawMode) { endDrawMode(); return; }
   closeDrawer();
