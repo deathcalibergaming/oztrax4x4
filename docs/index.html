@@ -5343,7 +5343,7 @@ function syncUnitButtons() {
   $("#btnUnitMetric").classList.toggle("on", !im);
   $("#btnUnitImperial").classList.toggle("on", im);
   $("#unitNote").textContent = im
-    ? "Miles, miles per hour and feet. Tracks are still recorded and exported in metres - GPX has no choice about that - so switching back changes nothing you have saved."
+    ? "Miles, miles per hour and feet."
     : "Kilometres, km/h and metres.";
   syncUnitLabels();
 }
