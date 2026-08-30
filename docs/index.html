@@ -1049,6 +1049,10 @@ const CFG = {
   POI_RADIUS: 5000,        /* metres around you */
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
+  /* The place search is limited to the country the vehicle is in, and
+     Photon returns a country code with any reverse lookup. */
+  COUNTRY_TIMEOUT: 6000,
+  COUNTRY_REFRESH: 25000,  /* metres moved before the country is asked again */
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
   OSRM: "https://router.project-osrm.org",
   NAV_TIMEOUT: 15000,
@@ -1083,7 +1087,8 @@ const LS = {
   hiddenPoi: "tt.hiddenPoi",
   hiddenKinds: "tt.hiddenKinds",
   trail: "tt.trail",
-  lastPos: "tt.lastPos"
+  lastPos: "tt.lastPos",
+  country: "tt.country"
 };
 
 /* ---------- tiny helpers ---------- */
@@ -3547,6 +3552,50 @@ function foldSameBusiness(list) {
   return out;
 }
 
+/* ---------------------------------------------------------------------
+   Where in the world the driver is. The place search is limited to one
+   country because an unrestricted search for a small town loses to its
+   bigger namesake overseas - Hawker returns two answers in Australia
+   and six worldwide. Which country that is has to follow the vehicle
+   rather than be baked in.
+
+   Photon already answers reverse lookups for POIs and carries a country
+   code in them, so this is one small call and no new dependency. The
+   answer is kept in localStorage, so a cold start with no signal still
+   knows which country it woke up in.
+   --------------------------------------------------------------------- */
+let geoCountry = loadLS(LS.country, null);   /* {cc,name,lat,lng} or null */
+
+async function countryAt(a) {
+  const url = CFG.PHOTON + "?lat=" + a.lat.toFixed(4) + "&lon=" + a.lng.toFixed(4) + "&limit=1";
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.COUNTRY_TIMEOUT);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) throw new Error("http " + r.status);
+    const j = await r.json();
+    const p = (j.features && j.features[0] && j.features[0].properties) || {};
+    if (!p.countrycode) return null;
+    return { cc: p.countrycode.toLowerCase(), name: p.country || p.countrycode,
+             lat: a.lat, lng: a.lng };
+  } catch (e) {
+    return null;                 /* no answer means search the whole world */
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
+/* Asked again only once the driver has moved far enough that the answer
+   could have changed. Crossing the Nullarbor never changes it; crossing
+   into France does, and 25 km sits inside the width of a border town. */
+async function currentCountry() {
+  const a = poiAnchor();
+  if (geoCountry && haversine(geoCountry, a) < CFG.COUNTRY_REFRESH) return geoCountry;
+  const found = await countryAt(a);
+  if (found) { geoCountry = found; saveLS(LS.country, found); }
+  return geoCountry;             /* offline, a stale answer beats none */
+}
+
 async function geoSearch(q) {
   q = (q || "").trim();
   if (q.length < 3) { toast("Type at least three characters", "warn"); return; }
@@ -3562,8 +3611,14 @@ async function geoSearch(q) {
 
   geoBusy = true;
   geoAt = Date.now();
-  geoNote = "Searching Australia for “" + q + "”...";
+  geoNote = "Searching for “" + q + "”...";
   geoResults = [];
+  renderNavList();
+
+  /* Which country, decided by where the vehicle is rather than baked in. */
+  const country = await currentCountry();
+  geoNote = "Searching " + (country ? country.name : "worldwide") +
+            " for “" + q + "”...";
   renderNavList();
 
   /* No viewbox. Biasing towards the driver sounds right and is not: searching
@@ -3574,7 +3629,8 @@ async function geoSearch(q) {
      anyway, so nearby places still come first without asking the server to
      prefer them, and every small place checked - Blinman, Parachilna,
      Wilpena Pound, Arkaroola, Innamincka - is still found without it. */
-  const url = CFG.NOMINATIM + "?format=jsonv2&limit=12&countrycodes=au&addressdetails=1" +
+  const url = CFG.NOMINATIM + "?format=jsonv2&limit=12&addressdetails=1" +
+    (country ? "&countrycodes=" + country.cc : "") +
     "&q=" + encodeURIComponent(q);
   try {
     const resp = await fetch(url, { headers: { "Accept": "application/json" } });
@@ -3647,8 +3703,12 @@ async function geoSearch(q) {
     if (notDwelling.length) geoResults = notDwelling;
 
     geoResults.sort((a, b) => geoDist(a) - geoDist(b));
-    geoNote = geoResults.length ? geoResults.length + " found in Australia"
-                                : "Nothing found for “" + q + "”";
+    /* Naming the country in both answers keeps the limit visible: a town
+       just over a border comes back empty, and this says why. */
+    geoNote = geoResults.length
+      ? geoResults.length + (country ? " found in " + country.name : " found worldwide")
+      : "Nothing found for “" + q + "”" +
+        (country ? " in " + country.name : "");
   } catch (e) {
     geoNote = "Place search needs a connection";
   }
