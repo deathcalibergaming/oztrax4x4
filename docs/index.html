@@ -2705,18 +2705,34 @@ const POI_META = {
 const POI_ORDER = Object.keys(POI_META);
 function poiIcon(kind) { return (POI_META[kind] || {}).icon || kind; }
 
-/* A camp with no fee tag at all is the common case in the outback, and
-   calling it paid would send you past the free ones. Anything that is not
-   positively marked as costing money is treated as free, and the popup
-   says which of the two it was so the guess is visible. */
+/* What silence about the price means depends entirely on where you are.
+   In the outback a camp with no fee tag is the common case and is very
+   often free, so calling it paid would send you past the ones you want.
+   In Europe and North America the same silence usually means a commercial
+   park that never bothered to state the obvious, and guessing free sends
+   you to a boom gate at dusk.
+
+   So an unpriced site is read as free only where that is the safer bet.
+   Everywhere else it takes positive evidence, and the popup says "no fee
+   recorded" either way so the guess stays visible rather than being
+   reported as fact. Not knowing the country keeps the outback reading,
+   which is where the app is used with no signal. */
+const FREE_IF_UNPRICED = { au: 1 };
+
+function unpricedCampIsFree() {
+  return !geoCountry || !!FREE_IF_UNPRICED[geoCountry.cc];
+}
+
 function campIsFree(tags) {
   const fee = (tags.fee || "").toLowerCase();
+  if (fee === "no") return true;                     /* stated outright */
   if (fee === "yes" || fee === "customers" || fee === "some") return false;
   if (tags.charge) return false;
-  if (tags["camp_site"] === "serviced" || tags.tourism === "caravan_site") {
-    return fee === "no";        /* serviced parks charge unless they say not */
-  }
-  return true;
+  /* serviced parks and caravan sites charge unless they said fee=no above */
+  if (tags["camp_site"] === "serviced" || tags.tourism === "caravan_site") return false;
+  /* tags that mean informal wherever in the world they are */
+  if (tags.backcountry === "yes" || tags.informal === "yes") return true;
+  return unpricedCampIsFree();
 }
 
 /* shelter_type values that mean street furniture rather than somewhere to
@@ -2737,7 +2753,11 @@ function poiKind(tags) {
   if (tags.natural === "spring") return "spring";
   if (a === "toilets") return "toilets";
   if (a === "parking") return "parking";
-  if (t === "wilderness_hut" || t === "alpine_hut") return "campfree";
+  if (t === "wilderness_hut") return "campfree";
+  /* an alpine hut is staffed and charges for a bunk - it is only a free
+     camp in the sense that a hotel is. Barely exists in Australia, which
+     is why the two were ever treated alike. */
+  if (t === "alpine_hut") return "camp";
   /* a hut you can sleep in is a free camp; a bus stop is not, and town
      streets are full of amenity=shelter that you would never camp under */
   if (a === "shelter" && !NOT_A_CAMP[tags.shelter_type || ""]) return "campfree";
@@ -2766,9 +2786,15 @@ function poiInfoLine(tags, kind) {
   const bits = [];
   if (kind === "campfree" || kind === "camp") {
     const fee = (tags.fee || "").toLowerCase();
+    /* Silence is silence. Saying "Fee" for a site nobody priced states a
+       guess as fact, so both guesses read the same and differ only in
+       which way they lean. */
+    const priced = fee === "yes" || fee === "customers" ||
+                   fee === "some" || !!tags.charge;
     bits.push(fee === "no" ? "Free (tagged fee=no)"
-            : fee === "yes" || tags.charge ? "Fee" + (tags.charge ? ": " + tags.charge : "")
-            : kind === "campfree" ? "No fee recorded" : "Fee");
+            : priced ? "Fee" + (tags.charge ? ": " + tags.charge : "")
+            : kind === "campfree" ? "No fee recorded"
+            : "No fee recorded - likely paid");
     if (tags.backcountry === "yes") bits.push("backcountry");
     if (tags.toilets === "yes") bits.push("toilets");
     if (tags.drinking_water === "yes") bits.push("drinking water");
