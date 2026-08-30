@@ -163,8 +163,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .gps-rot svg{width:44px;height:44px;overflow:visible;display:block}
 .gps-arrow{fill:var(--green);stroke:#0D100F;stroke-width:1.6;stroke-linejoin:round}
 .sim .gps-arrow{fill:var(--warn)}
-.gps-halo{fill:rgba(143,185,62,.16);stroke:rgba(143,185,62,.5);stroke-width:1}
-.sim .gps-halo{fill:rgba(232,185,35,.16);stroke:rgba(232,185,35,.5)}
 .pin{background:none;border:none}
 .pin .badge{width:26px;height:26px;border-radius:50% 50% 2px 50%;transform:rotate(45deg);
   border:1.5px solid #0D100F;display:flex;align-items:center;justify-content:center;
@@ -1524,7 +1522,6 @@ const gpsIcon = L.divIcon({
   html:
     '<div class="gps-rot" id="gpsRot">' +
       '<svg viewBox="0 0 44 44">' +
-        '<circle class="gps-halo" cx="22" cy="22" r="15"/>' +
         '<path class="gps-arrow" d="M22 5 L31.5 31 L22 25.4 L12.5 31 Z"/>' +
       '</svg>' +
     '</div>'
