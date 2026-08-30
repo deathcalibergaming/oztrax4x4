@@ -2102,10 +2102,6 @@ function toDateInput(ms) {
   const d = new Date(ms);
   return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
 }
-function toTimeInput(ms) {
-  const d = new Date(ms);
-  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
-}
 
 /* The 12 hour picker. Options are built once on first use, and the seconds
    the picker does not show are carried on the element, so opening a dialog
@@ -2419,7 +2415,7 @@ async function renderTracks() {
       '<span class="tag ' + t.difficulty.toLowerCase() + '">' + esc(t.difficulty) + "</span></div>" +
       '<div class="card-m">' +
         "<span>" + toDateInput(t.startedAt) + "</span>" +
-        "<span>" + toTimeInput(t.startedAt).slice(0, 5) + " - " + toTimeInput(t.endedAt).slice(0, 5) + "</span>" +
+        "<span>" + fmtClock(t.startedAt) + " - " + fmtClock(t.endedAt) + "</span>" +
         "<span>" + fmtDist(t.distanceM) + "</span>" +
         "<span>" + fmtDur(t.durationMs) + "</span>" +
         "<span>" + (imperial() ? st.avg * MI_PER_KM : st.avg).toFixed(1) +
