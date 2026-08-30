@@ -403,6 +403,18 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .card-t{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-m{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.06em;margin-top:3px;
   display:flex;flex-wrap:wrap;gap:3px 10px}
+/* A saved track carries seven readings. Run together as one dim line they
+   had to be decoded rather than read - which number was the distance and
+   which the average was a matter of counting along. Two columns of
+   labelled pairs instead, and the readings at full strength: the other
+   lists dim a single word the card title already explains, but here the
+   numbers are the content. */
+.trk-m{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:8px}
+.trk-m > div{min-width:0;display:flex;flex-direction:column;gap:1px}
+.trk-m b{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(216,203,170,.75)}
+.trk-m span{font-family:var(--mono);font-size:11.5px;color:var(--sand);
+  letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-n{font-size:11.5px;color:rgba(216,203,170,.7);margin-top:5px;line-height:1.35;word-break:break-word}
 .card-acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;
@@ -2557,21 +2569,30 @@ async function renderTracks() {
   if (!list.length) { box.innerHTML = '<div class="empty">No tracks recorded yet.</div>'; return; }
   box.innerHTML = list.map(function (t) {
     const st = trackStats(t);
-    const ele = (st.eleMin != null && st.eleMax != null)
-      ? Math.round(dispAlt(st.eleMin)) + "-" + Math.round(dispAlt(st.eleMax)) +
-        " " + unitLabel("alt") + " ele" : "";
+    /* Built as a list of pairs so a reading that was never recorded - the
+       elevation of a track logged by a phone with no barometer - drops out
+       whole, rather than leaving a heading standing over a blank. */
+    const rows = [
+      ["Date", toDateInput(t.startedAt)],
+      ["Distance", fmtDist(t.distanceM)],
+      ["Started", fmtClock(t.startedAt)],
+      ["Finished", fmtClock(t.endedAt)],
+      ["Duration", fmtDur(t.durationMs)],
+      ["Avg speed", (imperial() ? st.avg * MI_PER_KM : st.avg).toFixed(1) +
+        " " + unitLabel("speed")]
+    ];
+    if (st.eleMin != null && st.eleMax != null) {
+      rows.push(["Elevation", Math.round(dispAlt(st.eleMin)) + "-" +
+        Math.round(dispAlt(st.eleMax)) + " " + unitLabel("alt")]);
+    }
+    rows.push(["Points", String((t.points || []).length)]);
     return '<div class="card" data-id="' + t.id + '">' +
       '<div class="card-top"><div class="card-t">' + esc(t.name) + "</div>" +
       '<span class="tag ' + t.difficulty.toLowerCase() + '">' + esc(t.difficulty) + "</span></div>" +
-      '<div class="card-m">' +
-        "<span>" + toDateInput(t.startedAt) + "</span>" +
-        "<span>" + fmtClock(t.startedAt) + " - " + fmtClock(t.endedAt) + "</span>" +
-        "<span>" + fmtDist(t.distanceM) + "</span>" +
-        "<span>" + fmtDur(t.durationMs) + "</span>" +
-        "<span>" + (imperial() ? st.avg * MI_PER_KM : st.avg).toFixed(1) +
-          " " + unitLabel("speed") + " avg</span>" +
-        (ele ? "<span>" + ele + "</span>" : "") +
-        "<span>" + (t.points || []).length + " pts</span>" +
+      '<div class="trk-m">' +
+        rows.map(function (r) {
+          return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
+        }).join("") +
       "</div>" +
       '<div class="card-acts">' +
       '<button class="btn xs primary" data-act="gpx">Export GPX</button>' +
