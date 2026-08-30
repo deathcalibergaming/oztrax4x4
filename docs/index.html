@@ -1116,11 +1116,29 @@ function lerpAngle(a, b, t) {
   const d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
-function fmtDur(ms) {
+/* The header readout, which ticks while you drive and is labelled h:m:s
+   under the number. A stopwatch is the one place the clock shape is the
+   right one, and a fixed width keeps it from jittering every second. */
+function fmtStopwatch(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
   const p = (n) => String(n).padStart(2, "0");
   return h > 0 ? h + ":" + p(m) + ":" + p(ss) : p(m) + ":" + p(ss);
+}
+/* A span of time to read rather than watch tick. "2:35:00" on a track
+   card reads as twenty-five to three, which is exactly wrong for two and
+   a half hours, and it sits inches from a real time of day. Shown as the
+   two largest units that apply, so an hour cannot pass for a minute and
+   a long haul stays short on the card. */
+function fmtDur(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const p = (n) => String(n).padStart(2, "0");
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + "m" + p(s % 60) + "s";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h" + p(m % 60) + "m";
+  return Math.floor(h / 24) + "d" + p(h % 24) + "h";
 }
 /* =====================================================================
    Units
@@ -1875,7 +1893,7 @@ function updateStats() {
   $("#stDistBox").classList.toggle("rec", rec);
   $("#stTimeBox").classList.toggle("rec", rec);
   $("#stDist").textContent = dispKm(Rec.dist).toFixed(2);
-  $("#stTime").textContent = fmtDur(Rec.elapsed());
+  $("#stTime").textContent = fmtStopwatch(Rec.elapsed());
 }
 
 /* The captions under the stats, and the two labels in the track dialog that
