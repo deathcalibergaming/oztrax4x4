@@ -131,6 +131,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
+/* Reads out what the two buttons under it are changing. Not a button: it
+   takes their width and about half their height so the column still ends
+   where it did, and it is not something to press. */
+#zoomLevel{width:38px;height:20px;border-radius:6px;background:rgba(27,33,29,.92);
+  border:1px solid var(--line2);font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.04em;color:var(--sand);display:flex;align-items:center;
+  justify-content:center;pointer-events:none}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
    saying. Running, it fills solid rust and keeps its sand glyph - the same
@@ -694,6 +701,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   <div id="stage">
     <div id="rotWrap"><div id="panWrap"><div id="map"></div></div></div>
     <div id="zoomCtl">
+      <div id="zoomLevel" aria-live="polite">Z--</div>
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
       <button id="btnCenter" aria-label="Recentre on vehicle" title="Recentre on vehicle">
@@ -1788,6 +1796,15 @@ map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
+/* zoom fires through the animation as well as at the end of it, so the
+   number counts up with the map rather than jumping when it settles. */
+function showZoomLevel() {
+  const el = $("#zoomLevel");
+  if (el) el.textContent = "Z" + Math.round(map.getZoom());
+}
+map.on("zoom zoomend", showZoomLevel);
+showZoomLevel();
+
 map.on("zoomend", function () {
   S.zoom = map.getZoom();
   saveSettings();
