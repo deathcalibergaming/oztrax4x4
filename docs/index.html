@@ -3621,6 +3621,17 @@ function poiPopupHtml(p, here) {
    cluster distance. It is O(n squared) against the anchors rather than the
    pins, which for a few hundred POIs is nothing next to drawing them. */
 function clusterPois(list) {
+  /* Nothing is grouped at the deepest zoom. Having zoomed in as far as the
+     map goes, you are looking at one spot and want to see what is on it; a
+     count badge there answers a question you have already asked.
+
+     It does mean two places a few metres apart draw over each other, which
+     is what grouping exists to prevent - around Hawker the closest pair is
+     7 m, about 7 px at this zoom. That is the trade: below max zoom the
+     grouping keeps them tappable, at max zoom they are all shown. */
+  if (map.getZoom() >= CFG.MAX_Z) {
+    return list.map(function (p) { return [p]; });
+  }
   const cell = CFG.POI_CLUSTER_PX;
   const near = cell * cell;
   const z = map.getZoom();
