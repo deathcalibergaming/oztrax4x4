@@ -3605,20 +3605,39 @@ function poiPopupHtml(p, here) {
 
 /* Two pins a few metres apart land on the same few pixels and only the top
    one can be tapped, which in a town centre hides the fuel behind a car
-   park. Anything sharing a cell of the screen grid collapses into a single
-   numbered marker whose popup lists what is underneath it. */
+   park. Anything within a marker's width of another collapses into a single
+   numbered marker whose popup lists what is underneath it.
+
+   This used to snap to a grid, rounding each pin to a cell and merging
+   whatever shared one. That merges pins in the same cell but says nothing
+   about pins in neighbouring ones: two a pixel apart either side of a
+   boundary stayed separate and overlapped anyway. Measured around Hawker
+   it left overlapping pairs at every zoom - four of them at 14, the
+   closest 20px apart when the rule asks for 34.
+
+   Measuring the distance instead gives the guarantee the grid only
+   approximated: a pin joins the first anchor it is close enough to, or
+   becomes an anchor itself, so no two markers can end up nearer than the
+   cluster distance. It is O(n squared) against the anchors rather than the
+   pins, which for a few hundred POIs is nothing next to drawing them. */
 function clusterPois(list) {
   const cell = CFG.POI_CLUSTER_PX;
+  const near = cell * cell;
   const z = map.getZoom();
-  const buckets = {};
-  const order = [];
+  const groups = [];
+  const anchors = [];
   list.forEach(function (p) {
     const pt = map.project([p.lat, p.lng], z);
-    const k = Math.round(pt.x / cell) + ":" + Math.round(pt.y / cell);
-    if (!buckets[k]) { buckets[k] = []; order.push(k); }
-    buckets[k].push(p);
+    for (let i = 0; i < anchors.length; i++) {
+      const dx = pt.x - anchors[i].x, dy = pt.y - anchors[i].y;
+      if (dx * dx + dy * dy < near) { groups[i].push(p); return; }
+    }
+    /* the first of a group is the one it is drawn at, which is why the
+       anchor is kept rather than recomputed from the group's centre */
+    anchors.push(pt);
+    groups.push([p]);
   });
-  return order.map(function (k) { return buckets[k]; });
+  return groups;
 }
 
 function clusterIcon(group) {
