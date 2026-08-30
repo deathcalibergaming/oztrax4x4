@@ -165,7 +165,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #speedSign{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
   z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
   box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
-  justify-content:center;pointer-events:none}
+  justify-content:center;pointer-events:none;
+  transition:transform .24s cubic-bezier(.3,.7,.3,1)}
 #speedSign .ring{width:47px;height:47px;border-radius:50%;border:5.5px solid #C8102E;
   display:flex;align-items:center;justify-content:center;box-sizing:border-box}
 #speedSign b{font-family:var(--ui);font-weight:800;color:#0B0B0B;
@@ -1803,7 +1804,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -1852,6 +1853,10 @@ function frame(ts) {
 
   /* a posted limit changes at a sign, not at 60 fps */
   if (ts - spdTick > CFG.SPEED_TICK) { spdTick = ts; updateSpeedSign(); }
+
+  /* Followed here rather than hooked onto each panel opening and closing,
+     so a path added later cannot forget to move the sign. One rect read. */
+  if (ts - liftTick > 100) { liftTick = ts; liftSpeedSign(); }
 
   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
@@ -1998,6 +2003,17 @@ function updateSpeedSign() {
      65 mph road posts 65, whichever units the app is set to */
   sign.classList.toggle("wide", String(hit.v).length > 2);
   sign.classList.remove("hidden");
+}
+
+/* The nav and record panels take the same strip above the action bar that
+   the sign sits in. It is lifted by whatever the stack actually measures
+   rather than a fixed offset: the panels change height when a second one
+   joins the first, and again when a long destination name wraps. A stack
+   with nothing open measures zero, which is the resting position. */
+function liftSpeedSign() {
+  const h = $("#panelStack").getBoundingClientRect().height;
+  const lift = h > 0 ? Math.round(h) + 8 : 0;
+  $("#speedSign").style.transform = lift ? "translateY(-" + lift + "px)" : "";
 }
 
 function updateStats() {
