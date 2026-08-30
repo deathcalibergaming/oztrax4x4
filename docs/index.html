@@ -337,7 +337,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #scrim{position:fixed;inset:0;background:rgba(6,8,7,.62);z-index:900;opacity:0;pointer-events:none;
   transition:opacity .22s ease}
 #scrim.show{opacity:1;pointer-events:auto}
-#drawer,#poiPanel{position:fixed;top:0;bottom:0;left:0;width:min(90vw,370px);z-index:950;background:var(--panel);
+/* 90vw left a 38px sliver of map on a 375px phone, which read as the
+   drawer having taken the screen rather than slid over it. 84vw keeps
+   enough map showing to place the panel, and the lower cap brings the
+   larger phones in by 30px where 370 was simply wide. Landscape sets
+   its own width below and is untouched. */
+#drawer,#poiPanel{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);z-index:950;background:var(--panel);
   border-right:1px solid var(--line2);transform:translateX(-101%);transition:transform .24s cubic-bezier(.3,.7,.3,1);
   display:flex;flex-direction:column;box-shadow:8px 0 28px rgba(0,0,0,.5)}
 #drawer.open,#poiPanel.open{transform:translateX(0)}
