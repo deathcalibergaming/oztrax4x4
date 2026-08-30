@@ -22,6 +22,12 @@
   --line:rgba(216,203,170,.14);
   --line2:rgba(216,203,170,.30);
   --dim:rgba(216,203,170,.55);
+  /* The two bars that are read at a glance through sunglasses in full
+     sun. Sand is a warm off white and the dim is barely half opaque,
+     which is fine indoors and not on the Flinders at midday. Size and
+     weight still separate a label from its number, so nothing is lost
+     by taking the colour out of that job. */
+  --hud:#FFFFFF;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --topH:50px;
@@ -85,10 +91,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   border-right:1px solid var(--line);padding:0 2px}
 .stat:last-child{border-right:none}
-.stat label{font-size:8.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
-.stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--sand)}
+.stat label{font-size:8.5px;letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
+.stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud)}
 .stat b em{font-style:normal;color:var(--rust);letter-spacing:.04em;margin-right:5px}
-.stat i{font-size:8px;font-style:normal;color:var(--dim);letter-spacing:.08em}
+.stat i{font-size:8px;font-style:normal;color:var(--hud);letter-spacing:.08em}
 .stat.rec b{color:var(--rust)}
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
@@ -222,8 +228,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   border-radius:7px;border:1px solid transparent;transition:background .12s}
 .act:active{background:rgba(216,203,170,.09)}
-.act svg{width:23px;height:23px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.act span{font-size:9px;letter-spacing:.11em;color:var(--dim);text-transform:uppercase;font-weight:600}
+.act svg{width:23px;height:23px;stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.act span{font-size:9px;letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
 .act.on{background:rgba(193,85,44,.18);border-color:rgba(193,85,44,.5)}
 .act.on svg{stroke:var(--rust)}
 .act.on span{color:var(--rust)}
