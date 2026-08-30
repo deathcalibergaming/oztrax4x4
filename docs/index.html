@@ -390,16 +390,26 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .sublabel .btn{margin-left:auto}
 .sublabel .btn + .btn{margin-left:0}
 /* one tap per category, sized for a thumb on a corrugated road */
-.kchips{display:flex;flex-wrap:wrap;gap:5px}
-.kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 9px 5px 5px;
-  border-radius:17px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
-  font-size:11.5px;cursor:pointer;opacity:.55}
+/* Sized to their labels the chips ran from 74px to 118px and wrapped into
+   whatever fitted, so no two rows lined up and the counts landed wherever
+   the words left them. Two equal columns instead: every chip the same
+   width, labels starting at the same point down each column and the counts
+   ending at the same one. It costs a row of height, which the list below
+   gets back as soon as you scroll. */
+.kchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
+  border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
+  font-size:11.5px;cursor:pointer;opacity:.55;text-align:left}
+/* the label takes the slack so the count is pushed to the same right edge
+   in every chip, and a long one ellipses rather than widening the column */
+.kchip > span:not(.dotmark){flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 /* the chip carries the same dashed circle the category's pins wear, so the
    filter and the thing it filters look like each other */
 .kchip .dotmark{width:20px;height:20px}
 .kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.kchip i{font-family:var(--mono);font-style:normal;font-size:9.5px;opacity:.75}
+.kchip i{font-family:var(--mono);font-style:normal;font-size:10px;opacity:.9;flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
 .empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
