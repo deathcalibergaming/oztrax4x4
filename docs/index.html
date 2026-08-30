@@ -467,7 +467,8 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
-#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on{
+#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
+#btnSharpOn.on,#btnSharpOff.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -882,6 +883,11 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
+        <div class="sublabel">Map Detail
+          <button class="btn xs ghost" id="btnSharpOff">Standard</button>
+          <button class="btn xs ghost" id="btnSharpOn">Sharp</button>
+        </div>
+        <div class="poi-status" id="sharpNote">Sharp matches the screen instead of doubling each tile pixel. Four times the tiles to download and store.</div>
       </div>
     </details>
 
@@ -1074,7 +1080,8 @@ input[type=date],input[type=time]{color-scheme:dark}
             <option value="14">z14 &mdash; Main tracks</option>
             <option value="15">z15 &mdash; Side tracks</option>
             <option value="16" selected>z16 &mdash; Recommended</option>
-            <option value="17">z17 &mdash; Maximum detail</option>
+            <option value="17">z17 &mdash; High detail</option>
+            <option value="18">z18 &mdash; Maximum detail</option>
           </select>
         </div>
         <div class="hint">Tiles are downloaded from z12 up to the selected level and stored in this device's browser cache.</div>
@@ -1180,7 +1187,11 @@ const CFG = {
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
-  MIN_Z: 3, MAX_Z: 17,
+  MIN_Z: 3, MAX_Z: 18,     /* Esri serves real topo to 19, checked tile by tile */
+  /* The zoom at and above which POIs stop grouping. Its own number rather
+     than MAX_Z: raising the ceiling should not quietly put the grouping
+     back at the zoom where it was asked to stop. */
+  POI_SPLIT_Z: 17,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
@@ -1524,12 +1535,14 @@ const S = Object.assign({
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
-  hillshade: false     /* shaded relief under the map, off by default */
+  hillshade: false,    /* shaded relief under the map, off by default */
+  sharpTiles: false    /* fetch map tiles at the screen's own resolution */
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
-                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
+                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
+                        sharpTiles: S.sharpTiles });
 }
 
 /* live view state driven by the animation loop */
@@ -1641,11 +1654,36 @@ const shade = new OfflineTileLayer(CFG.HILLSHADE_URL, {
   maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z, maxNativeZoom: CFG.SHADE_MAX_Z, cachePrefix: "hs:",
   keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
 });
-const tiles = new OfflineTileLayer(CFG.TILE_URL, {
-  maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z,
-  keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
-});
+/* A 256px tile shown across 256 CSS pixels covers 512 physical ones on a
+   2x phone, so every tile pixel is doubled and the map looks soft. Asking
+   for the next zoom's tiles and laying them out at half size puts one tile
+   pixel on one screen pixel - measured 2.00 down to 1.00 on a 2x screen.
+   It costs four times the tiles, which is why it is a choice and not the
+   default. tileSize cannot be changed on a live layer, so the layer is
+   rebuilt when the setting moves. */
+function makeTileLayer() {
+  const sharp = !!S.sharpTiles;
+  return new OfflineTileLayer(CFG.TILE_URL, {
+    maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z,
+    tileSize: sharp ? 128 : 256, zoomOffset: sharp ? 1 : 0,
+    keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
+  });
+}
+let tiles = makeTileLayer();
 tiles.addTo(map);
+tiles.setZIndex(1);
+
+function setSharpTiles(on) {
+  S.sharpTiles = on;
+  saveSettings();
+  map.removeLayer(tiles);
+  tiles = makeTileLayer();
+  tiles.addTo(map);
+  tiles.setZIndex(1);
+  /* the relief multiplies into the map, so it has to stay above it */
+  if (S.hillshade) shade.setZIndex(10);
+  if (typeof syncSharpButtons === "function") syncSharpButtons();
+}
 
 /* The blend has to go on the layer's own container, which Leaflet only
    creates once the layer is on the map. */
@@ -3629,7 +3667,7 @@ function clusterPois(list) {
      is what grouping exists to prevent - around Hawker the closest pair is
      7 m, about 7 px at this zoom. That is the trade: below max zoom the
      grouping keeps them tappable, at max zoom they are all shown. */
-  if (map.getZoom() >= CFG.MAX_Z) {
+  if (map.getZoom() >= CFG.POI_SPLIT_Z) {
     return list.map(function (p) { return [p]; });
   }
   const cell = CFG.POI_CLUSTER_PX;
@@ -4189,9 +4227,14 @@ function lat2tile(lat, z) {
   const r = rad(clamp(lat, -85.05112878, 85.05112878));
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
 }
-function tileListFor(bounds, maxZ) {
+/* Sharp tiles come from one zoom deeper, so an area has to hold that level
+   instead - downloading what the map is not going to ask for would leave
+   the area blank offline. The shift is passed in where it has to be pinned
+   rather than read from the setting, which is how deleting works. */
+function tileListFor(bounds, maxZ, shift) {
+  const dz = shift === undefined ? (S.sharpTiles ? 1 : 0) : shift;
   const out = [];
-  for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
+  for (let z = CFG.DL_MIN_Z + dz; z <= maxZ + dz; z++) {
     const x0 = lon2tile(bounds.getWest(), z), x1 = lon2tile(bounds.getEast(), z);
     const y0 = lat2tile(bounds.getNorth(), z), y1 = lat2tile(bounds.getSouth(), z);
     for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
@@ -4300,9 +4343,11 @@ function updateAreaEstimate() {
   if (!pendingBounds) return;
   const z = parseInt($("#amZoom").value, 10);
   const base = tileListFor(pendingBounds, z);
+  /* the relief layer takes no zoom offset, so it wants the plain levels */
+  const plain = tileListFor(pendingBounds, z, 0);
   /* counted and capped on the whole download, not just the map half: with
-     relief switched on it really is more tiles and more bytes */
-  const n = base.length + shadeTilesFor(base).length;
+     relief or sharp tiles on it really is more tiles and more bytes */
+  const n = base.length + shadeTilesFor(plain).length;
   const el = $("#amCount");
   el.textContent = n;
   el.classList.toggle("over", n > CFG.DL_CAP);
@@ -4316,7 +4361,7 @@ async function runAreaDownload() {
   const name = ($("#amName").value || "").trim() || "Area";
   const bounds = pendingBounds;
   const base = tileListFor(bounds, z);
-  const list = base.concat(shadeTilesFor(base));
+  const list = base.concat(shadeTilesFor(tileListFor(bounds, z, 0)));
   if (!list.length || list.length > CFG.DL_CAP) return;
 
   dlAbort = false;
@@ -4399,7 +4444,10 @@ async function deleteArea(id) {
   const a = await DB.get("areas", id);
   if (!a) return;
   const b = L.latLngBounds(a.bounds[0], a.bounds[1]);
-  const list = tileListFor(b, a.maxZoom);
+  /* Both shifts, because the setting may have moved since the download.
+     Deleting a key that was never there costs nothing; leaving one behind
+     strands it with nothing to reference it. */
+  const list = tileListFor(b, a.maxZoom, 0).concat(tileListFor(b, a.maxZoom, 1));
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     try { await DB.del("tiles", tileKey(t)); } catch (e) { /* ignore */ }
@@ -5104,6 +5152,7 @@ const Wake = {
           renderGpsPanel();
           syncAwakeButtons();
   syncHillshadeButtons();
+  syncSharpButtons();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -5391,6 +5440,12 @@ function syncHillshadeButtons() {
   $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
   $("#btnShadeOff").classList.toggle("on", !S.hillshade);
 }
+function syncSharpButtons() {
+  $("#btnSharpOn").classList.toggle("on", !!S.sharpTiles);
+  $("#btnSharpOff").classList.toggle("on", !S.sharpTiles);
+}
+$("#btnSharpOn").addEventListener("click", function () { setSharpTiles(true); });
+$("#btnSharpOff").addEventListener("click", function () { setSharpTiles(false); });
 $("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
 $("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
