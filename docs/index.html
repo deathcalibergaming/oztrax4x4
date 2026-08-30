@@ -158,6 +158,21 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Every floating label on the map lives in this one column. They used to be
    positioned independently and the follow badge landed on top of the POI
    chip on a phone-width screen; stacking them makes that impossible. */
+/* The Australian regulatory speed sign: black numerals inside a red ring
+   on a white plate. Drawn rather than fetched, so it costs nothing and
+   works with no signal. Bottom left mirrors the attribution on the right
+   and stays clear of the chips at the top. */
+#speedSign{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
+  z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
+  box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
+  justify-content:center;pointer-events:none}
+#speedSign .ring{width:47px;height:47px;border-radius:50%;border:5.5px solid #C8102E;
+  display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+#speedSign b{font-family:var(--ui);font-weight:800;color:#0B0B0B;
+  font-size:21px;line-height:1;letter-spacing:-.5px}
+/* three digits have to give a little back to keep the ring clear */
+#speedSign.wide b{font-size:17px;letter-spacing:-1px}
+
 #mapChips{position:absolute;left:8px;top:12px;z-index:450;display:flex;flex-direction:column;
   align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
 #mapChips > *{pointer-events:auto;max-width:100%}
@@ -590,6 +605,9 @@ input[type=date],input[type=time]{color-scheme:dark}
 
   /* everything that used to hug the bottom or the right now clears the rail */
   #attrib{right:70px;bottom:calc(8px + var(--safeB))}
+  /* the action bar is a rail on the right here, so the bottom edge is
+     free and the sign sits level with the attribution again */
+  #speedSign{bottom:calc(8px + var(--safeB))}
   #zoomCtl{right:70px;flex-direction:row}
   /* the zoom row is four buttons wide now, so the chips have to stop sooner */
   #mapChips{max-width:calc(100% - 259px)}
@@ -649,6 +667,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
       </button>
     </div>
+    <div id="speedSign" class="hidden" aria-label="Speed limit"><div class="ring"><b id="speedLimit">--</b></div></div>
     <div id="mapChips">
       <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
       <button id="poiFilterChip" class="mapchip hidden">
@@ -1091,6 +1110,14 @@ const CFG = {
   PLACE_SMALL_RANK: 19,    /* a place this rank or higher is a dot on the map, not a town */
   PLACE_SERVICE_KM: 6,     /* how far from one to look for the roadhouse it is named after */
   SERVICE_SAME_M: 400,     /* two service names this close, one inside the other, are one stop */
+  /* Matching the vehicle to the road it is on. 30 m absorbs a GPS fix
+     and the width of a highway without reaching a road that is not the
+     one under the wheels; the heading test is what actually rejects a
+     service road running alongside. */
+  SPEED_SNAP_M: 30,
+  SPEED_HDG_TOL: 45,       /* degrees a road may differ from your travel */
+  SPEED_MIN_MOVE: 2,       /* m/s below which a heading is noise, not travel */
+  SPEED_TICK: 400,         /* a posted limit does not need 60 fps */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -1776,7 +1803,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0, backTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -1822,6 +1849,9 @@ function frame(ts) {
   /* One sentinel history entry while anything is open, so the system back
      button has something to pop that is not the page. */
   if (ts - backTick > 150) { backTick = ts; syncBackGuard(); }
+
+  /* a posted limit changes at a sign, not at 60 fps */
+  if (ts - spdTick > CFG.SPEED_TICK) { spdTick = ts; updateSpeedSign(); }
 
   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
@@ -1906,6 +1936,68 @@ const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 function cardinal(deg) {
   return COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+}
+
+/* =====================================================================
+   The posted speed limit of the road under the vehicle.
+   ===================================================================== */
+
+/* Distance in metres from p to the segment ab, and the bearing of ab.
+   Flat earth: the segments are tens of metres, where the error does not
+   reach the first decimal place. */
+function pointSegMetres(p, a, b) {
+  const mLat = 111320, mLng = 111320 * Math.cos(rad(p.lat));
+  const ax = (a[1] - p.lng) * mLng, ay = (a[0] - p.lat) * mLat;
+  const bx = (b[1] - p.lng) * mLng, by = (b[0] - p.lat) * mLat;
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  /* p is the origin, so the nearest point on the segment is at
+     t = -(a.d)/|d|^2, clamped to the segment's own ends */
+  const t = len2 ? clamp(-(ax * dx + ay * dy) / len2, 0, 1) : 0;
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return { d: Math.sqrt(cx * cx + cy * cy),
+           brg: (deg(Math.atan2(dx, dy)) + 360) % 360 };
+}
+
+/* The nearest road you are plausibly travelling along, or null. Null is a
+   real answer here and the common one on a station track: no limit is
+   posted, so none is shown. */
+function roadUnder(p, hdg, moving) {
+  let best = null, bestD = CFG.SPEED_SNAP_M;
+  for (let i = 0; i < roads.length; i++) {
+    const pts = roads[i].pts;
+    for (let j = 1; j < pts.length; j++) {
+      const seg = pointSegMetres(p, pts[j - 1], pts[j]);
+      if (seg.d >= bestD) continue;
+      /* A road you are not driving along is not the road you are on. The
+         distance test alone would happily snap to a service road beside a
+         highway, or to the cross street at an intersection. Direction is
+         only evidence while actually moving. */
+      if (moving && hdg != null) {
+        let off = Math.abs(((hdg - seg.brg + 540) % 360) - 180);
+        off = Math.min(off, 180 - off);        /* either way along it counts */
+        if (off > CFG.SPEED_HDG_TOL) continue;
+      }
+      bestD = seg.d; best = roads[i];
+    }
+  }
+  return best;
+}
+
+/* The sign is hidden whenever the limit is not known, and never shown
+   empty. An empty red ring is itself a real sign in some countries - the
+   end of a restriction - and reads as permission rather than absence. */
+function updateSpeedSign() {
+  const sign = $("#speedSign");
+  const hit = (roads.length && view.has)
+    ? roadUnder(view.cur, view.hdgCur, view.speed > CFG.SPEED_MIN_MOVE)
+    : null;
+  if (!hit) { sign.classList.add("hidden"); return; }
+  $("#speedLimit").textContent = String(hit.v);
+  /* the number a driver reads off the roadside, not a converted one: a
+     65 mph road posts 65, whichever units the app is set to */
+  sign.classList.toggle("wide", String(hit.v).length > 2);
+  sign.classList.remove("hidden");
 }
 
 function updateStats() {
@@ -2850,6 +2942,10 @@ function poiInfoLine(tags, kind) {
 }
 
 let pois = [];
+/* Roads with a posted limit, from the extract only. Photon is a place
+   index and carries no geometry, so a Photon answer leaves this empty and
+   the sign stays away rather than showing the last road's number. */
+let roads = [];
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
 /* whole categories switched off, e.g. every car park in a town centre */
 let hiddenKinds = new Set(loadLS(LS.hiddenKinds, []));
@@ -2882,12 +2978,15 @@ function poiAnchor() {
   return { lat: c.lat, lng: c.lng };
 }
 
-/* The v2 prefix retires every cell cached before supermarkets were split out
-   of general supplies and free camps out of paid ones - those entries carry
-   the old categories and would show the wrong icons for a week. */
+/* The version prefix retires every cell cached under an older shape. v2
+   came in when supermarkets were split out of general supplies and free
+   camps out of paid ones; v3 when roads carrying a posted speed limit
+   started being kept beside them. A v2 entry holds no roads, and read
+   back as it stands would keep the speed sign away for the whole week
+   the cell stays fresh - a feature silently missing rather than absent. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v2:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v3:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -3004,6 +3103,7 @@ async function fetchPois(force) {
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
       setPois(cached.items);
+      roads = cached.roads || [];
       setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
@@ -3013,10 +3113,11 @@ async function fetchPois(force) {
        API is down, the search index takes over. */
     setPoiStatus("Loading map data within " + poiRadiusText() + "...");
     const osm = await osmApiPois(a);
-    let items = null, note = "";
+    let items = null, note = "", found = [];
 
     if (!osm.error) {
       items = osm.items;
+      found = osm.roads || [];
       note = "OpenStreetMap, " + fmtBytes(osm.bytes) + " uncompressed, " + osm.secs + "s";
       /* a dense town shrinks the box, so widen the net again with the index */
       if (osm.radius < CFG.POI_RADIUS) {
@@ -3046,9 +3147,10 @@ async function fetchPois(force) {
     if (items) {
       poiCentre = a;
       poiRetryAt = 0;
-      await DB.put("poi", { ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, key)
+      await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
       setPois(items);
+      roads = found;
       refreshStorageStats();
       offerOsmPois(false);
       /* count what is actually on the map, after copies of the same place
@@ -3062,6 +3164,7 @@ async function fetchPois(force) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
       setPois(cached.items);
+      roads = cached.roads || [];
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
@@ -3088,6 +3191,25 @@ function bboxAround(a, m) {
           (a.lng + dLng).toFixed(5), (a.lat + dLat).toFixed(5)].join(",");
 }
 
+/* Ways that carry a maxspeed but are not somewhere you drive at it. */
+const NOT_DRIVABLE = {
+  footway: 1, path: 1, cycleway: 1, steps: 1, pedestrian: 1, bridleway: 1,
+  corridor: 1, platform: 1, construction: 1, proposed: 1
+};
+
+/* OSM records a limit as a bare number in km/h, a number with a unit, or
+   a country code standing for an implicit default. Only a posted number
+   is any use here: "AU:urban" is a rule you are expected to know rather
+   than a sign you can read, and "none", "walk" and "variable" are not
+   numbers at all. Anything unrecognised is dropped rather than guessed. */
+function parseMaxspeed(v) {
+  const t = String(v || "").trim().toLowerCase();
+  let m = t.match(/^(\d{1,3})$/);          if (m) return { v: +m[1], mph: false };
+  m = t.match(/^(\d{1,3})\s*km\/?h$/);     if (m) return { v: +m[1], mph: false };
+  m = t.match(/^(\d{1,3})\s*mph$/);        if (m) return { v: +m[1], mph: true };
+  return null;
+}
+
 function parseOsmXml(text, a, radius) {
   const reach = (radius || CFG.POI_RADIUS) * 1.05;
   const doc = new DOMParser().parseFromString(text, "application/xml");
@@ -3099,6 +3221,31 @@ function parseOsmXml(text, a, radius) {
       { lat: +nodes[i].getAttribute("lat"), lng: +nodes[i].getAttribute("lon") };
   }
   const out = [];
+  /* The extract is already on the wire for the POIs, and every road in it
+     carries its geometry and whatever limit a mapper recorded. Keeping the
+     posted ones costs about 9 KB per 5 km cell against a 1.8 MB download
+     that was happening anyway. Untagged roads are dropped: they cannot
+     answer the question, so storing them would only slow the search. */
+  const roads = [];
+  function collectRoad(el) {
+    const tags = {};
+    const kids = el.children;
+    for (let j = 0; j < kids.length; j++) {
+      if (kids[j].tagName === "tag") tags[kids[j].getAttribute("k")] = kids[j].getAttribute("v");
+    }
+    if (!tags.highway || NOT_DRIVABLE[tags.highway]) return;
+    const lim = parseMaxspeed(tags.maxspeed);
+    if (!lim) return;
+    const pts = [];
+    for (let j = 0; j < kids.length; j++) {
+      if (kids[j].tagName !== "nd") continue;
+      const p = coords[kids[j].getAttribute("ref")];
+      /* five decimals is close to a metre, and a third of the bytes */
+      if (p) pts.push([+p.lat.toFixed(5), +p.lng.toFixed(5)]);
+    }
+    if (pts.length < 2) return;
+    roads.push({ v: lim.v, mph: lim.mph, pts: pts });
+  }
   function collect(el, type) {
     const tags = {};
     const kids = el.children;
@@ -3134,7 +3281,8 @@ function parseOsmXml(text, a, radius) {
      across the sample areas checked, relations here were roads, trails and
      boundaries rather than places worth pinning. */
   for (let i = 0; i < ways.length; i++) collect(ways[i], "way");
-  return out;
+  for (let i = 0; i < ways.length; i++) collectRoad(ways[i]);
+  return { pois: out, roads: roads };
 }
 
 /* Returns {items,bytes,secs,radius} or {error}. The API refuses any box
@@ -3207,7 +3355,8 @@ async function osmApiPois(a) {
     }
     clearTimeout(bail);
     try {
-      return { items: parseOsmXml(text, a, radius), bytes: text.length,
+      const parsed = parseOsmXml(text, a, radius);
+      return { items: parsed.pois, roads: parsed.roads, bytes: text.length,
                secs: Math.round((Date.now() - t0) / 1000), radius: radius };
     } catch (e) {
       return { error: "could not read the map extract (" + fmtBytes(text.length) + ")" };
