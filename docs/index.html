@@ -147,7 +147,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
   stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .mapchip:active{background:rgba(216,203,170,.16)}
-#poiOfferChip,#poiKindChip{border-color:var(--warn);color:var(--warn)}
+#poiOfferChip{border-color:var(--warn);color:var(--warn)}
 #updateChip{border-color:var(--green);color:var(--green)}
 #followBadge{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
@@ -629,10 +629,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
       <button id="poiFilterChip" class="mapchip hidden">
         <span id="poiFilterText">FILTER</span>
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-      <button id="poiKindChip" class="mapchip hidden">
-        <span id="poiKindText">CATEGORIES HIDDEN</span>
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
       <button id="poiOfferChip" class="mapchip hidden">
@@ -3364,9 +3360,6 @@ function renderPois() {
   const hidingPins = filtering && hits.length < vis.length;
   $("#poiFilterChip").classList.toggle("hidden", !hidingPins);
   if (hidingPins) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
-  const off = hiddenKinds.size;
-  $("#poiKindChip").classList.toggle("hidden", !off || !S.poiOn);
-  if (off) $("#poiKindText").textContent = off + (off === 1 ? " category" : " categories") + " hidden";
 
   const box = $("#poiList");
   if (!hits.length) {
@@ -4859,12 +4852,6 @@ $("#updateChip").addEventListener("click", function () {
   });
   sw.postMessage("refresh-shell");
   setTimeout(go, 2500);
-});
-$("#poiKindChip").addEventListener("click", function () {
-  hiddenKinds = new Set();
-  saveLS(LS.hiddenKinds, []);
-  renderPois();
-  toast("All categories shown", "ok");
 });
 $("#poiKinds").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-kind]");
