@@ -88,13 +88,29 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
 #statsbar{height:var(--statsH);flex:0 0 auto;display:flex;background:#111513;border-bottom:1px solid var(--line);
   z-index:600;position:relative}
-.stat{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+.stat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   border-right:1px solid var(--line);padding:0 2px}
 .stat:last-child{border-right:none}
+/* Five equal columns meant the widest reading in each got a different
+   amount of room. SPEED sat in 42px of spare while TIME overflowed its
+   cell by 5, and HEADING was down to 7px with a three letter cardinal
+   showing. The basis below is each column's widest real reading, measured
+   at its own font, so what is left over is shared equally by flex-grow
+   and the gap either side of every divider comes out the same. */
+.stat:nth-child(1){flex-basis:44px}   /* SPEED, wider than the 188 it holds:
+                                         this is the one column whose label is
+                                         the widest thing in it, so matching the
+                                         reading would crowd the word above it */
+.stat:nth-child(2){flex-basis:63px}   /* WSW 241 */
+.stat:nth-child(3){flex-basis:47px}   /* -1234, or -4046 in feet */
+.stat:nth-child(4){flex-basis:65px}   /* 1234.56 */
+.stat:nth-child(5){flex-basis:75px}   /* 12:35:00 */
 .stat label{font-size:8.5px;letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
-.stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud)}
+.stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud);
+  white-space:nowrap}
 .stat b em{font-style:normal;color:var(--rust);letter-spacing:.04em;margin-right:5px}
-.stat i{font-size:8px;font-style:normal;color:var(--hud);letter-spacing:.08em}
+.stat i{font-size:8px;font-style:normal;color:var(--hud);letter-spacing:.08em;
+  text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
 .stat.rec b{color:var(--rust)}
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
@@ -504,6 +520,8 @@ input[type=date],input[type=time]{color-scheme:dark}
     border-bottom:none;border-right:1px solid var(--line)}
   .stat{flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:0;
     padding:0 3px;border-right:none;border-bottom:1px solid var(--line)}
+  /* the widths above are widths, and down here the axis is vertical */
+  .stat:nth-child(n){flex-basis:0}
   .stat:last-child{border-bottom:none}
   .stat label{font-size:7px;letter-spacing:.08em}
   .stat b{font-size:13px}
