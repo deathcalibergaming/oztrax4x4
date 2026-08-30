@@ -114,6 +114,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat.rec b{color:var(--rust)}
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
+/* Multiply is what turns a near-white hillshade into shading
+   rather than a sheet laid over the map. */
+.leaflet-tile-pane .shadeLayer{mix-blend-mode:multiply}
 #rotWrap{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
 #panWrap{position:absolute;inset:0;will-change:transform}
 #map{position:absolute;background:#0D100F}
@@ -457,7 +460,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
-#btnKindsAll.on,#btnKindsNone.on{
+#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -866,6 +869,11 @@ input[type=date],input[type=time]{color-scheme:dark}
         </div>
         <div class="poi-status" id="awakeState"></div>
         <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn it off if you want to leave the app open while parked.</div>
+        <div class="sublabel">Terrain Shading
+          <button class="btn xs ghost" id="btnShadeOn">On</button>
+          <button class="btn xs ghost" id="btnShadeOff">Off</button>
+        </div>
+        <div class="poi-status" id="shadeNote">Lays shaded relief under the map so the shape of the country reads at a glance - useful in the ranges, where a contour line alone does not say which way the ground falls. It is a second set of tiles, so it doubles what a map download costs and what it stores.</div>
       </div>
     </details>
 
@@ -1102,6 +1110,15 @@ input[type=date],input[type=time]{color-scheme:dark}
 
 const CFG = {
   TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+  /* Esri's hillshade is a near-white image - measured mean
+     luminance 245 - meant to be multiplied into a map rather than laid
+     under one. Under the topo it did almost nothing; multiplied over it,
+     the slopes darken and the shape of the country comes up while the
+     roads, tracks and labels underneath stay legible. Same host as the
+     tiles already in use. */
+  HILLSHADE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
+  SHADE_STRENGTH: 0.85,    /* how hard the relief is pressed into the map */
+  SHADE_MAX_Z: 13,         /* past this Esri has no relief, only a placeholder */
   /* POIs come from OpenStreetMap's own API, which returns a full map extract
      with every tag intact - that is what lets a free camp be told apart from
      a paid one. Overpass used to sit in front of it, but every public mirror
@@ -1498,12 +1515,13 @@ const S = Object.assign({
   poiOn: true,
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
-  zoom: 15
+  zoom: 15,
+  hillshade: false     /* shaded relief under the map, off by default */
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
-                        keepAwake: S.keepAwake, zoom: S.zoom });
+                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
 }
 
 /* live view state driven by the animation loop */
@@ -1563,7 +1581,10 @@ const OfflineTileLayer = L.TileLayer.extend({
     const img = document.createElement("img");
     img.setAttribute("role", "presentation");
     img.alt = "";
-    const key = coords.z + "/" + coords.x + "/" + coords.y;
+    /* The key carries the layer, or a second source would overwrite the
+       first tile for tile - both are z/x/y from the same host. Topo keys
+       stay bare so every tile already downloaded is still found. */
+    const key = (this.options.cachePrefix || "") + coords.z + "/" + coords.x + "/" + coords.y;
     const url = this.getTileUrl(coords);
     let settled = false;
     /* addEventListener, not the onload/onerror properties: Leaflet's
@@ -1601,11 +1622,40 @@ const OfflineTileLayer = L.TileLayer.extend({
   }
 });
 
+/* Relief sits above the topo and multiplies into it. */
+const shade = new OfflineTileLayer(CFG.HILLSHADE_URL, {
+  /* The relief runs out at zoom 13. Past it Esri answers with the same
+     "Map data not yet available" placeholder for every square on earth,
+     and multiplying that into the map prints the words across it.
+     maxNativeZoom stops asking and stretches the last real tile, which
+     is the right answer anyway: at driving zoom you are looking at one
+     hillside, and there is no shape left to shade. */
+  maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z, maxNativeZoom: CFG.SHADE_MAX_Z, cachePrefix: "hs:",
+  keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
+});
 const tiles = new OfflineTileLayer(CFG.TILE_URL, {
   maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z,
   keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
 });
 tiles.addTo(map);
+
+/* The blend has to go on the layer's own container, which Leaflet only
+   creates once the layer is on the map. */
+function setHillshade(on) {
+  S.hillshade = on;
+  saveSettings();
+  if (on) {
+    shade.addTo(map);
+    shade.setZIndex(10);
+    shade.setOpacity(CFG.SHADE_STRENGTH);
+    const el = shade.getContainer();
+    if (el) el.classList.add("shadeLayer");
+  } else {
+    map.removeLayer(shade);
+  }
+  if (typeof syncHillshadeButtons === "function") syncHillshadeButtons();
+}
+if (S.hillshade) setHillshade(true);
 
 /* ---- layers ---- */
 /* route first so the recorded trail always draws on top of it */
@@ -4104,7 +4154,26 @@ function tileListFor(bounds, maxZ) {
   return out;
 }
 function tileURL(t) {
-  return CFG.TILE_URL.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y);
+  const url = t.hs ? CFG.HILLSHADE_URL : CFG.TILE_URL;
+  return url.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y);
+}
+/* Matches the prefix the live layer caches under, so a tile downloaded for
+   an area is the same tile the map finds later. */
+function tileKey(t) { return (t.hs ? "hs:" : "") + t.z + "/" + t.x + "/" + t.y; }
+
+/* The relief an area needs. Only to zoom 13, because that is as deep as the
+   data goes - past it every square on earth returns the same placeholder,
+   so downloading them would spend bandwidth on a picture of the words "map
+   data not yet available". That cap is also why this is cheap: the count
+   does not grow as the detail level does. */
+function shadeTilesFor(list) {
+  if (!S.hillshade) return [];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    if (t.z <= CFG.SHADE_MAX_Z) out.push({ z: t.z, x: t.x, y: t.y, hs: true });
+  }
+  return out;
 }
 
 let drawMode = false, drawStart = null, pendingBounds = null, dlAbort = false;
@@ -4183,7 +4252,10 @@ function closeAreaModal() { $("#areaModal").classList.add("hidden"); pendingBoun
 function updateAreaEstimate() {
   if (!pendingBounds) return;
   const z = parseInt($("#amZoom").value, 10);
-  const n = tileListFor(pendingBounds, z).length;
+  const base = tileListFor(pendingBounds, z);
+  /* counted and capped on the whole download, not just the map half: with
+     relief switched on it really is more tiles and more bytes */
+  const n = base.length + shadeTilesFor(base).length;
   const el = $("#amCount");
   el.textContent = n;
   el.classList.toggle("over", n > CFG.DL_CAP);
@@ -4196,7 +4268,8 @@ async function runAreaDownload() {
   const z = parseInt($("#amZoom").value, 10);
   const name = ($("#amName").value || "").trim() || "Area";
   const bounds = pendingBounds;
-  const list = tileListFor(bounds, z);
+  const base = tileListFor(bounds, z);
+  const list = base.concat(shadeTilesFor(base));
   if (!list.length || list.length > CFG.DL_CAP) return;
 
   dlAbort = false;
@@ -4220,7 +4293,7 @@ async function runAreaDownload() {
   async function worker() {
     while (idx < list.length && !dlAbort) {
       const t = list[idx++];
-      const key = t.z + "/" + t.x + "/" + t.y;
+      const key = tileKey(t);
       try {
         const hit = await DB.get("tiles", key);
         if (hit) { cached++; }
@@ -4282,7 +4355,15 @@ async function deleteArea(id) {
   const list = tileListFor(b, a.maxZoom);
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
-    try { await DB.del("tiles", t.z + "/" + t.x + "/" + t.y); } catch (e) { /* ignore */ }
+    try { await DB.del("tiles", tileKey(t)); } catch (e) { /* ignore */ }
+    /* Always try the relief too, whatever the setting says now. An area
+       downloaded with shading on and deleted with it off would otherwise
+       leave its shade tiles behind for good; deleting a key that was never
+       there costs nothing. */
+    if (t.z <= CFG.SHADE_MAX_Z) {
+      try { await DB.del("tiles", tileKey({ z: t.z, x: t.x, y: t.y, hs: true })); }
+      catch (e) { /* ignore */ }
+    }
   }
   await DB.del("areas", id);
   await renderAreas();
@@ -4975,6 +5056,7 @@ const Wake = {
           Wake.note = "released by the system";
           renderGpsPanel();
           syncAwakeButtons();
+  syncHillshadeButtons();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -5258,6 +5340,12 @@ function setKeepAwake(on) {
            : "Screen may sleep - a recording stops with it",
         on ? "ok" : "warn");
 }
+function syncHillshadeButtons() {
+  $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
+  $("#btnShadeOff").classList.toggle("on", !S.hillshade);
+}
+$("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
+$("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
 $("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); });
 $("#btnPoiRefresh").addEventListener("click", function () {
