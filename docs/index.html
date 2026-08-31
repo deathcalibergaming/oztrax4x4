@@ -2896,6 +2896,7 @@ const ICONS = {
   rest:      '<path d="M3 11h18"/><path d="M6 11 4 20M18 11l2 9M7.5 15.5h9"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
   shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
   mechanic:  '<path d="M17.7 4.6a4.6 4.6 0 0 0-5.9 5.9l-7.2 7.2 2.3 2.3 7.2-7.2a4.6 4.6 0 0 0 5.9-5.9l-2.9 2.9-2.3-.6-.6-2.3z"/>',
+  parts:     '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v3.1M12 18.3v3.1M21.4 12h-3.1M5.7 12H2.6M18.6 5.4l-2.2 2.2M7.6 16.4l-2.2 2.2M18.6 18.6l-2.2-2.2M7.6 7.6L5.4 5.4"/>',
   info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7v.1"/>',
   spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>',
   /* a tent on its own is the free camp; the paid one carries a coin, which
@@ -3130,6 +3131,7 @@ function poiCaption(tags, kind) {
 const POI_META = {
   fuel:        { label: "Fuel",        icon: "fuel",        color: "#E8B923" },
   mechanic:    { label: "Mechanic",    icon: "mechanic",    color: "#77879B" },
+  parts:       { label: "Auto parts",  icon: "parts",       color: "#5F6E8C" },
   water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
   spring:      { label: "Spring",      icon: "spring",      color: "#4F8FB0" },
   campfree:    { label: "Free camp",   icon: "campfree",    color: "#8FB93E" },
@@ -3220,8 +3222,17 @@ function poiKind(tags) {
      over, and a tyre place matters more than most: the gibber punctures
      more than it strands. Filed under Supplies these sat among the
      hairdressers and the op shops. */
-  if (tags.shop === "car_repair" || tags.shop === "tyres" ||
-      tags.shop === "car_parts") return "mechanic";
+  /* Selling the part is not fitting it. shop=car_parts is Supercheap Auto,
+     Burson and Autopro - counter staff and a shelf of filters - while
+     car_repair and tyres are someone who can put the vehicle back on the
+     road. Broken down, that difference is the whole question, so they are
+     two categories rather than one.
+
+     Their own category rather than back into Supplies, where a parts shop
+     would sit among the hairdressers again - which is what splitting the
+     mechanics out was for. */
+  if (tags.shop === "car_repair" || tags.shop === "tyres") return "mechanic";
+  if (tags.shop === "car_parts") return "parts";
   if (tags.shop) return "shop";
   return null;
 }
@@ -3298,13 +3309,14 @@ function poiAnchor() {
    came in when supermarkets were split out of general supplies and free
    camps out of paid ones; v3 when roads carrying a posted speed limit
    started being kept beside them; v4 when mechanics were split out of
-   supplies. A v2 entry holds no roads, and read back as it stands would
+   supplies, and v5 when the parts shops were split back out of the
+   mechanics. A v2 entry holds no roads, and read back as it stands would
    keep the speed sign away for the whole week the cell stays fresh - a
-   feature silently missing rather than absent. A v3 entry has every
-   workshop filed under Supplies, which is where they were before. */
+   feature silently missing rather than absent. A v4 entry has Supercheap
+   Auto filed as a workshop. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v4:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v5:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
