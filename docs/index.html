@@ -4430,12 +4430,31 @@ function streetPart(q) {
   return q.replace(/^[\d\s\/-]+/, "");
 }
 
+/* Punctuation is not a word. "13 Waterford Avenue, Dernancourt" is how an
+   address is actually written, and splitting on spaces alone made a token
+   of "avenue," which matches nothing - so the comma quietly threw away the
+   right answer and left three Victorian streets standing. Both sides are
+   flattened the same way, so an apostrophe cannot bite either: a search
+   for Romeo's meets Romeo s on both sides of the test. */
+function sugFlat(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 /* Every word typed has to appear somewhere in the line, so each letter
-   can only ever cut the list down. */
+   can only ever cut the list down.
+
+   House numbers are the exception. "22 Waterford Ave Dernancourt" is a
+   fair thing to type, but OSM has only the street - number 22 is not
+   mapped, and neither is number 13 - so requiring the digits threw away
+   the one right answer while keeping the Victorian streets that do carry
+   that number. A bare number is dropped; the geocoder already ranked on
+   it. */
 function sugMatches(s, q) {
-  const hay = (s.name + " " + s.where).toLowerCase();
-  return q.toLowerCase().split(/\s+/).every(function (t) {
-    return !t || hay.indexOf(t) >= 0;
+  const hay = sugFlat(s.name + " " + s.where);
+  return sugFlat(q).split(" ").every(function (t) {
+    if (!t) return true;
+    if (/^\d+[a-z]?$/.test(t)) return true;
+    return hay.indexOf(t) >= 0;
   });
 }
 
@@ -4474,7 +4493,16 @@ function scheduleSuggest() {
      Only when nothing at all is left has the pool stopped being able to
      answer - topping up while matches remain would let the list grow on a
      keystroke, which is the opposite of what another letter means. */
-  const extending = sugBaseQ && q.toLowerCase().indexOf(sugBaseQ.toLowerCase()) === 0;
+  /* Letters narrow, words re-ask. Narrowing alone could never reach an
+     answer the first pool did not contain: typing "22 wat" returns a
+     Buddhist temple and two Brisbane bus stops, and no amount of further
+     filtering turns that into Waterford Avenue, Dernancourt. A finished
+     word is genuinely new information, so it goes back to the geocoder;
+     within a word the list still only shrinks. */
+  const words = function (s) { return s.trim().split(/\s+/).length; };
+  const extending = sugBaseQ &&
+                    q.toLowerCase().indexOf(sugBaseQ.toLowerCase()) === 0 &&
+                    words(q) === words(sugBaseQ);
   if (extending) {
     const narrowed = sugPool.filter(function (s) { return sugMatches(s, q); });
     showSuggest(q, narrowed);
