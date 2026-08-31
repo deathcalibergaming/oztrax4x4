@@ -131,13 +131,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
-/* Reads out what the two buttons under it are changing. Not a button: it
-   takes their width and about half their height so the column still ends
-   where it did, and it is not something to press. */
-#zoomLevel{width:38px;height:20px;border-radius:6px;background:rgba(27,33,29,.92);
-  border:1px solid var(--line2);font-family:var(--mono);font-size:11px;font-weight:700;
-  letter-spacing:.04em;color:var(--sand);display:flex;align-items:center;
-  justify-content:center;pointer-events:none}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
    saying. Running, it fills solid rust and keeps its sand glyph - the same
@@ -427,6 +420,26 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .kchip i{font-family:var(--mono);font-style:normal;font-size:10px;opacity:.9;flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
+/* The type-ahead list, tucked under the search box. Buttons rather than
+   rows so a thumb gets a real target and a keyboard can reach them. */
+#nmSuggest{display:flex;flex-direction:column;margin-top:5px;border:1px solid var(--line2);
+  border-radius:8px;overflow:hidden;background:rgba(20,24,27,.98)}
+#nmSuggest.hidden{display:none}
+.sug{display:flex;align-items:flex-start;gap:10px;text-align:left;
+  width:100%;padding:9px 11px;background:none;border:none;
+  border-bottom:1px solid var(--line2);cursor:pointer}
+.sug:last-child{border-bottom:none}
+.sug:active{background:var(--rust)}
+/* The place takes the room it needs and the distance keeps its own
+   column, so a long address wraps under the name rather than pushing
+   the number off the row. */
+.sug .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sug .n{font-size:12.5px;font-weight:600;color:var(--sand);line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug .w{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.04em;
+  text-transform:uppercase}
+.sug .d{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;
+  color:var(--dim);letter-spacing:.04em;padding-top:2px;white-space:nowrap}
 .empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
 .card-top{display:flex;align-items:flex-start;gap:8px}
@@ -701,7 +714,6 @@ input[type=date],input[type=time]{color-scheme:dark}
   <div id="stage">
     <div id="rotWrap"><div id="panWrap"><div id="map"></div></div></div>
     <div id="zoomCtl">
-      <div id="zoomLevel" aria-live="polite">Z--</div>
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
       <button id="btnCenter" aria-label="Recentre on vehicle" title="Recentre on vehicle">
@@ -882,6 +894,15 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
+        <div class="sublabel">Home
+          <button class="btn xs ghost" id="btnHomeClear">Clear</button>
+        </div>
+        <div class="poi-status" id="homeState"></div>
+        <div class="row">
+          <button class="btn sm ghost" id="btnHomeSearch">Set From Search</button>
+          <button class="btn sm ghost" id="btnHomeHere">Use My Position</button>
+        </div>
+        <div class="poi-status" id="homeNote">Then type &quot;home&quot; in Navigate to route back to it.</div>
       </div>
     </details>
 
@@ -924,7 +945,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   <div class="dr-body">
     <div class="sec-body">
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
-        <input id="poiSearch" type="search" placeholder="Filter nearby POIs" autocomplete="off">
+        <input id="poiSearch" type="search" placeholder="Filter Nearby POIs" autocomplete="off">
         <div id="poiStatus" class="poi-status"></div>
         <div class="sublabel">Categories
           <button class="btn xs ghost" id="btnKindsAll">All On</button>
@@ -954,7 +975,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   <div class="float-body">
     <div class="fld">
       <label>Name</label>
-      <input id="wpName" type="text" maxlength="48" placeholder="Creek crossing" autocomplete="off">
+      <input id="wpName" type="text" maxlength="48" placeholder="Creek Crossing" autocomplete="off">
     </div>
     <div class="fld">
       <label>Category</label>
@@ -962,7 +983,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     </div>
     <div class="fld">
       <label>Note</label>
-      <textarea id="wpNote" rows="2" maxlength="240" placeholder="Optional detail"></textarea>
+      <textarea id="wpNote" rows="2" maxlength="240" placeholder="Optional Detail"></textarea>
     </div>
     <div class="fld" style="margin-bottom:0">
       <label>Position</label>
@@ -1036,7 +1057,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 <div id="navModal" class="modal hidden">
   <div class="modal-box">
     <div class="modal-head">
-      <div class="t">Navigate To</div>
+      <div class="t" id="nmTitle">Navigate To</div>
       <button class="icon-btn" id="nmClose" aria-label="Close">
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -1044,7 +1065,8 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="modal-body">
       <div class="fld">
         <label>Search for a place</label>
-        <input id="nmQuery" type="search" placeholder="Town, roadhouse, landmark" autocomplete="off" enterkeyhint="search">
+        <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
+        <div id="nmSuggest" class="hidden"></div>
       </div>
       <div class="row">
         <button class="btn sm primary" id="nmSearch">Search</button>
@@ -1148,6 +1170,12 @@ const CFG = {
   PHOTON: "https://photon.komoot.io/reverse",
   PHOTON_TIMEOUT: 12000,
   PHOTON_LIMIT: 50,
+  /* Photon is the type-ahead geocoder; Nominatim forbids that traffic. */
+  PHOTON_SEARCH: "https://photon.komoot.io/api",
+  SUGGEST_MIN: 3,          /* characters before anything is asked for */
+  SUGGEST_WAIT: 320,       /* ms of stillness before the request goes */
+  SUGGEST_FETCH: 20,       /* asked for, before country and duplicate filtering */
+  SUGGEST_MAX: 6,          /* offered, so the list never buries the map */
   POI_RADIUS: 5000,        /* metres around you */
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
@@ -1202,7 +1230,8 @@ const LS = {
   hiddenKinds: "tt.hiddenKinds",
   trail: "tt.trail",
   lastPos: "tt.lastPos",
-  country: "tt.country"
+  country: "tt.country",
+  home: "tt.home"
 };
 
 /* ---------- tiny helpers ---------- */
@@ -1537,6 +1566,18 @@ function saveSettings() {
                         keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
 }
 
+/* Home is a place rather than a preference, so it keeps its own key: a
+   change to settings should never be able to lose the address you drive
+   back to. Null until it is set. */
+let home = loadLS(LS.home, null);
+let homePick = false;   /* the Navigate modal is choosing a home, not a destination */
+
+function saveHome(h) {
+  home = h;
+  saveLS(LS.home, home);
+  renderHomeRow();
+}
+
 /* live view state driven by the animation loop */
 const view = {
   has: false,
@@ -1810,15 +1851,6 @@ map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
-/* zoom fires through the animation as well as at the end of it, so the
-   number counts up with the map rather than jumping when it settles. */
-function showZoomLevel() {
-  const el = $("#zoomLevel");
-  if (el) el.textContent = "Z" + Math.round(map.getZoom());
-}
-map.on("zoom zoomend", showZoomLevel);
-showZoomLevel();
-
 map.on("zoomend", function () {
   S.zoom = map.getZoom();
   saveSettings();
@@ -3863,6 +3895,59 @@ function dedupePlaces(list) {
   return out;
 }
 
+/* A named road is held as every segment that carries the name, so one
+   search for the Oodnadatta Track answers six times over with the same
+   track. The segments sit hundreds of kilometres apart, so the distance
+   test that tells two towns of one name apart cannot merge them - a road
+   collapses on its name alone, keeping the segment nearest the vehicle,
+   which is the end of it you would actually join.
+
+   Roads used to be dropped outright for this, which also threw away every
+   street search: asking for Elder Terrace in Hawker returned the street
+   plus a few Hawker businesses, and the street - the one thing asked for -
+   was the only line removed. */
+/* A bare address is only worth a line until something named turns up at
+   it. "Homeland - 1 King William Street, Adelaide, South Australia" says
+   everything the lone "1 King William Street" said and more, so the
+   address on its own goes rather than sitting above it saying half.
+
+   Two named businesses at one address stay two lines. They are two
+   places, and a shopping centre would otherwise come back as one. */
+function collapseAddresses(list) {
+  const claimed = {};
+  list.forEach(function (r) { if (r.named && r.addrKey) claimed[r.addrKey] = 1; });
+  return list.filter(function (r) {
+    return r.named || !r.addrKey || !claimed[r.addrKey];
+  });
+}
+
+/* Country names run long - Photon answers "United States of America" -
+   and a line only reaches for the country when it is short of anything
+   more local, so it is padding either way. The code says the same in two
+   or three letters.
+
+   A few read wrong as bare ISO. Nobody says GB, and US alone looks like a
+   truncation, so those get the form people actually use. */
+const CC_SAID = { US: "USA", GB: "UK", AE: "UAE" };
+function ccShort(code, name) {
+  const c = (code || "").toUpperCase();
+  if (!c) return name || "";
+  return CC_SAID[c] || c;
+}
+
+function collapseRoads(list) {
+  const best = {};
+  const out = [];
+  list.forEach(function (r) {
+    if (r.atype !== "road") { out.push(r); return; }
+    const key = (r.name || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const prev = best[key];
+    if (!prev) { best[key] = r; out.push(r); return; }
+    if (geoDist(r) < geoDist(prev)) { out[out.indexOf(prev)] = r; best[key] = r; }
+  });
+  return out;
+}
+
 /* Out here the name on the map and the place you actually stop at are rarely
    the same thing. Erldunda is a homestead; the fuel, the beds and the food
    are at the Desert Oaks Resort three kilometres up the road, and OSM knows
@@ -3947,6 +4032,32 @@ function foldSameBusiness(list) {
    --------------------------------------------------------------------- */
 let geoCountry = loadLS(LS.country, null);   /* {cc,name,lat,lng} or null */
 
+/* Photon will hand back a country's own extent, which is what turns the
+   soft lat/lon bias into a hard bound on the suggestions. Fetched once
+   per country and cached with it. */
+async function countryBox(name, cc) {
+  const url = CFG.PHOTON_SEARCH + "?limit=1&layer=country&q=" +
+              encodeURIComponent(name || cc);
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.COUNTRY_TIMEOUT);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const ex = ((j.features || [])[0] || {}).properties;
+    const e = ex && ex.extent;          /* [west, north, east, south] */
+    if (!e || e.length !== 4) return null;
+    /* New Zealand straddles the date line and comes back spanning the
+       globe, which bounds nothing. No box beats a meaningless one. */
+    if (e[2] - e[0] > 180) return null;
+    return [e[0], e[3], e[2], e[1]];    /* Photon wants W,S,E,N */
+  } catch (err) {
+    return null;
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
 async function countryAt(a) {
   const url = CFG.PHOTON + "?lat=" + a.lat.toFixed(4) + "&lon=" + a.lng.toFixed(4) + "&limit=1";
   const ctl = new AbortController();
@@ -3957,7 +4068,9 @@ async function countryAt(a) {
     const j = await r.json();
     const p = (j.features && j.features[0] && j.features[0].properties) || {};
     if (!p.countrycode) return null;
-    return { cc: p.countrycode.toLowerCase(), name: p.country || p.countrycode,
+    const name = p.country || p.countrycode;
+    return { cc: p.countrycode.toLowerCase(), name: name,
+             box: await countryBox(name, p.countrycode),
              lat: a.lat, lng: a.lng };
   } catch (e) {
     return null;                 /* no answer means search the whole world */
@@ -3971,15 +4084,290 @@ async function countryAt(a) {
    into France does, and 25 km sits inside the width of a border town. */
 async function currentCountry() {
   const a = poiAnchor();
-  if (geoCountry && haversine(geoCountry, a) < CFG.COUNTRY_REFRESH) return geoCountry;
+  if (geoCountry && haversine(geoCountry, a) < CFG.COUNTRY_REFRESH) {
+    /* A country cached before the box existed still needs one, and would
+       otherwise never get it without driving 25 km. undefined means never
+       asked; null means asked and there is no usable box. */
+    if (geoCountry.box === undefined) {
+      geoCountry.box = await countryBox(geoCountry.name, geoCountry.cc);
+      saveLS(LS.country, geoCountry);
+    }
+    return geoCountry;
+  }
   const found = await countryAt(a);
   if (found) { geoCountry = found; saveLS(LS.country, found); }
   return geoCountry;             /* offline, a stale answer beats none */
 }
 
+/* ---------------------------------------------------------------------
+   Type-ahead
+   Nominatim's usage policy forbids autocomplete traffic outright, which
+   is why the committed search is the only thing that reaches it. Photon
+   is the opposite - it exists to be typed into, and the app already talks
+   to it for reverse geocoding - so the suggestions come from there and
+   the Search button keeps going to Nominatim.
+
+   Nothing is sent per keystroke even so: the request waits for SUGGEST_WAIT
+   of stillness, and each new one aborts the last so a fast typist leaves at
+   most one request in flight.
+   --------------------------------------------------------------------- */
+let sugTimer = null, sugCtl = null, sugItems = [];
+/* The last full set fetched, and the query that fetched it, so another
+   letter can be answered by filtering instead of by the network. */
+let sugPool = [], sugBaseQ = "";
+
+function clearSuggest() {
+  sugItems = [];
+  sugPool = [];
+  sugBaseQ = "";
+  const box = $("#nmSuggest");
+  if (box) { box.innerHTML = ""; box.classList.add("hidden"); }
+}
+
+function renderSuggest() {
+  const box = $("#nmSuggest");
+  if (!box) return;
+  if (!sugItems.length) { clearSuggest(); return; }
+  box.innerHTML = sugItems.map(function (s, i) {
+    /* Measured at render, not when fetched, so it stays true as you drive
+       with the box open. Home has no distance worth showing - it is
+       pinned to the top wherever it is. */
+    const away = s.home ? "" : fmtDist(geoDist(s));
+    return '<button type="button" class="sug" data-i="' + i + '">' +
+      '<span class="txt"><span class="n">' + esc(s.name) + "</span>" +
+      (s.where ? '<span class="w">' + esc(s.where) + "</span>" : "") +
+      "</span>" +
+      (away ? '<span class="d">' + esc(away) + "</span>" : "") +
+      "</button>";
+  }).join("");
+  box.classList.remove("hidden");
+}
+
+/* Chosen outright rather than handed back to the search box: Photon has
+   already given us the coordinates, so asking a second geocoder for what
+   we know would only cost a round trip you may not have signal for. */
+function takeSuggestion(i) {
+  const s = sugItems[i];
+  if (!s) return;
+  $("#nmQuery").value = s.name;
+  clearSuggest();
+  if (poiQuery) { poiQuery = ""; renderPois(); }
+  geoResults = [{
+    id: s.id, name: s.name, where: s.where, kind: s.kind,
+    area: false, atype: s.kind, rank: 30, imp: 1, lat: s.lat, lng: s.lng
+  }];
+  geoNote = s.home ? "Home" : "Chosen from suggestions";
+  renderNavList();
+}
+
+/* An address starts with a number, and three characters of "12 " is not
+   three characters of a street. Measuring the threshold past the number
+   means a street is asked for once three of its own letters are typed,
+   rather than after the first one. Unit numbers - 3/12 - count as part
+   of the number. */
+function streetPart(q) {
+  return q.replace(/^[\d\s\/-]+/, "");
+}
+
+/* Every word typed has to appear somewhere in the line, so each letter
+   can only ever cut the list down. */
+function sugMatches(s, q) {
+  const hay = (s.name + " " + s.where).toLowerCase();
+  return q.toLowerCase().split(/\s+/).every(function (t) {
+    return !t || hay.indexOf(t) >= 0;
+  });
+}
+
+function showSuggest(q, list) {
+  const local = homeSuggestion(q);
+  /* Nearest first. Everything on this list already matched what was
+     typed, so distance is the only question left - and out here the
+     Turquoise Drive an hour away beats the one in Queensland.
+
+     Sorted on every render rather than once when fetched, so narrowing
+     the list cannot leave it in the order of an older position. */
+  const near = list.slice().sort(function (a, b) { return geoDist(a) - geoDist(b); });
+  sugItems = (local ? [local] : []).concat(near).slice(0, CFG.SUGGEST_MAX);
+  renderSuggest();
+}
+
+function scheduleSuggest() {
+  if (sugTimer) clearTimeout(sugTimer);
+  const q = $("#nmQuery").value.trim();
+  /* An empty box has nothing to show results for. Leaving the last
+     answer sitting under the button reads as the app ignoring the
+     deletion, and the native clear cross on a search input comes
+     through here too. */
+  if (!q) {
+    clearSuggest();
+    geoResults = [];
+    geoNote = "";
+    renderNavList();
+    return;
+  }
+  if (streetPart(q).length < CFG.SUGGEST_MIN) { clearSuggest(); return; }
+  /* Still typing the same thing: narrow what is already here, on the
+     keystroke, with no request at all. The list can only shrink, which
+     is what typing another letter ought to do.
+
+     Only when nothing at all is left has the pool stopped being able to
+     answer - topping up while matches remain would let the list grow on a
+     keystroke, which is the opposite of what another letter means. */
+  const extending = sugBaseQ && q.toLowerCase().indexOf(sugBaseQ.toLowerCase()) === 0;
+  if (extending) {
+    const narrowed = sugPool.filter(function (s) { return sugMatches(s, q); });
+    showSuggest(q, narrowed);
+    if (narrowed.length) return;
+  }
+  sugTimer = setTimeout(function () { suggestPlaces(q); }, CFG.SUGGEST_WAIT);
+}
+
+/* Home is offered from storage the moment its name starts to match, so the
+   one destination you always want is the one that never needs a signal. */
+function homeSuggestion(q) {
+  if (!home) return null;
+  if ("home".indexOf(q.toLowerCase()) !== 0) return null;
+  return { id: "home", name: home.name, where: "Home", kind: "home",
+           lat: home.lat, lng: home.lng, home: true };
+}
+
+async function suggestPlaces(q) {
+  const local = homeSuggestion(q);
+  if (sugCtl) sugCtl.abort();
+  sugCtl = new AbortController();
+  const here = view.has ? view.cur : poiAnchor();
+  /* Cached after the first answer, so this costs nothing while typing. */
+  await currentCountry();
+  /* lat/lon is only a nudge, and it loses. Typing "30 tur" in the Flinders
+     answered with Poland, Spain and Argentina and not one Australian
+     street, so the country filter emptied the list and nothing was
+     suggested until enough letters had been typed to out-rank the world.
+     The box is a hard bound, so the first three letters can answer. */
+  const box = geoCountry && geoCountry.box;
+  const url = CFG.PHOTON_SEARCH + "?limit=" + CFG.SUGGEST_FETCH +
+    "&lat=" + here.lat.toFixed(4) + "&lon=" + here.lng.toFixed(4) +
+    (box ? "&bbox=" + box.join(",") : "") +
+    "&q=" + encodeURIComponent(q);
+  let rows = [];
+  try {
+    const r = await fetch(url, { signal: sugCtl.signal });
+    if (r.ok) rows = ((await r.json()) || {}).features || [];
+  } catch (e) {
+    /* No signal, or overtaken by a later keystroke. Either way the box
+       simply shows nothing extra and the Search button still works. */
+    if (e.name === "AbortError") return;
+  }
+  /* The box may have moved on, or emptied, while this was in the air. */
+  if ($("#nmQuery").value.trim() !== q) return;
+
+  const cc = geoCountry ? geoCountry.cc.toUpperCase() : "";
+  const seen = {};
+  const cand = [];
+  rows.forEach(function (ft) {
+    const p = ft.properties || {}, g = ft.geometry || {};
+    if (!g.coordinates) return;
+    /* A street address has no name at all in Photon - it is a house number
+       and a street, and nothing else. Requiring a name threw every one of
+       them away, which is why addresses could be searched but never
+       suggested. Build the label the way the address is spoken. */
+    const num = p.housenumber || "";
+    const street = p.street || "";
+    /* OSM sometimes carries the whole address in the house number - "112A
+       Rundle Mall", with Rundle Mall as the street - and appending the
+       street then says it twice. */
+    const addr = !street ? num
+      : (num ? (num.toLowerCase().indexOf(street.toLowerCase()) >= 0 ? num
+                                                                    : num + " " + street)
+             : street);
+    /* A bare number with no street is not an address anybody can read. */
+    const label = p.name || (street ? addr : "");
+    if (!label) return;
+    /* A node named only by its house number - "30" - is the address said
+       badly. Worse, it reads as a named place standing at that address,
+       so it claimed the spot and suppressed the real "30 Turquoise Drive"
+       record sitting beside it. A trailing letter is still a number: 30A. */
+    if (/^[\d\s\/-]+[A-Za-z]?$/.test(label)) return;
+    /* Matches the committed search, which is limited to the country you
+       are standing in - suggestions offering what Search cannot find
+       would read as the app losing places. */
+    if (cc && p.countrycode && p.countrycode.toUpperCase() !== cc) return;
+    /* One line per label and town. A named road is stored as every segment
+       carrying the name, so Wilpena Road otherwise fills the whole list
+       with itself - the same duplication collapseRoads handles for the
+       committed search. The house number is inside the label, so two
+       numbers on one street stay two suggestions. */
+    const town = p.city || p.county || p.state || "";
+    const key = (label + "|" + town).toLowerCase();
+    if (seen[key]) return;
+    seen[key] = 1;
+    /* A named place carries its whole address - street, town, state - since
+       that is what tells two branches of one chain apart. An address that
+       is only an address has said the street in its own name already, so
+       it gives the suburb and the state instead.
+
+       Without a city Photon repeats the state as the locality, so the line
+       read "South Australia, South Australia". Each name earns one place. */
+    const named = !!p.name;
+    const where = [];
+    if (named && addr) where.push(addr);
+    /* Photon calls the suburb "district". Reading only city loses Kent
+       Town from a Kent Town address, which is the part that places it. */
+    [p.district || p.suburb, p.city || p.county,
+     p.state].forEach(function (v) {
+      if (v && v !== label && where.indexOf(v) < 0) where.push(v);
+    });
+    if (where.length < 2) where.push(ccShort(p.countrycode, p.country));
+    cand.push({
+      id: "sug" + (p.osm_id || cand.length),
+      name: label,
+      where: where.slice(0, (named && addr) ? 4 : 3).join(", "),
+      /* osm_value is "yes" on anything tagged only as existing, which
+         would put YES on the card. The key it sits under says more. */
+      kind: named
+        ? ((p.osm_value && p.osm_value !== "yes" ? p.osm_value
+                                                 : p.osm_key) || "place").replace(/_/g, " ")
+        : "address",
+      lat: g.coordinates[1], lng: g.coordinates[0],
+      named: named,
+      addrKey: addr ? (addr + "|" + town).toLowerCase() : ""
+    });
+  });
+
+  /* A bare address is only worth a line until something named turns up at
+     it. "Homeland - 1 King William Street, Adelaide, South Australia" says
+     everything the lone "1 King William Street" said and more, so the
+     address on its own goes rather than sitting above it saying half.
+
+     Two named businesses at one address stay two lines. They are two
+     places, and a shopping centre would otherwise come back as one. */
+  const claimed = {};
+  cand.forEach(function (c) { if (c.named && c.addrKey) claimed[c.addrKey] = 1; });
+  const kept = cand.filter(function (c) { return c.named || !claimed[c.addrKey]; });
+  /* The whole catch is kept, not just the six shown. The next letter is
+     answered by narrowing this rather than asking again. */
+  sugPool = kept;
+  sugBaseQ = q;
+  showSuggest(q, kept);
+}
+
 async function geoSearch(q) {
   q = (q || "").trim();
   if (q.length < 3) { toast("Type at least three characters", "warn"); return; }
+
+  /* Home is answered from the phone. Typing it must never wait on a
+     geocoder you may have no signal for - turning for home without a bar
+     of reception is the whole point of storing it. */
+  if (/^(home|go home)$/i.test(q)) {
+    if (poiQuery) { poiQuery = ""; renderPois(); }
+    geoResults = home ? [{
+      id: "home", name: home.name, where: "Your home address", kind: "home",
+      area: false, atype: "home", rank: 30, imp: 1,
+      lat: home.lat, lng: home.lng
+    }] : [];
+    geoNote = home ? "Home" : "No home set - Settings > Home";
+    renderNavList();
+    return;
+  }
   if (geoBusy) return;
   const wait = CFG.GEO_MIN_GAP - (Date.now() - geoAt);
   if (wait > 0) { toast("Hold on a moment", "warn"); return; }
@@ -4017,31 +4405,60 @@ async function geoSearch(q) {
     const resp = await fetch(url, { headers: { "Accept": "application/json" } });
     if (!resp.ok) throw new Error("http " + resp.status);
     const rows = await resp.json();
-    /* Two kinds of answer are not destinations. Local government areas -
-       Adelaide City Council, Port Augusta City Council - are not somewhere
-       you drive to, and being large they sort near the top and push the town
-       you asked for below them. Road and railway segments are worse: a named
-       track is chopped into dozens of pieces, so one search can come back as
-       twelve helpings of the same line.
+    /* Local government areas - Adelaide City Council, Port Augusta City
+       Council - are not somewhere you drive to, and being large they sort
+       near the top and push the town you asked for below them.
 
        The telling field is addresstype, not category: Port Augusta the town
        and Port Augusta City Council are both boundary/administrative, and
        only addresstype separates them into "town" and "administrative".
        National and conservation parks come back as "nature_reserve", so they
-       are untouched. Both are dropped only while something else survives, so
-       searching a council or a track by name still answers. */
+       are untouched. Dropped only while something else survives, so
+       searching a council by name still answers. */
     const raw = rows || [];
-    const notPlace = function (r) {
-      return r.addresstype === "administrative" || r.addresstype === "road";
-    };
-    const kept = raw.filter(function (r) { return !notPlace(r); });
+    const kept = raw.filter(function (r) { return r.addresstype !== "administrative"; });
     geoResults = (kept.length ? kept : raw).map(function (r) {
       const parts = String(r.display_name || "").split(",").map((s) => s.trim());
+      /* A street address comes back as "building" or "house", which is what
+         the data calls it rather than what you asked for. */
+      const atype = r.addresstype || "";
+      const isAddr = atype === "building" || atype === "house";
+      /* Nominatim names a building by its house number alone, so an address
+         card would read "1". Rebuild it from the number and the street. A
+         building carrying a name of its own - 1KW, the Mortlock Wing - keeps
+         that name and shows the street beneath it instead. */
+      const ad = r.address || {};
+      const street = (ad.house_number && ad.road) ? ad.house_number + " " + ad.road : "";
+      const bare = !r.name || r.name === ad.house_number;
+      const asAddr = isAddr && bare && street;
+      const label = asAddr ? street : (r.name || parts[0] || q);
+      /* Street, town and state, read off the address fields rather than
+         sliced out of display_name - which keeps the house number in a
+         field of its own, so the line came back as "1, King William
+         Street". A place does not repeat its own name back at itself. */
+      const town = ad.city || ad.town || ad.village || ad.suburb || ad.county || "";
+      const full = [];
+      if (!asAddr && street) full.push(street);
+      /* The suburb is a component in its own right, not a stand-in for the
+         city. Kent Town sits inside Adelaide, and an address that names
+         only Adelaide has dropped the half that finds the street. */
+      [ad.suburb, ad.city || ad.town || ad.village || ad.county,
+       ad.state].forEach(function (v) {
+        if (v && v !== label && full.indexOf(v) < 0) full.push(v);
+      });
+      /* Only to round out a thin line - inside one country the country
+         name adds nothing to an address that already has a suburb. */
+      if (full.length < 2) full.push(ccShort(ad.country_code, ad.country));
+      const line = full.slice(0, (!asAddr && street) ? 4 : 3).join(", ");
       return {
         id: "geo" + r.place_id,
-        name: r.name || parts[0] || q,
-        where: parts.slice(1, 3).join(", "),
-        kind: (r.addresstype || r.type || r.category || "place").replace(/_/g, " "),
+        name: label,
+        /* display_name is the fallback for anything Nominatim answers
+           without address details. */
+        where: line || (asAddr ? parts.slice(2, 4) : parts.slice(1, 3)).join(", "),
+        named: !asAddr,
+        addrKey: street ? (street + "|" + town).toLowerCase() : "",
+        kind: (isAddr ? "address" : (atype || r.type || r.category || "place")).replace(/_/g, " "),
         /* place_rank counts up as a place gets smaller - a city is 16, the
            suburb inside it 18 - and importance breaks a tie between two of
            the same size. Both are kept so the duplicate pass can tell which
@@ -4055,12 +4472,21 @@ async function geoSearch(q) {
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
       };
     }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
+    geoResults = collapseRoads(geoResults);
+    geoResults = collapseAddresses(geoResults);
     geoResults = dedupePlaces(geoResults);
 
     /* A homestead or a locality is a name on a map rather than a place to
        pull in, so look beside it for the roadhouse that carries the fuel and
-       the beds. One extra request, and only when the answer needs it. */
-    const small = geoResults.filter(function (p) { return p.rank >= CFG.PLACE_SMALL_RANK; });
+       the beds. One extra request, and only when the answer needs it.
+
+       Places only. A road or a street address is not a name too small to
+       carry its own services - it is a different kind of answer, and hanging
+       four cafes off a suburban street is the noise this guard prevents. */
+    const small = geoResults.filter(function (p) {
+      return p.rank >= CFG.PLACE_SMALL_RANK &&
+             p.atype !== "road" && p.atype !== "building" && p.atype !== "house";
+    });
     if (small.length) {
       const svc = await nearbyServices(small[0]);
       if (svc.length) {
@@ -4083,7 +4509,18 @@ async function geoSearch(q) {
     });
     if (notDwelling.length) geoResults = notDwelling;
 
-    geoResults.sort((a, b) => geoDist(a) - geoDist(b));
+    /* What you typed beats what is merely near. Searching a street returns
+       the street plus every business in the same town, all at much the same
+       distance, so sorting on distance alone buried Elder Terrace under six
+       Hawker businesses. A result whose whole name appears in the query is
+       the thing that was asked for; distance still orders the rest. */
+    const asked = q.toLowerCase();
+    const named = function (r) {
+      return asked.indexOf((r.name || "").toLowerCase()) >= 0 ? 0 : 1;
+    };
+    geoResults.sort(function (a, b) {
+      return named(a) - named(b) || geoDist(a) - geoDist(b);
+    });
     /* Naming the country in both answers keeps the limit visible: a town
        just over a border comes back empty, and this says why. */
     geoNote = geoResults.length
@@ -4100,6 +4537,12 @@ async function geoSearch(q) {
 /* One place card, and one set of actions behind it, so the drawer list and
    the Navigate popup cannot drift apart. */
 function geoCardHtml(r) {
+  /* Picking a home, the card offers the one thing you opened it to do. */
+  const acts = homePick
+    ? '<button class="btn xs primary" data-act="home">Set As Home</button>'
+    : '<button class="btn xs primary" data-act="nav">Navigate</button>' +
+      '<button class="btn xs ghost" data-act="go">Go To</button>' +
+      '<button class="btn xs ghost" data-act="save">Save Waypoint</button>';
   return '<div class="card" data-lat="' + r.lat + '" data-lng="' + r.lng +
     '" data-name="' + esc(r.name) + '">' +
     '<div class="card-top"><div class="dotmark" style="background:#C77B9E">' + catIcon("flag") + "</div>" +
@@ -4107,9 +4550,7 @@ function geoCardHtml(r) {
     '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
     fmtDist(geoDist(r)) + " away</span></div></div></div>" +
     (r.where ? '<div class="card-n">' + esc(r.where) + "</div>" : "") +
-    '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
-    '<button class="btn xs ghost" data-act="go">Go To</button>' +
-    '<button class="btn xs ghost" data-act="save">Save Waypoint</button></div></div>';
+    '<div class="card-acts">' + acts + "</div></div>";
 }
 
 function geoAction(act, card) {
@@ -4141,6 +4582,10 @@ function geoAction(act, card) {
                      cat: "flag", note: "From place search", ts: Date.now() });
     saveWaypoints();
     toast("Saved: " + place, "ok");
+  } else if (act === "home") {
+    saveHome({ lat: lat, lng: lng, name: place });
+    closeNavModal();
+    toast("Home set: " + place, "ok");
   }
 }
 
@@ -4152,12 +4597,20 @@ function geoAction(act, card) {
    fuel and water around you, and mixing the two made the search box in
    the drawer do two jobs at once.
    ===================================================================== */
-function openNavModal() {
+/* pickHome is only ever true when passed deliberately - this is also a
+   click handler, and an Event would otherwise read as truthy. */
+function openNavModal(pickHome) {
+  homePick = (pickHome === true);
   $("#navModal").classList.remove("hidden");
+  $("#nmTitle").textContent = homePick ? "Set Home Address" : "Navigate To";
   renderNavList();
   setTimeout(function () { $("#nmQuery").focus(); }, 60);
 }
-function closeNavModal() { $("#navModal").classList.add("hidden"); }
+function closeNavModal() {
+  homePick = false;
+  clearSuggest();
+  $("#navModal").classList.add("hidden");
+}
 function navModalOpen() { return !$("#navModal").classList.contains("hidden"); }
 
 function renderNavList() {
@@ -5303,6 +5756,19 @@ $("#btnNavTo").addEventListener("click", openNavModal);
 $("#nmClose").addEventListener("click", closeNavModal);
 $("#nmCancel").addEventListener("click", closeNavModal);
 $("#nmSearch").addEventListener("click", navModalSearch);
+/* Typing asks Photon, which is built for it. The committed search still
+   goes to Nominatim - that path is tuned for whole answers - so the two
+   geocoders each do the job they are good at. */
+$("#nmQuery").addEventListener("input", scheduleSuggest);
+$("#nmSuggest").addEventListener("click", function (e) {
+  const row = e.target.closest(".sug");
+  if (row) takeSuggestion(parseInt(row.dataset.i, 10));
+});
+/* A tap outside the box is done choosing, but a tap on the list itself
+   must not close it before the click above lands. */
+$("#nmQuery").addEventListener("blur", function () {
+  setTimeout(clearSuggest, 160);
+});
 $("#nmQuery").addEventListener("keydown", function (e) {
   if (e.key === "Enter") { e.preventDefault(); navModalSearch(); }
 });
@@ -5376,6 +5842,30 @@ function setUnits(u) {
   map.closePopup();
   toast(u === "imperial" ? "Miles and mph" : "Kilometres and km/h", "ok");
 }
+/* Home is answered from the phone, so the row only has to say what is
+   stored and offer the two ways of storing it. Clear hides itself when
+   there is nothing to clear. */
+function renderHomeRow() {
+  const st = $("#homeState");
+  if (st) st.textContent = home ? "Home: " + home.name : "No home set";
+  const clr = $("#btnHomeClear");
+  if (clr) clr.style.display = home ? "" : "none";
+}
+$("#btnHomeSearch").addEventListener("click", function () {
+  closeDrawer();
+  openNavModal(true);
+});
+$("#btnHomeHere").addEventListener("click", function () {
+  if (!view.has) { toast("No fix yet - wait for the GPS", "warn"); return; }
+  saveHome({ lat: view.cur.lat, lng: view.cur.lng, name: "Home" });
+  toast("Home set to where you are", "ok");
+});
+$("#btnHomeClear").addEventListener("click", function () {
+  saveHome(null);
+  toast("Home cleared", "warn");
+});
+renderHomeRow();
+
 $("#btnUnitMetric").addEventListener("click", function () { setUnits("metric"); });
 $("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial"); });
 /* A pair of named choices rather than a switch, so the one other setting
