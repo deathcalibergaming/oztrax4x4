@@ -34,6 +34,11 @@
   --topH:50px;
   --statsH:56px;
   --actH:76px;
+  /* The width of the two instrument bars where they stand on end, which is
+     both of them in landscape. One number so the stats column and the
+     action rail cannot drift apart, and so everything that has to clear
+     the rail moves when it does. */
+  --railW:80px;
   --maprot:0deg;
   --safeT:env(safe-area-inset-top,0px);
   --safeB:env(safe-area-inset-bottom,0px);
@@ -679,7 +684,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    arrangement it is already suited to. */
 @media (orientation: landscape) and (max-height: 520px) {
   #app{display:grid;
-    grid-template-columns:80px 1fr;
+    grid-template-columns:var(--railW) 1fr;
     grid-template-rows:calc(40px + var(--safeT)) 1fr;
     grid-template-areas:"top top" "stats stage"}
   #topbar{grid-area:top;height:auto}
@@ -712,15 +717,19 @@ input[type=date],input[type=time]{color-scheme:dark}
      are measured from the screen edge and already sat 8px clear of the
      floating rail, so losing the float only makes them roomier. */
   #actionbar{left:auto;right:0;top:0;bottom:0;padding:0 0 var(--safeB) 0;
-    height:auto;width:56px;flex-direction:column;gap:0;
+    height:auto;width:var(--railW);flex-direction:column;gap:0;
     background:linear-gradient(270deg,#111513 0,#111513 calc(100% - 3px),
                #1B221D calc(100% - 3px),#333D36 100%);
     box-shadow:-1px 0 0 rgba(0,0,0,.65),-6px 0 12px -6px rgba(0,0,0,.55);
     border:none}
-  .act{gap:2px;border-right:none;border-bottom:1px solid var(--line)}
+  .act{gap:3px;border-right:none;border-bottom:1px solid var(--line)}
   .act:last-child{border-bottom:none}
-  .act svg{width:18px;height:18px}
-  .act span{font-size:7.5px;letter-spacing:.04em}
+  /* Sized for the rail it is in. At 56px wide these were 18px and 7.5px,
+     which was as much as fitted; at the stats column width there is room
+     to come back toward the portrait 23 and 9 without crowding the sides.
+     WAYPOINT is the longest label and still clears them. */
+  .act svg{width:21px;height:21px}
+  .act span{font-size:8.5px;letter-spacing:.06em}
 
   /* Half height, by laying each panel out along its width instead of down
      its height: name, readings and buttons on one line, the pair spanning
@@ -729,7 +738,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      narrow screen - or when the off-route note appears, which takes the
      second row to itself. The row gap is the padding above the buttons when
      they do drop. */
-  #panelStack{right:70px;bottom:calc(8px + var(--safeB));gap:6px}
+  #panelStack{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB));gap:6px}
   #navPanel,#recPanel{padding:5px 8px;flex-direction:row;align-items:center;
     flex-wrap:wrap;column-gap:9px;row-gap:4px}
   /* A destination reads longer than a track name, and a 12 hour ETA is wider
@@ -776,13 +785,15 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
 
   /* everything that used to hug the bottom or the right now clears the rail */
-  #attrib{right:70px;bottom:calc(8px + var(--safeB))}
+  #attrib{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB))}
   /* the action bar is a rail on the right here, so the bottom edge is
      free and the sign sits level with the attribution again */
   #speedSign{bottom:calc(8px + var(--safeB))}
-  #zoomCtl{right:70px;flex-direction:row}
-  /* the zoom row is four buttons wide now, so the chips have to stop sooner */
-  #mapChips{max-width:calc(100% - 259px)}
+  #zoomCtl{right:calc(var(--railW) + 8px);flex-direction:row}
+  /* the zoom row is four buttons wide now, so the chips have to stop sooner:
+     126px of buttons plus the 71 they already kept clear of them, on top of
+     whatever the rail itself takes */
+  #mapChips{max-width:calc(100% - var(--railW) - 197px)}
 
   /* In landscape the stats are a column down the left and the map starts
      below the title bar, so the toast follows the map: under the bar, and
