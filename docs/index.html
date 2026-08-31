@@ -2897,6 +2897,12 @@ const ICONS = {
   shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
   mechanic:  '<path d="M17.7 4.6a4.6 4.6 0 0 0-5.9 5.9l-7.2 7.2 2.3 2.3 7.2-7.2a4.6 4.6 0 0 0 5.9-5.9l-2.9 2.9-2.3-.6-.6-2.3z"/>',
   parts:     '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v3.1M12 18.3v3.1M21.4 12h-3.1M5.7 12H2.6M18.6 5.4l-2.2 2.2M7.6 16.4l-2.2 2.2M18.6 18.6l-2.2-2.2M7.6 7.6L5.4 5.4"/>',
+  medical:   '<path d="M12 4.2v15.6M4.2 12h15.6"/>',
+  dump:      '<path d="M12 2.8v8.6"/><path d="m8.6 8 3.4 3.4L15.4 8"/><path d="M4.6 13.6v4.6a2.4 2.4 0 0 0 2.4 2.4h10a2.4 2.4 0 0 0 2.4-2.4v-4.6"/>',
+  shower:    '<path d="M12 2.8v4.4"/><path d="M5.6 12.4a6.4 6.4 0 0 1 12.8 0z"/><path d="M8.4 16v1.8M12 16.6v1.8M15.6 16v1.8"/>',
+  bbq:       '<path d="M12 21c3.6 0 5.8-2.2 5.8-5.2 0-3.4-2.9-4.3-2.9-7.7 0-1.3.5-2.5 1.1-3.3-2.9.6-5.2 2.6-5.2 5.2 0 1.7.9 2.6.9 3.4 0 1.1-1.2 1.7-2 1.1-.6-.4-.9-1.1-.9-2C7.3 13.7 6.2 15.4 6.2 17.4 6.2 19.6 8.4 21 12 21z"/>',
+  phone:     '<path d="M6.4 3.6c1.1 0 2.1.8 2.3 2l.4 2.3a2.3 2.3 0 0 1-.7 2l-1 1a11.6 11.6 0 0 0 5.1 5.1l1-1a2.3 2.3 0 0 1 2-.7l2.3.4a2.3 2.3 0 0 1 2 2.3v2a1.9 1.9 0 0 1-2.1 1.9C9.4 20.1 3.6 14.3 3 6.8a1.9 1.9 0 0 1 1.9-2.1z"/>',
+  post:      '<path d="M3.6 6.4h16.8v11.2H3.6z"/><path d="m3.6 7.4 8.4 5.9 8.4-5.9"/>',
   info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7v.1"/>',
   spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>',
   /* a tent on its own is the free camp; the paid one carries a coin, which
@@ -3134,13 +3140,19 @@ const POI_META = {
   parts:       { label: "Auto parts",  icon: "parts",       color: "#5F6E8C" },
   water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
   spring:      { label: "Spring",      icon: "spring",      color: "#4F8FB0" },
+  medical:     { label: "Medical",     icon: "medical",     color: "#C4483F" },
   campfree:    { label: "Free camp",   icon: "campfree",    color: "#8FB93E" },
   camp:        { label: "Paid camp",   icon: "camppaid",    color: "#6E8C4B" },
   rest:        { label: "Rest area",   icon: "rest",        color: "#A8794F" },
+  dump:        { label: "Dump point",  icon: "dump",        color: "#7E6B4F" },
+  shower:      { label: "Shower",      icon: "shower",      color: "#8AC4D8" },
   supermarket: { label: "Supermarket", icon: "supermarket", color: "#4FA89B" },
   shop:        { label: "Supplies",    icon: "shop",        color: "#2E7C74" },
   toilets:     { label: "Toilets",     icon: "toilets",     color: "#9C8FB0" },
+  bbq:         { label: "Barbecue",    icon: "bbq",         color: "#D07A3A" },
   parking:     { label: "Parking",     icon: "parking",     color: "#8A9A8F" },
+  phone:       { label: "Phone",       icon: "phone",       color: "#B85FA8" },
+  post:        { label: "Post",        icon: "post",        color: "#5F7FC8" },
   viewpoint:   { label: "Viewpoint",   icon: "viewpoint",   color: "#D8CBAA" },
   info:        { label: "Information", icon: "info",        color: "#C77B9E" }
 };
@@ -3194,6 +3206,21 @@ function poiKind(tags) {
       tags.man_made === "water_tank" || tags.man_made === "watering_place") return "water";
   if (tags.natural === "spring") return "spring";
   if (a === "toilets") return "toilets";
+  /* The facilities a trip is actually planned around, and none of them
+     had anywhere to go before. A dump point and a shower are scarce
+     enough out here to route by; a landline is worth knowing about
+     precisely where there is no signal to find one.
+
+     Medical takes the whole family rather than hospitals alone: three
+     hospitals is the entire Flinders, but a pharmacy or a doctor turns up
+     in any town big enough to have one. */
+  if (a === "sanitary_dump_station") return "dump";
+  if (a === "shower") return "shower";
+  if (a === "hospital" || a === "pharmacy" || a === "doctors" ||
+      a === "clinic") return "medical";
+  if (a === "telephone" || tags.emergency === "phone") return "phone";
+  if (a === "post_office") return "post";
+  if (a === "bbq") return "bbq";
   if (a === "parking") return "parking";
   if (t === "wilderness_hut") return "campfree";
   /* an alpine hut is staffed and charges for a bunk - it is only a free
@@ -3310,13 +3337,15 @@ function poiAnchor() {
    camps out of paid ones; v3 when roads carrying a posted speed limit
    started being kept beside them; v4 when mechanics were split out of
    supplies, and v5 when the parts shops were split back out of the
-   mechanics. A v2 entry holds no roads, and read back as it stands would
+   mechanics, and v6 when the facilities a tourer plans around - dump
+   point, shower, medical, phone, post, barbecue - stopped being nothing
+   at all. A v2 entry holds no roads, and read back as it stands would
    keep the speed sign away for the whole week the cell stays fresh - a
-   feature silently missing rather than absent. A v4 entry has Supercheap
+   feature silently missing rather than absent.
    Auto filed as a workshop. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v5:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v6:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -3345,7 +3374,10 @@ const PHOTON_GROUPS = [
    "shop:department_store", "shop:grocery"],
   ["shop:car_repair", "shop:tyres", "shop:car_parts"],
   ["amenity:toilets", "amenity:parking", "tourism:viewpoint",
-   "tourism:information", "amenity:ranger_station"]
+   "tourism:information", "amenity:ranger_station"],
+  ["amenity:hospital", "amenity:pharmacy", "amenity:doctors", "amenity:clinic"],
+  ["amenity:shower", "amenity:sanitary_dump_station", "amenity:bbq",
+   "amenity:telephone", "amenity:post_office"],
 ];
 const PHOTON_TYPE = { N: "node", W: "way", R: "relation" };
 
