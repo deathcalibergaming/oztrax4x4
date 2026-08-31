@@ -108,10 +108,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat label{font-size:8.5px;letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
 .stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud);
   white-space:nowrap}
-.stat b em{font-style:normal;color:var(--rust);letter-spacing:.04em;margin-right:5px}
+.stat b em{font-style:normal;color:var(--hud);letter-spacing:.04em;margin-right:5px}
 .stat i{font-size:8px;font-style:normal;color:var(--hud);letter-spacing:.08em;
   text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
-.stat.rec b{color:var(--rust)}
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
 /* Multiply is what turns a near-white hillshade into shading
@@ -2221,9 +2220,6 @@ function updateStats() {
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
   $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";
-  const rec = Rec.state !== "idle";
-  $("#stDistBox").classList.toggle("rec", rec);
-  $("#stTimeBox").classList.toggle("rec", rec);
   $("#stDist").textContent = dispKm(Rec.dist).toFixed(2);
   $("#stTime").textContent = fmtStopwatch(Rec.elapsed());
 }
@@ -3340,8 +3336,16 @@ function mergePois(primary, extra) {
   return Object.keys(byId).map(function (k) { return byId[k]; });
 }
 
+/* Speed limits ride on this same extract. A posted limit is a driving
+   readout and a POI pin is a browsing convenience, so they had no business
+   sharing a switch: turning pins off stopped roads loading and the speed
+   sign went dark with nothing to say why.
+
+   The fetch now always runs and only the publishing is gated - which does
+   mean switching pins off no longer avoids the download. */
 async function fetchPois(force) {
-  if (!S.poiOn || poiBusy) return;
+  if (poiBusy) return;
+  const show = S.poiOn;
   const a = poiAnchor();
   /* cheap to call on every fix: returns unless you have travelled far enough */
   if (!force && poiCentre && haversine(poiCentre, a) < CFG.POI_REFETCH) return;
@@ -3356,16 +3360,16 @@ async function fetchPois(force) {
       ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
-      setPois(cached.items);
+      if (show) setPois(cached.items);
       roads = cached.roads || [];
-      setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
+      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
 
     /* The extract first: it is the only source that records whether a camp
        charges. If the box is too dense even at the smallest radius, or the
        API is down, the search index takes over. */
-    setPoiStatus("Loading map data within " + poiRadiusText() + "...");
+    if (show) setPoiStatus("Loading map data within " + poiRadiusText() + "...");
     const osm = await osmApiPois(a);
     let items = null, note = "", found = [];
 
@@ -3375,7 +3379,7 @@ async function fetchPois(force) {
       note = "OpenStreetMap, " + fmtBytes(osm.bytes) + " uncompressed, " + osm.secs + "s";
       /* a dense town shrinks the box, so widen the net again with the index */
       if (osm.radius < CFG.POI_RADIUS) {
-        setPoiStatus("Dense area - filling out to 5 km...");
+        if (show) setPoiStatus("Dense area - filling out to 5 km...");
         const ph = await photonPois(a);
         if (!ph.error) {
           const before = items.length;
@@ -3387,7 +3391,7 @@ async function fetchPois(force) {
         }
       }
     } else {
-      setPoiStatus("Map data unavailable - trying the search index...");
+      if (show) setPoiStatus("Map data unavailable - trying the search index...");
       const ph = await photonPois(a);
       if (!ph.error) {
         items = ph.items;
@@ -3403,28 +3407,28 @@ async function fetchPois(force) {
       poiRetryAt = 0;
       await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
-      setPois(items);
+      if (show) setPois(items);
       roads = found;
       refreshStorageStats();
-      offerOsmPois(false);
+      if (show) offerOsmPois(false);
       /* count what is actually on the map, after copies of the same place
          have been folded together, not what came back off the wire */
       /* Remembered as its parts rather than a finished string, so switching
          units rewrites it instead of leaving "within 5 km" sitting under a
          list that now reads in miles. */
       poiStatusNote = note;
-      setPoiStatus(poiStatusText());
+      if (show) setPoiStatus(poiStatusText());
     } else if (cached) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
-      setPois(cached.items);
+      if (show) setPois(cached.items);
       roads = cached.roads || [];
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
+      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      setPoiStatus("No POIs: " + note);
-      offerOsmPois(true);
+      if (show) setPoiStatus("No POIs: " + note);
+      if (show) offerOsmPois(true);
     }
   } finally {
     poiBusy = false;
@@ -5850,7 +5854,9 @@ function syncPoiSwitch() { $("#swPoi").classList.toggle("on", S.poiOn); }
 $("#swPoi").addEventListener("click", function () {
   S.poiOn = !S.poiOn;
   saveSettings(); syncPoiSwitch(); renderPois();
-  if (S.poiOn) fetchPois(true);
+  /* Roads come back with the same extract, so the fetch runs either way -
+     this switch is only about the pins. */
+  fetchPois(true);
 });
 /* The box filters the POIs already loaded, and nothing else. Searching for a
    town belongs to the Navigate button, which has a popup for it - one box
