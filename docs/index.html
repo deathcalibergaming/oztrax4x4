@@ -3043,6 +3043,34 @@ map.on("click", function (e) {
    ===================================================================== */
 /* Order here is the order the filter chips appear in, so it runs roughly
    from "will end your trip if you miss it" down to "nice to know". */
+/* A caption has to say what the thing is, not which pin it was given.
+   shop=convenience, grocery, general and department_store all share the
+   supermarket pin, so that in a town of eighty buildings the weekly shop
+   stands out among forty other shop pins - but that grouping is about
+   the map, not about the words. Calling a nameless convenience store
+   "Supermarket" sent one search looking for a Foodland that was a
+   kilometre up the road.
+
+   The tag itself is the caption, tidied up. Only the values that read
+   badly on their own need an entry here. */
+const SHOP_CAPTION = {
+  convenience: "Convenience store",
+  general: "General store",
+  doityourself: "Hardware",
+  variety_store: "Variety store",
+  grocery: "Grocery"
+};
+
+function poiCaption(tags, kind) {
+  const s = tags && tags.shop;
+  if (s) {
+    return SHOP_CAPTION[s] ||
+           s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
+  }
+  const m = POI_META[kind];
+  return m ? m.label : "Place";
+}
+
 const POI_META = {
   fuel:        { label: "Fuel",        icon: "fuel",        color: "#E8B923" },
   water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
@@ -3290,7 +3318,8 @@ async function photonPois(a) {
       seen[id] = 1;
       const item = {
         id: id, kind: kind, lat: g.coordinates[1], lng: g.coordinates[0],
-        name: p.name || POI_META[kind].label,
+        name: p.name || poiCaption(tags, kind),
+        caption: !p.name,
         info: poiInfoLine(tags, kind),
         thin: true                     /* headline tags only - no fee recorded */
       };
@@ -3494,7 +3523,12 @@ function parseOsmXml(text, a, radius) {
     }
     const p = {
       id: type + "/" + el.getAttribute("id"), kind: kind, lat: lat, lng: lng,
-      name: tags.name || tags.operator || tags.brand || POI_META[kind].label,
+      /* Brand before operator: the brand is what is on the sign - IGA,
+         Foodland, Woolworths - while the operator is the company behind
+         it, so operator first turned a nameless IGA into "Metcash Trading
+         Limited". */
+      name: tags.name || tags.brand || tags.operator || poiCaption(tags, kind),
+      caption: !(tags.name || tags.brand || tags.operator),
       info: poiInfoLine(tags, kind)
     };
     if (haversine(a, p) <= reach) out.push(p);
@@ -3630,8 +3664,16 @@ function offerOsmPois(show) {
    parks scattered across a town all read "Parking" and are emphatically not
    the same place, which is why only a name that came out of OSM counts. */
 function hasRealName(p) {
+  if (!p.name) return false;
+  /* Flagged where the POI is built, so wording cannot fool this: with
+     specific captions a nameless convenience store reads "Convenience
+     store", which matches no category label and would otherwise pass as
+     a real name. */
+  if (p.caption) return false;
+  /* Items cached before the flag existed still carry the old coarse
+     caption, which is the category label verbatim. */
   const m = POI_META[p.kind];
-  return !!p.name && !!m && p.name !== m.label;
+  return !m || p.name !== m.label;
 }
 
 /* The same shop is often mapped twice - once as a node, once as the building
