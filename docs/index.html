@@ -13,6 +13,7 @@
 :root{
   --ink:#14181B;
   --panel:#1B211D;
+  --head:#171C19;         /* the bar a panel or section heading sits on */
   --panel2:#232B26;
   --sand:#D8CBAA;
   --rust:#C1552C;
@@ -378,9 +379,22 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    block rather than the first thing it had found. The same 7px above it
    settles it, and sits below the reload row too on the occasions that
    one is showing. */
-#poiPanel #poiList{max-height:none;overflow:visible;margin-top:7px}
+/* The cards get the same full-width rule above them that the Categories
+   bar has, so the list reads as its own section rather than running on
+   from the chips. Bled out through the body padding to reach both panel
+   edges, then padded back in so the cards still line up with everything
+   above. Margin-bottom is left to .list - a shorthand here would drop
+   the gap above the Refresh row. */
+#poiPanel #poiList{max-height:none;overflow:visible;
+  margin-top:12px;margin-left:-12px;margin-right:-12px;
+  padding:12px 12px 0;border-top:1px solid var(--line)}
+/* Folded away, the Categories bar already closes with its own bottom rule,
+   so a second line a few pixels under it reads as a mistake rather than a
+   divider. Two panel ids are needed to out-specify the rule above, which
+   already carries two of its own. */
+#poiPanel details.sub:not([open]) ~ #poiList{border-top:none;margin-top:0}
 .dr-head{flex:0 0 auto;height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);display:flex;align-items:center;
-  gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:#171C19}
+  gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:var(--head)}
 .dr-head .t{flex:1;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .dr-foot{flex:0 0 auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
@@ -397,6 +411,30 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .cnt{font-family:var(--mono);font-size:9.5px;background:rgba(216,203,170,.12);color:var(--dim);
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
+/* The same open-and-shut section as the drawer headings, but sitting
+   inside a panel body rather than being the panel. The drawer's summary
+   assumes the full width and carries a rule underneath it, both of which
+   would draw a line across the middle of a body that already has its own
+   padding - so this reads as the sublabel it replaces, and only the
+   chevron says it opens.
+
+   Open by default: what is switched off is read off these chips, and a
+   section that starts shut would hide exactly that. */
+/* Reads as a heading in its own right, the way Nearby POIs does above it -
+   icon, title, count, chevron - so only the geometry needs saying here.
+   The drawer's 14px side padding assumes it is the panel; inside a body
+   that already has its own it would sit proud of everything around it. */
+details.sub{border-bottom:none;margin-top:10px}
+/* Bleeds out through the body's 12px padding so the bar reaches both
+   panel edges, the way the Nearby POIs heading above it does. Without
+   that it sits on the body colour and reads as text rather than a
+   heading, which is what it looked like before. */
+details.sub > summary{background:var(--head);margin:0 -12px;padding:12px 14px;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.sub > .sec-body{padding:12px 0 0}
+/* The bulk switches move inside, so a tap on them cannot also fold the
+   section they act on. */
+.kbulk{margin-bottom:7px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
 .diag{font-family:var(--mono);font-size:9.5px;line-height:1.7;color:var(--dim);margin-top:9px}
 .diag:empty{display:none}
@@ -502,7 +540,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   border:1px solid var(--line2);border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.62);
   display:flex;flex-direction:column;overflow:hidden}
 .float-head{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--line);
-  background:#171C19;flex:0 0 auto}
+  background:var(--head);flex:0 0 auto}
 .float-head .t{flex:1;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .float-body{padding:12px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
 .fld{margin-bottom:11px}
@@ -537,7 +575,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
   background:rgba(6,8,7,.7)}
 .modal-box{width:min(360px,100%);max-height:calc(100vh - 32px);background:var(--panel);border:1px solid var(--line2);
   border-radius:10px;box-shadow:0 16px 42px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
-.modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:#171C19;display:flex;align-items:center;gap:8px}
+.modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:8px}
 .modal-head .t{flex:1;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .modal-body{padding:14px;overflow-y:auto}
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
@@ -960,11 +998,19 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="swrow"><div class="sw" id="swPoi"></div><span>Show POIs on map</span></div>
         <input id="poiSearch" type="search" placeholder="Filter Nearby POIs" autocomplete="off">
         <div id="poiStatus" class="poi-status"></div>
-        <div class="sublabel">Categories
-          <button class="btn xs ghost" id="btnKindsAll">All On</button>
-          <button class="btn xs ghost" id="btnKindsNone">All Off</button>
-        </div>
-        <div id="poiKinds" class="kchips"></div>
+        <details class="sub" open>
+          <summary>
+            <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
+            Categories <span class="cnt" id="cntKinds">0</span><span class="chev"></span>
+          </summary>
+          <div class="sec-body">
+            <div class="row kbulk">
+              <button class="btn xs ghost" id="btnKindsAll">All On</button>
+              <button class="btn xs ghost" id="btnKindsNone">All Off</button>
+            </div>
+            <div id="poiKinds" class="kchips"></div>
+          </div>
+        </details>
         <div class="row hidden" id="poiOsmRow">
           <button class="btn sm warnb" id="btnPoiOsm">Reload POIs Here</button>
         </div>
@@ -2849,6 +2895,7 @@ const ICONS = {
   parking:   '<path d="M8.5 20.5v-17h4.7a4.6 4.6 0 0 1 0 9.2H8.5"/>',
   rest:      '<path d="M3 11h18"/><path d="M6 11 4 20M18 11l2 9M7.5 15.5h9"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
   shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
+  mechanic:  '<path d="M17.7 4.6a4.6 4.6 0 0 0-5.9 5.9l-7.2 7.2 2.3 2.3 7.2-7.2a4.6 4.6 0 0 0 5.9-5.9l-2.9 2.9-2.3-.6-.6-2.3z"/>',
   info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.7v.1"/>',
   spring:    '<path d="M12 3.8S8.3 8.2 8.3 10.6a3.7 3.7 0 0 0 7.4 0C15.7 8.2 12 3.8 12 3.8z"/><path d="M3 17.8q3-2.6 6 0t6 0t6 0"/>',
   /* a tent on its own is the free camp; the paid one carries a coin, which
@@ -3082,6 +3129,7 @@ function poiCaption(tags, kind) {
 
 const POI_META = {
   fuel:        { label: "Fuel",        icon: "fuel",        color: "#E8B923" },
+  mechanic:    { label: "Mechanic",    icon: "mechanic",    color: "#77879B" },
   water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
   spring:      { label: "Spring",      icon: "spring",      color: "#4F8FB0" },
   campfree:    { label: "Free camp",   icon: "campfree",    color: "#8FB93E" },
@@ -3168,6 +3216,12 @@ function poiKind(tags) {
   if (tags.shop === "supermarket" || tags.shop === "grocery" ||
       tags.shop === "convenience" || tags.shop === "general" ||
       tags.shop === "department_store") return "supermarket";
+  /* A workshop is not shopping. Out here a broken vehicle is the trip
+     over, and a tyre place matters more than most: the gibber punctures
+     more than it strands. Filed under Supplies these sat among the
+     hairdressers and the op shops. */
+  if (tags.shop === "car_repair" || tags.shop === "tyres" ||
+      tags.shop === "car_parts") return "mechanic";
   if (tags.shop) return "shop";
   return null;
 }
@@ -3243,12 +3297,14 @@ function poiAnchor() {
 /* The version prefix retires every cell cached under an older shape. v2
    came in when supermarkets were split out of general supplies and free
    camps out of paid ones; v3 when roads carrying a posted speed limit
-   started being kept beside them. A v2 entry holds no roads, and read
-   back as it stands would keep the speed sign away for the whole week
-   the cell stays fresh - a feature silently missing rather than absent. */
+   started being kept beside them; v4 when mechanics were split out of
+   supplies. A v2 entry holds no roads, and read back as it stands would
+   keep the speed sign away for the whole week the cell stays fresh - a
+   feature silently missing rather than absent. A v3 entry has every
+   workshop filed under Supplies, which is where they were before. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v3:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v4:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -3275,6 +3331,7 @@ const PHOTON_GROUPS = [
   ["tourism:picnic_site", "highway:rest_area"],
   ["shop:supermarket", "shop:convenience", "shop:general",
    "shop:department_store", "shop:grocery"],
+  ["shop:car_repair", "shop:tyres", "shop:car_parts"],
   ["amenity:toilets", "amenity:parking", "tourism:viewpoint",
    "tourism:information", "amenity:ranger_station"]
 ];
@@ -3963,6 +4020,12 @@ function renderPoiFilters() {
      that were switched off somewhere else and are not loaded here. */
   const anyOn = kinds.some(function (k) { return !hiddenKinds.has(k); });
   const anyOff = kinds.some(function (k) { return hiddenKinds.has(k); });
+  /* Shown over present, not a plain tally: the question this answers is
+     "have I left something switched off", and folding the section away is
+     exactly when the chips can no longer answer it. */
+  const onCount = kinds.filter(function (k) { return !hiddenKinds.has(k); }).length;
+  const cnt = $("#cntKinds");
+  if (cnt) cnt.textContent = kinds.length ? onCount + "/" + kinds.length : "0";
   $("#btnKindsAll").classList.toggle("on", anyOn && !anyOff);
   $("#btnKindsNone").classList.toggle("on", anyOff && !anyOn);
 
