@@ -4063,7 +4063,12 @@ function renderPoiFilters() {
     if (!POI_META[p.kind] || hiddenPoi.has(p.id)) return;
     counts[p.kind] = (counts[p.kind] || 0) + 1;
   });
-  const kinds = POI_ORDER.filter(function (k) { return counts[k] || hiddenKinds.has(k); });
+  /* Only what is actually here. A hidden category still counts its POIs -
+     switching one off does not remove it from the list - so the chip
+     stays put and can be switched back on. Adding everything in
+     hiddenKinds as well put nine categories with no POIs on the list the
+     moment All Off was pressed, and took them away again on All On. */
+  const kinds = POI_ORDER.filter(function (k) { return counts[k]; });
 
   /* All On and All Off report which way the categories sit, the way Metric
      and Imperial do, rather than being two buttons that only ever look
@@ -6061,7 +6066,14 @@ $("#btnKindsAll").addEventListener("click", function () {
   renderPois();
 });
 $("#btnKindsNone").addEventListener("click", function () {
-  hiddenKinds = new Set(POI_ORDER);
+  /* What is here, not every category in the app. Switching off kinds with
+     nothing behind them meant driving into the next town with categories
+     already off that had never been seen. */
+  const here = new Set();
+  pois.forEach(function (p) {
+    if (POI_META[p.kind] && !hiddenPoi.has(p.id)) here.add(p.kind);
+  });
+  hiddenKinds = here;
   saveLS(LS.hiddenKinds, Array.from(hiddenKinds));
   renderPois();
 });
