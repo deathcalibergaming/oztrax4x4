@@ -87,11 +87,32 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #gpsPill.sim .dot{background:var(--warn);box-shadow:0 0 6px var(--warn)}
 #gpsPill.sim{color:var(--warn);border-color:rgba(232,185,35,.35)}
 
-#statsbar{height:var(--statsH);flex:0 0 auto;display:flex;background:#111513;border-bottom:1px solid var(--line);
+/* The lower edge is cut rather than drawn. A hairline only says where the
+   panel stops; three pixels of facet brightening toward the edge, the way
+   a milled fascia does, say the panel has a thickness - and the map then
+   reads as a well between two solid things rather than a picture with two
+   labels laid over it.
+
+   Depth and brightness were traded off in full sun, which is the only
+   condition that settles anything here. Five pixels smudged the edge and
+   softened the panel with it; dropping the outer stop to #2A322C to
+   compensate put the whole facet back under what a washed out screen can
+   hold, which is the same way the FOLLOW PAUSED chip and the 20% amber
+   Sim wash were lost. Three pixels at full brightness survives the wash
+   and still reads as a line rather than a haze. */
+#statsbar{height:var(--statsH);flex:0 0 auto;display:flex;border-bottom:none;
+  background:linear-gradient(180deg,#111513 0,#111513 calc(100% - 3px),
+             #1B221D calc(100% - 3px),#333D36 100%);
+  box-shadow:0 1px 0 rgba(0,0,0,.65),0 6px 12px -6px rgba(0,0,0,.55);
   z-index:600;position:relative}
 .stat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   border-right:1px solid var(--line);padding:0 2px}
 .stat:last-child{border-right:none}
+/* A divider runs down the panel face and stops where the face does. Left
+   alone it carried on across the facet and read as a scratch through it.
+   border-image paints the very same line the border already was and
+   simply runs out three pixels early. */
+.stat{border-image:linear-gradient(180deg,rgba(216,203,170,.14) calc(100% - 3px),transparent 0) 1}
 /* Five equal columns meant the widest reading in each got a different
    amount of room. SPEED sat in 42px of spare while TIME overflowed its
    cell by 5, and HEADING was down to 7px with a three letter cardinal
@@ -270,16 +291,45 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .dotmark.sm.poi svg{width:11px;height:11px}
 
 /* ---------- action bar ---------- */
-#actionbar{position:absolute;left:8px;right:8px;bottom:calc(6px + var(--safeB));height:var(--actH);
-  display:flex;gap:6px;z-index:500;background:rgba(23,28,25,.94);border:1px solid var(--line);
-  border-radius:10px;padding:6px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  box-shadow:0 6px 20px rgba(0,0,0,.45)}
-.act{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  border-radius:7px;border:1px solid transparent;transition:background .12s}
+/* Dressed as the stats row. The two bars do the same job at opposite ends
+   of the screen - a fixed set of cells read at a glance - and only one of
+   them was floating: 8px of map inset either side, a 10px radius, a blur
+   under 94% opacity and a drop shadow saying it sat above the map. Squared
+   off and run edge to edge on the same #111513, with a hairline between
+   the buttons and a cut edge along the top, the app reads as an
+   instrument cluster with the map as the window between the two bands.
+
+   It still lies over the map rather than pushing it up, so the map keeps
+   its full height and no ground is given away for the look. The bottom
+   inset moves into the padding, which is what keeps the labels clear of a
+   gesture bar now that the bar reaches the edge of the screen. */
+#actionbar{position:absolute;left:0;right:0;bottom:0;
+  height:calc(var(--actH) + var(--safeB));padding:0 0 var(--safeB) 0;
+  display:flex;gap:0;z-index:500;
+  /* the same cut as the stats bar, mirrored: facet on the upper edge and
+     the shadow thrown the other way */
+  background:linear-gradient(0deg,#111513 0,#111513 calc(100% - 3px),
+             #1B221D calc(100% - 3px),#333D36 100%);
+  border:none;border-radius:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  box-shadow:0 -1px 0 rgba(0,0,0,.65),0 -6px 12px -6px rgba(0,0,0,.55)}
+/* Cells rather than chips, divided by the same hairline the stats use and
+   squared off to meet it. The height is left at 76px where the stats take
+   56: this is the one control reached for with a hand off the wheel on
+   corrugations, and the twenty pixels are worth more there than they are
+   as map. */
+.act{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  border-radius:0;border:none;border-right:1px solid var(--line);padding:0 2px;transition:background .12s}
+.act:last-child{border-right:none}
+/* stopped short of the facet for the same reason the stats dividers are */
+.act{border-image:linear-gradient(0deg,rgba(216,203,170,.14) calc(100% - 3px),transparent 0) 1}
 .act:active{background:rgba(216,203,170,.09)}
 .act svg{width:23px;height:23px;stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .act span{font-size:9px;letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
-.act.on{background:rgba(193,85,44,.18);border-color:rgba(193,85,44,.5)}
+/* The rust border went with the radius, and the tint took its place: with
+   nothing rounding it off it fills the cell corner to corner and lights up
+   like a segment on a dash panel, which says it louder than the chip did. */
+.act.on{background:rgba(193,85,44,.18)}
 .act.on svg{stroke:var(--rust)}
 .act.on span{color:var(--rust)}
 .act.rec svg{stroke:var(--danger);fill:var(--danger)}
@@ -638,8 +688,15 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* The instrument column, at half the width it started out. Too narrow now
      for a label and its reading side by side, so each stat stacks the way it
      does in portrait, just smaller. */
+  /* Turned sideways the facet moves to whichever edge faces the map. The
+     dividers cross it the short way here rather than running down it, so
+     they are left to span the full width. */
   #statsbar{grid-area:stats;height:auto;flex-direction:column;
-    border-bottom:none;border-right:1px solid var(--line)}
+    background:linear-gradient(90deg,#111513 0,#111513 calc(100% - 3px),
+               #1B221D calc(100% - 3px),#333D36 100%);
+    box-shadow:1px 0 0 rgba(0,0,0,.65),6px 0 12px -6px rgba(0,0,0,.55);
+    border-bottom:none;border-right:none}
+  .stat,.act{border-image:none}
   .stat{flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:0;
     padding:0 3px;border-right:none;border-bottom:1px solid var(--line)}
   /* the widths above are widths, and down here the axis is vertical */
@@ -650,10 +707,18 @@ input[type=date],input[type=time]{color-scheme:dark}
   .stat b em{margin-right:3px}
   .stat i{font-size:7px}
 
-  /* the action bar becomes a rail down the right of the map */
-  #actionbar{left:auto;right:8px;top:8px;bottom:calc(8px + var(--safeB));
-    height:auto;width:56px;flex-direction:column;padding:4px;gap:4px}
-  .act{gap:2px}
+  /* the action bar becomes a rail down the right of the map, docked to the
+     edge like the instrument column it now bookends. The clearances below
+     are measured from the screen edge and already sat 8px clear of the
+     floating rail, so losing the float only makes them roomier. */
+  #actionbar{left:auto;right:0;top:0;bottom:0;padding:0 0 var(--safeB) 0;
+    height:auto;width:56px;flex-direction:column;gap:0;
+    background:linear-gradient(270deg,#111513 0,#111513 calc(100% - 3px),
+               #1B221D calc(100% - 3px),#333D36 100%);
+    box-shadow:-1px 0 0 rgba(0,0,0,.65),-6px 0 12px -6px rgba(0,0,0,.55);
+    border:none}
+  .act{gap:2px;border-right:none;border-bottom:1px solid var(--line)}
+  .act:last-child{border-bottom:none}
   .act svg{width:18px;height:18px}
   .act span{font-size:7.5px;letter-spacing:.04em}
 
