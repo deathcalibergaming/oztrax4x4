@@ -150,14 +150,22 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl #btnSim{display:none}
 /* Recentring is a map control rather than an action on the trip, and it is
    wanted in the same breath as a zoom - the driver has been looking around
-   and wants the vehicle back - so it joins the zoom column and takes its size,
-   its colours and its pressed state from the rule above. It carried a rust
-   paused state once, but a paused follow is what the FOLLOW PAUSED badge is
-   for, and the follow pauses on any pan - so the button spent most of its
-   life as the one odd colour in the column. */
+   and wants the vehicle back - so it joins the zoom column and takes its
+   size, its colours and its pressed state from the rule above.
+
+   It also says whether the follow is paused, which a FOLLOW PAUSED chip
+   used to do from the top of the map. The chip cost a strip of map to
+   say something the one button that fixes it can say itself. A rust
+   paused state was tried here once and made it the odd colour in the
+   column, so this is a glyph swap and nothing else: the crosshair
+   becomes a pause. */
 #btnCenter svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
 #btnCenter .solid{fill:var(--sand);stroke:none}
+#btnCenter .pz{display:none}
+#btnCenter .pz rect{fill:var(--sand);stroke:none}
+#btnCenter.paused .ch{display:none}
+#btnCenter.paused .pz{display:block}
 /* Now an action bar button like the others, so its size, spacing and label
    styling all come from .act. Only the filled half of the needle needs
    saying, since .act colours strokes but not fills. The needle deliberately
@@ -197,8 +205,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .mapchip:active{background:rgba(216,203,170,.16)}
 #poiOfferChip{border-color:var(--warn);color:var(--warn)}
 #updateChip{border-color:var(--green);color:var(--green)}
-#followBadge{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--warn);
-  background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
 
 /* ---------- markers ---------- */
 .upright{transform:rotate(calc(-1 * var(--maprot)));transform-origin:50% 50%}
@@ -724,7 +730,8 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
       <button id="btnCenter" aria-label="Recentre on vehicle" title="Recentre on vehicle">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle class="solid" cx="12" cy="12" r="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        <svg class="ch" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle class="solid" cx="12" cy="12" r="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        <svg class="pz" viewBox="0 0 24 24"><rect x="8.2" y="5.5" width="3.1" height="13" rx="1.1"/><rect x="12.7" y="5.5" width="3.1" height="13" rx="1.1"/></svg>
       </button>
       <button id="btnSim" aria-label="Simulated drive" title="Simulated drive">
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
@@ -732,7 +739,6 @@ input[type=date],input[type=time]{color-scheme:dark}
     </div>
     <div id="speedSign" class="hidden" aria-label="Speed limit"><div class="ring"><b id="speedLimit">--</b></div></div>
     <div id="mapChips">
-      <div id="followBadge" class="hidden">FOLLOW PAUSED</div>
       <button id="poiFilterChip" class="mapchip hidden">
         <span id="poiFilterText">FILTER</span>
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1894,7 +1900,14 @@ function resumeFollow() {
 }
 
 function updateFollowUI() {
-  $("#followBadge").classList.toggle("hidden", S.follow);
+  /* The button says it, so there is no chip. Its label has to change with
+     the glyph or a screen reader still offers to recentre something that
+     is already centred. */
+  const btn = $("#btnCenter");
+  btn.classList.toggle("paused", !S.follow);
+  const say = S.follow ? "Recentre on vehicle" : "Following paused - tap to resume";
+  btn.setAttribute("aria-label", say);
+  btn.setAttribute("title", say);
 }
 
 /* Dragging the map means the driver wants to look somewhere other than at the
