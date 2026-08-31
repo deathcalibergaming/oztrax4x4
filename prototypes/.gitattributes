@@ -1,0 +1,3 @@
+# Patch files must stay LF - git apply rejects CRLF hunks, which would
+# quietly break the one thing this folder exists to preserve.
+*.patch -text
