@@ -147,6 +147,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Multiply is what turns a near-white hillshade into shading
    rather than a sheet laid over the map. */
 .leaflet-tile-pane .shadeLayer{mix-blend-mode:multiply}
+/* The origin is the stage centre only until sizeMap runs; it is moved to
+   the middle of what is visible, which is where the vehicle sits. */
 #rotWrap{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
 #panWrap{position:absolute;inset:0;will-change:transform}
 #map{position:absolute;background:#0D100F}
@@ -1788,18 +1790,58 @@ const stageEl = $("#stage"), rotWrap = $("#rotWrap"), panWrap = $("#panWrap"), m
 let stageW = 0, stageH = 0, mapW = 0, mapH = 0;
 let mapReady = false;
 
+/* The action bar lies over the stage rather than shortening it, so the map
+   you can actually see is the stage less whatever that bar covers: its
+   height along the bottom in portrait, its width down the right in
+   landscape. Everything that means "the middle of the map" has to mean the
+   middle of that instead - where the vehicle is held, what the map turns
+   about, and what a screen point converts back to - or the vehicle sits low
+   by half a bar, and swings a half-bar arc every time the heading changes.
+
+   Measured off the two boxes rather than worked out from --actH and
+   --railW, so it holds whichever edge the bar is docked to and whatever
+   those are set to. Cached, because it only moves when the stage does. */
+let viewInsX = 0, viewInsY = 0;
+
+function measureViewInset(st) {
+  const bar = $("#actionbar");
+  const ab = bar && bar.getBoundingClientRect();
+  viewInsX = viewInsY = 0;
+  if (!ab || !ab.width || !ab.height) return;
+  /* spanning the stage means it is docked across the bottom; otherwise
+     it is the rail down the side */
+  if (ab.width >= st.width - 1) {
+    viewInsY = Math.max(0, Math.min(st.bottom, ab.bottom) - Math.max(st.top, ab.top));
+  } else {
+    viewInsX = Math.max(0, Math.min(st.right, ab.right) - Math.max(st.left, ab.left));
+  }
+}
+
+function viewCenter() {
+  return { x: stageW / 2 - viewInsX / 2, y: stageH / 2 - viewInsY / 2 };
+}
+
 function sizeMap() {
   const r = stageEl.getBoundingClientRect();
   stageW = Math.max(1, Math.round(r.width));
   stageH = Math.max(1, Math.round(r.height));
+  measureViewInset(r);
   const diag = Math.ceil(Math.sqrt(stageW * stageW + stageH * stageH));
   const margin = Math.ceil(Math.max(stageW, stageH) * 0.35) + 120; /* drift headroom */
   mapW = diag + margin;
   mapH = diag + margin;
   mapEl.style.width = mapW + "px";
   mapEl.style.height = mapH + "px";
-  mapEl.style.left = Math.round((stageW - mapW) / 2) + "px";
-  mapEl.style.top = Math.round((stageH - mapH) / 2) + "px";
+  /* The canvas is hung so its own centre lands on the visible middle, which
+     is what makes every setView, every fitBounds and the follow transform
+     centre where the driver is looking without any of them knowing there is
+     a bar in the way. */
+  mapEl.style.left = Math.round((stageW - mapW) / 2 - viewInsX / 2) + "px";
+  mapEl.style.top = Math.round((stageH - mapH) / 2 - viewInsY / 2) + "px";
+  /* and it turns about the vehicle rather than about the stage, or heading
+     up would walk the vehicle round a circle as the map came round */
+  const vc = viewCenter();
+  rotWrap.style.transformOrigin = vc.x.toFixed(1) + "px " + vc.y.toFixed(1) + "px";
   if (mapReady) map.invalidateSize({ animate: false, pan: false });
 }
 sizeMap();
@@ -1941,7 +1983,7 @@ let gpsRotEl = null;
    ===================================================================== */
 let panDx = 0, panDy = 0, resyncing = false;
 
-function mapOffset() { return { x: (mapW - stageW) / 2, y: (mapH - stageH) / 2 }; }
+function mapOffset() { return { x: (mapW - stageW) / 2 + viewInsX / 2, y: (mapH - stageH) / 2 + viewInsY / 2 }; }
 
 /* fitBounds must frame the VISIBLE window, not the oversized map canvas.
    Padding is clamped so it can never swallow the whole canvas, which would
@@ -1956,7 +1998,8 @@ function fitVisible(b) {
 }
 
 function visibleBounds() {
-  const cx = stageW / 2, cy = stageH / 2;
+  const vc = viewCenter();
+  const cx = vc.x, cy = vc.y;
   const a = -view.mapRot * Math.PI / 180;
   const ca = Math.cos(a), sa = Math.sin(a);
   const off = mapOffset();
@@ -3077,7 +3120,7 @@ function gotoLatLng(lat, lng, z) {
 function clientToLatLng(cx, cy) {
   const st = stageEl.getBoundingClientRect();
   const x = cx - st.left, y = cy - st.top;
-  const c = { x: stageW / 2, y: stageH / 2 };
+  const c = viewCenter();
   const a = -view.mapRot * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
   const rx = x - c.x, ry = y - c.y;
   const ux = rx * ca - ry * sa + c.x;
@@ -3085,9 +3128,13 @@ function clientToLatLng(cx, cy) {
   const off = mapOffset();
   return map.containerPointToLatLng([ux + off.x - panDx, uy + off.y - panDy]);
 }
-function stageCenterLatLng() {
+/* Where the driver is looking when nothing is being followed, which is the
+   middle of the visible map and not the middle of the stage - the bar
+   covers the difference. */
+function viewCenterLatLng() {
   const st = stageEl.getBoundingClientRect();
-  return clientToLatLng(st.left + st.width / 2, st.top + st.height / 2);
+  const c = viewCenter();
+  return clientToLatLng(st.left + c.x, st.top + c.y);
 }
 
 /* =====================================================================
@@ -6049,7 +6096,7 @@ $("#btnCenter").addEventListener("click", function () {
 });
 
 $("#btnWpt").addEventListener("click", function () {
-  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : stageCenterLatLng();
+  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : viewCenterLatLng();
   const st = stageEl.getBoundingClientRect();
   openWpForm(ll, st.left + st.width / 2, st.top + st.height / 2);
 });
@@ -6295,7 +6342,7 @@ $("#btnPoiRestore").addEventListener("click", function () {
 });
 $("#btnAddWptMenu").addEventListener("click", function () {
   closeDrawer();
-  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : stageCenterLatLng();
+  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : viewCenterLatLng();
   const st = stageEl.getBoundingClientRect();
   setTimeout(function () { openWpForm(ll, st.left + st.width / 2, st.top + st.height / 2); }, 240);
 });
