@@ -1,2 +1,6 @@
 # local Claude Code settings - machine specific, not part of the project
 .claude/settings.local.json
+
+# Credentials and vendor API specs must never reach this repo - it is public,
+# so anything committed here is downloadable by anyone, docs/ or not.
+*.pdf
