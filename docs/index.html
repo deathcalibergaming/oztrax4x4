@@ -141,6 +141,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   stroke-linecap:round;stroke-linejoin:round}
 #btnSim.on{background:var(--rust);border-color:var(--rust)}
 #btnSim.on svg{stroke:var(--sand);fill:var(--sand)}
+/* Parked. The simulated drive is hidden rather than removed - the Sim
+   object is only ever started by this button, never on load and never
+   from saved state, so hiding it is enough to disable it. Delete this
+   one rule to bring it back.
+
+   It has to out-specify "#zoomCtl button", which sets display:flex and
+   would otherwise win: one id beats none, but two beat one. */
+#zoomCtl #btnSim{display:none}
 /* Recentring is a map control rather than an action on the trip, and it is
    wanted in the same breath as a zoom - the driver has been looking around
    and wants the vehicle back - so it joins the zoom column and takes its size,
@@ -1420,7 +1428,7 @@ function toast(msg, kind) {
   const manifest = {
     name: "TrailTracker", short_name: "TrailTracker",
     description: "Offline 4x4 trail tracking, waypoints and GPX logging.",
-    start_url: ".", scope: ".", display: "standalone", orientation: "any",
+    start_url: ".", scope: ".", display: "fullscreen", orientation: "any",
     background_color: "#14181B", theme_color: "#14181B",
     icons: [
       { src: iconURL, sizes: "512x512", type: "image/svg+xml", purpose: "any" },
@@ -1445,6 +1453,51 @@ function toast(msg, kind) {
   const apple = document.createElement("link");
   apple.rel = "apple-touch-icon"; apple.href = iconURL;
   document.head.appendChild(apple);
+})();
+
+/* =====================================================================
+   Fullscreen
+   Android lays its status bar over a standalone app, so the clock, the
+   signal and every notification sit on top of the map. Fullscreen takes
+   that strip back and a swipe down from the top still brings the panel
+   in when you reach for it - it slides over the map for a moment and
+   goes again, rather than holding a permanent border.
+
+   The manifest asks for it, which is how an installed app gets it from
+   the first frame. That only takes effect when the app is installed
+   though, so a shell built before the manifest changed would never see
+   it. The Fullscreen API does the same thing to a page already running,
+   and cannot be called on load because it needs a gesture - so the
+   first touch anywhere arms it, and the tap still reaches whatever was
+   underneath it.
+   ===================================================================== */
+(function fullScreen() {
+  const root = document.documentElement;
+  if (!root.requestFullscreen) return;
+
+  function already() {
+    if (document.fullscreenElement) return true;
+    /* Installed with display:fullscreen - the system bars are already
+       gone and asking again would do nothing but risk a rejection. */
+    return !!(window.matchMedia &&
+              window.matchMedia("(display-mode: fullscreen)").matches);
+  }
+
+  function arm(e) {
+    document.removeEventListener("pointerdown", arm, true);
+    if (already()) return;
+    /* Refused when the gesture is not one the browser trusts. Nothing to
+       do about that and nothing worth saying - the app simply keeps the
+       status bar. */
+    const p = root.requestFullscreen({ navigationUI: "hide" });
+    if (p && p.catch) p.catch(function () {});
+  }
+
+  if (already()) return;
+  /* Capture, so it runs before anything calls stopPropagation, and once
+     only: leaving it armed would fight a driver who deliberately backed
+     out of fullscreen. */
+  document.addEventListener("pointerdown", arm, true);
 })();
 
 /* =====================================================================
