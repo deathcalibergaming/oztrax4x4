@@ -33,7 +33,11 @@
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --topH:50px;
   --statsH:56px;
-  --actH:76px;
+  /* The action bar stands the same height as the stats row rather than the
+     76px it was given for a gloved thumb. Kept as its own name because the
+     speed sign, the attribution and the panel stack all measure up from it
+     and should follow it, not the stats row, if the two ever part again. */
+  --actH:var(--statsH);
   /* The width of the two instrument bars where they stand on end, which is
      both of them in landscape. One number so the stats column and the
      action rail cannot drift apart, and so everything that has to clear
@@ -319,10 +323,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   backdrop-filter:none;-webkit-backdrop-filter:none;
   box-shadow:0 -1px 0 rgba(0,0,0,.65),0 -6px 12px -6px rgba(0,0,0,.55)}
 /* Cells rather than chips, divided by the same hairline the stats use and
-   squared off to meet it. The height is left at 76px where the stats take
-   56: this is the one control reached for with a hand off the wheel on
-   corrugations, and the twenty pixels are worth more there than they are
-   as map. */
+   squared off to meet it.
+
+   The glyphs are the size they were in the 76px bar. Losing twenty pixels
+   of height cost no content: at 76 the icon and its label filled 39px and
+   the rest was air, and 39 still sits inside 56 with nine pixels clear top
+   and bottom - against the seven the stats cell keeps, so the two bars read
+   at the same density. Scaling the glyphs by the same ratio as the bar
+   would have taken the labels under 7px, which is not a size this app can
+   use: these are read at a glance, in open sun, through sunglasses. */
 .act{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   border-radius:0;border:none;border-right:1px solid var(--line);padding:0 2px;transition:background .12s}
 .act:last-child{border-right:none}
