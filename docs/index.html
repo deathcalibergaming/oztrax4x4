@@ -1201,6 +1201,8 @@ const CFG = {
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
   POI_DUP_M: 200,          /* same name inside this radius is one place mapped twice */
+  POI_CAPTION_M: 80,       /* an unnamed POI this close to a named one of the same kind
+                              is that place mapped a second time, not a new one */
   PLACE_DUP_M: 25000,      /* and a searched place this close to its own name is one town */
   PLACE_SMALL_RANK: 19,    /* a place this rank or higher is a dot on the map, not a town */
   PLACE_SERVICE_KM: 6,     /* how far from one to look for the roadhouse it is named after */
@@ -3641,10 +3643,15 @@ function hasRealName(p) {
    Full detail from the map extract beats a thin hit from the search index,
    since only the extract carries the fee tag. */
 function dedupeByName(items) {
+  /* Captions and real names are separated first. A caption cannot cluster
+     with another caption - three car parks all read "Parking" and are
+     emphatically not the same place - but it can be absorbed by a real
+     name, which is the case below. */
+  const named = items.filter(hasRealName);
+  const plain = items.filter(function (p) { return !hasRealName(p); });
   const groups = {};
   const out = [];
-  items.forEach(function (p) {
-    if (!hasRealName(p)) { out.push(p); return; }       /* captions never merge */
+  named.forEach(function (p) {
     const key = p.name.toLowerCase().replace(/\s+/g, " ").trim();
     const bucket = groups[key] || (groups[key] = []);
     /* one cluster per real place: same name far away is a different branch */
@@ -3660,11 +3667,32 @@ function dedupeByName(items) {
       removed += cluster.length - 1;
       out.push(cluster.reduce(function (best, p) {
         const a = POI_ORDER.indexOf(best.kind), b = POI_ORDER.indexOf(p.kind);
-        if (b !== a) return b < a ? p : best;           /* better category wins */
-        if (!!best.thin !== !!p.thin) return best.thin ? p : best;   /* fuller record wins */
+        if (b !== a) return b < a ? p : best;                 /* better category wins */
+        if (!!best.thin !== !!p.thin) return best.thin ? p : best;  /* fuller record wins */
         return best;
       }));
     });
+  });
+  /* A shop mapped twice - once named, once as a bare shop=supermarket node
+     with no name - arrived as two cards, "Foodland" and a caption reading
+     "Supermarket", and nothing merged them because the caption is not a
+     name. Standing this close and of the same kind, it is the same place,
+     and the caption says strictly less than the name beside it.
+
+     Kept narrow deliberately: same kind only, and a tighter radius than
+     POI_DUP_M, so a genuinely unnamed second shop down the street
+     survives. */
+  /* Compared against the named survivors only, captured before any caption
+     is added. Testing against the growing list would let the first caption
+     absorb the second, and two captions are exactly what must never
+     merge - three car parks all read "Parking". */
+  const anchors = out.slice();
+  plain.forEach(function (p) {
+    const covered = anchors.some(function (q) {
+      return q.kind === p.kind && haversine(q, p) <= CFG.POI_CAPTION_M;
+    });
+    if (covered) { removed++; return; }
+    out.push(p);
   });
   poiDupCount = removed;
   return out;
