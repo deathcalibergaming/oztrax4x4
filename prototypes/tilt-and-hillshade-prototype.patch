@@ -1,0 +1,408 @@
+diff --git a/docs/index.html b/docs/index.html
+index 3c13194..231a502 100644
+--- a/docs/index.html
++++ b/docs/index.html
+@@ -34,6 +34,8 @@
+   --statsH:56px;
+   --actH:76px;
+   --maprot:0deg;
++  --maptilt:0deg;
++  --maptiltinv:1;        /* 1/cos(tilt), which unsquashes anything upright */
+   --safeT:env(safe-area-inset-top,0px);
+   --safeB:env(safe-area-inset-bottom,0px);
+   color-scheme:dark;
+@@ -113,7 +115,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
+   text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
+ .stat.rec b{color:var(--rust)}
+ 
+-#stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
++#stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y;
++  perspective:600px}
++/* PROTOTYPE: multiply is what turns a near-white hillshade into shading
++   rather than a sheet laid over the map. */
++.leaflet-tile-pane .shadeLayer{mix-blend-mode:multiply}
+ #rotWrap{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
+ #panWrap{position:absolute;inset:0;will-change:transform}
+ #map{position:absolute;background:#0D100F}
+@@ -137,6 +143,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
+ #btnSim svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
+   stroke-linecap:round;stroke-linejoin:round}
+ #btnSim.on{background:var(--rust);border-color:var(--rust)}
++#btnTilt{font-size:13px;font-weight:700;letter-spacing:.03em}
++#btnTilt.on{background:var(--rust);border-color:var(--rust)}
+ #btnSim.on svg{stroke:var(--sand);fill:var(--sand)}
+ /* Recentring is a map control rather than an action on the trip, and it is
+    wanted in the same breath as a zoom - the driver has been looking around
+@@ -191,7 +199,27 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
+   background:rgba(20,24,27,.85);border:1px solid rgba(232,185,35,.4);padding:5px 10px;border-radius:20px}
+ 
+ /* ---------- markers ---------- */
+-.upright{transform:rotate(calc(-1 * var(--maprot)));transform-origin:50% 50%}
++/* A rotateX on the child cannot undo the parent's, because nothing in the
++   chain preserves 3D and nothing can: Leaflet needs overflow:hidden on the
++   map container, which forces flattening whatever transform-style says. The
++   pins came out 9% wider than tall as a result.
++
++   So the flattened matrix is inverted instead, which is a plain 2D affine.
++   rotateX(t) rotate(p) collapses to [[cos p, -sin p], [cos t sin p, cos t
++   cos p]], whose inverse is exactly rotate(-p) then scaleY(1/cos t). The
++   perspective scale is left alone on purpose - it is what makes a near pin
++   larger than a far one, which is the point of the view.
++
++   The vehicle arrow is left out on purpose: it belongs flat on the road it
++   is driving along, the way a pin does not. */
++.upright{transform:rotate(calc(-1 * var(--maprot))) scaleY(var(--maptiltinv));
++  transform-origin:50% 50%}
++/* a popup is a card facing the reader, never a label lying on the ground */
++/* The card counter-rotates like the pins do. Without this it turned with
++   the map in heading-up, so reading it meant tilting your head. */
++.leaflet-popup-content-wrapper,.leaflet-popup-tip{
++  transform:rotate(calc(-1 * var(--maprot))) scaleY(var(--maptiltinv));
++  transform-origin:50% 100%}
+ /* Counter-rotation must pivot on the anchor, not the icon centre, or the
+    teardrop tip swings off its coordinate as the map turns. */
+ .pin .upright{transform-origin:13px 31px}
+@@ -457,7 +485,7 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
+    .primary, whose near-black text landed on .ghost's transparent background -
+    dark on dark, and no highlight at all, since ghost won the background. */
+ #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
+-#btnKindsAll.on,#btnKindsNone.on{
++#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on{
+   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
+ .sw.on::after{transform:translateX(18px);background:var(--rust)}
+ 
+@@ -696,6 +724,9 @@ input[type=date],input[type=time]{color-scheme:dark}
+       <button id="btnCenter" aria-label="Recentre on vehicle" title="Recentre on vehicle">
+         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle class="solid" cx="12" cy="12" r="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+       </button>
++      <button id="btnTilt" aria-label="Map tilt, flat or angled" title="Flat or angled view">
++        <span id="tiltLabel">2D</span>
++      </button>
+       <button id="btnSim" aria-label="Simulated drive" title="Simulated drive">
+         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
+       </button>
+@@ -866,6 +897,11 @@ input[type=date],input[type=time]{color-scheme:dark}
+         </div>
+         <div class="poi-status" id="awakeState"></div>
+         <div class="poi-status" id="awakeNote">A sleeping phone freezes the page, and a recording stops with it. This holds the screen awake the whole time the app is open, and lets go as soon as you switch away. Pressing the power button still stops tracking - no web page can log a track with the screen off. Turn it off if you want to leave the app open while parked.</div>
++        <div class="sublabel">Terrain Shading
++          <button class="btn xs ghost" id="btnShadeOn">On</button>
++          <button class="btn xs ghost" id="btnShadeOff">Off</button>
++        </div>
++        <div class="poi-status" id="shadeNote">Lays shaded relief under the map so the shape of the country reads at a glance - useful in the ranges, where a contour line alone does not say which way the ground falls. It is a second set of tiles, so it doubles what a map download costs and what it stores.</div>
+       </div>
+     </details>
+ 
+@@ -1102,6 +1138,14 @@ input[type=date],input[type=time]{color-scheme:dark}
+ 
+ const CFG = {
+   TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
++  /* PROTOTYPE. Esri's hillshade is a near-white image - measured mean
++     luminance 245 - meant to be multiplied into a map rather than laid
++     under one. Under the topo it did almost nothing; multiplied over it,
++     the slopes darken and the shape of the country comes up while the
++     roads, tracks and labels underneath stay legible. Same host as the
++     tiles already in use. */
++  HILLSHADE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
++  SHADE_STRENGTH: 0.85,    /* how hard the relief is pressed into the map */
+   /* POIs come from OpenStreetMap's own API, which returns a full map extract
+      with every tag intact - that is what lets a free camp be told apart from
+      a paid one. Overpass used to sit in front of it, but every public mirror
+@@ -1155,6 +1199,10 @@ const CFG = {
+   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
+   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
+                               not a straight line the vehicle actually drove */
++  /* 28 degrees is as far as the oversized canvas reaches: past about 30
++     the far edge runs out of map and the horizon goes black. */
++  TILT_DEG: 28,
++  TILT_PERSPECTIVE: 600,   /* must match the perspective on #stage */
+   MIN_Z: 3, MAX_Z: 17,
+   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
+   POI_TTL: 7 * 24 * 3600 * 1000,
+@@ -1498,12 +1546,15 @@ const S = Object.assign({
+   poiOn: true,
+   keepAwake: true,      /* hold the screen on the whole time the app is open */
+   units: "metric",      /* or "imperial" - display only, never what is stored */
+-  zoom: 15
++  zoom: 15,
++  hillshade: false,    /* PROTOTYPE: terrain shading under the map */
++  tilt: false          /* PROTOTYPE: 3D tilt on the map */
+ }, loadLS(LS.settings, {}));
+ 
+ function saveSettings() {
+   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
+-                        keepAwake: S.keepAwake, zoom: S.zoom });
++                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
++                        tilt: S.tilt });
+ }
+ 
+ /* live view state driven by the animation loop */
+@@ -1563,7 +1614,10 @@ const OfflineTileLayer = L.TileLayer.extend({
+     const img = document.createElement("img");
+     img.setAttribute("role", "presentation");
+     img.alt = "";
+-    const key = coords.z + "/" + coords.x + "/" + coords.y;
++    /* The key carries the layer, or a second source would overwrite the
++       first tile for tile - both are z/x/y from the same host. Topo keys
++       stay bare so every tile already downloaded is still found. */
++    const key = (this.options.cachePrefix || "") + coords.z + "/" + coords.x + "/" + coords.y;
+     const url = this.getTileUrl(coords);
+     let settled = false;
+     /* addEventListener, not the onload/onerror properties: Leaflet's
+@@ -1601,12 +1655,41 @@ const OfflineTileLayer = L.TileLayer.extend({
+   }
+ });
+ 
++/* PROTOTYPE: relief sits above the topo and multiplies into it. */
++const shade = new OfflineTileLayer(CFG.HILLSHADE_URL, {
++  /* The relief runs out at zoom 13. Past it Esri answers with the same
++     "Map data not yet available" placeholder for every square on earth,
++     and multiplying that into the map prints the words across it.
++     maxNativeZoom stops asking and stretches the last real tile, which
++     is the right answer anyway: at driving zoom you are looking at one
++     hillside, and there is no shape left to shade. */
++  maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z, maxNativeZoom: 13, cachePrefix: "hs:",
++  keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
++});
+ const tiles = new OfflineTileLayer(CFG.TILE_URL, {
+   maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z,
+   keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
+ });
+ tiles.addTo(map);
+ 
++/* The blend has to go on the layer's own container, which Leaflet only
++   creates once the layer is on the map. */
++function setHillshade(on) {
++  S.hillshade = on;
++  saveSettings();
++  if (on) {
++    shade.addTo(map);
++    shade.setZIndex(10);
++    shade.setOpacity(CFG.SHADE_STRENGTH);
++    const el = shade.getContainer();
++    if (el) el.classList.add("shadeLayer");
++  } else {
++    map.removeLayer(shade);
++  }
++  if (typeof syncHillshadeButtons === "function") syncHillshadeButtons();
++}
++if (S.hillshade) setHillshade(true);
++
+ /* ---- layers ---- */
+ /* route first so the recorded trail always draws on top of it */
+ const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
+@@ -1637,6 +1720,128 @@ let gpsRotEl = null;
+    ===================================================================== */
+ let panDx = 0, panDy = 0, resyncing = false;
+ 
++/* Heading rotation and tilt live on the same wrapper, so they are written
++   together in one place rather than by each of the three callers. The two
++   custom properties are what lets .upright undo them on the pins. */
++/* Leaflet finds the point under a tap with getBoundingClientRect, which for
++   a 3D-transformed element returns the flat box the tilted thing occupies -
++   so every tap lands somewhere else entirely. Measured before this existed:
++   564 m out at 15 degrees and 1063 m at 40.
++
++   This inverts the chain by hand, which is possible because the app writes
++   it: a perspective on the stage, then rotateX and rotate about the stage
++   centre, then the pan translate, then the map's own offset. Taking them
++   off in the reverse order gives the point back in Leaflet's own space. */
++function screenToMapPoint(clientX, clientY) {
++  const r = stageEl.getBoundingClientRect();
++  const P = parseFloat(getComputedStyle(stageEl).perspective) || CFG.TILT_PERSPECTIVE;
++  const u = clientX - (r.left + r.width / 2);
++  const v = clientY - (r.top + r.height / 2);
++  /* Read the matrix actually on the wrapper rather than rebuilding it from
++     view.mapRot: under north lock that variable is zeroed while the applied
++     rotation still stands, and a point inverted with the wrong angle lands
++     hundreds of metres out. The matrix cannot disagree with the screen. */
++  const M = new DOMMatrixReadOnly(getComputedStyle(rotWrap).transform);
++  /* The wrapper flattens a z=0 point to (Mx,My,Mz), then the stage divides
++     by the perspective. Depth depends on the point being solved for, so the
++     two steps fold into one pair of linear equations rather than undoing in
++     turn. Works for whatever transform is on the wrapper, in any order. */
++  const a11 = P * M.m11 + u * M.m13, a12 = P * M.m21 + u * M.m23;
++  const a21 = P * M.m12 + v * M.m13, a22 = P * M.m22 + v * M.m23;
++  const det = a11 * a22 - a12 * a21;
++  if (!det) return leafletToContainer.call(map, { clientX: clientX, clientY: clientY });
++  const qx = (u * P * a22 - a12 * v * P) / det;
++  const qy = (a11 * v * P - u * P * a21) / det;
++  const pan = new DOMMatrixReadOnly(getComputedStyle(panWrap).transform);
++  return new L.Point(r.width / 2 + qx - pan.m41 - mapEl.offsetLeft,
++                     r.height / 2 + qy - pan.m42 - mapEl.offsetTop);
++}
++
++/* Hooked on the map prototype, not on L.DomEvent. Leaflet's bundled build
++   calls its own module-scoped getMousePosition, so replacing the property
++   on L.DomEvent is silently inert - verified by counting calls, which came
++   back zero. mouseEventToContainerPoint is the method Leaflet actually
++   reaches for, and it is on the prototype where it can be wrapped.
++
++   Only while tilted: flat, Leaflet's own answer is right and cheaper. */
++const leafletToContainer = L.Map.prototype.mouseEventToContainerPoint;
++L.Map.prototype.mouseEventToContainerPoint = function (e) {
++  if (S.tilt && this._container === mapEl) {
++    return screenToMapPoint(e.clientX, e.clientY);
++  }
++  return leafletToContainer.call(this, e);
++};
++
++/* Every pin, badge and card is a billboard: square to the reader, one size
++   wherever it sits, pivoting on the point it marks, and never turning with
++   the map. Two of those were already true - each icon's transform-origin is
++   its own anchor, and .upright already undid the heading rotation.
++
++   Size was the part that read as lying flat. A badge measured 21.7px at the
++   top of the screen and 60.4px at the bottom, a 178% swing, which is exactly
++   the range the perspective gives across a 28 degree plane. Anything that
++   recedes with the country looks painted on it.
++
++   The two axes do not magnify alike. Sideways it is k, because depth does
++   not vary with x. Up the screen it is cos(t) k squared: differentiating
++   y k(y) leaves a second factor of k, since climbing the plane changes the
++   depth as well as the position. Dividing both by k left the height still
++   swinging its full 18%. */
++function billboardTransform(latlng, ctx) {
++  const cp = map.latLngToContainerPoint(latlng);
++  const qx = cp.x + mapEl.offsetLeft + ctx.pan.m41 - ctx.cx;
++  const qy = cp.y + mapEl.offsetTop + ctx.pan.m42 - ctx.cy;
++  const z = ctx.M.m13 * qx + ctx.M.m23 * qy;
++  const k = ctx.P / (ctx.P - z) || 1;
++  return "rotate(" + ctx.rot.toFixed(2) + "deg) scale(" +
++         (1 / k).toFixed(4) + "," + (ctx.inv / (k * k)).toFixed(4) + ")";
++}
++
++function billboards() {
++  const ups = mapEl.querySelectorAll(".upright");
++  const wrap = document.querySelector(".leaflet-popup-content-wrapper");
++  const tip = document.querySelector(".leaflet-popup-tip");
++  if (!S.tilt) {
++    /* flat again: hand it all back to the stylesheet */
++    for (let i = 0; i < ups.length; i++) ups[i].style.transform = "";
++    if (wrap) wrap.style.transform = "";
++    if (tip) tip.style.transform = "";
++    return;
++  }
++  const r = stageEl.getBoundingClientRect();
++  /* read the matrices once for the whole pass, not once per marker */
++  const ctx = {
++    P: parseFloat(getComputedStyle(stageEl).perspective) || CFG.TILT_PERSPECTIVE,
++    M: new DOMMatrixReadOnly(getComputedStyle(rotWrap).transform),
++    pan: new DOMMatrixReadOnly(getComputedStyle(panWrap).transform),
++    cx: r.width / 2, cy: r.height / 2,
++    inv: 1 / Math.cos(rad(CFG.TILT_DEG)),
++    rot: -(parseFloat(getComputedStyle(document.documentElement)
++            .getPropertyValue("--maprot")) || 0)
++  };
++  map.eachLayer(function (l) {
++    if (!l._icon || !l.getLatLng) return;
++    const u = l._icon.querySelector(".upright");
++    if (u) u.style.transform = billboardTransform(l.getLatLng(), ctx);
++  });
++  /* the card hangs above its anchor, so it takes the anchor's depth */
++  if (wrap && map._popup && map._popup.getLatLng()) {
++    wrap.style.transform = billboardTransform(map._popup.getLatLng(), ctx);
++    if (tip) tip.style.transform = wrap.style.transform;
++  }
++}
++map.on("popupopen move zoomend viewreset", billboards);
++
++function setRotWrap(deg) {
++  const tilt = S.tilt ? CFG.TILT_DEG : 0;
++  rotWrap.style.transform =
++    (tilt ? "rotateX(" + tilt + "deg) " : "") + "rotate(" + deg.toFixed(2) + "deg)";
++  document.documentElement.style.setProperty("--maprot", deg.toFixed(2) + "deg");
++  document.documentElement.style.setProperty("--maptilt", tilt + "deg");
++  document.documentElement.style.setProperty("--maptiltinv",
++    (1 / Math.cos(rad(tilt))).toFixed(4));
++}
++
+ function mapOffset() { return { x: (mapW - stageW) / 2, y: (mapH - stageH) / 2 }; }
+ 
+ /* fitBounds must frame the VISIBLE window, not the oversized map canvas.
+@@ -1678,15 +1883,13 @@ function applyFollowTransform(allowResync) {
+   }
+   panDx = dx; panDy = dy;
+   panWrap.style.transform = "translate3d(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px,0)";
+-  rotWrap.style.transform = "rotate(" + view.mapRot.toFixed(2) + "deg)";
+-  document.documentElement.style.setProperty("--maprot", view.mapRot.toFixed(2) + "deg");
++  setRotWrap(view.mapRot);
+ }
+ 
+ function clearFollowTransform() {
+   panDx = 0; panDy = 0; view.mapRot = 0;
+   panWrap.style.transform = "";
+-  rotWrap.style.transform = "";
+-  document.documentElement.style.setProperty("--maprot", "0deg");
++  setRotWrap(0);
+ }
+ /* Dragging stays enabled in every mode. It used to be switched off whenever
+    the map was rotated, because Leaflet's pointer maths does not account for
+@@ -1836,7 +2039,7 @@ const Compass = {
+ };
+ /* ---- 60fps animation loop ---- */
+ let prevTs = 0;
+-let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0;
++let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0, bbTick = 0;
+ function frame(ts) {
+   requestAnimationFrame(frame);
+   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
+@@ -1890,6 +2093,11 @@ function frame(ts) {
+      so a path added later cannot forget to move the sign. One rect read. */
+   if (ts - liftTick > 100) { liftTick = ts; liftSpeedSign(); }
+ 
++  /* Following pans the map with a CSS transform, so Leaflet fires no move
++     event and the billboards would keep the scale they had when the drive
++     started. Followed here instead, at a rate a depth change cannot outrun. */
++  if (S.tilt && ts - bbTick > 100) { bbTick = ts; billboards(); }
++
+   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
+     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
+     /* the wake lock reads the same way: it is handed back and taken again
+@@ -4975,6 +5183,7 @@ const Wake = {
+           Wake.note = "released by the system";
+           renderGpsPanel();
+           syncAwakeButtons();
++  syncHillshadeButtons();
+         });
+       } catch (e) {
+         this.note = "refused: " + (e.message || e.name);
+@@ -5057,7 +5266,7 @@ function syncNorthUI() {
+ function setNorthLock(lock, announce) {
+   S.northLock = !!lock;
+   saveSettings();
+-  if (S.northLock) { view.mapRot = 0; rotWrap.style.transform = ""; }
++  if (S.northLock) { view.mapRot = 0; setRotWrap(0); }
+   syncDragMode();
+   syncNorthUI();
+   if (announce) toast(S.northLock ? "North up" : "Heading up", "ok");
+@@ -5092,6 +5301,16 @@ $("#wpCats").addEventListener("click", function (e) {
+ });
+ $("#wpName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveWpForm(); });
+ 
++function setTilt(on) {
++  S.tilt = on;
++  saveSettings();
++  $("#btnTilt").classList.toggle("on", on);
++  $("#tiltLabel").textContent = on ? "3D" : "2D";
++  setRotWrap(view.mapRot);
++  billboards();
++}
++$("#btnTilt").addEventListener("click", function () { setTilt(!S.tilt); });
++setTilt(!!S.tilt);
+ $("#btnSim").addEventListener("click", function () { Sim.toggle(); });
+ 
+ /* ---- recording and the track dialog ---- */
+@@ -5258,6 +5477,12 @@ function setKeepAwake(on) {
+            : "Screen may sleep - a recording stops with it",
+         on ? "ok" : "warn");
+ }
++function syncHillshadeButtons() {
++  $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
++  $("#btnShadeOff").classList.toggle("on", !S.hillshade);
++}
++$("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
++$("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
+ $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
+ $("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); });
+ $("#btnPoiRefresh").addEventListener("click", function () {
