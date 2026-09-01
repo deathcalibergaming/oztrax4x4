@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v99";
+const CACHE = "trailtracker-v100";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -24,6 +24,7 @@ async function setUpdateFlag(on) {
 const SHELL = [
   "./",
   "./index.html",
+  "./fuel.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
@@ -116,6 +117,27 @@ self.addEventListener("fetch", function (e) {
       return new Response(
         "<h1>TrailTracker</h1><p>Not cached yet - open this page once with a connection.</p>",
         { headers: { "Content-Type": "text/html" }, status: 503 });
+    })());
+    return;
+  }
+
+  /* The day's fuel prices are the one shell file that must not be answered
+     from cache first. Yesterday's price is worth having - it is what makes
+     the card readable at the bottom of a gorge with no signal, which is
+     where the question gets asked - but it is worth less than today's, and
+     a cache-first shell would keep serving it for as long as the app was
+     installed. So: network, then cache, then an empty set rather than a
+     404, which the page reads as "no prices yet" and says so. */
+  if (url.pathname.endsWith("/fuel.json")) {
+    e.respondWith((async function () {
+      const cache = await caches.open(CACHE);
+      try {
+        const r = await fetch(req);
+        if (r && r.ok) { cache.put("./fuel.json", r.clone()); return r; }
+      } catch (err) { /* offline, which is the normal case out there */ }
+      const hit = await cache.match("./fuel.json");
+      return hit || new Response('{"updated":null,"fuels":{},"sites":[]}',
+        { headers: { "Content-Type": "application/json" } });
     })());
     return;
   }
