@@ -1110,7 +1110,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
-            Fuel Prices <span class="cnt" id="cntFuel">0</span><span class="chev"></span>
+            Fuel Type <span class="cnt" id="cntFuel">0</span><span class="chev"></span>
           </summary>
           <div class="sec-body">
             <div class="row kbulk">
@@ -3441,8 +3441,28 @@ function saveWpForm() {
   toast("Waypoint saved", "ok");
 }
 
+/* A tap that lands off an open card is a tap that dismisses the card, and
+   nothing else. Leaflet closes the popup during preclick, which runs before
+   the click handler does - so by the time the handler thinks to ask, there is
+   nothing left to see. The answer is taken here and read a moment later.
+
+   Without it one tap both cleared the POI card and dropped a waypoint form
+   where the card had been, which is a lot to happen to somebody who only
+   wanted the card gone. A second tap still opens the form, the same way a
+   second tap does after closing one. */
+let dismissedPopup = false;
+map.on("preclick", function () {
+  dismissedPopup = !!document.querySelector(".leaflet-popup");
+});
+/* Going straight from one pin to another closes the first card and opens the
+   second without the map's own click ever running, so the note has to be torn
+   up here - otherwise it would sit there and swallow the next tap on open
+   ground. */
+map.on("popupopen", function () { dismissedPopup = false; });
+
 map.on("click", function (e) {
   if (drawMode || Date.now() < suppressMapClickUntil) return;
+  if (dismissedPopup) { dismissedPopup = false; return; }
   if (wpFormOpen) { closeWpForm(); return; }
   const oe = e.originalEvent;
   const ll = clientToLatLng(oe.clientX, oe.clientY);
