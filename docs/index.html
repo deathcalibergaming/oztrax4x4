@@ -88,13 +88,46 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn.on{border-color:var(--rust);background:rgba(193,85,44,.16)}
 .icon-btn.on svg{stroke:var(--rust)}
-#gpsPill{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
-  padding:4px 8px;border:1px solid var(--line);border-radius:20px;color:var(--dim);white-space:nowrap}
+/* The header carries two lamps rather than a sentence. GPS is a glyph and a
+   dot - green while fixes are landing, amber while the simulator drives, red
+   when there is nothing - because the metre figure that used to sit beside it
+   is a number nobody acts on at 80 km/h. It is still on the GPS panel, and
+   still on this cell's own label, where it is read deliberately. Two cells in
+   one pill, divided the way the stats below are divided, so the header
+   answers to the same instrument the bars do. */
+#statusPill{display:flex;align-items:stretch;height:26px;flex:0 0 auto;
+  border:1px solid var(--line);border-radius:20px;overflow:hidden}
+#statusPill > div{display:flex;align-items:center;gap:5px;padding:0 8px}
+/* The divider hangs off the second cell rather than the first, so hiding the
+   battery takes the line with it. :last-child would not: it is structural,
+   and a display:none cell is still the last one. */
+#statusPill > div + div{border-left:1px solid var(--line)}
+#gpsPill svg{width:14px;height:14px;fill:none;stroke:var(--dim);stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
 #gpsPill .dot{width:7px;height:7px;border-radius:50%;background:var(--danger);flex:0 0 auto}
+#gpsPill.live svg{stroke:var(--green)}
 #gpsPill.live .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
-#gpsPill.live{color:var(--green);border-color:rgba(143,185,62,.35)}
+#gpsPill.sim svg{stroke:var(--warn)}
 #gpsPill.sim .dot{background:var(--warn);box-shadow:0 0 6px var(--warn)}
-#gpsPill.sim{color:var(--warn);border-color:rgba(232,185,35,.35)}
+/* Android's own shape, so it is recognised before it is read: the number on
+   the left, the cell on the right, filling from the flat end. White until a
+   fifth is left, and then the colour of the warning it has become. */
+#battPill{font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+  color:var(--hud);white-space:nowrap}
+#battPill svg{width:24px;height:12px;flex:0 0 auto}
+#battPill .shell{fill:none;stroke:var(--dim);stroke-width:1.2}
+#battPill .nub{fill:var(--dim);stroke:none}
+#battPill .fill{fill:var(--hud);stroke:none}
+#battPill.low{color:var(--warn)}
+#battPill.low .fill{fill:var(--warn)}
+#battPill.crit{color:var(--danger)}
+#battPill.crit .fill{fill:var(--danger)}
+/* Charging lays the bolt over whatever the level happens to be, keylined in
+   the bar's own dark so it reads against a full cell and an empty one
+   alike. */
+#battPill .bolt{display:none;fill:var(--green);stroke:#171C19;stroke-width:2;
+  paint-order:stroke fill}
+#battPill.chg .bolt{display:block}
 
 /* The lower edge is cut rather than drawn. A hairline only says where the
    panel stops; three pixels of facet brightening toward the edge, the way
@@ -135,7 +168,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat:nth-child(2){flex-basis:63px}   /* WSW 241 */
 .stat:nth-child(3){flex-basis:47px}   /* -1234, or -4046 in feet */
 .stat:nth-child(4){flex-basis:65px}   /* 1234.56 */
-.stat:nth-child(5){flex-basis:75px}   /* 12:35:00 */
+.stat:nth-child(5){flex-basis:50px}   /* 00:00, now the seconds have gone. A
+                                         third digit of hours arrives after
+                                         four days recording and still fits:
+                                         what flex-grow hands this column back
+                                         is wider than its basis on any phone */
 .stat label{font-size:8.5px;letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
 .stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud);
   white-space:nowrap}
@@ -838,7 +875,24 @@ input[type=date],input[type=time]{color-scheme:dark}
       <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="brand"><span class="b1">TRAIL</span><span class="b2">TRACKER</span></div>
-    <div id="gpsPill"><span class="dot"></span><span id="gpsText">NO FIX</span></div>
+    <div id="statusPill">
+      <div id="gpsPill" title="No GPS fix" aria-label="No GPS fix">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21.2s7-6.4 7-11.2a7 7 0 1 0-14 0c0 4.8 7 11.2 7 11.2z"/>
+          <circle cx="12" cy="10" r="2.5"/>
+        </svg>
+        <span class="dot"></span>
+      </div>
+      <div id="battPill" class="hidden" title="Battery" aria-label="Battery">
+        <span id="battText">--</span>
+        <svg viewBox="0 0 26 13" aria-hidden="true">
+          <rect class="shell" x="0.6" y="0.6" width="21.8" height="11.8" rx="3.2"/>
+          <rect class="nub" x="23.4" y="4.1" width="2" height="4.8" rx="1"/>
+          <rect class="fill" id="battFill" x="2.4" y="2.4" width="0" height="8.2" rx="1.6"/>
+          <path class="bolt" d="M13.2 2 9.4 7.2H11.6L10.9 11 14.6 5.8H12.4Z"/>
+        </svg>
+      </div>
+    </div>
   </header>
 
   <div id="statsbar">
@@ -846,7 +900,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="stat"><label>Heading</label><b><em id="stCard"></em><span id="stHdg">--</span></b><i>deg</i></div>
     <div class="stat"><label>Alt</label><b id="stAlt">--</b><i id="uAlt">m</i></div>
     <div class="stat" id="stDistBox"><label>Dist</label><b id="stDist">0.00</b><i id="uDist">km</i></div>
-    <div class="stat" id="stTimeBox"><label>Time</label><b id="stTime">00:00</b><i>h:m:s</i></div>
+    <div class="stat" id="stTimeBox"><label>Time</label><b id="stTime">00:00</b><i>h:m</i></div>
   </div>
 
   <div id="stage">
@@ -1407,14 +1461,15 @@ function lerpAngle(a, b, t) {
   const d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
-/* The header readout, which ticks while you drive and is labelled h:m:s
-   under the number. A stopwatch is the one place the clock shape is the
-   right one, and a fixed width keeps it from jittering every second. */
+/* The header readout, which ticks while you drive and is labelled h:m under
+   the number. Seconds have gone from it: a digit changing every second in the
+   corner of the eye is movement to look at rather than anything to act on,
+   and how long you have been driving is not read to the second. Hours are
+   padded so the column does not change width at the hour mark. */
 function fmtStopwatch(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const m = Math.max(0, Math.floor(ms / 60000));
   const p = (n) => String(n).padStart(2, "0");
-  return h > 0 ? h + ":" + p(m) + ":" + p(ss) : p(m) + ":" + p(ss);
+  return p(Math.floor(m / 60)) + ":" + p(m % 60);
 }
 /* A span of time to read rather than watch tick. "2:35:00" on a track
    card reads as twenty-five to three, which is exactly wrong for two and
@@ -2315,15 +2370,72 @@ function pushPosition(fix) {
 }
 
 function updateGpsPill() {
-  const pill = $("#gpsPill"), txt = $("#gpsText");
+  const pill = $("#gpsPill");
   pill.classList.remove("live", "sim");
-  if (Sim.active) { pill.classList.add("sim"); txt.textContent = "SIM"; return; }
-  if (!view.has) { txt.textContent = "NO FIX"; return; }
-  const age = Date.now() - view.lastFixAt;
-  if (age > 20000) { txt.textContent = "STALE"; return; }
-  pill.classList.add("live");
-  txt.textContent = view.acc != null ? "GPS " + Math.round(view.acc) + "m" : "GPS";
+  let state;
+  if (Sim.active) { pill.classList.add("sim"); state = "Simulated drive"; }
+  else if (!view.has) state = "No GPS fix";
+  else if (Date.now() - view.lastFixAt > 20000) state = "GPS fix has gone stale";
+  else {
+    pill.classList.add("live");
+    /* the accuracy still travels with the lamp, for a long press and for a
+       screen reader. It just no longer holds a corner of the header open to
+       print a number that changes every second and is acted on by nobody */
+    state = view.acc != null ? "GPS fix, " + Math.round(view.acc) + " m accuracy"
+                             : "GPS fix";
+  }
+  pill.title = state;
+  pill.setAttribute("aria-label", state);
 }
+
+/* =====================================================================
+   The phone battery, which a full screen app hides
+   ===================================================================== */
+/* Only Chromium answers navigator.getBattery: Firefox dropped it and Safari
+   never had it. There is nothing to poll in its place, so where it is missing
+   the cell stays hidden and the pill closes up around the GPS lamp rather
+   than printing a dash for the life of the app. Level and charging both
+   raise events, so none of this rides the half second tick. */
+const Batt = {
+  FULL: 18.2,                /* the fill rect width at 100%, in viewBox units,
+                                which lands it the same 1.2 inside the shell on
+                                the right as it starts on the left */
+  FLOOR: 2.2,                /* below about a tenth the bar is thinner than a
+                                pixel on the screen and reads as an empty cell
+                                with red text. Android keeps a stub there and
+                                so does this: empty is a different thing from
+                                nearly empty when the next fuel is 200 km on */
+  bat: null,
+  init() {
+    if (!navigator.getBattery) return;
+    const self = this;
+    navigator.getBattery().then(function (b) {
+      self.bat = b;
+      const paint = function () { self.paint(); };
+      b.addEventListener("levelchange", paint);
+      b.addEventListener("chargingchange", paint);
+      $("#battPill").classList.remove("hidden");
+      self.paint();
+    }).catch(function () { /* refused or unavailable: the cell stays hidden */ });
+  },
+  paint() {
+    const b = this.bat;
+    if (!b) return;
+    const pct = Math.max(0, Math.min(100, Math.round(b.level * 100)));
+    const el = $("#battPill");
+    $("#battText").textContent = pct + "%";
+    const w = pct <= 0 ? 0 : Math.max(this.FLOOR, this.FULL * pct / 100);
+    $("#battFill").setAttribute("width", w.toFixed(2));
+    /* charging is its own state rather than a shade of low: a phone on 8%
+       with the cable in is not the warning a phone on 8% without one is */
+    el.classList.toggle("chg", !!b.charging);
+    el.classList.toggle("low", !b.charging && pct <= 20);
+    el.classList.toggle("crit", !b.charging && pct <= 10);
+    const state = "Battery " + pct + "%" + (b.charging ? ", charging" : "");
+    el.title = state;
+    el.setAttribute("aria-label", state);
+  }
+};
 
 /* 16-point compass, so 091 reads "091 E" at a glance */
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -5816,8 +5928,11 @@ function startGeo() {
   GPS.startedAt = Date.now();
   GPS.watching = true;
   readGeoPermission().then(renderGpsPanel);
+  /* The pill used to be told to read NO HTTPS here. It has no words left to
+     say it with, and a title written now would be painted over by the next
+     half second tick anyway. The toast says it on the spot and the GPS panel
+     goes on saying it, which is where somebody looks for a reason. */
   if (insecureContext()) {
-    $("#gpsText").textContent = "NO HTTPS";
     toast("Location will likely be refused: " + contextNote(), "warn");
   }
   geoWatch = navigator.geolocation.watchPosition(function (pos) {
@@ -6513,6 +6628,7 @@ document.addEventListener("keydown", function (e) {
   startGeo();
   Compass.start().then(renderGpsPanel);
   Wake.apply();                 /* the screen is wanted from the moment it opens */
+  Batt.init();
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
 
