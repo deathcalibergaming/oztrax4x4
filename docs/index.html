@@ -1963,43 +1963,13 @@ const trailLine   = L.polyline([], { color: "#8FB93E", weight: 4, opacity: .95, 
 const ghostLayer  = L.layerGroup().addTo(map);   /* saved tracks shown on map */
 const wptLayer    = L.layerGroup().addTo(map);
 const poiLayer    = L.layerGroup().addTo(map);
-const accCircle   = L.circle(startCenter, { radius: 0, color: "#8FB93E", weight: 1, opacity: .35, fillColor: "#8FB93E", fillOpacity: .07 }).addTo(map);
 
-/* The ring is a radius in metres, so Leaflet recomputes its pixel size
-   every time it is told anything. Told something during a zoom, it is
-   redrawn for the zoom being animated *to* while the pane is still on its
-   way there, so for one frame it is composited at the wrong scale - a
-   green circle that flashes over the vehicle and is gone. Fixes land about
-   once a second, so a zoom falls inside one more often than not.
-
-   Held until the zoom lands, and skipped when neither the fix nor the
-   accuracy has moved far enough to be worth a redraw - which is most of
-   them, parked. */
-let accPending = null, accZoomAt = 0;
-
-/* A cancelled zoom animation is the one way zoomend can be missed, and the
-   ring would then sit frozen for the rest of the drive. A second is far
-   longer than any zoom takes, so the guard lets go on its own. */
-function accZooming() { return accZoomAt !== 0 && performance.now() - accZoomAt < 1000; }
-
-function setAccuracy(pt, m) {
-  accPending = { lat: pt.lat, lng: pt.lng, m: m };
-  flushAccuracy();
-}
-
-/* The guard is read here rather than at every caller. A zoom raises moveend
-   of its own accord and the follow loop raises more, and clearing a flag
-   from any of those let a redraw through four milliseconds before the zoom
-   landed - which is precisely the frame this exists to avoid. */
-function flushAccuracy() {
-  if (!accPending || accZooming()) return;
-  const a = accPending, at = accCircle.getLatLng();
-  accPending = null;
-  if (Math.abs(accCircle.getRadius() - a.m) < 1 &&
-      Math.abs(at.lat - a.lat) < 1e-6 && Math.abs(at.lng - a.lng) < 1e-6) return;
-  accCircle.setLatLng(a);
-  accCircle.setRadius(a.m);
-}
+/* The GPS accuracy ring was drawn here: a green circle at the vehicle with
+   the fix accuracy as its radius. Holding its redraws out of the middle of
+   a zoom stopped it flashing, but a ring around the vehicle was not wanted
+   at all, so it is gone rather than steadied. Nothing is lost by not
+   drawing it - the accuracy is in the GPS pill at all times, and in the GPS
+   panel beside the rest of the fix. */
 
 const gpsIcon = L.divIcon({
   className: "gps-icon",
@@ -2126,24 +2096,15 @@ function updateFollowUI() {
    map simply refusing to be dragged. */
 map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 
-/* A zoom is in flight from here until zoomend, which is when the accuracy
-   ring may be redrawn without being caught at the wrong scale. */
-map.on("zoomstart", function () { accZoomAt = performance.now(); });
-
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
 map.on("zoomend", function () {
-  accZoomAt = 0;
-  flushAccuracy();
   S.zoom = map.getZoom();
   saveSettings();
   renderPois();
   schedulePoi();
 });
-map.on("moveend", function () {
-  flushAccuracy();
-  if (!resyncing) schedulePoi();
-});
+map.on("moveend", function () { if (!resyncing) schedulePoi(); });
 
 
 /* =====================================================================
@@ -2340,8 +2301,6 @@ function pushPosition(fix) {
   view.alt = (fix.alt != null && isFinite(fix.alt)) ? fix.alt : null;
   view.acc = (fix.acc != null && isFinite(fix.acc)) ? fix.acc : null;
   view.lastFixAt = fix.t || Date.now();
-
-  setAccuracy(pt, view.acc && !fix.sim ? view.acc : 0);
 
   document.querySelector(".gps-icon").classList.toggle("sim", !!fix.sim);
   saveLS(LS.lastPos, { lat: pt.lat, lng: pt.lng });
