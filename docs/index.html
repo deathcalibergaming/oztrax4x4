@@ -565,7 +565,14 @@ details.sub > .sec-body{padding:12px 0 0}
 .fuelp > div > b{font-family:var(--mono);font-size:13px;color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
 .fuelp > i{display:block;margin-top:3px;font-family:var(--mono);font-style:normal;
   font-size:8px;letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
-.kchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+/* minmax(0,...) rather than a bare 1fr: a grid track will not shrink below
+   the widest thing in it, so one long label pushes the whole column past the
+   drawer and takes a horizontal scrollbar with it. */
+.kchips{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
+/* The fuel grades take one column where the categories take two. "Premium
+   Unleaded 98" does not survive being halved, and a grade you can only read
+   half of is a switch you cannot trust. */
+#fuelTypes{grid-template-columns:minmax(0,1fr)}
 .kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
   font-size:11.5px;cursor:pointer;opacity:.55;text-align:left}
@@ -641,7 +648,8 @@ details.sub > .sec-body{padding:12px 0 0}
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
-#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on{
+#btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
+#btnFuelAll.on,#btnFuelNone.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -1099,12 +1107,20 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
-        <div class="sublabel">Fuel Prices
-          <button class="btn xs ghost" id="btnFuelAll">All</button>
-          <button class="btn xs ghost" id="btnFuelNone">None</button>
-        </div>
-        <div class="kchips" id="fuelTypes"></div>
-        <div class="poi-status" id="fuelNote"></div>
+        <details class="sub" id="secFuel">
+          <summary>
+            <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
+            Fuel Prices <span class="cnt" id="cntFuel">0</span><span class="chev"></span>
+          </summary>
+          <div class="sec-body">
+            <div class="row kbulk">
+              <button class="btn xs ghost" id="btnFuelAll">All On</button>
+              <button class="btn xs ghost" id="btnFuelNone">All Off</button>
+            </div>
+            <div class="kchips" id="fuelTypes"></div>
+            <div class="poi-status" id="fuelNote"></div>
+          </div>
+        </details>
         <div class="sublabel">Home
           <button class="btn xs ghost" id="btnHomeClear">Clear</button>
         </div>
@@ -3207,6 +3223,13 @@ const ICONS = {
   camp:      '<path d="M12 3.2c2.6 3 3.7 4.9 3.7 6.7a3.7 3.7 0 0 1-7.4 0c0-1.8 1.1-3.7 3.7-6.7z"/><path d="M3.5 20.2 20.5 15.6M3.5 15.6 20.5 20.2"/>',
   water:     '<path d="M12 3.5s-6 6.9-6 10.4a6 6 0 0 0 12 0c0-3.5-6-10.4-6-10.4z"/>',
   fuel:      '<path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/>',
+  /* The three that join the pump to cover the grades. Shape carries the
+     family - petrol, ethanol blend, diesel, gas - because at the eleven
+     pixels a chip draws at, a nozzle is a nozzle and no amount of detail
+     would separate 95 from 98. */
+  leaf:      '<path d="M20.2 3.8c.6 7.9-3.6 13.4-11.3 13.4H5.6C5 9.3 9.2 3.8 16.9 3.8z"/><path d="M4 20.8c2.2-4.6 5.4-7.7 9.6-9.5"/>',
+  droplet:   '<path d="M12 3.4c3.7 4.5 6.1 7.8 6.1 10.5a6.1 6.1 0 0 1-12.2 0c0-2.7 2.4-6 6.1-10.5z"/>',
+  gascyl:    '<rect x="7" y="7.2" width="10" height="13.6" rx="2.6"/><path d="M10.4 7.2V4.9h3.2v2.3"/><path d="M9.4 11.4h5.2"/>',
   obstacle:  '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4"/><path d="M12 17.3v.1"/>',
   photo:     '<path d="M3 7.5h4L9 5h6l2 2.5h4v12H3z"/><circle cx="12" cy="13.6" r="3.5"/>',
   flag:      '<path d="M6 21V3.5"/><path d="M6 4.5h12l-2.8 4 2.8 4H6z"/>',
@@ -4233,6 +4256,43 @@ function visiblePois() {
 
    Prices arrive in tenths of a cent, the unit the scheme publishes, and are
    divided once here at the point of display. */
+/* The colours off the bowser, because that is what the driver is looking for
+   when they pull in rather than a word read at arm's length: blue for 91,
+   green for the ethanol blends, yellow for 95, red for 98, grey for diesel.
+
+   Two the scheme sells that the forecourt convention does not settle - LPG
+   and premium diesel - are given a colour of their own rather than a second
+   hand one, so neither can be mistaken for a grade it is not. Premium diesel
+   keeps the diesel droplet and takes a bronze; LPG gets the cylinder and a
+   teal, which is the one hue nothing else on this list is near.
+
+   Shape says the family and colour says the grade within it, which is the
+   division the forecourt itself uses: one hose shape, four colours along the
+   rail.
+
+   Keyed by the scheme's own fuel id, which is stable across its releases.
+   Anything it starts selling that is not listed here keeps the name the
+   scheme gives it and falls back to the fuel pin's own colour, so a new
+   grade appears as a working switch rather than not at all. */
+const FUEL_LOOK = {
+  2:  { label: "Unleaded 91",         color: "#4FA8E8", icon: "fuel" },
+  3:  { label: "Diesel",              color: "#9AA3A0", icon: "droplet" },
+  4:  { label: "LPG",                 color: "#4BC0B5", icon: "gascyl" },
+  5:  { label: "Premium Unleaded 95", color: "#E8B923", icon: "fuel" },
+  8:  { label: "Premium Unleaded 98", color: "#B9432E", icon: "fuel" },
+  12: { label: "e10",                 color: "#8FB93E", icon: "leaf" },
+  14: { label: "Premium Diesel",      color: "#C08A4A", icon: "droplet" },
+  19: { label: "e85",                 color: "#B9432E", icon: "leaf" }
+};
+
+/* The scheme calls 91 plain "Unleaded". The bowser does not, and neither
+   does anybody standing at one. */
+function fuelLook(id) {
+  return FUEL_LOOK[id] ||
+    { label: Fuel.fuels()[id] || ("Fuel " + id), color: "#E8B923", icon: "fuel" };
+}
+function fuelLabel(id) { return fuelLook(id).label; }
+
 const Fuel = {
   data: null,          /* {updated, fuels:{id:name}, sites:[...]} */
   fetchedAt: 0,
@@ -4266,12 +4326,29 @@ const Fuel = {
 
   /* Diesel by default, because the question this answers for the driver who
      asked for it is what the Landcruiser costs to fill. Everything else is
-     one tap away and the choice is remembered from then on. */
+     one tap away and the choice is remembered from then on.
+
+     What is stored is an object, so that a deliberate "All Off" can be told
+     apart from never having chosen. An earlier build wrote a bare array and
+     could write an empty one: a launch in the window between the app
+     shipping and the first prices being published had no grades to choose
+     from, decided on nothing, and wrote that nothing down for good. Prices
+     then arrived with every grade switched off and no way to see why. An
+     empty bare array is read as that accident and decided again; one with
+     grades in it was somebody's choice and is kept. */
   restoreSel: function () {
     if (this.sel) return;
     const saved = loadLS(LS.fuelSel, null);
-    if (Array.isArray(saved)) { this.sel = new Set(saved.map(Number)); return; }
+    if (saved && Array.isArray(saved.ids)) { this.sel = new Set(saved.ids.map(Number)); return; }
+    if (Array.isArray(saved) && saved.length) {
+      this.sel = new Set(saved.map(Number));
+      this.saveSel();                  /* carried over to the shape with a flag */
+      return;
+    }
     const ids = Object.keys(this.fuels());
+    /* Nothing to choose from yet. Deciding now is what caused the fault
+       above, so the decision waits for the file that makes it possible. */
+    if (!ids.length) return;
     const diesel = ids.filter(function (id) { return /^\s*diesel\s*$/i.test(Fuel.fuels()[id]); });
     const anyDiesel = diesel.length ? diesel : ids.filter(function (id) {
       return /diesel/i.test(Fuel.fuels()[id]);
@@ -4280,7 +4357,7 @@ const Fuel = {
     this.saveSel();
   },
 
-  saveSel: function () { saveLS(LS.fuelSel, Array.from(this.sel || [])); },
+  saveSel: function () { saveLS(LS.fuelSel, { ids: Array.from(this.sel || []) }); },
 
   fuels: function () { return (this.data && this.data.fuels) || {}; },
 
@@ -4325,11 +4402,12 @@ const Fuel = {
   pricesFor: function (poi) {
     const site = this.siteFor(poi);
     if (!site || !this.sel || !this.sel.size) return null;
-    const names = this.fuels();
     const rows = [];
     Object.keys(site.p).forEach(function (id) {
       if (!Fuel.sel.has(Number(id))) return;
-      rows.push({ id: Number(id), name: names[id] || ("Fuel " + id), c: site.p[id] / 10 });
+      /* the same name the settings chip carries, so the card cannot end up
+         calling 91 something the switch that turned it on does not */
+      rows.push({ id: Number(id), name: fuelLabel(id), c: site.p[id] / 10 });
     });
     if (!rows.length) return null;
     rows.sort(function (a, b) { return a.id - b.id; });
@@ -4601,8 +4679,12 @@ function renderFuelTypes() {
   const ids = Object.keys(names).sort(function (a, b) { return Number(a) - Number(b); });
   const note = $("#fuelNote");
 
+  const cnt = $("#cntFuel");
+  const sel = Fuel.sel || new Set();
+
   if (!ids.length) {
     box.innerHTML = "";
+    if (cnt) cnt.textContent = "0";
     if (note) {
       note.textContent = Fuel.data
         ? "No prices in the published file yet."
@@ -4610,13 +4692,25 @@ function renderFuelTypes() {
     }
     return;
   }
-  const sel = Fuel.sel || new Set();
+
+  /* How many of the state's sites sell each grade, which is the same thing
+     the category chips count and the reason e85 reading 12 rather than 600
+     is worth knowing before you plan a trip around it. */
+  const counts = {};
+  (Fuel.data.sites || []).forEach(function (st) {
+    Object.keys(st.p).forEach(function (id) { counts[id] = (counts[id] || 0) + 1; });
+  });
+
   box.innerHTML = ids.map(function (id) {
-    const on = sel.has(Number(id));
+    const on = sel.has(Number(id)), look = fuelLook(id);
     return '<button class="kchip' + (on ? " on" : "") + '" data-fuel="' + id + '" ' +
-      'aria-pressed="' + on + '" style="--kc:#E8B923"><span>' + esc(names[id]) + "</span></button>";
+      'aria-pressed="' + on + '" style="--kc:' + look.color + '">' +
+      '<span class="dotmark poi" style="background:' + look.color + '">' +
+      catIcon(look.icon) + "</span>" +
+      "<span>" + esc(look.label) + "</span><i>" + (counts[id] || 0) + "</i></button>";
   }).join("");
 
+  if (cnt) cnt.textContent = sel.size + "/" + ids.length;
   $("#btnFuelAll").classList.toggle("on", sel.size === ids.length);
   $("#btnFuelNone").classList.toggle("on", sel.size === 0);
   if (note) {
