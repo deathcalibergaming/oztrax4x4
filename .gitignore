@@ -4,3 +4,9 @@
 # Credentials and vendor API specs must never reach this repo - it is public,
 # so anything committed here is downloadable by anyone, docs/ or not.
 *.pdf
+
+# Nothing holding a subscriber token, ever. The SAFPIS token lives in
+# GitHub Actions secrets and reaches the runner as an environment variable.
+.env
+.env.*
+*.token

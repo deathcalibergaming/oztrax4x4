@@ -552,6 +552,19 @@ details.sub > .sec-body{padding:12px 0 0}
    width, labels starting at the same point down each column and the counts
    ending at the same one. It costs a row of height, which the list below
    gets back as soon as you scroll. */
+/* Prices are a table of two columns pretending not to be one: the grade on
+   the left in the interface face, the number on the right in the mono face
+   the stats use, so a column of them lines up on the decimal point and can
+   be read down at a glance rather than across. No dollar sign and no unit -
+   a fuel price in this country is cents a litre and has been all along,
+   and the roadside board does not print them either. */
+.fuelp{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
+.fuelp > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
+.fuelp > div > span{font-size:10.5px;color:var(--sand);opacity:.85;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.fuelp > div > b{font-family:var(--mono);font-size:13px;color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
+.fuelp > i{display:block;margin-top:3px;font-family:var(--mono);font-style:normal;
+  font-size:8px;letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
 .kchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
@@ -1086,6 +1099,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
+        <div class="sublabel">Fuel Prices
+          <button class="btn xs ghost" id="btnFuelAll">All</button>
+          <button class="btn xs ghost" id="btnFuelNone">None</button>
+        </div>
+        <div class="kchips" id="fuelTypes"></div>
+        <div class="poi-status" id="fuelNote"></div>
         <div class="sublabel">Home
           <button class="btn xs ghost" id="btnHomeClear">Clear</button>
         </div>
@@ -1433,7 +1452,8 @@ const LS = {
   trail: "tt.trail",
   lastPos: "tt.lastPos",
   country: "tt.country",
-  home: "tt.home"
+  home: "tt.home",
+  fuelSel: "tt.fuelSel"
 };
 
 /* ---------- tiny helpers ---------- */
@@ -4192,12 +4212,174 @@ function visiblePois() {
   });
 }
 
+/* =====================================================================
+   Fuel prices
+   =====================================================================
+   South Australia requires every retailer to report a price change within
+   thirty minutes, and publishes the lot under the Fuel Pricing Information
+   Scheme. This app is a subscriber to it - but not from the phone. The
+   scheme's terms are explicit on two points: the API is for server to
+   server calls, "not intended to be called by large numbers of end users
+   directly via websites or Apps", and the subscriber token is the
+   publisher's to keep secret. A token shipped inside a public single file
+   page is neither of those.
+
+   So the fetching happens once a day in a GitHub Action holding the token
+   as a repository secret, and what arrives here is fuel.json sitting beside
+   index.html on the same origin. No token on the phone, no cross origin
+   request to be refused, and the service worker keeps the last copy - so
+   this morning's prices are still readable from the bottom of a gorge with
+   no signal, which is where the question actually gets asked.
+
+   Prices arrive in tenths of a cent, the unit the scheme publishes, and are
+   divided once here at the point of display. */
+const Fuel = {
+  data: null,          /* {updated, fuels:{id:name}, sites:[...]} */
+  fetchedAt: 0,
+  sel: null,           /* fuel ids the driver wants to see; null until loaded */
+  /* An OSM pin and a scheme site are two records of the same servo made by
+     different people. One may sit on the pumps and the other on the street
+     address, so they rarely share a coordinate: the nearest site within
+     200 m is taken to be the same place, and a word shared between the two
+     names stretches that to 400 m - "BP Hawker" against "BP" is the same
+     servo even with the points at either end of the forecourt. */
+  NEAR_M: 200,
+  NAMED_M: 400,
+  STALE_MS: 6 * 3600 * 1000,   /* worth asking again after this long open */
+
+  load: async function (force) {
+    if (!force && this.data && Date.now() - this.fetchedAt < this.STALE_MS) return;
+    try {
+      /* The worker answers this one network first, so a launch with signal
+         gets today's and a launch without gets the last one it saw. */
+      const r = await fetch("./fuel.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (!j || !Array.isArray(j.sites)) return;
+      this.data = j;
+      this.fetchedAt = Date.now();
+      this.restoreSel();
+      renderFuelTypes();
+      renderPois();          /* cards that drew without prices can have them */
+    } catch (e) { /* offline and nothing cached yet: the cards just go quiet */ }
+  },
+
+  /* Diesel by default, because the question this answers for the driver who
+     asked for it is what the Landcruiser costs to fill. Everything else is
+     one tap away and the choice is remembered from then on. */
+  restoreSel: function () {
+    if (this.sel) return;
+    const saved = loadLS(LS.fuelSel, null);
+    if (Array.isArray(saved)) { this.sel = new Set(saved.map(Number)); return; }
+    const ids = Object.keys(this.fuels());
+    const diesel = ids.filter(function (id) { return /^\s*diesel\s*$/i.test(Fuel.fuels()[id]); });
+    const anyDiesel = diesel.length ? diesel : ids.filter(function (id) {
+      return /diesel/i.test(Fuel.fuels()[id]);
+    });
+    this.sel = new Set(anyDiesel.map(Number));
+    this.saveSel();
+  },
+
+  saveSel: function () { saveLS(LS.fuelSel, Array.from(this.sel || [])); },
+
+  fuels: function () { return (this.data && this.data.fuels) || {}; },
+
+  toggle: function (id, on) {
+    if (!this.sel) this.sel = new Set();
+    if (on) this.sel.add(Number(id)); else this.sel.delete(Number(id));
+    this.saveSel();
+    renderFuelTypes();
+    renderPois();
+    map.closePopup();          /* an open card is now showing the wrong set */
+  },
+
+  setAll: function (on) {
+    this.sel = on ? new Set(Object.keys(this.fuels()).map(Number)) : new Set();
+    this.saveSel();
+    renderFuelTypes();
+    renderPois();
+    map.closePopup();
+  },
+
+  /* The scheme site standing at the same servo as this POI, or nothing. */
+  siteFor: function (poi) {
+    if (!this.data || poi.kind !== "fuel") return null;
+    const words = String(poi.name || "").toLowerCase().match(/[a-z]{3,}/g) || [];
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < this.data.sites.length; i++) {
+      const s = this.data.sites[i];
+      const d = haversine(poi, { lat: s.y, lng: s.x });
+      if (d > this.NAMED_M || d >= bestD) continue;
+      if (d > this.NEAR_M) {
+        /* beyond the plain radius the two have to agree on a name */
+        const hay = (s.n + " " + s.b).toLowerCase();
+        if (!words.some(function (w) { return hay.indexOf(w) >= 0; })) continue;
+      }
+      best = s; bestD = d;
+    }
+    return best;
+  },
+
+  /* What to print on a card: the selected fuels this servo actually sells,
+     in the order the scheme lists them, cheapest units already worked out. */
+  pricesFor: function (poi) {
+    const site = this.siteFor(poi);
+    if (!site || !this.sel || !this.sel.size) return null;
+    const names = this.fuels();
+    const rows = [];
+    Object.keys(site.p).forEach(function (id) {
+      if (!Fuel.sel.has(Number(id))) return;
+      rows.push({ id: Number(id), name: names[id] || ("Fuel " + id), c: site.p[id] / 10 });
+    });
+    if (!rows.length) return null;
+    rows.sort(function (a, b) { return a.id - b.id; });
+    return { site: site, rows: rows };
+  },
+
+  /* Cents per litre, the way it is written on the board at the roadside:
+     three significant figures and a tenth, never a dollar sign. */
+  fmt: function (c) { return c.toFixed(1); },
+
+  /* How old the number is, in the terms somebody driving would use. A price
+     reported this morning is current; one from three days ago is a guess,
+     and saying which is the difference between useful and misleading. */
+  age: function (iso) {
+    if (!iso) return "";
+    const t = Date.parse(/Z$/.test(iso) ? iso : iso + "Z");
+    if (!isFinite(t)) return "";
+    const mins = Math.round((Date.now() - t) / 60000);
+    /* A phone whose clock is a few minutes behind the aggregator's turns
+       every fresh price negative, and "-3 min ago" reads as a fault in the
+       app rather than in the clock. Anything not yet an hour old is simply
+       current, which is all the driver needed to know. */
+    if (mins < 60) return "just now";
+    if (mins < 90) return mins + " min ago";
+    const hrs = Math.round(mins / 60);
+    if (hrs < 36) return hrs + " h ago";
+    return Math.round(hrs / 24) + " d ago";
+  },
+
+  /* One block, used by the map card and the drawer card alike, so the two
+     can never drift into saying different things about the same servo. */
+  html: function (poi) {
+    const got = this.pricesFor(poi);
+    if (!got) return "";
+    const rows = got.rows.map(function (r) {
+      return '<div><span>' + esc(r.name) + "</span><b>" + Fuel.fmt(r.c) + "</b></div>";
+    }).join("");
+    const when = this.age(got.site.t);
+    return '<div class="fuelp">' + rows +
+      (when ? '<i>SAFPIS &middot; ' + when + "</i>" : "") + "</div>";
+  }
+};
+
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
   return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
     (p.thin ? "INDEX" : "OSM") + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
+    Fuel.html(p) +
     '<div class="pop-a">' +
     '<button class="btn xs primary" onclick="navigateToPoi(\'' + p.id + '\')">Navigate</button>' +
     '<button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>';
@@ -4351,6 +4533,7 @@ function renderPois() {
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
       (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
+      Fuel.html(p) +
       '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
       '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="hide">Hide</button></div></div>';
@@ -4402,6 +4585,43 @@ function renderPoiFilters() {
       '<span class="dotmark poi" style="background:' + m.color + '">' + catIcon(m.icon) + "</span>" +
       "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
   }).join("");
+}
+
+/* The fuel types are whatever the scheme is selling this week rather than a
+   list written into the page, so a new grade appearing does not need a
+   release to be switchable. Nothing is shown at all until the file has
+   landed, because a set of switches over no data is a puzzle. */
+function renderFuelTypes() {
+  const box = $("#fuelTypes");
+  if (!box) return;
+  const names = Fuel.fuels();
+  const ids = Object.keys(names).sort(function (a, b) { return Number(a) - Number(b); });
+  const note = $("#fuelNote");
+
+  if (!ids.length) {
+    box.innerHTML = "";
+    if (note) {
+      note.textContent = Fuel.data
+        ? "No prices in the published file yet."
+        : "Prices load with the app. Open it once with a connection and they stay for offline.";
+    }
+    return;
+  }
+  const sel = Fuel.sel || new Set();
+  box.innerHTML = ids.map(function (id) {
+    const on = sel.has(Number(id));
+    return '<button class="kchip' + (on ? " on" : "") + '" data-fuel="' + id + '" ' +
+      'aria-pressed="' + on + '" style="--kc:#E8B923"><span>' + esc(names[id]) + "</span></button>";
+  }).join("");
+
+  $("#btnFuelAll").classList.toggle("on", sel.size === ids.length);
+  $("#btnFuelNone").classList.toggle("on", sel.size === 0);
+  if (note) {
+    const n = (Fuel.data.sites || []).length;
+    const when = Fuel.data.updated ? fmtDate(Date.parse(Fuel.data.updated)) : "";
+    note.textContent = n + " South Australian sites" + (when ? ", updated " + when : "") +
+      ". Source: SA Fuel Pricing Information Scheme. Switch off what you do not burn and the cards stay short.";
+  }
 }
 
 function setKindHidden(kind, hidden) {
@@ -6524,6 +6744,14 @@ $("#wpName").addEventListener("keydown", function (e) { if (e.key === "Enter") s
 
 $("#btnSim").addEventListener("click", function () { Sim.toggle(); });
 
+$("#fuelTypes").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-fuel]");
+  if (!b) return;
+  Fuel.toggle(b.dataset.fuel, b.getAttribute("aria-pressed") !== "true");
+});
+$("#btnFuelAll").addEventListener("click", function () { Fuel.setAll(true); });
+$("#btnFuelNone").addEventListener("click", function () { Fuel.setAll(false); });
+
 /* ---- recording and the track dialog ---- */
 $("#tkDiscard").addEventListener("click", trackDialogSecondary);
 $("#tkSave").addEventListener("click", saveTrackDialog);
@@ -6925,6 +7153,7 @@ document.addEventListener("keydown", function (e) {
   Compass.start().then(renderGpsPanel);
   Wake.apply();                 /* the screen is wanted from the moment it opens */
   Batt.init();
+  Fuel.load(false).then(renderFuelTypes);
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
 
@@ -6946,6 +7175,7 @@ document.addEventListener("keydown", function (e) {
     }
     Wake.apply();
     checkUpdateFlag();
+    Fuel.load(false);        /* a new day may have been published since */
     /* Most often this is the driver back from the phone's settings, having
        just turned location on. A watch that failed while it was off will not
        come good by itself, so take a new one now rather than wait out the

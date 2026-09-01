@@ -1,0 +1,50 @@
+name: SA fuel prices
+
+# South Australian prices move daily, so this pulls them once a day and
+# commits the result. The subscriber token stays here, in repository
+# secrets - the scheme's terms are server-to-server only, and a token in
+# the page would be a token published to everyone who opens the app.
+#
+# 19:40 UTC is about ten past five in the morning in South Australia,
+# after the overnight moves and before anybody sets out.
+
+on:
+  schedule:
+    - cron: "40 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-prices
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch prices from the scheme
+        env:
+          SAFPIS_TOKEN: ${{ secrets.SAFPIS_TOKEN }}
+        run: node tools/build-fuel.mjs
+
+      # Nothing is committed on a day the prices did not move, so the
+      # history stays a record of actual changes.
+      - name: Commit if the prices changed
+        run: |
+          if git diff --quiet -- docs/fuel.json; then
+            echo "prices unchanged - nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/fuel.json
+          git commit -m "Fuel prices, $(date -u +'%Y-%m-%d %H:%MZ')"
+          git push
