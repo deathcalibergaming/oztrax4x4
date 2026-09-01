@@ -3671,6 +3671,14 @@ function poiInfoLine(tags, kind) {
 }
 
 let pois = [];
+/* What the sources actually handed back, kept apart from what is drawn.
+   The scheme's own servo list is folded in on top at draw time rather than
+   baked into this, so it survives a cached read, arrives the moment
+   fuel.json lands, and is never stored under a POI cache key that outlives
+   the day's prices. */
+let poiSourced = [];
+let poiSourcedAt = null;      /* where that list was gathered around */
+let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
 /* Roads with a posted limit, from the extract only. Photon is a place
    index and carries no geometry, so a Photon answer leaves this empty and
    the sign stays away rather than showing the last road's number. */
@@ -3689,6 +3697,8 @@ function poiStatusText() {
   if (poiStatusNote == null) return poiStatus;
   return pois.length
     ? pois.length + " within " + poiRadiusText() + " (" + poiStatusNote +
+      (poiFuelAdded ? ", " + poiFuelAdded + " servo" + (poiFuelAdded > 1 ? "s" : "") +
+        " from the fuel scheme" : "") +
       (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
     : "Nothing mapped within " + poiRadiusText() + " of here (" + poiStatusNote + ")";
 }
@@ -3850,9 +3860,9 @@ async function fetchPois(force) {
       ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
-      if (show) setPois(cached.items);
+      if (show) setPois(cached.items, a);
       roads = cached.roads || [];
-      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
+      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
 
@@ -3897,7 +3907,7 @@ async function fetchPois(force) {
       poiRetryAt = 0;
       await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
-      if (show) setPois(items);
+      if (show) setPois(items, a);
       roads = found;
       refreshStorageStats();
       if (show) offerOsmPois(false);
@@ -3911,10 +3921,10 @@ async function fetchPois(force) {
     } else if (cached) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
-      if (show) setPois(cached.items);
+      if (show) setPois(cached.items, a);
       roads = cached.roads || [];
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
+      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       if (show) setPoiStatus("No POIs: " + note);
@@ -4234,8 +4244,20 @@ function dedupeByName(items) {
   return out;
 }
 
-function setPois(items) {
-  pois = dedupeByName(items || []);
+/* Two steps, because the two lists have different lifetimes. What came off
+   the wire is remembered as it arrived; what is drawn is that plus the
+   servos the scheme knows about and OpenStreetMap does not, worked out
+   fresh every time either half changes. */
+function setPois(items, anchor) {
+  poiSourced = items || [];
+  poiSourcedAt = anchor || poiCentre || null;
+  composePois();
+}
+
+function composePois() {
+  const extra = Fuel.extraPois(poiSourcedAt, poiSourced);
+  poiFuelAdded = extra.length;
+  pois = dedupeByName(extra.length ? poiSourced.concat(extra) : poiSourced);
   renderPois();
 }
 
@@ -4359,7 +4381,9 @@ const Fuel = {
       this.normaliseSel();
       if (this.sel) this.saveSel();
       renderFuelTypes();
-      renderPois();          /* cards that drew without prices can have them */
+      /* Not just a redraw: this is the first moment the servo list exists,
+         so the pins the scheme adds are worked out here too. */
+      composePois();
     } catch (e) { /* offline and nothing cached yet: the cards just go quiet */ }
   },
 
@@ -4446,6 +4470,7 @@ const Fuel = {
 
   /* The scheme site standing at the same servo as this POI, or nothing. */
   siteFor: function (poi) {
+    if (poi.site) return poi.site;      /* drawn from the scheme in the first place */
     if (!this.data || poi.kind !== "fuel") return null;
     const words = String(poi.name || "").toLowerCase().match(/[a-z]{3,}/g) || [];
     let best = null, bestD = Infinity;
@@ -4461,6 +4486,69 @@ const Fuel = {
       best = s; bestD = d;
     }
     return best;
+  },
+
+  /* Servos the scheme lists that OpenStreetMap has no pin for.
+
+     OSM is the app's only source of places, and its fuel coverage in South
+     Australia is thinner than the scheme's by a wide margin - measured on
+     1 Sep 2026, the map extract found 4 servos around Mount Gambier where
+     the scheme lists 19, and 8 around Port Augusta against 13. In a city it
+     is worse for a different reason: the extract refuses any box holding
+     more than 50000 nodes, so in Adelaide it shrinks to 700 m and comes
+     back with one servo while 49 stand within 5 km. The search index fills
+     that gap, but only when the box shrank - a country town where the
+     extract succeeded never asks it, which is precisely where the servos
+     were missing.
+
+     None of that is worth fighting, because the answer is already on the
+     phone. The scheme file carries all 694 SA sites with their coordinates,
+     names and brands, it ships in the service worker shell, and every site
+     in it has prices by definition. So the missing ones are simply drawn
+     from it.
+
+     Only the missing ones. A site is left out when some OSM pin has already
+     claimed it - claimed by exactly the rule siteFor uses, run in the same
+     direction, so the two can never disagree about which record belongs to
+     which servo. Asking "is there a pin near this site" instead would drop
+     both halves of the seventy-odd pairs of scheme sites that stand within
+     200 m of each other. */
+  extraPois: function (centre, existing) {
+    if (!this.data || !centre) return [];
+    const self = this;
+    const claimed = {};
+    (existing || []).forEach(function (p) {
+      if (p.kind !== "fuel" || p.site) return;
+      const hit = self.siteFor(p);
+      if (hit) claimed[hit.i] = 1;
+    });
+    const reach = CFG.POI_RADIUS * 1.05;
+    const out = [];
+    this.data.sites.forEach(function (st) {
+      if (claimed[st.i]) return;
+      if (haversine(centre, { lat: st.y, lng: st.x }) > reach) return;
+      /* The brand is worth saying only when the name has not already said
+         it: "OTR Dry Creek" wants "On the Run", "BP Hawker" does not want
+         "BP" again. */
+      const bits = [];
+      const name = String(st.n || "").trim() || String(st.b || "").trim() || "Fuel";
+      if (st.b && name.toLowerCase().indexOf(String(st.b).toLowerCase()) < 0) bits.push(st.b);
+      if (st.a) bits.push(st.a);
+      out.push({
+        id: "safpis/" + st.i,
+        kind: "fuel",
+        lat: st.y, lng: st.x,
+        name: name,
+        /* thin, honestly: the scheme records a servo and its prices, not its
+           opening hours or whether the diesel bowser takes a truck. Where a
+           name match does fold one of these together with an OSM pin, the
+           OSM record wins on that account and keeps its tags. */
+        thin: true,
+        info: bits.join(" · "),
+        site: st
+      });
+    });
+    return out;
   },
 
   /* What to print on a card: the selected fuels this servo actually sells,
@@ -4520,11 +4608,20 @@ const Fuel = {
   }
 };
 
+/* Which of the three sources this record came from, worth saying because
+   they know different things: the map extract carries every tag, the search
+   index only the headline ones, and the fuel scheme a servo and its prices
+   and nothing else at all. Named the same way the price block below signs
+   itself, so the card does not appear to cite two sources for one pin. */
+function poiSource(p) {
+  return p.site ? "SAFPIS" : p.thin ? "INDEX" : "OSM";
+}
+
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
   return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
-    (p.thin ? "INDEX" : "OSM") + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
+    poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
     Fuel.html(p) +
     '<div class="pop-a">' +
