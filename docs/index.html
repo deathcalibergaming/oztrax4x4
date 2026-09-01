@@ -6096,12 +6096,17 @@ function renderGpsPanel() {
   row("Secure context", window.isSecureContext ? "yes" : "no", window.isSecureContext ? "ok" : "bad");
   row("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
   row("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
-  /* A bare "no" reads as the app having given up. It has not: say how long
-     until the next attempt and the row explains itself. */
-  row("Watching", GPS.watching ? "yes"
-      : GPS.retryAt ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
-      : "no",
-      GPS.watching ? "ok" : "warn");
+  /* A pending retry outranks a registered watch, and is asked about first.
+     A failed watch stays registered right up to the moment its replacement
+     takes over, so reading "yes" off it would report as healthy the very
+     subscription we have just concluded is dead - and the countdown would
+     never be seen, since it is dropped and replaced inside one callback.
+     What the driver needs to know is that another attempt is coming, and
+     when. */
+  row("Watching", GPS.retryAt
+      ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
+      : GPS.watching ? "yes" : "no",
+      GPS.retryAt ? "warn" : GPS.watching ? "ok" : "warn");
   /* Wake is defined further down the file; guard so an early render is safe */
   if (typeof Wake !== "undefined") {
     row("Screen lock", Wake.status(),
