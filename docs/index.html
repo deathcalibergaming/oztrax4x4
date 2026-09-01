@@ -4276,13 +4276,26 @@ function visiblePois() {
    grade appears as a working switch rather than not at all. */
 const FUEL_LOOK = {
   2:  { label: "Unleaded 91",         color: "#4FA8E8", icon: "fuel" },
-  3:  { label: "Diesel",              color: "#9AA3A0", icon: "droplet" },
+  3:  { label: "Diesel",              color: "#9AA3A0", icon: "droplet", group: "diesel" },
   4:  { label: "LPG",                 color: "#4BC0B5", icon: "gascyl" },
   5:  { label: "Premium Unleaded 95", color: "#E8B923", icon: "fuel" },
   8:  { label: "Premium Unleaded 98", color: "#B9432E", icon: "fuel" },
   12: { label: "e10",                 color: "#8FB93E", icon: "leaf" },
-  14: { label: "Premium Diesel",      color: "#C08A4A", icon: "droplet" },
+  14: { label: "Premium Diesel",      color: "#9AA3A0", icon: "droplet", group: "diesel" },
   19: { label: "e85",                 color: "#B9432E", icon: "leaf" }
+};
+
+/* Grades that answer to one switch. Diesel and premium diesel are not a
+   choice anybody makes in the settings - a vehicle that takes one takes the
+   other, and which of the two is on the board is the servo's business, not
+   the driver's - so they share a chip and the diesel grey. The card still
+   names them apart, because on the forecourt they are two different numbers
+   and a row saying only "Diesel" twice would be worse than useless.
+
+   Anything not named here is its own group, so adding a grade needs no entry
+   and grouping a pair later needs only a group key on each. */
+const FUEL_GROUPS = {
+  diesel: { label: "Diesel", color: "#9AA3A0", icon: "droplet" }
 };
 
 /* The scheme calls 91 plain "Unleaded". The bowser does not, and neither
@@ -4292,6 +4305,10 @@ function fuelLook(id) {
     { label: Fuel.fuels()[id] || ("Fuel " + id), color: "#E8B923", icon: "fuel" };
 }
 function fuelLabel(id) { return fuelLook(id).label; }
+function fuelGroup(id) {
+  const look = FUEL_LOOK[id];
+  return (look && look.group) || String(id);
+}
 
 const Fuel = {
   data: null,          /* {updated, fuels:{id:name}, sites:[...]} */
@@ -4319,6 +4336,8 @@ const Fuel = {
       this.data = j;
       this.fetchedAt = Date.now();
       this.restoreSel();
+      this.normaliseSel();
+      if (this.sel) this.saveSel();
       renderFuelTypes();
       renderPois();          /* cards that drew without prices can have them */
     } catch (e) { /* offline and nothing cached yet: the cards just go quiet */ }
@@ -4361,13 +4380,40 @@ const Fuel = {
 
   fuels: function () { return (this.data && this.data.fuels) || {}; },
 
-  toggle: function (id, on) {
+  idsInGroup: function (key) {
+    return Object.keys(this.fuels()).map(Number)
+      .filter(function (id) { return fuelGroup(id) === key; });
+  },
+
+  groupOn: function (key) {
+    const sel = this.sel;
+    return !!sel && this.idsInGroup(key).some(function (id) { return sel.has(id); });
+  },
+
+  toggle: function (key, on) {
     if (!this.sel) this.sel = new Set();
-    if (on) this.sel.add(Number(id)); else this.sel.delete(Number(id));
+    const self = this;
+    this.idsInGroup(key).forEach(function (id) {
+      if (on) self.sel.add(id); else self.sel.delete(id);
+    });
     this.saveSel();
     renderFuelTypes();
     renderPois();
     map.closePopup();          /* an open card is now showing the wrong set */
+  },
+
+  /* A group is all in or all out. Diesel and premium diesel were separate
+     grades until now, so a phone arrives with one of the pair chosen and the
+     other not - which would light the diesel chip while its premium half
+     stayed off the card. Straightened out on load, once, rather than guarded
+     at every place that reads the set. */
+  normaliseSel: function () {
+    if (!this.sel) return;
+    const self = this;
+    Object.keys(this.fuels()).map(Number).forEach(function (id) {
+      if (!self.sel.has(id)) return;
+      self.idsInGroup(fuelGroup(id)).forEach(function (x) { self.sel.add(x); });
+    });
   },
 
   setAll: function (on) {
@@ -4693,26 +4739,44 @@ function renderFuelTypes() {
     return;
   }
 
-  /* How many of the state's sites sell each grade, which is the same thing
-     the category chips count and the reason e85 reading 12 rather than 600
-     is worth knowing before you plan a trip around it. */
-  const counts = {};
-  (Fuel.data.sites || []).forEach(function (st) {
-    Object.keys(st.p).forEach(function (id) { counts[id] = (counts[id] || 0) + 1; });
+  /* One chip per group rather than per grade, in the order the scheme lists
+     the first grade of each. */
+  const groups = [], seen = {};
+  ids.forEach(function (id) {
+    const key = fuelGroup(id);
+    if (seen[key]) { seen[key].ids.push(Number(id)); return; }
+    const look = FUEL_GROUPS[key] || fuelLook(id);
+    seen[key] = { key: key, label: look.label, color: look.color, icon: look.icon,
+                  ids: [Number(id)] };
+    groups.push(seen[key]);
   });
 
-  box.innerHTML = ids.map(function (id) {
-    const on = sel.has(Number(id)), look = fuelLook(id);
-    return '<button class="kchip' + (on ? " on" : "") + '" data-fuel="' + id + '" ' +
-      'aria-pressed="' + on + '" style="--kc:' + look.color + '">' +
-      '<span class="dotmark poi" style="background:' + look.color + '">' +
-      catIcon(look.icon) + "</span>" +
-      "<span>" + esc(look.label) + "</span><i>" + (counts[id] || 0) + "</i></button>";
+  /* How many of the state's sites sell each group, counting a site once even
+     where it sells both halves of one - the number answers "can I fill up
+     here", and 383 servos selling diesel is not 754 chances to. e85 reading
+     12 is the reason the count is on the chip at all. */
+  const counts = {};
+  (Fuel.data.sites || []).forEach(function (st) {
+    const hit = {};
+    Object.keys(st.p).forEach(function (id) { hit[fuelGroup(id)] = 1; });
+    Object.keys(hit).forEach(function (k) { counts[k] = (counts[k] || 0) + 1; });
+  });
+
+  box.innerHTML = groups.map(function (g) {
+    const on = g.ids.some(function (id) { return sel.has(id); });
+    return '<button class="kchip' + (on ? " on" : "") + '" data-fuel="' + g.key + '" ' +
+      'aria-pressed="' + on + '" style="--kc:' + g.color + '">' +
+      '<span class="dotmark poi" style="background:' + g.color + '">' +
+      catIcon(g.icon) + "</span>" +
+      "<span>" + esc(g.label) + "</span><i>" + (counts[g.key] || 0) + "</i></button>";
   }).join("");
 
-  if (cnt) cnt.textContent = sel.size + "/" + ids.length;
-  $("#btnFuelAll").classList.toggle("on", sel.size === ids.length);
-  $("#btnFuelNone").classList.toggle("on", sel.size === 0);
+  const onCount = groups.filter(function (g) {
+    return g.ids.some(function (id) { return sel.has(id); });
+  }).length;
+  if (cnt) cnt.textContent = onCount + "/" + groups.length;
+  $("#btnFuelAll").classList.toggle("on", onCount === groups.length);
+  $("#btnFuelNone").classList.toggle("on", onCount === 0);
   if (note) {
     const n = (Fuel.data.sites || []).length;
     const when = Fuel.data.updated ? fmtDate(Date.parse(Fuel.data.updated)) : "";
