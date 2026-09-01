@@ -193,7 +193,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
-#attrib{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
+#attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
   font-size:8.5px;color:rgba(216,203,170,.45);background:rgba(20,24,27,.6);padding:2px 6px;border-radius:3px;
   pointer-events:none;letter-spacing:.02em}
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
@@ -248,9 +248,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    chip on a phone-width screen; stacking them makes that impossible. */
 /* The Australian regulatory speed sign: black numerals inside a red ring
    on a white plate. Drawn rather than fetched, so it costs nothing and
-   works with no signal. Bottom left mirrors the attribution on the right
-   and stays clear of the chips at the top. */
-#speedSign{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
+   works with no signal. It sits bottom right, the side the driver sits on
+   and the near hand can reach without crossing the wheel, and the
+   attribution takes the bottom left it used to hold. Clear of the chips at
+   the top either way. */
+#speedSign{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
   z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
   box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
   justify-content:center;pointer-events:none;
@@ -832,11 +834,13 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:32px;white-space:nowrap;flex:0 0 auto}
   #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
 
-  /* everything that used to hug the bottom or the right now clears the rail */
-  #attrib{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB))}
-  /* the action bar is a rail on the right here, so the bottom edge is
-     free and the sign sits level with the attribution again */
-  #speedSign{bottom:calc(8px + var(--safeB))}
+  /* the attribution is on the left now, with no rail to clear - only the
+     bottom edge, which the rail leaves free */
+  #attrib{bottom:calc(8px + var(--safeB))}
+  /* the sign changed sides with it, so here it has the rail to clear as
+     well as the bottom edge, and lands level with the attribution across
+     the map from it */
+  #speedSign{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB))}
   #zoomCtl{right:calc(var(--railW) + 8px);flex-direction:row}
   /* the zoom row is four buttons wide now, so the chips have to stop sooner:
      126px of buttons plus the 71 they already kept clear of them, on top of
@@ -929,6 +933,10 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button id="updateChip" class="mapchip hidden">
         <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/></svg>
         <span>New version - tap to load</span>
+      </button>
+      <button id="manualChip" class="mapchip hidden">
+        <svg viewBox="0 0 24 24"><path d="M12 21.2s-6.4-5.3-6.4-10.2a6.4 6.4 0 0 1 12.8 0c0 4.9-6.4 10.2-6.4 10.2z"/><circle cx="12" cy="11" r="2.3"/></svg>
+        <span>Placed by hand - tap to release</span>
       </button>
     </div>
     <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
@@ -2106,6 +2114,10 @@ function clearFollowTransform() {
 function syncDragMode() {
   /* box selection borrows the drag gesture, so leave it alone while armed */
   if (typeof drawMode !== "undefined" && drawMode) return;
+  /* and so does dragging the vehicle. Every placement goes through
+     pushPosition, which calls this, so without the exception the map would
+     take the gesture back halfway through the drag. */
+  if (Manual.dragging) return;
   if (!map.dragging.enabled()) map.dragging.enable();
 }
 
@@ -2330,7 +2342,11 @@ let lastFixPt = null;
 
 function pushPosition(fix) {
   /* fix: {lat,lng,alt,acc,spd,hdg,sim,t} */
-  if (Sim.active && !fix.sim) return;          /* simulator suppresses real fixes */
+  /* Both stand-ins hold the real fixes off while they are in charge. The
+     watch goes on delivering underneath, and without this the next one
+     would drag the vehicle straight back to the desk - which is the very
+     thing the driver placed it by hand to get away from. */
+  if ((Sim.active || Manual.active) && !fix.sim) return;
 
   const pt = { lat: fix.lat, lng: fix.lng };
   let hdg = (fix.hdg != null && isFinite(fix.hdg)) ? fix.hdg : null;
@@ -2374,6 +2390,9 @@ function updateGpsPill() {
   pill.classList.remove("live", "sim");
   let state;
   if (Sim.active) { pill.classList.add("sim"); state = "Simulated drive"; }
+  /* Amber, not green. There is a position on the map and it is not a fix,
+     and green here would have the lamp vouch for a spot somebody chose. */
+  else if (Manual.active) { pill.classList.add("sim"); state = "Position placed by hand"; }
   else if (!view.has) state = "No GPS fix";
   else if (Date.now() - view.lastFixAt > 20000) state = "GPS fix has gone stale";
   else {
@@ -3081,7 +3100,11 @@ async function renderTracks() {
         }).join("") +
       "</div>" +
       '<div class="card-acts">' +
-      '<button class="btn xs primary" data-act="gpx">Export GPX</button>' +
+      /* Resume takes the primary slot Export GPX held. Exporting reads a
+         track; resuming changes what the app is doing, and the one that
+         changes something should be the one that looks like it does. */
+      '<button class="btn xs primary" data-act="resume">Resume</button>' +
+      '<button class="btn xs ghost" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
       '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button>' +
@@ -3118,6 +3141,48 @@ async function showTrackOnMap(id) {
   renderTracks();
   closeDrawer();
   toast(t.name + " - " + fmtDist(t.distanceM), "ok");
+}
+
+/* Picking a finished track back up. The points come back into the recorder
+   under the track's own id, so stopping writes over the same record rather
+   than leaving a second track beside the first: the trip grows, instead of
+   being cut in two by wherever the phone happened to be turned off.
+
+   The hours in between need no handling of their own. onFix already breaks
+   the line whenever a point lands more than REC_GAP_MS after the one before
+   it, and the last stored point is older than that by hours or days - so
+   the first new fix carries a gap flag, no straight run is drawn across
+   country nobody drove, and the distance is not claimed across it either.
+
+   A recording already running is not quietly thrown away to make room. */
+async function resumeTrack(id) {
+  if (Rec.state !== "idle") {
+    toast("Stop the recording that is running before resuming another", "warn");
+    return;
+  }
+  let t;
+  try { t = await DB.get("tracks", id); }
+  catch (e) { toast("Could not read that track", "err"); return; }
+  if (!t || !t.points || !t.points.length) { toast("That track has no points to resume", "warn"); return; }
+
+  /* the ghost was standing in for the trail line; the live one draws it now */
+  if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
+
+  Rec.id = t.id;
+  Rec.name = t.name;
+  Rec.diff = t.difficulty || "Medium";
+  Rec.startedAt = t.startedAt;          /* the trip keeps the day it began */
+  Rec.accMs = t.durationMs || 0;        /* and the stopwatch its running total */
+  Rec.segAt = Date.now();
+  Rec.points = t.points.slice();
+  Rec.dist = t.distanceM || 0;
+  Rec.state = "recording";
+  Rec.redraw();
+  Rec.persist();
+  Rec.ui();
+  await renderTracks();
+  closeDrawer();
+  toast("Recording back into " + t.name + ", from " + fmtDist(t.distanceM), "ok");
 }
 
 /* =====================================================================
@@ -5824,6 +5889,7 @@ const Sim = {
 
   start: function () {
     if (this.timer) clearInterval(this.timer);   /* never leak a second ticker */
+    Manual.release(true);        /* two stand-ins would fight over the vehicle */
     this.active = true;
     this.t = 0;
     this.along = 0;                              /* start at Hawker */
@@ -5867,6 +5933,141 @@ const Sim = {
     });
   }
 };
+
+/* =====================================================================
+   Placing the vehicle by hand
+   =====================================================================
+   Testing what the app does somewhere used to mean being there. The two
+   ways around it were both wrong: the simulator drives its own road between
+   Hawker and Parachilna and goes nowhere else, and a real fix puts the
+   vehicle wherever the desk is. Press and hold on the map and it goes under
+   the finger instead; keep the finger down and it follows. Everything reads
+   the position from the same pipeline - POIs, the speed sign, navigation,
+   the trail - so all of it answers for the new spot as though the vehicle
+   had driven there.
+
+   It latches, because a placement that lasted only as long as the finger
+   would be undone by the next fix a second later, which is no use for
+   looking at anything. The chip on the map says so, and gives it back. It
+   is not saved: a reload is on the real GPS again, which is the right way
+   round for a thing used to test with. */
+const Manual = {
+  active: false,       /* a placed position is in charge; real fixes wait */
+  dragging: false,     /* a finger is down and moving the vehicle right now */
+  timer: null, id: null, x: 0, y: 0, lastAt: 0,
+  HOLD: 450,           /* long enough not to fire on the tap that opens the
+                          waypoint form, short enough not to feel stuck */
+  SLOP: 10,            /* a press that travels this far was a pan starting */
+
+  /* Nothing is committed on the way down. The timer can still be called off
+     by the finger moving, which is a pan and not a hold. */
+  down: function (e) {
+    this.cancelHold();
+    this.id = e.pointerId;
+    this.x = e.clientX; this.y = e.clientY;
+    const self = this;
+    this.timer = setTimeout(function () { self.hold(); }, this.HOLD);
+  },
+
+  cancelHold: function () {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+  },
+
+  hold: function () {
+    this.timer = null;
+    if (drawMode || wpFormOpen) return;
+    if (Sim.active) Sim.stop();
+    this.dragging = true;        /* claimed before anything can hand it back */
+    /* The map has to hold still, or the ground travels under the finger as
+       fast as the vehicle does. Following is what would move it, so it
+       stops - and the recentre button hands it back afterwards. */
+    if (S.follow) pauseFollow();
+    map.dragging.disable();
+    const first = !this.active;
+    this.active = true;
+    $("#manualChip").classList.remove("hidden");
+    this.place(this.x, this.y, true);
+    if (first) toast("Vehicle placed by hand - drag to move it", "warn");
+  },
+
+  move: function (e) {
+    if (this.dragging) {
+      this.x = e.clientX; this.y = e.clientY;
+      this.place(this.x, this.y, false);
+      return true;
+    }
+    /* still deciding: a press that wanders was a pan all along */
+    if (this.timer && (Math.abs(e.clientX - this.x) > this.SLOP ||
+                       Math.abs(e.clientY - this.y) > this.SLOP)) this.cancelHold();
+    return false;
+  },
+
+  up: function () {
+    this.cancelHold();
+    if (!this.dragging) return;
+    this.place(this.x, this.y, true);     /* land exactly where the finger left */
+    this.dragging = false;
+    this.id = null;
+    syncDragMode();                       /* the map has the gesture back */
+    suppressMapClickUntil = Date.now() + 500;  /* and this press drops no waypoint */
+    updateGpsPill();
+  },
+
+  /* No speed is reported: a finger crossing the screen at zoom 9 is not a
+     speed anybody drove. Heading is left to pushPosition, which works it out
+     from the movement, so the vehicle turns to face the way it is dragged.
+     Altitude is not known and is not invented.
+
+     A finger reports far faster than any GPS and every position runs the
+     whole pipeline, so the stream is cut to roughly ten a second - more than
+     the eye asks of it - with the ends of a drag always taken. */
+  place: function (cx, cy, force) {
+    const now = Date.now();
+    if (!force && now - this.lastAt < 90) return;
+    this.lastAt = now;
+    const ll = clientToLatLng(cx, cy);
+    pushPosition({
+      lat: ll.lat, lng: ll.lng, alt: null, acc: null,
+      spd: 0, hdg: null, sim: true, t: now
+    });
+  },
+
+  /* quiet: the simulator taking over says its own piece, so this keeps out
+     of the way of it */
+  release: function (quiet) {
+    this.cancelHold();
+    if (!this.active) return;
+    this.active = false;
+    this.dragging = false;
+    $("#manualChip").classList.add("hidden");
+    document.querySelector(".gps-icon").classList.remove("sim");
+    syncDragMode();
+    updateGpsPill();
+    if (!quiet) toast("Back on the real GPS", "ok");
+  }
+};
+
+/* On the stage and in the capture phase, so the press is seen before
+   Leaflet's drag handler has taken the gesture for a pan, and so the
+   controls sitting over the map keep their own taps. Pointer events cover
+   finger and mouse alike. Leaflet is on touch and mouse events, which are a
+   separate stream - swallowing a pointer event would not stop it, so the
+   pan is stopped by disabling the handler instead. */
+stageEl.addEventListener("pointerdown", function (e) {
+  if (e.button != null && e.button !== 0) return;
+  if (drawMode || wpFormOpen) return;
+  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #speedSign, #drawHint, .leaflet-marker-icon, .leaflet-popup")) return;
+  Manual.down(e);
+}, true);
+
+window.addEventListener("pointermove", function (e) {
+  if (Manual.id != null && e.pointerId !== Manual.id) return;
+  if (Manual.move(e)) e.preventDefault();
+}, true);
+window.addEventListener("pointerup", function () { Manual.up(); }, true);
+window.addEventListener("pointercancel", function () { Manual.up(); }, true);
+
+$("#manualChip").addEventListener("click", function () { Manual.release(false); });
 
 /* =====================================================================
    Real GPS
@@ -6592,6 +6793,7 @@ $("#trackList").addEventListener("click", async function (e) {
   if (!b) return;
   const id = b.closest(".card").dataset.id;
   if (b.dataset.act === "gpx") exportTrack(id);
+  else if (b.dataset.act === "resume") resumeTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "edit") openEditTrack(id);
   else if (b.dataset.act === "del") {
