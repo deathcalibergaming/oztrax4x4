@@ -11,49 +11,23 @@ Nothing in this folder is served. GitHub Pages only publishes `docs/`.
 From the repository root:
 
 ```bash
-git apply --check prototypes/fuel-prices-prototype.patch
+git apply --check prototypes/tilt-and-hillshade-prototype.patch
 ```
 
 `--check` tells you whether it still fits without touching anything. Drop it to
 actually apply.
 
-| Patch | State on 31 Aug 2026 |
+| Patch | State on 1 Sep 2026 |
 |---|---|
-| `fuel-prices-prototype.patch` | applies cleanly |
 | `hillshade-prototype.patch` | needs hand-fitting |
 | `tilt-and-hillshade-prototype.patch` | needs hand-fitting |
 
-`index.html` moves constantly, so the two older patches no longer line up and
-the third will drift the same way in time. When one stops applying, read it
-rather than fighting it — every hunk carries a comment explaining what it is
-doing, and re-deriving from that is usually quicker than resolving the offsets
-by hand.
+`index.html` moves constantly, so neither of these still lines up. When a patch
+stops applying, read it rather than fighting it — every hunk carries a comment
+explaining what it is doing, and re-deriving from that is usually quicker than
+resolving the offsets by hand.
 
 ---
-
-## fuel-prices-prototype.patch
-
-Live fuel prices on fuel POI cards — ULP, U95, U98 and Diesel, cheapest
-highlighted, with an age stamp that turns amber once the reading is over a day
-old.
-
-**Status: blocked on the data source, not on the code.** It was written against
-PetrolSpy, whose endpoint is live and returns exactly the right data, but whose
-responses carry **two `Access-Control-Allow-Origin` headers** — one from nginx,
-one from their API gateway. A duplicate ACAO is a CORS failure in every browser
-even when both say `*`, so the app gets `TypeError: Failed to fetch` while curl
-and their own same-origin site both succeed.
-
-Do not re-test this with curl. curl does not enforce CORS and will always look
-fine.
-
-Mick is registering as a data publisher with SA Consumer and Business Services
-for direct access to the Fuel Pricing Information Scheme — the source PetrolSpy
-relays. Only the fetch and parse layer is PetrolSpy-specific. The position
-matching between a reporting station and a fuel POI, the price plates, the age
-logic, the CSS and the offline caching all carry over to any source.
-
-Worth knowing: the SA scheme is SA-only. Nothing in the NT or NSW.
 
 ## hillshade-prototype.patch
 
@@ -72,3 +46,15 @@ the correction is never quite exact — roughly 20% residual on badges — and t
 coordinates have to be run back through an inverse projection read off the live
 CSS matrix. Real tilt needs a vector basemap, which is a rebuild rather than a
 patch.
+
+---
+
+## Removed
+
+`fuel-prices-prototype.patch` — fuel prices on POI cards, written against
+PetrolSpy and blocked there by a duplicate `Access-Control-Allow-Origin` header
+that no browser accepts. Removed on 1 Sep 2026 because the feature shipped from
+a different source: South Australia's own Fuel Pricing Information Scheme,
+fetched by a daily GitHub Action rather than by the phone. Nothing in the patch
+survived into it. The scheme's terms rule out calling the API from the app at
+all, which changed the shape of the whole thing rather than just the fetch.
