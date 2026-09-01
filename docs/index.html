@@ -3671,6 +3671,14 @@ function poiInfoLine(tags, kind) {
 }
 
 let pois = [];
+/* What the sources actually handed back, kept apart from what is drawn.
+   The scheme's own servo list is folded in on top at draw time rather than
+   baked into this, so it survives a cached read, arrives the moment
+   fuel.json lands, and is never stored under a POI cache key that outlives
+   the day's prices. */
+let poiSourced = [];
+let poiSourcedAt = null;      /* where that list was gathered around */
+let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
 /* Roads with a posted limit, from the extract only. Photon is a place
    index and carries no geometry, so a Photon answer leaves this empty and
    the sign stays away rather than showing the last road's number. */
@@ -3689,6 +3697,8 @@ function poiStatusText() {
   if (poiStatusNote == null) return poiStatus;
   return pois.length
     ? pois.length + " within " + poiRadiusText() + " (" + poiStatusNote +
+      (poiFuelAdded ? ", " + poiFuelAdded + " servo" + (poiFuelAdded > 1 ? "s" : "") +
+        " the map was missing" : "") +
       (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
     : "Nothing mapped within " + poiRadiusText() + " of here (" + poiStatusNote + ")";
 }
@@ -3850,9 +3860,9 @@ async function fetchPois(force) {
       ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
-      if (show) setPois(cached.items);
+      if (show) setPois(cached.items, a);
       roads = cached.roads || [];
-      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached)");
+      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
 
@@ -3897,7 +3907,7 @@ async function fetchPois(force) {
       poiRetryAt = 0;
       await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
-      if (show) setPois(items);
+      if (show) setPois(items, a);
       roads = found;
       refreshStorageStats();
       if (show) offerOsmPois(false);
@@ -3911,10 +3921,10 @@ async function fetchPois(force) {
     } else if (cached) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
-      if (show) setPois(cached.items);
+      if (show) setPois(cached.items, a);
       roads = cached.roads || [];
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      if (show) setPoiStatus(cached.items.length + " within " + poiRadiusText() + " (cached - " + note + ")");
+      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       if (show) setPoiStatus("No POIs: " + note);
@@ -4234,8 +4244,20 @@ function dedupeByName(items) {
   return out;
 }
 
-function setPois(items) {
-  pois = dedupeByName(items || []);
+/* Two steps, because the two lists have different lifetimes. What came off
+   the wire is remembered as it arrived; what is drawn is that plus the
+   servos the scheme knows about and OpenStreetMap does not, worked out
+   fresh every time either half changes. */
+function setPois(items, anchor) {
+  poiSourced = items || [];
+  poiSourcedAt = anchor || poiCentre || null;
+  composePois();
+}
+
+function composePois() {
+  const merged = Fuel.mergePins(poiSourcedAt, poiSourced);
+  poiFuelAdded = merged.added;
+  pois = dedupeByName(merged.items);
   renderPois();
 }
 
@@ -4359,7 +4381,9 @@ const Fuel = {
       this.normaliseSel();
       if (this.sel) this.saveSel();
       renderFuelTypes();
-      renderPois();          /* cards that drew without prices can have them */
+      /* Not just a redraw: this is the first moment the servo list exists,
+         so the pins the scheme adds are worked out here too. */
+      composePois();
     } catch (e) { /* offline and nothing cached yet: the cards just go quiet */ }
   },
 
@@ -4446,6 +4470,7 @@ const Fuel = {
 
   /* The scheme site standing at the same servo as this POI, or nothing. */
   siteFor: function (poi) {
+    if (poi.site) return poi.site;      /* drawn from the scheme in the first place */
     if (!this.data || poi.kind !== "fuel") return null;
     const words = String(poi.name || "").toLowerCase().match(/[a-z]{3,}/g) || [];
     let best = null, bestD = Infinity;
@@ -4461,6 +4486,112 @@ const Fuel = {
       best = s; bestD = d;
     }
     return best;
+  },
+
+  /* One pin per servo the scheme lists, named the way the scheme names it.
+
+     OSM was the app's only source of places, and for fuel in South Australia
+     it is both thinner and less exact than the scheme. Measured on 2 Sep
+     2026 across Mount Gambier, Port Augusta and Coober Pedy: 35 OSM fuel
+     records, of which 28 disagreed with the scheme about the name, and most
+     of those were a bare brand - "BP", "Ampol", "Shell", "Fuel" - where the
+     scheme says which BP. Two were simply out of date, still reading Coles
+     Express after the rebrand to Reddy Express.
+
+     Coverage is the other half. The extract found 17 servos around Mount
+     Gambier where the scheme lists 19, and 12 around Port Augusta against
+     13. In a city it fails differently: the extract refuses any box holding
+     more than 50000 nodes, so Adelaide shrinks it to 700 m and one servo
+     comes back while 49 stand within 5 km. The search index fills that, but
+     only when the box shrank - so a country town where the extract
+     succeeded never asks it, which is exactly where the servos went
+     missing.
+
+     So in South Australia the scheme is the servo list, and OSM is asked
+     only where the pin stands and when the place is open. Which record
+     belongs to which servo is decided by siteFor, the same rule that
+     decides whose prices to print, so a pin and the prices on it can never
+     disagree about what they are describing.
+
+     A servo the scheme has never heard of keeps its OSM pin untouched -
+     there are a few, mostly community and airport bowsers - and outside
+     South Australia there is no scheme file, so none of this does anything
+     at all. */
+  mergePins: function (centre, items) {
+    const src = items || [];
+    if (!this.data || !centre) return { items: src, added: 0, named: 0 };
+    const self = this;
+
+    /* Nearest record wins where OSM has one servo mapped twice, which it
+       does: Port Augusta carries the truckstop as two nodes, and the OTR
+       roadhouse as itself and again as "Perrys" 140 m away. Both collapse
+       onto the one site here rather than being left to the name dedupe
+       downstream, which could not have merged that second pair at all. */
+    const claimed = {};
+    const kept = [];
+    src.forEach(function (p) {
+      if (p.kind !== "fuel" || p.site) { kept.push(p); return; }
+      const site = self.siteFor(p);
+      if (!site) { kept.push(p); return; }
+      const d = haversine(p, { lat: site.y, lng: site.x });
+      const prev = claimed[site.i];
+      if (!prev || d < prev.d) claimed[site.i] = { osm: p, d: d, site: site };
+    });
+
+    let named = 0;
+    Object.keys(claimed).forEach(function (i) {
+      kept.push(self.pinFor(claimed[i].site, claimed[i].osm));
+      named++;
+    });
+
+    const reach = CFG.POI_RADIUS * 1.05;
+    let added = 0;
+    this.data.sites.forEach(function (st) {
+      if (claimed[st.i]) return;
+      if (haversine(centre, { lat: st.y, lng: st.x }) > reach) return;
+      kept.push(self.pinFor(st, null));
+      added++;
+    });
+    return { items: kept, added: added, named: named };
+  },
+
+  /* One servo as the app will draw it: the scheme's idea of what it is, and
+     OSM's idea of where it stands and when it is open.
+
+     Position, because an OSM fuel record was put on the forecourt off the
+     same imagery the basemap is drawn from, while the scheme's coordinate
+     is a registered address that can land on the road or mid-block. The two
+     are about 20 m apart at the median here and 140 m apart at the worst,
+     and 140 m is the wrong side of a divided highway.
+
+     Hours, because they are the one thing the scheme does not carry and the
+     one thing on an OSM fuel record worth keeping. Not "diesel" - the price
+     rows below say that better, and say it with a number. */
+  pinFor: function (st, osm) {
+    const name = String(st.n || "").trim() || String(st.b || "").trim() || "Fuel";
+    const bits = [];
+    /* The brand is worth saying only when the name has not already said it:
+       "OTR Dry Creek" wants "On the Run", "BP Hawker" does not want "BP"
+       again. */
+    if (st.b && name.toLowerCase().indexOf(String(st.b).toLowerCase()) < 0) bits.push(st.b);
+    if (st.a) bits.push(st.a);
+    if (osm && osm.info) {
+      String(osm.info).split(" · ").forEach(function (bit) {
+        if (bit && bit !== "diesel") bits.push(bit);
+      });
+    }
+    return {
+      id: "safpis/" + st.i,
+      kind: "fuel",
+      lat: osm ? osm.lat : st.y,
+      lng: osm ? osm.lng : st.x,
+      name: name,
+      /* thin, honestly: a servo, its prices, and whatever OSM knew about its
+         hours - which is less than a full extract record carries. */
+      thin: true,
+      info: bits.join(" · "),
+      site: st
+    };
   },
 
   /* What to print on a card: the selected fuels this servo actually sells,
@@ -4520,11 +4651,20 @@ const Fuel = {
   }
 };
 
+/* Which of the three sources this record came from, worth saying because
+   they know different things: the map extract carries every tag, the search
+   index only the headline ones, and the fuel scheme a servo and its prices
+   and nothing else at all. Named the same way the price block below signs
+   itself, so the card does not appear to cite two sources for one pin. */
+function poiSource(p) {
+  return p.site ? "SAFPIS" : p.thin ? "INDEX" : "OSM";
+}
+
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
   return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
-    (p.thin ? "INDEX" : "OSM") + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
+    poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
     Fuel.html(p) +
     '<div class="pop-a">' +
@@ -4620,12 +4760,19 @@ function showPoi(id) {
   const p = pois.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
   const here = (view.has ? view.cur : poiAnchor());
-  L.popup({ className: "tt-pop" })
+  L.popup({ className: "tt-pop", closeButton: false })
     .setLatLng([p.lat, p.lng])
     .setContent(poiPopupHtml(p, here))
     .openOn(map);
 }
 window.showPoi = showPoi;
+
+/* No close button on a POI card. A tap anywhere off it already clears it and
+   nothing else, so the cross was a second way to do the one thing the whole
+   map surface does - and on a phone it is a 12 px target sitting where a
+   thumb reaching for the card lands anyway. The waypoint and destination
+   cards keep theirs; they are opened deliberately and closed the same way. */
+const POP_OPTS = { className: "tt-pop", closeButton: false };
 
 function renderPois() {
   poiLayer.clearLayers();
@@ -4644,11 +4791,11 @@ function renderPois() {
     if (group.length === 1) {
       const p = group[0], m = POI_META[p.kind];
       L.marker([p.lat, p.lng], { icon: pinIcon(m.color, poiIcon(p.kind), true) })
-        .bindPopup(poiPopupHtml(p, here), { className: "tt-pop" })
+        .bindPopup(poiPopupHtml(p, here), POP_OPTS)
         .addTo(poiLayer);
     } else {
       L.marker([group[0].lat, group[0].lng], { icon: clusterIcon(group) })
-        .bindPopup(clusterPopupHtml(group, here), { className: "tt-pop" })
+        .bindPopup(clusterPopupHtml(group, here), POP_OPTS)
         .addTo(poiLayer);
     }
   });
