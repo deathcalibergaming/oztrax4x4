@@ -4340,9 +4340,12 @@ const Fuel = {
      three significant figures and a tenth, never a dollar sign. */
   fmt: function (c) { return c.toFixed(1); },
 
-  /* How old the number is, in the terms somebody driving would use. A price
-     reported this morning is current; one from three days ago is a guess,
-     and saying which is the difference between useful and misleading. */
+  /* How long the price has stood, which is not the same as how stale it is.
+     Only about a third of the state's sites change price on any given day
+     and one roadhouse in the far north has not moved since March, so a bare
+     "160 d ago" reads as data nobody has maintained when it means a price
+     nobody has changed. The card says SET, and the number stops being an
+     accusation. */
   age: function (iso) {
     if (!iso) return "";
     const t = Date.parse(/Z$/.test(iso) ? iso : iso + "Z");
@@ -4369,7 +4372,7 @@ const Fuel = {
     }).join("");
     const when = this.age(got.site.t);
     return '<div class="fuelp">' + rows +
-      (when ? '<i>SAFPIS &middot; ' + when + "</i>" : "") + "</div>";
+      (when ? '<i>SAFPIS &middot; set ' + when + "</i>" : "") + "</div>";
   }
 };
 
