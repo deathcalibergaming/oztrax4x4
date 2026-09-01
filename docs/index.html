@@ -210,14 +210,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   stroke-linecap:round;stroke-linejoin:round}
 #btnSim.on{background:var(--rust);border-color:var(--rust)}
 #btnSim.on svg{stroke:var(--sand);fill:var(--sand)}
-/* Parked. The simulated drive is hidden rather than removed - the Sim
-   object is only ever started by this button, never on load and never
-   from saved state, so hiding it is enough to disable it. Delete this
-   one rule to bring it back.
-
-   It has to out-specify "#zoomCtl button", which sets display:flex and
-   would otherwise win: one id beats none, but two beat one. */
-#zoomCtl #btnSim{display:none}
 /* Recentring is a map control rather than an action on the trip, and it is
    wanted in the same breath as a zoom - the driver has been looking around
    and wants the vehicle back - so it joins the zoom column and takes its
