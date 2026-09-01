@@ -569,17 +569,28 @@ details.sub > .sec-body{padding:12px 0 0}
    the widest thing in it, so one long label pushes the whole column past the
    drawer and takes a horizontal scrollbar with it. */
 .kchips{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
-/* The grades sit two abreast where there is room for two and one where there
-   is not, rather than being promised two and given half a word. "Premium ULP
-   95" wants 84px of label; below that the column cannot tell 95 from 98, and
-   a switch you cannot read is worse than a long list. 140px is that label
-   plus the furniture around it, measured rather than guessed. */
-#fuelTypes{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+/* The grades fill downwards, not across: petrols down the left in ascending
+   octane, then diesel and the two odd ones down the right. Filling across
+   would put diesel beside e10 in the markup, which reads as gibberish the
+   moment the column count changes.
+
+   Rows are set from the count in renderFuelTypes rather than fixed at four,
+   so a grade added to the scheme rebalances the two columns instead of
+   spilling into a third. */
+#fuelTypes{grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  grid-auto-flow:column;grid-template-rows:repeat(var(--fuelRows,4),auto)}
 /* Half a column is tight, so the fuel chip gives back what it can: a little
    padding, a little gap, and 3px off the dot. The categories keep the roomier
    spacing - their longest label is "Supermarket" and it never needed this. */
 #fuelTypes .kchip{gap:5px;padding-right:7px}
 #fuelTypes .kchip .dotmark{width:17px;height:17px}
+/* ...and where even that is not enough, the label wraps rather than being
+   cut off. The drawer is min(84vw,340px), so two columns hold "Premium ULP
+   95" on one line from a 370px viewport up; a 360px Android - which is most
+   of them - would otherwise show "Premium ULP 9" and leave you guessing
+   which. Two lines in a chip that is already 34px tall costs about 4px and
+   settles it at any width. */
+#fuelTypes .kchip > span:not(.dotmark){white-space:normal;line-height:1.15}
 .kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
   font-size:11.5px;cursor:pointer;opacity:.55;text-align:left}
@@ -4331,9 +4342,15 @@ const FUEL_LOOK = {
      that will not survive a half-width chip, and the grades sit in two
      columns; ULP is what the bowser and the price board call it anyway. The
      card rows read from this same table, so the switch and the price it
-     turns on can never end up calling a grade two different things. */
-  5:  { label: "Premium ULP 95",     color: "#E8B923", icon: "fuel" },
-  8:  { label: "Premium ULP 98",     color: "#B9432E", icon: "fuel" },
+     turns on can never end up calling a grade two different things.
+
+     The space before the number is a hard one, so that a chip too narrow for
+     the whole label breaks it "Premium / ULP 95" rather than "Premium ULP /
+     95". The grade is the number; leaving it stranded on a line by itself is
+     the one break that makes the switch harder to read, which is the whole
+     thing this wrapping exists to avoid. */
+  5:  { label: "Premium ULP 95", color: "#E8B923", icon: "fuel" },
+  8:  { label: "Premium ULP 98", color: "#B9432E", icon: "fuel" },
   12: { label: "e10",                 color: "#8FB93E", icon: "leaf" },
   14: { label: "Premium Diesel",      color: "#9AA3A0", icon: "droplet", group: "diesel" },
   19: { label: "e85",                 color: "#B9432E", icon: "leaf" }
@@ -4356,15 +4373,19 @@ const FUEL_GROUPS = {
    8, 12, 14, 19, which is the order they were added to the scheme and no use
    to anybody standing at a bowser - it puts e10 sixth and LPG third.
 
-   Diesel leads because it is what this vehicle takes and the only grade on
-   by default. Then the petrols in ascending octane, e10 through 98, which is
-   how they are read left to right off a price board. Then the two that are
-   neither, e85 and LPG.
+   This is read down the columns, not across the rows: the petrols in
+   ascending octane down the left, then diesel, e85 and LPG down the right.
+   Mick's arrangement. It keeps the four grades that are the same kind of
+   thing in one unbroken run, which reading across cannot do.
+
+   The list is also the order the card prints its price rows, where there are
+   no columns - so it has to make sense read straight through as well, and it
+   does: the petrols, then everything else.
 
    A grade the scheme adds later is not listed here and falls to the end in
    the scheme's own order, which is a sane place for something nobody has had
    an opinion about yet. */
-const FUEL_ORDER = ["diesel", "12", "2", "5", "8", "19", "4"];
+const FUEL_ORDER = ["12", "2", "5", "8", "diesel", "19", "4"];
 
 /* The scheme calls 91 plain "Unleaded". The bowser does not, and neither
    does anybody standing at one. */
@@ -4974,6 +4995,10 @@ function renderFuelTypes() {
     Object.keys(st.p).forEach(function (id) { hit[fuelGroup(id)] = 1; });
     Object.keys(hit).forEach(function (k) { counts[k] = (counts[k] || 0) + 1; });
   });
+
+  /* Half the grades, rounded up, so the left column is the longer one when
+     there is an odd number of them and nothing spills into a third. */
+  box.style.setProperty("--fuelRows", Math.ceil(groups.length / 2));
 
   box.innerHTML = groups.map(function (g) {
     const on = g.ids.some(function (id) { return sel.has(id); });
