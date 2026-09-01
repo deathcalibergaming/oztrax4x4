@@ -5876,7 +5876,11 @@ let geoWatch = null;
    panel can show what is actually happening instead of guessing. */
 const GPS = {
   fixes: 0, errors: 0, last: null, lastErr: null, lastAt: 0, startedAt: 0,
-  perm: "unknown", watching: false
+  perm: "unknown", watching: false,
+  /* the retry ladder, and the last complaint said out loud, so a watch that
+     keeps failing does not keep saying so */
+  retryTimer: null, retryAt: 0, backoff: 0, toastedCode: 0, toastedAt: 0,
+  warnedInsecure: false
 };
 
 /* A browser only hands out location in a "secure context". Opening the file
@@ -5914,9 +5918,81 @@ async function readGeoPermission() {
   try {
     const st = await navigator.permissions.query({ name: "geolocation" });
     GPS.perm = st.state;
-    if (!st._tt) { st._tt = 1; st.onchange = function () { GPS.perm = st.state; renderGpsPanel(); }; }
+    /* Granted from the site settings while the app sat here on a refused
+       watch: that watch is dead and will never deliver, so take a live one
+       the moment the answer changes. */
+    if (!st._tt) {
+      st._tt = 1;
+      st.onchange = function () {
+        GPS.perm = st.state;
+        if (st.state === "granted") rearmGeo(true);
+        renderGpsPanel();
+      };
+    }
     return st.state;
   } catch (e) { return "not reported"; }
+}
+
+/* Turning the phone's location switch off does not end a running watch: it
+   takes away the provider underneath it. The registration survives, delivery
+   stops, and flicking the switch back on does not bring it back - so the app
+   sits on a live watch that will never fire again while the phone knows
+   perfectly well where it is. Nothing short of a new subscription re-arms it.
+   So every failure schedules one on a widening ladder, and the two moments
+   that mean the driver has just fixed something themselves - coming back to
+   the app, and the permission turning to granted - skip the ladder and
+   subscribe on the spot. */
+const GEO_RETRY_MIN = 3000, GEO_RETRY_MAX = 30000;
+
+function dropGeoWatch() {
+  if (geoWatch != null) { navigator.geolocation.clearWatch(geoWatch); geoWatch = null; }
+  GPS.watching = false;
+}
+
+function cancelGeoRetry() {
+  if (GPS.retryTimer) { clearTimeout(GPS.retryTimer); GPS.retryTimer = null; }
+  GPS.retryAt = 0;
+}
+
+/* immediate: the driver just did something, so do not make them sit out a
+   backoff that was counted for a phone parked under a rock shelf. */
+function rearmGeo(immediate) {
+  if (!navigator.geolocation) return;
+  cancelGeoRetry();
+  let wait = 0;
+  if (immediate) GPS.backoff = 0;
+  else {
+    GPS.backoff = GPS.backoff ? Math.min(GPS.backoff * 2, GEO_RETRY_MAX) : GEO_RETRY_MIN;
+    wait = GPS.backoff;
+  }
+  GPS.retryAt = Date.now() + wait;
+  GPS.retryTimer = setTimeout(function () {
+    cancelGeoRetry();
+    dropGeoWatch();
+    startGeo();
+  }, wait);
+  renderGpsPanel();
+}
+
+/* A watch that cannot see the sky errors every twenty seconds, and now each
+   retry brings one of its own. The first of a run is worth saying over the
+   map; the twentieth is noise across it, so the same complaint is not
+   repeated inside a minute. The running count is on the GPS panel, which is
+   where somebody goes to count. */
+function geoErrToast(err) {
+  const now = Date.now();
+  if (err.code === GPS.toastedCode && now - GPS.toastedAt < 60000) return;
+  GPS.toastedCode = err.code;
+  GPS.toastedAt = now;
+  if (err.code === 1) {
+    toast(insecureContext()
+      ? "Location refused: " + contextNote()
+      : "Location permission denied - allow it for this site", "err");
+  } else if (err.code === 2) {
+    toast("Position unavailable - no signal, or the phone's location is off", "warn");
+  } else if (!Sim.active && !view.has) {
+    toast("Waiting for GPS fix...", "warn");
+  }
 }
 
 /* The request is made whether or not the context looks secure. Refusing to
@@ -5932,7 +6008,8 @@ function startGeo() {
      say it with, and a title written now would be painted over by the next
      half second tick anyway. The toast says it on the spot and the GPS panel
      goes on saying it, which is where somebody looks for a reason. */
-  if (insecureContext()) {
+  if (insecureContext() && !GPS.warnedInsecure) {
+    GPS.warnedInsecure = true;          /* said once, not once per retry */
     toast("Location will likely be refused: " + contextNote(), "warn");
   }
   geoWatch = navigator.geolocation.watchPosition(function (pos) {
@@ -5940,6 +6017,8 @@ function startGeo() {
     GPS.fixes++;
     GPS.lastAt = Date.now();
     GPS.lastErr = null;
+    GPS.backoff = 0;                    /* the ladder starts from the bottom */
+    cancelGeoRetry();
     GPS.last = {
       lat: c.latitude, lng: c.longitude, acc: c.accuracy,
       alt: c.altitude, altAcc: c.altitudeAccuracy,
@@ -5957,15 +6036,13 @@ function startGeo() {
     GPS.errors++;
     GPS.lastErr = { code: err.code, msg: err.message || "", at: Date.now() };
     readGeoPermission().then(renderGpsPanel);
-    if (err.code === 1) {
-      toast(insecureContext()
-        ? "Location refused: " + contextNote()
-        : "Location permission denied - allow it for this site", "err");
-    } else if (err.code === 2) {
-      toast("Position unavailable - no GPS signal yet", "warn");
-    } else if (!Sim.active && !view.has) {
-      toast("Waiting for GPS fix...", "warn");
-    }
+    geoErrToast(err);
+    /* A refusal cannot be retried into working: only the driver lifting it
+       can, and that arrives as a permission change or a return to the app.
+       Everything else is the sky or the phone's own switch, and both of those
+       come good on their own, so keep asking. */
+    if (err.code === 1) { dropGeoWatch(); cancelGeoRetry(); }
+    else rearmGeo(false);
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
 }
 
@@ -5984,8 +6061,19 @@ function requestGeoOnce() {
                  t: pos.timestamp || Date.now() };
     toast("Fix: " + c.latitude.toFixed(5) + ", " + c.longitude.toFixed(5) +
           " to " + Math.round(c.accuracy) + " m", "ok");
+    /* This used to stop at the panel: the button proved a fix existed while
+       the map stayed put and the lamp stayed red, which is a confusing thing
+       to be told. A fix is a fix - send it down the same pipe the watch uses,
+       so the vehicle moves and the lamp goes green. */
+    pushPosition({
+      lat: c.latitude, lng: c.longitude,
+      alt: c.altitude, acc: c.accuracy,
+      spd: c.speed == null ? 0 : c.speed,
+      hdg: (c.heading != null && isFinite(c.heading) && c.speed > 0.6) ? c.heading : null,
+      sim: false, t: pos.timestamp || Date.now()
+    });
     renderGpsPanel();
-    startGeo();
+    rearmGeo(true);      /* a fresh watch, not the dead one it was pressed for */
   }, function (err) {
     GPS.errors++;
     GPS.lastErr = { code: err.code, msg: err.message || "", at: Date.now() };
@@ -6008,14 +6096,23 @@ function renderGpsPanel() {
   row("Secure context", window.isSecureContext ? "yes" : "no", window.isSecureContext ? "ok" : "bad");
   row("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
   row("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
-  row("Watching", GPS.watching ? "yes" : "no", GPS.watching ? "ok" : "warn");
+  /* A bare "no" reads as the app having given up. It has not: say how long
+     until the next attempt and the row explains itself. */
+  row("Watching", GPS.watching ? "yes"
+      : GPS.retryAt ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
+      : "no",
+      GPS.watching ? "ok" : "warn");
   /* Wake is defined further down the file; guard so an early render is safe */
   if (typeof Wake !== "undefined") {
     row("Screen lock", Wake.status(),
         Wake.lock ? "ok" : !Wake.supported || !S.keepAwake ? "warn" : "warn");
   }
   row("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
-  row("Errors", String(GPS.errors), GPS.errors ? "bad" : "ok");
+  /* The count is a session tally, and a tally left red after the fixes came
+     back reads as a fault still happening. Red is for an error still
+     standing; once a fix lands on top of one it is history, and says so. */
+  row("Errors", String(GPS.errors) + (GPS.errors && !GPS.lastErr ? " (recovered)" : ""),
+      !GPS.errors ? "ok" : GPS.lastErr ? "bad" : "warn");
 
   if (f) {
     const age = Math.round((Date.now() - GPS.lastAt) / 1000);
@@ -6650,6 +6747,15 @@ document.addEventListener("keydown", function (e) {
     }
     Wake.apply();
     checkUpdateFlag();
+    /* Most often this is the driver back from the phone's settings, having
+       just turned location on. A watch that failed while it was off will not
+       come good by itself, so take a new one now rather than wait out the
+       ladder. A standing refusal is the one case worth leaving alone: it
+       cannot succeed, and lifting it would re-arm through the permission
+       change anyway. */
+    if (GPS.perm !== "denied" && (!GPS.lastAt || Date.now() - GPS.lastAt > 10000)) {
+      rearmGeo(true);
+    }
     if (Rec.state === "recording" && GPS.lastAt) {
       const gap = Date.now() - GPS.lastAt;
       if (gap > CFG.REC_GAP_MS) {
