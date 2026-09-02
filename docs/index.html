@@ -1510,6 +1510,12 @@ const CFG = {
      than MAX_Z: raising the ceiling should not quietly put the grouping
      back at the zoom where it was asked to stop. */
   POI_SPLIT_Z: 17,
+  /* Below POI_SPLIT_Z the grouping guarantees no two pins are nearer than
+     POI_CLUSTER_PX. At and above it nothing is grouped, so this is the
+     distance that has to be made by pushing pins apart instead. A little
+     wider than the 22 px a pin is drawn at, so there is a gap rather than
+     a shared edge. */
+  POI_FAN_PX: 28,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
@@ -5195,10 +5201,10 @@ function clusterPois(list) {
      map goes, you are looking at one spot and want to see what is on it; a
      count badge there answers a question you have already asked.
 
-     It does mean two places a few metres apart draw over each other, which
-     is what grouping exists to prevent - around Hawker the closest pair is
-     7 m, about 7 px at this zoom. That is the trade: below max zoom the
-     grouping keeps them tappable, at max zoom they are all shown. */
+     That used to mean two places a few metres apart drew over each other,
+     which is the very thing grouping exists to prevent. fanOut below now
+     takes that job at these zooms: everything is still shown, and it is
+     still tappable. */
   if (map.getZoom() >= CFG.POI_SPLIT_Z) {
     return list.map(function (p) { return [p]; });
   }
@@ -5219,6 +5225,69 @@ function clusterPois(list) {
     groups.push([p]);
   });
   return groups;
+}
+
+/* Once the grouping stops, nothing keeps two pins off each other. Around
+   Hawker that is not one unlucky pair: the post office and the general
+   store share a wall and land 5 px apart, the roadhouse and the tourist
+   information 7 px, and at z17 there were eight pairs closer than the
+   22 px a pin is drawn at - the worst of them 2 px. The pin underneath is
+   unreadable, and worse, untappable, so a place you can see is one you
+   cannot open.
+
+   They are pushed onto a small ring instead, with a hairline drawn back to
+   where the place actually is. Nothing is hidden, which is the whole point
+   of showing everything at this zoom, and nothing lies about where it is -
+   the line says which pin belongs to which spot.
+
+   Returns one entry per group: where to draw it, and null for at when that
+   is simply where it belongs. */
+function fanOut(groups) {
+  const z = map.getZoom();
+  const out = groups.map(function (g) {
+    return { group: g, pt: map.project([g[0].lat, g[0].lng], z), at: null };
+  });
+  /* Below the split zoom the grouping has already guaranteed the spacing,
+     and moving anything here would only undo it. */
+  if (z < CFG.POI_SPLIT_Z) return out;
+
+  const near = CFG.POI_FAN_PX * CFG.POI_FAN_PX;
+  const piles = [];
+  out.forEach(function (m) {
+    for (let i = 0; i < piles.length; i++) {
+      const dx = m.pt.x - piles[i][0].pt.x, dy = m.pt.y - piles[i][0].pt.y;
+      if (dx * dx + dy * dy < near) { piles[i].push(m); return; }
+    }
+    piles.push([m]);
+  });
+
+  piles.forEach(function (pile) {
+    if (pile.length < 2) return;
+    /* Ordered by id, so the arrangement is the same on every render and the
+       pins do not swap sides as you pan across them. */
+    pile.sort(function (a, b) {
+      return a.group[0].id < b.group[0].id ? -1 : a.group[0].id > b.group[0].id ? 1 : 0;
+    });
+    /* Centred on the pile rather than on its first member, so adding one
+       does not drag the others across the map. */
+    let cx = 0, cy = 0;
+    pile.forEach(function (m) { cx += m.pt.x; cy += m.pt.y; });
+    cx /= pile.length; cy /= pile.length;
+    /* Wide enough that neighbours on the ring clear each other: two end up
+       exactly POI_FAN_PX apart, and more spread as the ring fills. */
+    const r = CFG.POI_FAN_PX / (2 * Math.sin(Math.PI / pile.length));
+    pile.forEach(function (m, i) {
+      const a = -Math.PI / 2 + (2 * Math.PI * i) / pile.length;
+      m.at = map.unproject(L.point(cx + r * Math.cos(a), cy + r * Math.sin(a)), z);
+      /* A pin is 22 px across and sits centred on its point, so a leader
+         shorter than 11 px is drawn entirely underneath the pin it points
+         at. A pair moves 14 px and needs no explaining anyway; a ring of
+         five moves 24 and does. So the line is only asked for when there
+         would be something of it to see. */
+      m.lead = r >= 15;
+    });
+  });
+  return out;
 }
 
 function clusterIcon(group) {
@@ -5288,14 +5357,30 @@ function renderPois() {
      nothing nearby, and blanking the map for that is no help to anyone, so a
      filter with no hits leaves the pins alone. */
   const filtering = !!poiQuery && hits.length > 0;
-  clusterPois(filtering ? hits : vis).forEach(function (group) {
+  fanOut(clusterPois(filtering ? hits : vis)).forEach(function (spot) {
+    const group = spot.group;
+    const at = spot.at ? [spot.at.lat, spot.at.lng] : [group[0].lat, group[0].lng];
+    /* Drawn before the marker, though the order does not decide it: Leaflet
+       keeps every line in the overlay pane and every marker in the one
+       above, so a leader can never cover the pin it points at. */
+    if (spot.lead) {
+      /* Dark, like the casings under the route and the trail. Esri's topo
+         is a pale sheet and the sand the rest of the interface is drawn in
+         disappears into it - the first version of this line was in the DOM
+         and invisible on the map, which is no use at all when the line is
+         the thing that says where the place really is. */
+      L.polyline([[group[0].lat, group[0].lng], at], {
+        className: "poi-leader", color: "#14181B", weight: 1.2,
+        opacity: 0.5, interactive: false
+      }).addTo(poiLayer);
+    }
     if (group.length === 1) {
       const p = group[0], m = POI_META[p.kind];
-      L.marker([p.lat, p.lng], { icon: pinIcon(m.color, poiIcon(p.kind), true) })
+      L.marker(at, { icon: pinIcon(m.color, poiIcon(p.kind), true) })
         .bindPopup(poiPopupHtml(p, here), POP_OPTS)
         .addTo(poiLayer);
     } else {
-      L.marker([group[0].lat, group[0].lng], { icon: clusterIcon(group) })
+      L.marker(at, { icon: clusterIcon(group) })
         .bindPopup(clusterPopupHtml(group, here), POP_OPTS)
         .addTo(poiLayer);
     }
