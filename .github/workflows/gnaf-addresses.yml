@@ -1,0 +1,57 @@
+name: G-NAF addresses
+
+# Geoscape releases G-NAF quarterly - February, May, August, November -
+# but the day it lands inside the release month moves around. Rather than
+# guess it, this looks once a month, compares the release name against the
+# one the current pack was built from, and stops there if they match. Eight
+# runs a year cost a single small request to data.gov.au and nothing else.
+#
+# 20:10 UTC is about half past five in the morning in South Australia. The
+# job that does run pulls about seventy megabytes and takes a few minutes.
+
+on:
+  schedule:
+    - cron: "10 20 5 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if the release has not changed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gnaf-addresses
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the address packs
+        run: node tools/build-gnaf.mjs ${{ inputs.force && '--force' || '' }}
+
+      # A quarter's release rewrites most of the nine and a half thousand
+      # tiles, so nothing is committed on the months where the release has
+      # not moved and the script stopped early.
+      - name: Commit if the release moved
+        run: |
+          # Staged first, because a fresh build writes the whole tree from
+          # scratch and untracked files are invisible to a plain git diff.
+          git add -A docs/addr
+          if git diff --cached --quiet; then
+            echo "address packs unchanged - nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "G-NAF addresses, $(node -p "require('./docs/addr/index.json').release")"
+          git push
