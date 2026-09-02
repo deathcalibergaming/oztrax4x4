@@ -1,0 +1,441 @@
+---
+name: TrailTracker
+description: A warm, analogue instrument cluster for driving remote Australia offline.
+colors:
+  near-black: "#14181B"
+  panel: "#1B211D"
+  panel-head: "#171C19"
+  panel-raised: "#232B26"
+  card: "#161B18"
+  field: "#111513"
+  warm-sand: "#D8CBAA"
+  burnt-orange: "#C1552C"
+  signal-green: "#8FB93E"
+  caution-yellow: "#E8B923"
+  alert-red: "#B9432E"
+  instrument-white: "#FFFFFF"
+  hairline: "rgba(216,203,170,.14)"
+  hairline-strong: "rgba(216,203,170,.30)"
+  muted-sand: "rgba(216,203,170,.55)"
+typography:
+  display:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "26px"
+    letterSpacing: "0.02em"
+  title:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "13px"
+    fontWeight: 700
+    letterSpacing: "0.18em"
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "13px"
+    lineHeight: 1.4
+  label:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "11.5px"
+    fontWeight: 700
+    letterSpacing: "0.12em"
+  readout:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.05
+  micro:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "8.5px"
+    letterSpacing: "0.14em"
+rounded:
+  sm: "4px"
+  md: "6px"
+  lg: "7px"
+  xl: "10px"
+  full: "50%"
+spacing:
+  xs: "6px"
+  sm: "8px"
+  md: "10px"
+  lg: "12px"
+  xl: "14px"
+components:
+  button-primary:
+    backgroundColor: "{colors.burnt-orange}"
+    textColor: "#12100E"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "11px 12px"
+  button-go:
+    backgroundColor: "{colors.signal-green}"
+    textColor: "#12160B"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "11px 12px"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.warm-sand}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "11px 12px"
+  button-xs:
+    backgroundColor: "{colors.panel-raised}"
+    textColor: "{colors.warm-sand}"
+    rounded: "{rounded.md}"
+    padding: "6px 9px"
+  card:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.warm-sand}"
+    rounded: "{rounded.lg}"
+    padding: "10px"
+  input:
+    backgroundColor: "{colors.field}"
+    textColor: "{colors.warm-sand}"
+    rounded: "{rounded.sm}"
+    padding: "9px 10px"
+    fontSize: "15px"
+  chip-category:
+    backgroundColor: "#0F1311"
+    textColor: "{colors.muted-sand}"
+    rounded: "9px"
+    padding: "5px 10px 5px 5px"
+    height: "34px"
+  chip-category-on:
+    backgroundColor: "#0F1311"
+    textColor: "{colors.warm-sand}"
+    rounded: "9px"
+    padding: "5px 10px 5px 5px"
+    height: "34px"
+  pin-waypoint:
+    size: "26px"
+  pin-poi:
+    size: "22px"
+  popup:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.warm-sand}"
+    rounded: "{rounded.md}"
+    padding: "10px 12px"
+---
+
+# Design System: TrailTracker
+
+## Overview
+
+**Creative North Star: "The Instrument Cluster"**
+
+TrailTracker is fitted to a vehicle, not added to a website. The two bars
+that frame the map are gauges: labelled, unit-suffixed, monospaced, and read
+at a glance by someone whose eyes belong on the track. The map between them
+is the windscreen. Everything else — panels, popups, pins — is an object
+resting on that view, never a page the map happens to be printed on.
+
+The materials are warm and analogue rather than machined and cold. The ground
+is a near-black with green in it, not a neutral grey; the text is a warm sand
+rather than white; the accent is a burnt orange that belongs to oxide and
+ochre. Panel faces carry a shallow bevel and a hairline along their edge, so
+a surface reads as a face with an edge rather than a rectangle with a fill.
+The result should feel like well-kept equipment — a logbook, a marked map, a
+dash that has been in the sun — not like software with a dark theme switched
+on.
+
+Restraint is the operating principle. Controls are precise and quiet so the
+map and the readings lead; colour is used to classify, not to decorate; and
+the interface says plainly when it does not know something rather than
+maintaining a confident surface. Confirmed anti-references: consumer nav apps
+(rounded white cards, blue accents, floating pill search bars) and generic
+dark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient
+shadow everywhere).
+
+**Key Characteristics:**
+
+- Warm dark ground with sand text; never grey-on-grey
+- Monospaced readouts for anything numeric and glanceable
+- Tight radii (4–10px) and hairline borders; nothing pill-shaped or blobby
+- Every overlay sits above the map with a real, dark shadow
+- Colour classifies; size and weight carry hierarchy
+- Uppercase, wide-tracked labels on every control
+
+## Colors
+
+A warm dark palette: a near-black ground with green in it, sand for text, and
+a single oxide accent, plus a small set of status colours and a 24-entry
+categorical scale for places.
+
+### Primary
+
+- **Burnt Orange** (`#C1552C`): the single accent. Primary buttons, the input
+  focus ring, the second half of the wordmark, and the active state on
+  controls. It is the only colour that means "this is the action".
+
+### Secondary
+
+- **Signal Green** (`#8FB93E`): affirmative and go. The recorded trail line,
+  confirm buttons, free camps.
+- **Caution Yellow** (`#E8B923`): attention without alarm. Warnings, fuel.
+- **Alert Red** (`#B9432E`): destructive and urgent. Delete actions, hazards.
+
+### Neutral
+
+- **Warm Sand** (`#D8CBAA`): all body text, icons and borders. The identity
+  colour of the system — everything neutral is a transparency of it, which is
+  what keeps the greys warm.
+- **Muted Sand** (`rgba(216,203,170,.55)`): secondary text, units, inactive
+  chips.
+- **Hairline** (`rgba(216,203,170,.14)`) and **Hairline Strong**
+  (`rgba(216,203,170,.30)`): dividers and control borders. Structure is drawn
+  with one-pixel lines, not with fills.
+- **Near Black** (`#14181B`): the app ground and the browser theme colour.
+- **Panel** (`#1B211D`), **Panel Head** (`#171C19`), **Panel Raised**
+  (`#232B26`), **Card** (`#161B18`), **Field** (`#111513`): the surface ramp.
+  Depth is signalled by small steps of lightness across these, not by tint.
+- **Instrument White** (`#FFFFFF`): reserved. See the rule below.
+
+### The categorical scale
+
+Twenty-four fixed colours identify place categories — fuel, mechanic, water,
+camp, hospital, toilets and the rest — and each appears on that category's
+pin, its dot in a list, and its filter chip, so a colour learned once is
+recognised everywhere. The scale is defined in `POI_META` in
+`docs/index.html`; it is a closed set, not a palette to draw from.
+
+### Named Rules
+
+**The Full Sun Rule.** The two instrument bars use Instrument White
+(`#FFFFFF`), not sand, and their labels and units use it too. Sand at 55%
+opacity is comfortable indoors and unreadable on the Flinders at midday. Size
+and weight separate a label from its number, so nothing is lost by taking
+colour out of that job. Any new element read at speed inherits this rule.
+
+**The One Accent Rule.** Burnt Orange means action and nothing else. A screen
+should carry it on one control. If two things are orange, one of them is
+wrong.
+
+**The Closed Scale Rule.** Category colour comes from the 24-entry scale or
+it does not exist. Never invent a colour to distinguish a new kind of place;
+add it to the scale or reuse the category that already fits.
+
+## Typography
+
+**UI Font:** system sans (`-apple-system, BlinkMacSystemFont, Segoe UI,
+Roboto, Helvetica Neue, Arial, sans-serif`)
+**Readout Font:** system mono (`ui-monospace, SFMono-Regular, Menlo,
+Consolas, Liberation Mono, monospace`)
+
+**Character:** No webfont is loaded, and that is deliberate — the app is one
+file that must open with no network. The personality comes from treatment
+rather than typeface: wide uppercase tracking on every label, and monospace
+reserved strictly for values that change.
+
+### Hierarchy
+
+- **Display** (26px, letter-spacing .02em): a single large figure in a panel
+  — a distance, a count, a total. Sand, not white.
+- **Title** (700, 13px, letter-spacing .18em, uppercase): panel and drawer
+  headings. The widest tracking in the system.
+- **Body** (13px, line-height 1.4): popup and card prose.
+- **Label** (700, 11.5px, letter-spacing .12em, uppercase): every button and
+  section summary. Controls never use sentence case.
+- **Readout** (mono, 600, 17px, line-height 1.05): the instrument values —
+  speed, heading, altitude, distance, time — in Instrument White.
+- **Micro** (8.5px, letter-spacing .14em, uppercase): gauge labels; units
+  drop to 8px. `KM/H`, never `km/h`.
+
+### Named Rules
+
+**The Monospace Rule.** Monospace is for values that change: readings,
+prices, coordinates, counts, timestamps. Prose is never monospaced, and a
+number that never moves is not a readout.
+
+**The Shouting Labels Rule.** Every control label is uppercase with tracking
+of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label
+tracks further than a 13px heading.
+
+## Layout
+
+A fixed, full-screen app shell that never scrolls as a page. `body` is
+`overflow:hidden`; only panel bodies scroll, with overscroll contained.
+
+The vertical stack is a 50px top bar (`--topH`), a 56px instrument row
+(`--statsH`), the map stage, and an action bar that matches the instrument
+row's height (`--actH: var(--statsH)`). In landscape both bars stand on end
+at a shared 80px width (`--railW`) so the columns cannot drift apart.
+Safe-area insets are added to the top bar and every bottom-anchored element,
+never ignored.
+
+Panels overlay the map rather than displacing it: a left drawer, a POI panel,
+and a bottom panel stack that splits width when two are open at once. Spacing
+is tight throughout — gaps of 6–14px, card padding 10px — because the density
+of the instrument face is the point.
+
+Only two breakpoints exist, and both are about landscape height rather than
+phone width: `(orientation: landscape) and (max-height: 520px)`, with a
+tighter variant at `max-width: 720px` that gives buttons their own row when
+name, readings and controls cannot share one line.
+
+### Named Rules
+
+**The One Screen Rule.** The application never scrolls. Anything that does
+not fit belongs in a panel that scrolls inside itself.
+
+**The Rail Follows Itself Rule.** The bars' heights and widths are single
+custom properties, and everything that must clear them measures from those
+properties. Never hard-code a bar's size into another element's offset.
+
+## Elevation & Depth
+
+Layered, and the layering is literal: the map is the ground plane and every
+panel, popup, chip and pin is a physical object resting on it. Shadow says
+"this is on top of the world". Nothing that lives on the map is flat.
+
+Depth within a panel is different — there it is done with the surface ramp
+and a bevel, not shadow. Instrument faces carry a shallow linear gradient
+with a 3px lip at one edge and a matching `border-image` hairline, so a face
+reads as a face with a machined edge. Dividers stop where the face stops
+rather than running across the bevel.
+
+### Shadow Vocabulary
+
+- **Pin** (`0 2px 5px rgba(0,0,0,.55)`): map markers.
+- **Floating control** (`0 2px 10px rgba(0,0,0,.55)`): the speed sign and map
+  chips.
+- **Popup** (`0 8px 24px rgba(0,0,0,.6)`): map popups.
+- **Panel** (`0 8px 22px rgba(0,0,0,.6)` to `0 12px 34px rgba(0,0,0,.62)`):
+  the bottom panel stack.
+- **Drawer** (`8px 0 28px rgba(0,0,0,.5)`): the side drawer, cast sideways.
+- **Modal** (`0 16px 42px rgba(0,0,0,.7)`): the deepest, for dialogs.
+
+### Named Rules
+
+**The Above The Map Rule.** Anything drawn over the map casts a shadow from
+this vocabulary. Anything inside a panel does not — it uses the surface ramp
+and the bevel instead.
+
+## Shapes
+
+Small, hard-edged geometry. Radii run 3–10px with 6px for controls, 7px for
+cards and 4px for fields; a single 20px case exists and nothing is pill-
+shaped. Borders are one-pixel sand transparencies, so form is drawn with a
+line rather than a fill.
+
+Two pin silhouettes carry most of the identity and are deliberately different
+from each other:
+
+- **Waypoint pin** — a 26px square with `border-radius: 50% 50% 2px 50%`
+  rotated 45°, giving a teardrop with one sharp point at the bottom. The
+  point marks the spot.
+- **POI pin** — a 22px circle with a 1.5px **dashed** border at 92% opacity.
+
+### Named Rules
+
+**The Mine Versus Mapped Rule.** A solid, pointed pin is something the driver
+put there. A dashed circle is something the map knows about. The silhouette
+carries that distinction before any colour or icon does; never blur it.
+
+**The Tight Corner Rule.** No radius exceeds 10px on a rectangular surface.
+Large radii read as a consumer app and are out of character with the
+instrument face.
+
+## Components
+
+### Buttons
+
+Precise and restrained: flat colour, a hairline border, uppercase tracked
+labels, and a brighten-on-press instead of a hover state, because there is no
+cursor in a moving vehicle.
+
+- **Shape:** gently squared (6px radius)
+- **Primary:** Burnt Orange fill, near-black text (`#12100E`), padding
+  11px 12px
+- **Go / Warn / Danger:** the same shape in Signal Green, Caution Yellow or
+  Alert Red, each with a matched near-black text colour
+- **Ghost:** transparent fill, hairline-strong border, sand text
+- **Press:** `filter: brightness(1.25)` — the lamp behind the switch
+- **Sizes:** `sm` (8px 10px, 10px type) and `xs` (6px 9px, 9px type); `xs`
+  does not stretch
+- **Disabled:** 40% opacity and pointer-events off
+
+### Chips
+
+Category filters. A dot in the category's colour, a label that takes the
+slack, and a count pushed to a shared right edge.
+
+- **Style:** `#0F1311` fill, hairline-strong border, 9px radius, minimum
+  height 34px
+- **State:** off is 55% opacity with muted-sand text; on is full opacity with
+  the category colour on the dot
+
+### Cards
+
+- **Corner Style:** 7px
+- **Background:** Card (`#161B18`)
+- **Border:** hairline
+- **Shadow:** none — cards live inside panels (see Elevation)
+- **Padding:** 10px, with an 8px gap between the mark and the text column
+- **Overflow:** titles and subtitles clip with an ellipsis on one line so a
+  long name cannot widen the list
+
+### Inputs
+
+- **Style:** Field (`#111513`) fill, hairline-strong border, 4px radius,
+  15px type — large enough not to trigger zoom on iOS
+- **Focus:** border becomes Burnt Orange; no glow, no ring
+- **Select:** the native arrow is replaced with two muted-sand gradients
+
+### Instrument Gauge
+
+The signature component. A column carrying an uppercase micro label, a
+monospaced value in Instrument White, and a unit beneath it, separated from
+its neighbour by a hairline that stops short of the panel's bevel. Columns
+are sized to their content rather than split equally, because a three-letter
+cardinal and a five-character clock do not need the same room.
+
+### Speed Sign
+
+A literal Australian speed-limit sign: a 56px white rounded square holding a
+47px circle with a 5.5px `#C8102E` ring and near-black numerals. It is not
+themed and does not follow the palette — it is a road sign, and it is
+recognisable because it looks exactly like one. Three digits drop the type
+size to keep the ring clear.
+
+### Popups
+
+Panel fill, hairline-strong border, 6px radius, popup shadow. A coloured
+uppercase title, an optional second line for a place that has one, then a
+monospaced meta line of category, source and distance.
+
+## Do's and Don'ts
+
+### Do:
+
+- **Do** use Instrument White (`#FFFFFF`) for anything read at speed —
+  values, their labels and their units. Sand at 55% is not legible in full
+  sun.
+- **Do** give every map overlay a shadow from the vocabulary, and give panel
+  internals none.
+- **Do** keep radii between 3px and 10px, and draw structure with one-pixel
+  sand transparencies rather than filled dividers.
+- **Do** set control labels in uppercase with at least .09em tracking, and
+  widen the tracking as the type shrinks.
+- **Do** keep tappable controls at 34px minimum height — the chip's floor is
+  the system's floor, set for a gloved thumb.
+- **Do** reserve monospace for values that change, and say the unit in
+  uppercase beside it (`KM/H`).
+- **Do** state absence plainly in the interface — an unmapped road, a stale
+  price, a straight-line fallback. A confident surface over missing data is a
+  defect here, not a polish win.
+
+### Don't:
+
+- **Don't** reach for rounded white cards, blue accents, floating pill search
+  bars or friendly illustration. That is the phone's built-in map, and it is
+  a confirmed anti-reference.
+- **Don't** introduce purple gradients, glassmorphism, large radii or soft
+  ambient shadow. That is dark-mode SaaS, and it is the other confirmed
+  anti-reference.
+- **Don't** use colour as the only difference between a label and its value;
+  size and weight already do that job, and colour is needed for classifying.
+- **Don't** add a category colour outside the 24-entry scale.
+- **Don't** put Burnt Orange on more than one control in a view.
+- **Don't** make the application scroll; put overflow inside a panel.
+- **Don't** load a webfont, or anything else from the network, into the
+  shell. The file must open and be legible with no connection.
+- **Don't** give a POI pin a solid outline or a waypoint pin a dashed one —
+  the silhouettes mean different things.
