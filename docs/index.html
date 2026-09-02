@@ -295,6 +295,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line2)}
 .leaflet-popup-close-button{color:var(--dim) !important}
 .pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:3px}
+/* The second line of a sign, where a place has one. Sits right under the
+   name and above the category, because it is part of what the place calls
+   itself rather than something the app worked out about it - and not
+   uppercased, so the two lines read as a sign rather than as one heading
+   that ran on. */
+.pop-sub{font-weight:600;font-size:11.5px;color:var(--sand);opacity:.9;margin:-1px 0 4px}
 .pop-m{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.05em}
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:12.5px}
 .pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:12px}
@@ -631,6 +637,10 @@ details.sub > .sec-body{padding:12px 0 0}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
 .card-top{display:flex;align-items:flex-start;gap:8px}
 .card-t{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The sign's second line again, clipped the same way the first one is so a
+   long one cannot push the card wider than the list. */
+.card-sub{font-size:11.5px;font-weight:500;color:rgba(216,203,170,.88);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-m{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.06em;margin-top:3px;
   display:flex;flex-wrap:wrap;gap:3px 10px}
 /* A saved track carries seven readings. Run together as one dim line they
@@ -1510,6 +1520,12 @@ const CFG = {
      than MAX_Z: raising the ceiling should not quietly put the grouping
      back at the zoom where it was asked to stop. */
   POI_SPLIT_Z: 17,
+  /* Below POI_SPLIT_Z the grouping guarantees no two pins are nearer than
+     POI_CLUSTER_PX. At and above it nothing is grouped, so this is the
+     distance that has to be made by pushing pins apart instead. A little
+     wider than the 22 px a pin is drawn at, so there is a gap rather than
+     a shared edge. */
+  POI_FAN_PX: 28,
   DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
@@ -3815,11 +3831,44 @@ function isGpName(name) {
   return !DIAGNOSTIC_NAME.test(name) || CLAIMS_MEDICAL.test(name);
 }
 
+/* tourism=information covers two different things. An office or a visitor
+   centre is a place you drive to and walk into; a board, a map, a guidepost
+   or a route marker is a fixture bolted to something else - and what it is
+   bolted to is usually the toilet block or the picnic ground that already
+   earns the pin.
+
+   Only the first kind is read as a destination, which is what lets it
+   outrank the tags below without a board on a dunny wall stopping that
+   dunny being a dunny.
+
+   Semicolons because OSM allows a list, and "board;office" is an office
+   that also has a board outside it. */
+const INFO_DESTINATION = { office: 1, visitor_centre: 1 };
+
+function isInfoOffice(tags) {
+  if (tags.tourism !== "information") return false;
+  return String(tags.information || "").toLowerCase().split(";")
+    .some(function (v) { return INFO_DESTINATION[v.trim()] === 1; });
+}
+
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
   if (!tags) return null;
   const a = tags.amenity, t = tags.tourism, hw = tags.highway;
+  /* Read before everything else, because an information office tagged with
+     anything else was not merely being filed under the wrong label - it was
+     being deleted. Hawker's visitor centre carries amenity=fuel as well,
+     which made it a servo; the servo merge then found two fuel pins seven
+     metres apart claiming the same site on the price scheme, kept the
+     nearer one and threw the other away. The town's information centre was
+     not on the map at all.
+
+     Audited over all 987 tourism=information in this state: 981 already
+     reached the rule further down, and of the six that did not, this moves
+     exactly two - Hawker, and an unnamed shelter tagged board;office. The
+     other four are boards on toilet blocks and stay toilet blocks. */
+  if (isInfoOffice(tags)) return "info";
   if (a === "fuel") return "fuel";
   /* Water splits on the question actually being asked, which is "can I put
      this in the tanks", not "which tag did the mapper reach for". A public
@@ -4064,10 +4113,14 @@ function poiAnchor() {
    without one, so no card would say where it stood until the week ran
    out and the cell was fetched again.
    v11 when the radiology suites and pathology counters stopped counting as
-   a doctor. */
+   a doctor.
+   v12 when an information office stopped being read as whatever else was
+   tagged on it. A v11 cell holds Hawker's visitor centre as a servo - or
+   rather does not hold it at all, since being a servo is what got it
+   thrown away by the price merge. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v11:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v12:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -4670,10 +4723,75 @@ function setPois(items, anchor) {
   composePois();
 }
 
+/* Where the map and the sign outside disagree, and the sign wins.
+
+   OpenStreetMap has the Hawker general store as three nodes - a shop, a
+   supermarket and a post office - because three mappers each recorded the
+   part of it they came for. It is one building on one corner with one sign
+   over the door reading "Hawker General Store / Post Office & Cafe", and
+   the app was drawing it as two pins on top of each other with the post
+   office covering the shop.
+
+   Matched on name and position rather than on OSM id: ids change when a
+   node is replaced by the building, which happens, and a fix that quietly
+   stopped applying would be worse than no fix. The radius is what keeps
+   "Hawker Post Office" from matching a post office in another town.
+
+   This is a local correction, not a repair - OpenStreetMap still says what
+   it says, and the durable fix is to edit it there. */
+const POI_FIXES = [
+  {
+    at: [-31.88720, 138.42270], within: 80,
+    is: /^hawker general store$/i,
+    sub: "Post Office & Cafe",
+    /* Sixteen metres was where it already sat; this puts it on the corner
+       proper, on the bisector of the two arms it stands between - Cradock
+       Road leaving north west and Wilpena Road leaving north east - and
+       11.6 m clear of both centrelines, which is off the road and off the
+       verge. */
+    move: [-31.8872645, 138.4227001]
+  },
+  {
+    at: [-31.88720, 138.42270], within: 80,
+    is: /^hawker post office$/i,
+    /* Folded into the store above, whose second line now carries it. Its
+       own pin said the same thing five metres away. */
+    drop: true
+  }
+];
+
+function applyPoiFixes(items) {
+  if (!POI_FIXES.length) return items;
+  const out = [];
+  for (const p of items) {
+    let fix = null;
+    for (const f of POI_FIXES) {
+      if (!f.is.test(String(p.name || "").trim())) continue;
+      if (haversine({ lat: f.at[0], lng: f.at[1] }, p) > f.within) continue;
+      fix = f;
+      break;
+    }
+    if (!fix) { out.push(p); continue; }
+    if (fix.drop) continue;
+    /* Copied rather than edited in place: poiSourced is what came off the
+       wire and is composed again whenever the fuel prices land. */
+    const q = Object.assign({}, p);
+    if (fix.name) q.name = fix.name;
+    if (fix.sub) q.sub = fix.sub;
+    if (fix.move) { q.lat = fix.move[0]; q.lng = fix.move[1]; }
+    out.push(q);
+  }
+  return out;
+}
+
 function composePois() {
   const merged = Fuel.mergePins(poiSourcedAt, poiSourced);
   poiFuelAdded = merged.added;
-  pois = dedupeByName(merged.items);
+  /* Before the dedupe, not after: the store is on the map twice and only
+     one of the two survives, so fixing them both is what makes the result
+     the same whichever one wins. Moving them to the same spot under the
+     same name is also what lets the dedupe see them as one place. */
+  pois = dedupeByName(applyPoiFixes(merged.items));
   renderPois();
 }
 
@@ -4718,8 +4836,12 @@ function poiMatches(p, q) {
   if (!q) return true;
   const m = POI_META[p.kind] || {};
   /* The address is searched too, so filtering the loaded set by a street
-     name finds what stands on it. */
-  return (p.name + " " + (p.info || "") + " " + (p.addr || "") + " " +
+     name finds what stands on it.
+
+     And the sign's second line, which is not decoration: Hawker's post
+     office no longer has a pin of its own, so "post office" has to find
+     the store that houses it or it finds nothing at all. */
+  return (p.name + " " + (p.sub || "") + " " + (p.info || "") + " " + (p.addr || "") + " " +
           (m.label || "") + " " + p.kind + " " + (KIND_WORDS[p.kind] || ""))
          .toLowerCase().indexOf(q) !== -1;
 }
@@ -5163,6 +5285,7 @@ function poiSource(p) {
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
   return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
+    (p.sub ? '<div class="pop-sub">' + esc(p.sub) + "</div>" : "") +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
     poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
     (p.addr ? '<div class="pop-ad">' + esc(p.addr) + "</div>" : "") +
@@ -5195,10 +5318,10 @@ function clusterPois(list) {
      map goes, you are looking at one spot and want to see what is on it; a
      count badge there answers a question you have already asked.
 
-     It does mean two places a few metres apart draw over each other, which
-     is what grouping exists to prevent - around Hawker the closest pair is
-     7 m, about 7 px at this zoom. That is the trade: below max zoom the
-     grouping keeps them tappable, at max zoom they are all shown. */
+     That used to mean two places a few metres apart drew over each other,
+     which is the very thing grouping exists to prevent. fanOut below now
+     takes that job at these zooms: everything is still shown, and it is
+     still tappable. */
   if (map.getZoom() >= CFG.POI_SPLIT_Z) {
     return list.map(function (p) { return [p]; });
   }
@@ -5219,6 +5342,93 @@ function clusterPois(list) {
     groups.push([p]);
   });
   return groups;
+}
+
+/* Once the grouping stops, nothing keeps two pins off each other. Around
+   Hawker that is not one unlucky pair: the post office and the general
+   store share a wall and land 5 px apart, the roadhouse and the tourist
+   information 7 px, and at z17 there were eight pairs closer than the
+   22 px a pin is drawn at - the worst of them 2 px. The pin underneath is
+   unreadable, and worse, untappable, so a place you can see is one you
+   cannot open.
+
+   So any two that are too close are pushed apart, and only as far as they
+   have to go. Each pair moves along the line already between them, which
+   matters more than it sounds: the store sits five pixels EAST of the post
+   office, and an earlier version that spread pins on a ring from a fixed
+   angle put one directly above the other and dropped the supermarket in the
+   middle of the crossroads. Moving them along their own axis leaves them
+   side by side the way the map had them, and throws neither onto a road it
+   is not on.
+
+   Done as repeated passes over the pairs rather than as one arrangement per
+   pile, because a pile is not the unit the problem comes in. Fanning eight
+   pins out of one spot pushes them into whatever is standing forty pixels
+   away, and a scheme that only promises to separate a pile from itself
+   leaves that untouched - measured, it left eight overlapping pairs. Passes
+   settle the lot together.
+
+   Returns one entry per group: where to draw it, and null for at when that
+   is simply where it belongs. */
+function fanOut(groups) {
+  const z = map.getZoom();
+  const out = groups.map(function (g) {
+    return { group: g, pt: map.project([g[0].lat, g[0].lng], z), at: null, lead: false };
+  });
+  /* Below the split zoom the grouping has already guaranteed the spacing,
+     and moving anything here would only undo it. */
+  if (z < CFG.POI_SPLIT_Z || out.length < 2) return out;
+
+  /* Worked in plain arrays: unproject is only worth paying for once, at the
+     end, for the few that actually moved. */
+  const n = out.length;
+  const px = new Float64Array(n), py = new Float64Array(n);
+  for (let i = 0; i < n; i++) { px[i] = out[i].pt.x; py[i] = out[i].pt.y; }
+
+  /* Visited in a fixed order so the same map always settles the same way,
+     rather than following whatever order the POIs happened to arrive in. */
+  const order = out.map(function (m, i) { return i; }).sort(function (a, b) {
+    const A = out[a].group[0].id, B = out[b].group[0].id;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+
+  const want = CFG.POI_FAN_PX;
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false;
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        const i = order[a], j = order[b];
+        let dx = px[j] - px[i], dy = py[j] - py[i];
+        let d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= want) continue;
+        /* Two places mapped at exactly the same point leave no direction to
+           preserve, so they go left and right - side by side, which is the
+           right answer when there is nothing else to go on. */
+        if (d < 0.01) { dx = 1; dy = 0; d = 1; }
+        const push = (want - d) / 2;
+        if (push < 0.25) continue;          /* close enough, and stops it jittering */
+        const ux = dx / d, uy = dy / d;
+        px[i] -= ux * push; py[i] -= uy * push;
+        px[j] += ux * push; py[j] += uy * push;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const dx = px[i] - out[i].pt.x, dy = py[i] - out[i].pt.y;
+    const shift = Math.sqrt(dx * dx + dy * dy);
+    if (shift < 0.5) continue;
+    out[i].at = map.unproject(L.point(px[i], py[i]), z);
+    /* A pin is 22 px across and sits centred on its point, so a leader
+       shorter than 11 px is drawn entirely underneath the pin it points at.
+       A pair nudged apart needs no explaining anyway; a pin shoved clear of
+       a crowd does. So the line is only asked for when there would be
+       something of it to see. */
+    out[i].lead = shift >= 15;
+  }
+  return out;
 }
 
 function clusterIcon(group) {
@@ -5288,14 +5498,30 @@ function renderPois() {
      nothing nearby, and blanking the map for that is no help to anyone, so a
      filter with no hits leaves the pins alone. */
   const filtering = !!poiQuery && hits.length > 0;
-  clusterPois(filtering ? hits : vis).forEach(function (group) {
+  fanOut(clusterPois(filtering ? hits : vis)).forEach(function (spot) {
+    const group = spot.group;
+    const at = spot.at ? [spot.at.lat, spot.at.lng] : [group[0].lat, group[0].lng];
+    /* Drawn before the marker, though the order does not decide it: Leaflet
+       keeps every line in the overlay pane and every marker in the one
+       above, so a leader can never cover the pin it points at. */
+    if (spot.lead) {
+      /* Dark, like the casings under the route and the trail. Esri's topo
+         is a pale sheet and the sand the rest of the interface is drawn in
+         disappears into it - the first version of this line was in the DOM
+         and invisible on the map, which is no use at all when the line is
+         the thing that says where the place really is. */
+      L.polyline([[group[0].lat, group[0].lng], at], {
+        className: "poi-leader", color: "#14181B", weight: 1.2,
+        opacity: 0.5, interactive: false
+      }).addTo(poiLayer);
+    }
     if (group.length === 1) {
       const p = group[0], m = POI_META[p.kind];
-      L.marker([p.lat, p.lng], { icon: pinIcon(m.color, poiIcon(p.kind), true) })
+      L.marker(at, { icon: pinIcon(m.color, poiIcon(p.kind), true) })
         .bindPopup(poiPopupHtml(p, here), POP_OPTS)
         .addTo(poiLayer);
     } else {
-      L.marker([group[0].lat, group[0].lng], { icon: clusterIcon(group) })
+      L.marker(at, { icon: clusterIcon(group) })
         .bindPopup(clusterPopupHtml(group, here), POP_OPTS)
         .addTo(poiLayer);
     }
@@ -5325,6 +5551,7 @@ function renderPois() {
       '<div class="card-top"><div class="dotmark poi" style="background:' + m.color + '">' +
       catIcon(poiIcon(p.kind)) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
+      (p.sub ? '<div class="card-sub">' + esc(p.sub) + "</div>" : "") +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
       (p.addr ? '<div class="card-ad">' + esc(p.addr) + "</div>" : "") +
