@@ -297,6 +297,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:3px}
 .pop-m{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.05em}
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:12.5px}
+.pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:12px}
 .pop-a{display:flex;gap:6px;margin-top:9px}
 /* a pile of pins collapsed into one: the count replaces the glyph */
 .pin.poi.cluster .badge{border-style:solid;opacity:.97;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
@@ -645,6 +646,9 @@ details.sub > .sec-body{padding:12px 0 0}
 .trk-m span{font-family:var(--mono);font-size:11.5px;color:var(--sand);
   letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-n{font-size:11.5px;color:rgba(216,203,170,.7);margin-top:5px;line-height:1.35;word-break:break-word}
+/* The street address, above the attribute line and a shade brighter than it:
+   where a place is reads ahead of what it offers. */
+.card-ad{font-size:11.5px;color:rgba(216,203,170,.8);margin-top:5px;line-height:1.35;word-break:break-word}
 .card-acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
@@ -3853,6 +3857,36 @@ function poiInfoLine(tags, kind) {
   return bits.join(" · ");
 }
 
+/* A house number and a street, said the way it is spoken. Shared because
+   three sources hand back the same two fields and each used to compose
+   them itself: the map extract, the search index, and the suggestion list.
+
+   OSM sometimes carries the whole address in the house number - "112A
+   Rundle Mall", with Rundle Mall as the street - and appending the street
+   then says it twice. A bare number with no street is not an address
+   anybody can read, so it comes back empty rather than as a stray digit. */
+function fmtAddress(num, street) {
+  num = String(num || "").trim();
+  street = String(street || "").trim();
+  if (!street) return "";
+  if (!num) return street;
+  return num.toLowerCase().indexOf(street.toLowerCase()) >= 0 ? num : num + " " + street;
+}
+
+/* The address off a full map extract. These tags are already on the wire -
+   the extract carries every tag of everything in the box - so this costs
+   nothing but the reading of it.
+
+   addr:place stands in for addr:street out here, where a property is
+   addressed to a locality rather than to a road: it is the tag that
+   carries "Marla" or "William Creek" when there is no street to name.
+   Country addresses would otherwise come back blank, which is the wrong
+   way round for an app that spends its life past the last street sign. */
+function poiAddress(tags) {
+  if (!tags) return "";
+  return fmtAddress(tags["addr:housenumber"], tags["addr:street"] || tags["addr:place"]);
+}
+
 let pois = [];
 /* What the sources actually handed back, kept apart from what is drawn.
    The scheme's own servo list is folded in on top at draw time rather than
@@ -3915,10 +3949,13 @@ function poiAnchor() {
    cell cached under v7 holds pins whose category no longer exists, bores
    that no longer earn a pin at all, and a town's worth of hairdressers,
    and it would have gone on serving them for a week.
-   v9 when the outdoor stores came out of Supplies. */
+   v9 when the outdoor stores came out of Supplies.
+   v10 when addresses came off the extract: a v9 cell holds every pin
+   without one, so no card would say where it stood until the week ran
+   out and the cell was fetched again. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v9:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v10:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -4024,6 +4061,9 @@ async function photonPois(a) {
         name: p.name || poiCaption(tags, kind),
         caption: !p.name,
         info: poiInfoLine(tags, kind),
+        /* The index carries the address fields even though it drops most
+           other tags, so a thin record can still be placed on a street. */
+        addr: fmtAddress(p.housenumber, p.street),
         thin: true                     /* headline tags only - no fee recorded */
       };
       if (haversine(a, item) <= CFG.POI_RADIUS * 1.05) out.push(item);
@@ -4240,7 +4280,12 @@ function parseOsmXml(text, a, radius) {
          Limited". */
       name: tags.name || tags.brand || tags.operator || poiCaption(tags, kind),
       caption: !(tags.name || tags.brand || tags.operator),
-      info: poiInfoLine(tags, kind)
+      info: poiInfoLine(tags, kind),
+      /* The address tags ride in on the same extract as everything else,
+         so a place that carries one now says where it is as well as what
+         it is. Most will not: OSM has a small fraction of Australian
+         addresses, and the fraction is thinnest out here. */
+      addr: poiAddress(tags)
     };
     if (haversine(a, p) <= reach) out.push(p);
   }
@@ -4515,7 +4560,10 @@ function composePois() {
 function poiMatches(p, q) {
   if (!q) return true;
   const m = POI_META[p.kind] || {};
-  return (p.name + " " + (p.info || "") + " " + (m.label || "") + " " + p.kind)
+  /* The address is searched too, so filtering the loaded set by a street
+     name finds what stands on it. */
+  return (p.name + " " + (p.info || "") + " " + (p.addr || "") + " " +
+          (m.label || "") + " " + p.kind)
          .toLowerCase().indexOf(q) !== -1;
 }
 
@@ -4854,7 +4902,6 @@ const Fuel = {
        "OTR Dry Creek" wants "On the Run", "BP Hawker" does not want "BP"
        again. */
     if (st.b && name.toLowerCase().indexOf(String(st.b).toLowerCase()) < 0) bits.push(st.b);
-    if (st.a) bits.push(st.a);
     if (osm && osm.info) {
       String(osm.info).split(" · ").forEach(function (bit) {
         if (bit && bit !== "diesel") bits.push(bit);
@@ -4870,6 +4917,11 @@ const Fuel = {
          hours - which is less than a full extract record carries. */
       thin: true,
       info: bits.join(" · "),
+      /* The scheme registers each servo against an address, which is the
+         one thing it knows better than the map: OSM has an address for
+         very few of them. Its position is still the map's, for the
+         reason given above - a registered address can land mid-block. */
+      addr: st.a || (osm && osm.addr) || "",
       site: st
     };
   },
@@ -4956,6 +5008,7 @@ function poiPopupHtml(p, here) {
   return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
     poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
+    (p.addr ? '<div class="pop-ad">' + esc(p.addr) + "</div>" : "") +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
     Fuel.html(p) +
     '<div class="pop-a">' +
@@ -5117,6 +5170,7 @@ function renderPois() {
       '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
       '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
       fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
+      (p.addr ? '<div class="card-ad">' + esc(p.addr) + "</div>" : "") +
       (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
       Fuel.html(p) +
       '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
@@ -5714,18 +5768,11 @@ async function suggestPlaces(q) {
     /* A street address has no name at all in Photon - it is a house number
        and a street, and nothing else. Requiring a name threw every one of
        them away, which is why addresses could be searched but never
-       suggested. Build the label the way the address is spoken. */
-    const num = p.housenumber || "";
-    const street = p.street || "";
-    /* OSM sometimes carries the whole address in the house number - "112A
-       Rundle Mall", with Rundle Mall as the street - and appending the
-       street then says it twice. */
-    const addr = !street ? num
-      : (num ? (num.toLowerCase().indexOf(street.toLowerCase()) >= 0 ? num
-                                                                    : num + " " + street)
-             : street);
-    /* A bare number with no street is not an address anybody can read. */
-    const label = p.name || (street ? addr : "");
+       suggested. The shared helper builds the label the way the address is
+       spoken, and drops a bare house number standing on no street - not an
+       address anybody can read. */
+    const addr = fmtAddress(p.housenumber, p.street);
+    const label = p.name || addr;
     if (!label) return;
     /* A node named only by its house number - "30" - is the address said
        badly. Worse, it reads as a named place standing at that address,
