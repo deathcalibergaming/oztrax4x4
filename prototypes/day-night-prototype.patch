@@ -1,0 +1,479 @@
+diff --git a/docs/index.html b/docs/index.html
+index 98fd820..6691b0f 100644
+--- a/docs/index.html
++++ b/docs/index.html
+@@ -191,6 +191,39 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
+ #map{position:absolute;background:#0D100F}
+ .leaflet-container{background:#0D100F;font-family:var(--ui);outline:none}
+ .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
++/* Night. The chrome is already dark, so the map is the only thing in this
++   app that can wreck your night vision - a white topo sheet at full
++   brightness in a dark cab, an hour out of Marree.
++
++   This used to just dim the sheet, which kept it the wrong way round: pale
++   ground with dark roads drawn on it. A night map is the other way about -
++   dark ground with the roads picked out light - and on a raster tile the
++   only way to turn it over is to invert it.
++
++   Plain invert really does turn the water brown and the ranges into glare,
++   which is why it was passed over the first time. The rest of the chain is
++   what fixes that. grayscale pulls most of the colour out before the hue is
++   touched, so the inverted browns and greens have little left to be wrong
++   with; sepia then puts a single warm cast over everything, which is the
++   point - one hue is one thing to rotate, and 178 degrees lands it on navy.
++   saturate brings that back up to a colour rather than a stain. What comes
++   out is close to the dark road maps everyone knows: near-black ground,
++   roads in cool grey-blue, water darker than the land, parks still green.
++
++   Measured rather than eyeballed - Adelaide for street density, Gulf St
++   Vincent for a big body of water, Wilpena for relief. */
++body.night .leaflet-tile{
++  filter:invert(1) grayscale(.55) sepia(.6) hue-rotate(178deg) saturate(2.2)
++         brightness(.8) contrast(1.1)}
++/* Relief has to change sides with the map. The hillshade is a near-white
++   sheet that multiplies into a pale map to darken the slopes; inverted along
++   with everything else it becomes near-black, and multiplying that into an
++   already dark map takes the whole Flinders down to nothing - which is
++   exactly what it did. Screen is multiply's opposite number: the light
++   slopes of the inverted sheet add instead of subtract, and the country
++   comes back up out of the dark. Gentler than by day, because at night a
++   little relief goes a long way and the roads still have to win. */
++body.night .leaflet-tile-pane .shadeLayer{mix-blend-mode:screen;opacity:.45 !important}
+ .leaflet-fade-anim .leaflet-tile{will-change:auto}
+ 
+ #attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
+@@ -667,7 +700,7 @@ details.sub > .sec-body{padding:12px 0 0}
+    dark on dark, and no highlight at all, since ghost won the background. */
+ #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
+ #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
+-#btnFuelAll.on,#btnFuelNone.on{
++#btnFuelAll.on,#btnFuelNone.on,#btnDnAuto.on,#btnDnDay.on,#btnDnNight.on{
+   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
+ .sw.on::after{transform:translateX(18px);background:var(--rust)}
+ 
+@@ -1125,6 +1158,12 @@ input[type=date],input[type=time]{color-scheme:dark}
+           <button class="btn xs ghost" id="btnShadeOff">Off</button>
+         </div>
+         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
++        <div class="sublabel">Day / Night
++          <button class="btn xs ghost" id="btnDnAuto">Auto</button>
++          <button class="btn xs ghost" id="btnDnDay">Day</button>
++          <button class="btn xs ghost" id="btnDnNight">Night</button>
++        </div>
++        <div class="poi-status" id="dnNote"></div>
+         <details class="sub" id="secFuel">
+           <summary>
+             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
+@@ -1860,12 +1899,14 @@ const S = Object.assign({
+   keepAwake: true,      /* hold the screen on the whole time the app is open */
+   units: "metric",      /* or "imperial" - display only, never what is stored */
+   zoom: 15,
+-  hillshade: false     /* shaded relief under the map, off by default */
++  hillshade: false,    /* shaded relief under the map, off by default */
++  dayNight: "auto"     /* or "day" or "night" - auto follows the sun */
+ }, loadLS(LS.settings, {}));
+ 
+ function saveSettings() {
+   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
+-                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
++                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
++                        dayNight: S.dayNight });
+ }
+ 
+ /* Home is a place rather than a preference, so it keeps its own key: a
+@@ -2062,7 +2103,294 @@ function setHillshade(on) {
+ }
+ if (S.hillshade) setHillshade(true);
+ 
++/* =====================================================================
++   Where the sun is
++   ===================================================================== */
++/* NOAA's solar equations - the ones the almanac calculators are built on.
++
++   There is a web API for this, sunrise-sunset.org, and it does work: https,
++   CORS open, about 800ms. It is still the wrong tool twice over. It needs
++   signal, and dusk on the Oodnadatta Track is exactly where there is none;
++   and checked against the US Naval Observatory for Adelaide, Mt Dare, Mount
++   Gambier and Hobart across midsummer, midwinter and the equinox, it is out
++   by up to 132 seconds where this is out by at most 49.
++
++   The phone knows where it is and what the time is. The rest is arithmetic,
++   and arithmetic works in the desert. */
++const Sun = {
++  D: Math.PI / 180,
++  DEG: 180 / Math.PI,
++  DAY: 86400000,
++
++  /* The sun's centre sits 50 arcminutes below the horizon at the moment its
++     upper limb appears to touch it: 34' of atmospheric refraction and 16' of
++     the sun's own radius. That is the definition sunrise and sunset are
++     written to, and the one the almanacs publish against. */
++  HORIZON: -0.833,
++
++  /* Where the sun is at one instant - how far it is declined from the
++     equator, and how far ahead or behind the clock it is running.
++
++     Taken at the instant itself rather than at midnight. The declination
++     moves about 0.4 degrees a day around the equinoxes, which is a degree of
++     altitude by the time it reaches the horizon at these latitudes, and a
++     degree at the horizon is four minutes of daylight. It also keeps this
++     honest against times(): a sunrise it works out is a moment when this
++     function reports the sun at exactly the horizon, and the two can never
++     drift apart on a day boundary. */
++  solar: function (when) {
++    const D = this.D;
++    const T = (when / this.DAY + 2440587.5 - 2451545) / 36525;   /* Julian centuries */
++    const L0 = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360;
++    const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
++    const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
++    const C = Math.sin(M * D) * (1.914602 - T * (0.004817 + 0.000014 * T)) +
++              Math.sin(2 * M * D) * (0.019993 - 0.000101 * T) +
++              Math.sin(3 * M * D) * 0.000289;
++    const om = (125.04 - 1934.136 * T) * D;
++    const lambda = L0 + C - 0.00569 - 0.00478 * Math.sin(om);
++    const eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 +
++                0.00256 * Math.cos(om);
++    const y = Math.pow(Math.tan(eps * D / 2), 2);
++    return {
++      dec: Math.asin(Math.sin(eps * D) * Math.sin(lambda * D)) * this.DEG,
++      eqTime: 4 * this.DEG * (y * Math.sin(2 * L0 * D) - 2 * e * Math.sin(M * D) +
++        4 * e * y * Math.sin(M * D) * Math.cos(2 * L0 * D) -
++        0.5 * y * y * Math.sin(4 * L0 * D) - 1.25 * e * e * Math.sin(2 * M * D))
++    };
++  },
++
++  /* The instant the sun is due north, for the solar day this instant falls
++     in. The day is chosen by longitude rather than by the UTC date, which is
++     the whole trick: in South Australia sunrise happens on yesterday's UTC
++     date for most of the year, so a sunrise and a sunset picked off one UTC
++     date are not the same day's. Picked off this, they always are.
++
++     Two passes. The first places noon to within the equation of time - up to
++     a quarter of an hour - and the second reads the equation of time there
++     and is done, because it moves by seconds across a day. */
++  noon: function (lng, when) {
++    const guess = 720 - 4 * lng;                      /* minutes past UTC midnight */
++    const day = Math.round((when - guess * 60000) / this.DAY);
++    let at = day * this.DAY + guess * 60000;
++    at = day * this.DAY + (guess - this.solar(at).eqTime) * 60000;
++    return day * this.DAY + (guess - this.solar(at).eqTime) * 60000;
++  },
++
++  /* Sunrise and sunset either side of that noon. Both are null inside the
++     polar circles, where the sun can pass a whole day without reaching the
++     horizon; `up` says which way it stayed. Nowhere in Australia, but the
++     arithmetic should not lie about it. */
++  times: function (lat, lng, when) {
++    const D = this.D;
++    const at = this.noon(lng, when);
++    const dec = this.solar(at).dec;
++    const cosH = Math.cos((90 - this.HORIZON) * D) /
++                 (Math.cos(lat * D) * Math.cos(dec * D)) -
++                 Math.tan(lat * D) * Math.tan(dec * D);
++    if (cosH > 1 || cosH < -1) {
++      return { sunrise: null, sunset: null, noon: new Date(at), up: cosH < -1 };
++    }
++    const half = Math.acos(cosH) * this.DEG * 4 * 60000;   /* 4 minutes a degree */
++    return { sunrise: new Date(at - half), sunset: new Date(at + half),
++             noon: new Date(at), up: null };
++  },
++
++  /* How high the sun stands right now, in degrees above the horizon.
++
++     The day/night decision is taken from this rather than by comparing the
++     clock against a sunrise, which sidesteps the question of which day a
++     time belongs to entirely. */
++  altitude: function (lat, lng, when) {
++    const D = this.D, s = this.solar(when);
++    const mins = (when % this.DAY) / 60000;           /* past UTC midnight */
++    const ha = (mins + s.eqTime + 4 * lng) / 4 - 180; /* 15 degrees an hour */
++    return Math.asin(Math.sin(lat * D) * Math.sin(s.dec * D) +
++      Math.cos(lat * D) * Math.cos(s.dec * D) * Math.cos(ha * D)) * this.DEG;
++  },
++
++  isNight: function (lat, lng, when) {
++    return this.altitude(lat, lng, when) < this.HORIZON;
++  },
++
++  /* The next time the map will change, which is the part worth printing.
++     Yesterday is in the search because a sunset late on one solar day can
++     still be ahead of a clock that has just ticked past midnight. */
++  next: function (lat, lng, when) {
++    const out = [];
++    for (let k = -1; k <= 1; k++) {
++      const t = this.times(lat, lng, when + k * this.DAY);
++      if (!t.sunrise) continue;
++      if (t.sunrise.getTime() > when) out.push({ kind: "sunrise", at: t.sunrise });
++      if (t.sunset.getTime() > when) out.push({ kind: "sunset", at: t.sunset });
++    }
++    out.sort(function (a, b) { return a.at - b.at; });
++    return out[0] || null;
++  }
++};
++
++/* Where to stand the sun over: the vehicle if it has a fix, otherwise
++   whatever the map is looking at, which is the last place it was. Either is
++   near enough - sunset moves by about four minutes for every degree of
++   longitude, so being a town out is being a minute out. */
++function sunAnchor() {
++  if (typeof view !== "undefined" && view.has && view.cur) {
++    return { lat: view.cur.lat, lng: view.cur.lng };
++  }
++  const c = map.getCenter();
++  return { lat: c.lat, lng: c.lng };
++}
++
++function nightNow() {
++  if (S.dayNight === "day") return false;
++  if (S.dayNight === "night") return true;
++  const a = sunAnchor();
++  return Sun.isNight(a.lat, a.lng, Date.now());
++}
++
++function applyDayNight() {
++  const was = document.body.classList.contains("night");
++  const now = nightNow();
++  document.body.classList.toggle("night", now);
++  /* Roads are only drawn at night, so the layer is built and torn down with
++     it rather than sitting there costing paint all day. */
++  if (was !== now && typeof renderRoads === "function") renderRoads();
++  syncDayNightButtons();
++}
++
++function setDayNight(mode) {
++  if (S.dayNight === mode) return;
++  S.dayNight = mode;
++  saveSettings();
++  applyDayNight();
++}
++
++function syncDayNightButtons() {
++  const m = S.dayNight;
++  [["#btnDnAuto", "auto"], ["#btnDnDay", "day"], ["#btnDnNight", "night"]]
++    .forEach(function (pair) {
++      const el = $(pair[0]);
++      if (el) el.classList.toggle("on", m === pair[1]);
++    });
++  const note = $("#dnNote");
++  if (!note) return;
++  if (m === "day")   { note.textContent = "Map held bright, whatever the hour."; return; }
++  if (m === "night") { note.textContent = "Map held dim, whatever the hour."; return; }
++  const a = sunAnchor();
++  const nx = Sun.next(a.lat, a.lng, Date.now());
++  if (!nx) {
++    note.textContent = document.body.classList.contains("night")
++      ? "The sun does not rise here today, so the map stays dim."
++      : "The sun does not set here today, so the map stays bright.";
++    return;
++  }
++  const at = nx.at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
++  note.textContent = (nx.kind === "sunset" ? "Dimming at sunset, " : "Brightening at sunrise, ") +
++    at + ". Worked out on the phone, so it holds with no signal.";
++}
++
++/* A minute is close enough. The map changing a minute late at dusk is not
++   something anybody will notice, and the alternative - scheduling a wake-up
++   for the exact crossing - would have to be torn up and rebuilt every time
++   the vehicle moves, the clock shifts or the phone comes back from sleep. */
++setInterval(applyDayNight, 60000);
++document.addEventListener("visibilitychange", function () {
++  if (!document.hidden) applyDayNight();
++});
++/* The first call is made from init(), not here. Night now draws the road
++   network, and the layer it draws into is built further down the file - so
++   running this at parse time would reach a const that does not exist yet
++   and take the whole app with it. */
++
+ /* ---- layers ---- */
++/* =====================================================================
++   The road network, drawn rather than filtered
++   ===================================================================== */
++/* At night the basemap cannot show a road. Esri draws one as a white fill
++   inside a thin dark casing, so inverting the sheet turns the fill black -
++   the road itself vanishes - and leaves the casing as a pale hairline. That
++   is the "thin line, very hard to see" and no filter can undo it: a
++   threshold that catches the white of a road also catches the cream of the
++   ground it crosses, which was tried and turned the Flinders into a
++   photocopy.
++
++   So the roads are drawn from the data instead. The extract that is already
++   fetched for the POIs carries every way with its geometry; until now
++   anything without a posted speed limit was thrown away, which in the
++   outback is most of them - 19 roads kept out of 129 around Hawker. Keeping
++   the lot costs about 40 KB there and 95 KB in the city, against a download
++   of 1.8 MB that was happening anyway.
++
++   Its own pane, above the tiles and below the recorded trail and the route,
++   because neither of those should ever be hidden by a road. Canvas rather
++   than SVG: 800 ways in a city is 1600 paths once each has a casing, and
++   that is a lot of DOM to move on every pan. */
++map.createPane("roadPane");
++map.getPane("roadPane").style.zIndex = 350;   /* tiles 200, overlays 400 */
++const roadCanvas = L.canvas({ pane: "roadPane", padding: 0.3 });
++const roadLayer  = L.layerGroup().addTo(map);
++
++/* Weight and colour by what the road is. The greys run from a highway you
++   can see from a distance down to a driveway you can ignore; tracks get
++   their own colour rather than another grey, because on this app a track is
++   not a lesser road, it is the reason for the trip. */
++const ROAD_STYLE = {
++  motorway:     { w: 5.0, c: "#F4F8FF" },
++  trunk:        { w: 4.6, c: "#F4F8FF" },
++  primary:      { w: 4.0, c: "#E6EEFC" },
++  secondary:    { w: 3.4, c: "#D2DDF0" },
++  tertiary:     { w: 3.0, c: "#BFCDE4" },
++  unclassified: { w: 2.6, c: "#A9B8D0" },
++  residential:  { w: 2.6, c: "#A9B8D0" },
++  living_street:{ w: 2.2, c: "#98A7C0" },
++  track:        { w: 2.8, c: "#E0A758" },
++  service:      { w: 1.5, c: "#6F7C92" }
++};
++/* A slip road is the same road doing less work, so it takes the same colour
++   a size down rather than an entry of its own. */
++function roadStyle(k) {
++  const base = String(k || "unclassified").replace(/_link$/, "");
++  return ROAD_STYLE[base] || ROAD_STYLE.unclassified;
++}
++
++/* Widths are in screen pixels, so they have to answer to the zoom or a
++   highway drawn for a close-up becomes a smear across half a state. */
++function roadScale(z) {
++  return Math.max(0.5, Math.min(1.35, (z - 8) / 6));
++}
++
++/* Casings under, fills over, in two passes - otherwise every road's casing
++   would be laid over its neighbour's surface at each junction and the
++   network would read as a chain of dark beads. */
++/* Widths are in pixels, so the network has to be laid out again whenever the
++   scale changes under it. */
++map.on("zoomend", function () { renderRoads(); });
++
++function renderRoads() {
++  roadLayer.clearLayers();
++  if (!document.body.classList.contains("night") || !roads.length) return;
++  const sc = roadScale(map.getZoom());
++  const fills = [];
++  for (let i = 0; i < roads.length; i++) {
++    const st = roadStyle(roads[i].k), w = st.w * sc;
++    const pts = roads[i].pts;
++    roadLayer.addLayer(L.polyline(pts, { pane: "roadPane", renderer: roadCanvas,
++      color: "#05080D", weight: w + 2.6, opacity: .95,
++      lineCap: "round", lineJoin: "round", interactive: false }));
++    fills.push(L.polyline(pts, { pane: "roadPane", renderer: roadCanvas,
++      color: st.c, weight: w, opacity: .96,
++      lineCap: "round", lineJoin: "round", interactive: false }));
++  }
++  for (let i = 0; i < fills.length; i++) roadLayer.addLayer(fills[i]);
++}
++
++/* Every path that lands a new set of roads comes through here, so nothing
++   can set them and forget to draw them. */
++function setRoads(list) {
++  roads = list || [];
++  renderRoads();
++}
++
+ /* route first so the recorded trail always draws on top of it */
+ const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
+ const navLine     = L.polyline([], { color: "#4FA8E8", weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
+@@ -2536,6 +2864,10 @@ function pointSegMetres(p, a, b) {
+ function roadUnder(p, hdg, moving) {
+   let best = null, bestD = CFG.SPEED_SNAP_M;
+   for (let i = 0; i < roads.length; i++) {
++    /* The list now carries every drivable road so the night map can be
++       drawn from it. This one is still only asking which posted limit
++       applies, and a road with no sign on it cannot answer. */
++    if (!roads[i].v) continue;
+     const pts = roads[i].pts;
+     for (let j = 1; j < pts.length; j++) {
+       const seg = pointSegMetres(p, pts[j - 1], pts[j]);
+@@ -3879,7 +4211,7 @@ async function fetchPois(force) {
+     if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
+       poiCentre = a;
+       if (show) setPois(cached.items, a);
+-      roads = cached.roads || [];
++      setRoads(cached.roads);
+       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
+       return;
+     }
+@@ -3926,7 +4258,7 @@ async function fetchPois(force) {
+       await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
+         .catch(function () {});
+       if (show) setPois(items, a);
+-      roads = found;
++      setRoads(found);
+       refreshStorageStats();
+       if (show) offerOsmPois(false);
+       /* count what is actually on the map, after copies of the same place
+@@ -3940,7 +4272,7 @@ async function fetchPois(force) {
+       /* both sources are unreachable but we have been here before - stale
+          beats empty, and poiCentre stays unset so a later attempt happens */
+       if (show) setPois(cached.items, a);
+-      roads = cached.roads || [];
++      setRoads(cached.roads);
+       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
+       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
+     } else {
+@@ -3998,10 +4330,19 @@ function parseOsmXml(text, a, radius) {
+   }
+   const out = [];
+   /* The extract is already on the wire for the POIs, and every road in it
+-     carries its geometry and whatever limit a mapper recorded. Keeping the
+-     posted ones costs about 9 KB per 5 km cell against a 1.8 MB download
+-     that was happening anyway. Untagged roads are dropped: they cannot
+-     answer the question, so storing them would only slow the search. */
++     carries its geometry, its class, and whatever limit a mapper recorded.
++
++     All of them are kept now, not only the ones carrying a posted limit.
++     That used to be 19 roads out of 129 around Hawker, which was plenty for
++     a speed sign and nothing like enough to draw a night map with. The rest
++     costs about 40 KB per 5 km cell out there and 95 KB in the city,
++     against the 1.8 MB download that was happening anyway.
++
++     A cell cached under the old shape has no `k` and only limited roads in
++     it. It still drives the speed sign correctly and draws a thin night
++     map, until it ages out and comes back full - which is a better trade
++     than expiring every cell on the phone, some of them out of reach of a
++     signal. */
+   const roads = [];
+   function collectRoad(el) {
+     const tags = {};
+@@ -4010,8 +4351,6 @@ function parseOsmXml(text, a, radius) {
+       if (kids[j].tagName === "tag") tags[kids[j].getAttribute("k")] = kids[j].getAttribute("v");
+     }
+     if (!tags.highway || NOT_DRIVABLE[tags.highway]) return;
+-    const lim = parseMaxspeed(tags.maxspeed);
+-    if (!lim) return;
+     const pts = [];
+     for (let j = 0; j < kids.length; j++) {
+       if (kids[j].tagName !== "nd") continue;
+@@ -4020,7 +4359,10 @@ function parseOsmXml(text, a, radius) {
+       if (p) pts.push([+p.lat.toFixed(5), +p.lng.toFixed(5)]);
+     }
+     if (pts.length < 2) return;
+-    roads.push({ v: lim.v, mph: lim.mph, pts: pts });
++    const road = { k: tags.highway, pts: pts };
++    const lim = parseMaxspeed(tags.maxspeed);
++    if (lim) { road.v = lim.v; road.mph = lim.mph; }
++    roads.push(road);
+   }
+   function collect(el, type) {
+     const tags = {};
+@@ -7365,6 +7707,9 @@ function syncHillshadeButtons() {
+   $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
+   $("#btnShadeOff").classList.toggle("on", !S.hillshade);
+ }
++$("#btnDnAuto").addEventListener("click", function () { setDayNight("auto"); });
++$("#btnDnDay").addEventListener("click", function () { setDayNight("day"); });
++$("#btnDnNight").addEventListener("click", function () { setDayNight("night"); });
+ $("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
+ $("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
+ $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
+@@ -7544,6 +7889,7 @@ document.addEventListener("keydown", function (e) {
+   Rec.ui();
+   renderWaypoints();
+   renderPois();
++  applyDayNight();              /* the map exists now, so it can be dressed */
+   renderTracks();
+   renderAreas();
+   refreshStorageStats();
