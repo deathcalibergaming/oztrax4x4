@@ -5235,58 +5235,82 @@ function clusterPois(list) {
    unreadable, and worse, untappable, so a place you can see is one you
    cannot open.
 
-   They are pushed onto a small ring instead, with a hairline drawn back to
-   where the place actually is. Nothing is hidden, which is the whole point
-   of showing everything at this zoom, and nothing lies about where it is -
-   the line says which pin belongs to which spot.
+   So any two that are too close are pushed apart, and only as far as they
+   have to go. Each pair moves along the line already between them, which
+   matters more than it sounds: the store sits five pixels EAST of the post
+   office, and an earlier version that spread pins on a ring from a fixed
+   angle put one directly above the other and dropped the supermarket in the
+   middle of the crossroads. Moving them along their own axis leaves them
+   side by side the way the map had them, and throws neither onto a road it
+   is not on.
+
+   Done as repeated passes over the pairs rather than as one arrangement per
+   pile, because a pile is not the unit the problem comes in. Fanning eight
+   pins out of one spot pushes them into whatever is standing forty pixels
+   away, and a scheme that only promises to separate a pile from itself
+   leaves that untouched - measured, it left eight overlapping pairs. Passes
+   settle the lot together.
 
    Returns one entry per group: where to draw it, and null for at when that
    is simply where it belongs. */
 function fanOut(groups) {
   const z = map.getZoom();
   const out = groups.map(function (g) {
-    return { group: g, pt: map.project([g[0].lat, g[0].lng], z), at: null };
+    return { group: g, pt: map.project([g[0].lat, g[0].lng], z), at: null, lead: false };
   });
   /* Below the split zoom the grouping has already guaranteed the spacing,
      and moving anything here would only undo it. */
-  if (z < CFG.POI_SPLIT_Z) return out;
+  if (z < CFG.POI_SPLIT_Z || out.length < 2) return out;
 
-  const near = CFG.POI_FAN_PX * CFG.POI_FAN_PX;
-  const piles = [];
-  out.forEach(function (m) {
-    for (let i = 0; i < piles.length; i++) {
-      const dx = m.pt.x - piles[i][0].pt.x, dy = m.pt.y - piles[i][0].pt.y;
-      if (dx * dx + dy * dy < near) { piles[i].push(m); return; }
+  /* Worked in plain arrays: unproject is only worth paying for once, at the
+     end, for the few that actually moved. */
+  const n = out.length;
+  const px = new Float64Array(n), py = new Float64Array(n);
+  for (let i = 0; i < n; i++) { px[i] = out[i].pt.x; py[i] = out[i].pt.y; }
+
+  /* Visited in a fixed order so the same map always settles the same way,
+     rather than following whatever order the POIs happened to arrive in. */
+  const order = out.map(function (m, i) { return i; }).sort(function (a, b) {
+    const A = out[a].group[0].id, B = out[b].group[0].id;
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+
+  const want = CFG.POI_FAN_PX;
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false;
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        const i = order[a], j = order[b];
+        let dx = px[j] - px[i], dy = py[j] - py[i];
+        let d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= want) continue;
+        /* Two places mapped at exactly the same point leave no direction to
+           preserve, so they go left and right - side by side, which is the
+           right answer when there is nothing else to go on. */
+        if (d < 0.01) { dx = 1; dy = 0; d = 1; }
+        const push = (want - d) / 2;
+        if (push < 0.25) continue;          /* close enough, and stops it jittering */
+        const ux = dx / d, uy = dy / d;
+        px[i] -= ux * push; py[i] -= uy * push;
+        px[j] += ux * push; py[j] += uy * push;
+        moved = true;
+      }
     }
-    piles.push([m]);
-  });
+    if (!moved) break;
+  }
 
-  piles.forEach(function (pile) {
-    if (pile.length < 2) return;
-    /* Ordered by id, so the arrangement is the same on every render and the
-       pins do not swap sides as you pan across them. */
-    pile.sort(function (a, b) {
-      return a.group[0].id < b.group[0].id ? -1 : a.group[0].id > b.group[0].id ? 1 : 0;
-    });
-    /* Centred on the pile rather than on its first member, so adding one
-       does not drag the others across the map. */
-    let cx = 0, cy = 0;
-    pile.forEach(function (m) { cx += m.pt.x; cy += m.pt.y; });
-    cx /= pile.length; cy /= pile.length;
-    /* Wide enough that neighbours on the ring clear each other: two end up
-       exactly POI_FAN_PX apart, and more spread as the ring fills. */
-    const r = CFG.POI_FAN_PX / (2 * Math.sin(Math.PI / pile.length));
-    pile.forEach(function (m, i) {
-      const a = -Math.PI / 2 + (2 * Math.PI * i) / pile.length;
-      m.at = map.unproject(L.point(cx + r * Math.cos(a), cy + r * Math.sin(a)), z);
-      /* A pin is 22 px across and sits centred on its point, so a leader
-         shorter than 11 px is drawn entirely underneath the pin it points
-         at. A pair moves 14 px and needs no explaining anyway; a ring of
-         five moves 24 and does. So the line is only asked for when there
-         would be something of it to see. */
-      m.lead = r >= 15;
-    });
-  });
+  for (let i = 0; i < n; i++) {
+    const dx = px[i] - out[i].pt.x, dy = py[i] - out[i].pt.y;
+    const shift = Math.sqrt(dx * dx + dy * dy);
+    if (shift < 0.5) continue;
+    out[i].at = map.unproject(L.point(px[i], py[i]), z);
+    /* A pin is 22 px across and sits centred on its point, so a leader
+       shorter than 11 px is drawn entirely underneath the pin it points at.
+       A pair nudged apart needs no explaining anyway; a pin shoved clear of
+       a crowd does. So the line is only asked for when there would be
+       something of it to see. */
+    out[i].lead = shift >= 15;
+  }
   return out;
 }
 
