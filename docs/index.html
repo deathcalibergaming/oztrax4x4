@@ -5468,6 +5468,7 @@ function setKindHidden(kind, hidden) {
 const Addr = {
   manifest: null,          /* which tiles exist, so desert is never asked for */
   localities: null,        /* suburb -> the tiles it occupies, fetched on demand */
+  streets: null,           /* street -> the tiles it appears in, the wider fallback */
   mem: new Map(),          /* "x/y" -> parsed tile, most recent last */
   count: 0,                /* addresses held in mem, against ADDR_MEM_MAX */
   tried: new Set(),        /* asked for and failed, so a dead tile is asked once */
@@ -5550,20 +5551,82 @@ const Addr = {
      are the sparse kind, a few hundred addresses between them. */
   reachFor: async function (q) {
     if (!navigator.onLine) return 0;
-    const places = await this.loadLocalities();
-    if (!places) return 0;
-    const named = this.placesIn(q, places);
-    if (!named.length) return 0;
+    const t = this.terms(q);
+    if (!t) return 0;
     let got = 0;
-    for (const name of named) {
-      for (const k of places[name]) {
-        if (got >= CFG.ADDR_REACH_MAX) return got;
-        const p = k.split("/");
-        await this.fetchTile(+p[0], +p[1], false);
-        got++;
+    const places = await this.loadLocalities();
+    if (places) {
+      for (const name of this.placesIn(q, places)) {
+        for (const k of places[name]) {
+          if (got >= CFG.ADDR_REACH_MAX) return got;
+          const p = k.split("/");
+          await this.fetchTile(+p[0], +p[1], false);
+          got++;
+        }
       }
     }
+    /* A suburb was named and its packs are here now. The answer is in them
+       or it is nowhere, so the street index is not worth its 328 KB. */
+    if (got) return got;
+    /* Nothing named a suburb - "12 Waterford Avenue" on its own, which is a
+       fair thing to type when the street is unusual enough. One short word
+       is not, and is not worth fetching a state's worth of streets for. */
+    if (t.words.length === 1 && t.words[0].length < 4) return 0;
+    const streets = await this.loadStreets();
+    if (!streets) return 0;
+    for (const k of this.tilesForStreets(t, streets)) {
+      if (got >= CFG.ADDR_REACH_MAX) break;
+      const p = k.split("/");
+      await this.fetchTile(+p[0], +p[1], false);
+      got++;
+    }
     return got;
+  },
+
+  /* Which tiles each street name appears in. 31549 streets and 328 KB
+     gzipped, nearly seven times the suburb index, so it is fetched only
+     when a search has nothing else to go on, and never when the query
+     named a suburb. Once fetched it is stored like everything else, so the
+     cost is not paid twice. */
+  loadStreets: async function () {
+    if (this.streets) return this.streets;
+    try {
+      const held = await DB.get("addr", "streets");
+      if (held) { this.streets = held; return held; }
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    try {
+      const r = await fetch(CFG.ADDR_URL + "streets.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      this.streets = await r.json();
+      try { await DB.put("addr", this.streets, "streets"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      this.streets = null;
+    }
+    return this.streets;
+  },
+
+  /* The tiles a street-only query could be answered from, nearest first.
+
+     Nearest matters because of the cap. The median street is in one tile,
+     but a highway runs through two hundred and five, and the sixty this is
+     willing to fetch should be the sixty around the vehicle rather than
+     whichever the object happened to list first. */
+  tilesForStreets: function (t, streets) {
+    const here = poiAnchor();
+    const cx = lon2tile(here.lng, CFG.ADDR_Z), cy = lat2tile(here.lat, CFG.ADDR_Z);
+    const seen = {}, out = [];
+    for (const name in streets) {
+      if (this.mask(name, t.words) !== t.all) continue;
+      for (const k of streets[name]) {
+        if (seen[k]) continue;
+        seen[k] = 1;
+        const p = k.split("/");
+        const dx = +p[0] - cx, dy = +p[1] - cy;
+        out.push([k, dx * dx + dy * dy]);
+      }
+    }
+    out.sort(function (a, b) { return a[1] - b[1]; });
+    return out.map(function (r) { return r[0]; });
   },
 
   /* Every tile touching a box. z13 is about 4.3 km across here, so a 5 km
@@ -5781,7 +5844,9 @@ const Addr = {
   stats: async function () {
     try {
       const keys = await DB.keys("addr");
-      return keys.filter(function (k) { return k !== "index" && k !== "localities"; }).length;
+      return keys.filter(function (k) {
+        return k !== "index" && k !== "localities" && k !== "streets";
+      }).length;
     } catch (e) { return 0; }
   }
 };
