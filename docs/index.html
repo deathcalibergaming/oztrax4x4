@@ -3636,6 +3636,40 @@ function boreKind(tags) {
   return null;
 }
 
+/* Supplies used to be "anything with a shop tag", which in South Australia
+   is 5,888 places across 227 different values, and the ones that turned up
+   in numbers were the ones nobody drives to: 353 hairdressers, 269 clothes
+   shops, 110 beauty salons, 91 op shops - and 133 tagged shop=vacant, which
+   is an empty shopfront. Real estate agents and hairdressers do not belong
+   in a list you check while moving.
+
+   So it is an allowlist, the same shape as GP_CLINIC and for the same
+   reason: a shop value nobody here has thought about should stay off the
+   map rather than quietly earn a pin. It cuts roughly four shop pins in
+   five and keeps the ones a trip actually turns on - the ones that fix the
+   vehicle, kit it out, fill it, or feed the people in it.
+
+   Two worth spelling out. shop=gas is the bottled LPG swap, and in this
+   state it is mostly general stores and roadhouses, which is exactly where
+   you want it. shop=agrarian is Elders and Nutrien - rural supplies, where
+   the jerry cans and the poly pipe are. shop=sports is deliberately out:
+   here it is Rebel and the surf shops, while the camping gear sits under
+   shop=outdoor with BCF, Anaconda, Kathmandu and Tentworld. */
+const SUPPLY_SHOP = {
+  /* fix it, rig it, replace it */
+  doityourself: 1, hardware: 1, trade: 1, agrarian: 1, farm_equipment: 1,
+  tool_hire: 1, battery: 1,
+  /* kit it out */
+  outdoor: 1, camping: 1, fishing: 1, hunting: 1, caravan: 1,
+  /* fill it */
+  gas: 1,
+  /* feed the people in it, short of the weekly shop */
+  bakery: 1, butcher: 1, greengrocer: 1, deli: 1, seafood: 1, farm: 1,
+  alcohol: 1, health_food: 1,
+  /* the other errand on a long trip */
+  laundry: 1
+};
+
 /* healthcare= values that still mean "somewhere you can see a doctor" when
    they sit on an amenity=clinic. An allowlist rather than a list of the
    ones to reject, so a healthcare value nobody here has seen keeps a
@@ -3739,7 +3773,7 @@ function poiKind(tags) {
      mechanics out was for. */
   if (tags.shop === "car_repair" || tags.shop === "tyres") return "mechanic";
   if (tags.shop === "car_parts") return "parts";
-  if (tags.shop) return "shop";
+  if (tags.shop) return SUPPLY_SHOP[tags.shop] ? "shop" : null;
   return null;
 }
 
@@ -3847,9 +3881,10 @@ function poiAnchor() {
    keep the speed sign away for the whole week the cell stays fresh - a
    feature silently missing rather than absent.
    Auto filed as a workshop.
-   v8 is the water and medical recut: a cell cached under v7 holds pins
-   whose category no longer exists, and bores that no longer earn a pin at
-   all, and it would have gone on serving them for a week. */
+   v8 is the water and medical recut, and the shop allowlist with it: a
+   cell cached under v7 holds pins whose category no longer exists, bores
+   that no longer earn a pin at all, and a town's worth of hairdressers,
+   and it would have gone on serving them for a week. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
   return "v8:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
@@ -4376,8 +4411,52 @@ function dedupeByName(items) {
     if (covered) { removed++; return; }
     out.push(p);
   });
+
+  /* Hawker's one hospital was on the map twice: a node reading "Hawker
+     Hospital" and the building reading "Hawker Memorial Hospital", 33 m
+     apart. Both are real names, so the caption rule above never looked at
+     them, and they are not the same string, so the name clustering never
+     looked at them either.
+
+     One name's words all appearing in the other's, at the same kind and
+     inside the caption radius, is one place written down twice - "Hawker
+     Hospital" inside "Hawker Memorial Hospital", "Shell" inside "Shell
+     Coles Express". Whole words rather than substrings, so Hawker cannot
+     swallow Hawkerville, and the fuller name is the one kept because it is
+     the one that says more.
+
+     Real names only, and against real names only, for the same reason the
+     captions are: two car parks both reading "Parking" have identical word
+     sets and each would swallow the other. */
+  const nameWords = new Map();
+  function wordsOf(p) {
+    let w = nameWords.get(p);
+    if (!w) {
+      w = p.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ")
+           .filter(function (s) { return s.length > 1; });
+      nameWords.set(p, w);
+    }
+    return w;
+  }
+  const fullestFirst = out.filter(hasRealName)
+    .sort(function (a, b) { return b.name.length - a.name.length; });
+  const anchored = [], swallowed = new Set();
+  fullestFirst.forEach(function (p) {
+    const pw = wordsOf(p);
+    if (!pw.length) { anchored.push(p); return; }
+    const inside = anchored.some(function (q) {
+      if (q.kind !== p.kind) return false;
+      if (haversine(q, p) > CFG.POI_CAPTION_M) return false;
+      const qw = wordsOf(q);
+      return pw.every(function (w) { return qw.indexOf(w) !== -1; });
+    });
+    if (inside) { swallowed.add(p); removed++; } else anchored.push(p);
+  });
+
   poiDupCount = removed;
-  return out;
+  /* filtered rather than rebuilt, so everything else keeps the order it
+     had - the sort above is only there to put the fuller name first */
+  return swallowed.size ? out.filter(function (p) { return !swallowed.has(p); }) : out;
 }
 
 /* Two steps, because the two lists have different lifetimes. What came off
