@@ -8,43 +8,67 @@
 <style>
   :root{
     --panel:#14181B; --line2:#2A3238; --sand:#D8D2C4; --dim:#8A9098; --rust:#C1552C;
+    --ok:#8FB93E;
     --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#0D100F;color:var(--sand);font-family:var(--ui)}
+  html,body{margin:0;height:100%;background:#0D100F;color:var(--sand);
+    font-family:var(--ui);overflow:hidden}
   #wrap{position:absolute;inset:0;display:flex;flex-direction:column}
-  header{background:var(--panel);border-bottom:1px solid var(--line2);padding:8px 10px;
-    display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:0 0 auto}
-  .brand{font-weight:700;letter-spacing:.08em;font-size:13px;margin-right:6px}
+  header{background:var(--panel);border-bottom:1px solid var(--line2);padding:7px 9px;
+    display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex:0 0 auto}
+  .brand{font-weight:700;letter-spacing:.07em;font-size:12px;margin-right:4px;white-space:nowrap}
   .brand i{color:var(--rust);font-style:normal}
   button{background:transparent;border:1px solid var(--line2);color:var(--dim);
-    border-radius:7px;padding:6px 10px;font-family:var(--mono);font-size:11px;
-    letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+    border-radius:7px;padding:5px 9px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+  button:hover{color:var(--sand)}
   button.on{background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
-  .sep{width:1px;height:22px;background:var(--line2);margin:0 4px}
+  button:disabled{opacity:.45;cursor:default}
+  .sep{width:1px;height:20px;background:var(--line2);margin:0 3px}
   #map{flex:1 1 auto;position:relative}
-  #note{position:absolute;left:10px;bottom:10px;z-index:5;max-width:min(420px,calc(100% - 20px));
-    background:rgba(20,24,27,.92);border:1px solid var(--line2);border-radius:8px;
-    padding:9px 11px;font-size:12px;line-height:1.45;color:var(--sand)}
-  #note b{color:var(--rust)}
-  #note .k{font-family:var(--mono);font-size:10.5px;color:var(--dim);
-    letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:3px}
+
+  /* the app's own furniture, so the comparison is like for like */
+  #hud{position:absolute;top:8px;left:8px;z-index:6;display:none;gap:1px;
+    background:var(--line2);border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+  #hud.on{display:flex}
+  #hud div{background:var(--panel);padding:5px 11px;text-align:center;min-width:72px}
+  #hud b{display:block;font-family:var(--mono);font-size:15px;color:var(--sand);font-weight:400}
+  #hud span{display:block;font-family:var(--mono);font-size:8px;color:var(--dim);
+    letter-spacing:.09em;text-transform:uppercase;margin-top:1px}
+
+  #note{position:absolute;left:8px;bottom:8px;z-index:5;
+    max-width:min(440px,calc(100% - 16px));
+    background:rgba(20,24,27,.94);border:1px solid var(--line2);border-radius:8px;
+    padding:9px 11px;font-size:12px;line-height:1.45}
+  #note .k{font-family:var(--mono);font-size:10px;color:var(--dim);
+    letter-spacing:.07em;text-transform:uppercase;display:block;margin-bottom:4px}
+  #note b{color:var(--rust);font-weight:600}
+  #note table{border-collapse:collapse;margin-top:6px;font-size:11.5px;width:100%}
+  #note td{padding:2px 8px 2px 0;vertical-align:top}
+  #note td.n{font-family:var(--mono);color:var(--sand);text-align:right;white-space:nowrap}
+  #note .big{color:var(--ok);font-weight:700}
+  #note .fine{margin-top:6px;font-size:11px;color:var(--dim);line-height:1.4}
   .maplibregl-ctrl-attrib{font-size:10px}
+  .veh{width:26px;height:26px}
 </style>
 </head>
 <body>
 <div id="wrap">
   <header>
-    <span class="brand">TRAIL<i>TRACKER</i> · vector demo</span>
+    <span class="brand">TRAIL<i>TRACKER</i> · vector</span>
     <button id="bDay">Day</button>
     <button id="bNight" class="on">Night</button>
     <span class="sep"></span>
-    <button id="bFlat" class="on">Flat</button>
-    <button id="bTilt">Tilt</button>
-    <span class="sep"></span>
     <button id="bRelief">Relief</button>
-    <button id="b3D">3D terrain</button>
+    <button id="bContour">Contours</button>
+    <button id="b3D">3D</button>
+    <span class="sep"></span>
+    <button id="bDrive">Drive</button>
+    <button id="bHeadUp">Heading up</button>
+    <span class="sep"></span>
+    <button id="bPack">Measure area pack</button>
     <span class="sep"></span>
     <button data-go="-31.8883,138.4194,13">Hawker</button>
     <button data-go="-31.5580,138.6100,12.4">Wilpena</button>
@@ -52,170 +76,189 @@
     <button data-go="-34.9285,138.6007,14">Adelaide</button>
   </header>
   <div id="map">
+    <div id="hud">
+      <div><b id="hSpeed">--</b><span>km/h</span></div>
+      <div><b id="hHdg">--</b><span>deg</span></div>
+      <div><b id="hAlt">--</b><span>m</span></div>
+      <div><b id="hDist">0.00</b><span>km</span></div>
+    </div>
     <div id="note"><span class="k">what you are looking at</span>
       One download, restyled on the phone. <b>Night</b> is not a filter over a
-      picture — every road, park and waterline is coloured by what it is.</div>
+      picture — every road, park and waterline is coloured by what it is, and a
+      road is a line in the data, so it is drawn as wide as a driver needs.</div>
   </div>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-contour@0.1.0/dist/index.min.js"></script>
 <script>
-/* ---------------------------------------------------------------------
-   The point of the demo: the tiles carry data, not pictures, so the same
-   download can be drawn any way you like - instantly, offline, and with
-   roads as thick as a driver needs them.
-   --------------------------------------------------------------------- */
+/* =====================================================================
+   A vector basemap, prototyped against the four questions that would
+   actually decide whether TrailTracker gets rebuilt on one.
+
+     1. Does it look right at night, with roads a driver can see?
+     2. Does it keep the topography - relief AND contour lines - that the
+        Esri sheet gives and plain OpenStreetMap does not?
+     3. Does the app's own furniture port: heading-up rotation, a vehicle
+        holding the centre, a trail drawn behind?
+     4. How big is an area pack, really?
+
+   Nothing here is a commitment to MapLibre, OpenFreeMap or the AWS terrain
+   tiles. They are what let the questions be answered in an afternoon.
+   ===================================================================== */
+
+const DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+const DEM_MAXZ = 13;
 
 const NIGHT = {
-  bg:       "#0A0F16",
-  land:     "#0D131B",
-  park:     "#0F1C16",
-  wood:     "#101B15",
-  water:    "#081420",
-  building: "#161E29",
-  casing:   "#04070C",
-  text:     "#C9D6E8",
-  halo:     "#04070C",
-  rail:     "#3A4557",
-  /* Roads run from a highway you want to see across the whole screen down
-     to a driveway you can ignore. Tracks are amber rather than another
-     grey, because on this app a track is the reason for the trip. */
+  bg: "#0A0F16", land: "#0D131B", park: "#0F1C16", water: "#081420",
+  building: "#161E29", casing: "#04070C", text: "#C9D6E8", halo: "#04070C",
+  rail: "#3A4557",
+  /* Roads run from a highway you want to see across the screen down to a
+     driveway you can ignore. Tracks are amber rather than another grey,
+     because on this app a track is the reason for the trip. */
   road: {
-    motorway:           "#F7FAFF",
-    trunk_primary:      "#E9F1FF",
-    secondary_tertiary: "#CCD9ED",
-    minor:              "#9EAEC7",
-    street:             "#9EAEC7",
-    link:               "#CCD9ED",
-    service_track:      "#E4A65A",
-    path_pedestrian:    "#4E5A6E"
+    motorway: "#F7FAFF", trunk_primary: "#E9F1FF", secondary_tertiary: "#CCD9ED",
+    minor: "#9EAEC7", street: "#9EAEC7", link: "#CCD9ED",
+    service_track: "#E4A65A", path_pedestrian: "#4E5A6E"
   },
-  /* Line widths in screen pixels, by class. This is the half a raster map
-     can never do: the road is a line in the data, so it can be drawn as
-     wide as it needs to be. */
+  /* The half a raster map can never do: a road is a line, so its width is a
+     decision here rather than whatever the cartographer baked into the
+     picture. This is what the night-mode attempt could not fix. */
   width: {
-    motorway:           [10, 2.2, 14, 6.5, 18, 20],
-    trunk_primary:      [10, 2.0, 14, 5.5, 18, 17],
-    secondary_tertiary: [10, 1.6, 14, 4.5, 18, 14],
-    minor:              [11, 1.2, 14, 3.4, 18, 11],
-    street:             [11, 1.2, 14, 3.4, 18, 11],
-    link:               [11, 1.2, 14, 3.4, 18, 11],
-    service_track:      [11, 1.1, 14, 3.0, 18, 9],
-    path_pedestrian:    [13, 0.8, 16, 1.6, 18, 3]
+    motorway: [10,2.2,14,6.5,18,20], trunk_primary: [10,2.0,14,5.5,18,17],
+    secondary_tertiary: [10,1.6,14,4.5,18,14], minor: [11,1.2,14,3.4,18,11],
+    street: [11,1.2,14,3.4,18,11], link: [11,1.2,14,3.4,18,11],
+    service_track: [11,1.1,14,3.0,18,9], path_pedestrian: [13,0.8,16,1.6,18,3]
   }
 };
 
-/* Which of the road classes above a layer id belongs to. The style names
-   them road_x / bridge_x / tunnel_x, with a _casing twin for the outline,
-   so one regex sorts the lot. */
+/* The style names its road layers road_x / bridge_x / tunnel_x, each with a
+   _casing twin for the outline, so one regex sorts all sixty-one of them. */
 function roadClass(id) {
   const m = /^(?:road|bridge|tunnel)_(.+?)(_casing)?$/.exec(id);
-  if (!m) return null;
-  return { cls: m[1], casing: !!m[2] };
+  return m ? { cls: m[1], casing: !!m[2] } : null;
 }
+
+/* ---------- contours, traced on the device from the same elevation ------- */
+/* This was the gap that mattered. OpenStreetMap carries no heights, so a
+   plain OSM basemap draws Wilpena Pound as a flat polygon. The heights come
+   from a DEM - tiles that are pictures of elevation rather than of a map -
+   and maplibre-contour traces the lines out of them in a worker while you
+   pan. Nothing is pre-generated and nothing extra is downloaded: relief,
+   contours and the 3D surface are three readings of one set of tiles. */
+/* The tracing wants a worker, and a worker wants a blob URL, which some
+   browsers refuse to a page opened straight off the disk. Asked rather than
+   assumed: if the answer is no, the contours are traced on the main thread
+   instead - the lines are identical and panning is merely less smooth, which
+   beats the alternative of the page half-working with an error in a console
+   nobody has open. */
+function canUseWorker() {
+  try {
+    const u = URL.createObjectURL(new Blob(["self.close()"], { type: "text/javascript" }));
+    new Worker(u).terminate();
+    URL.revokeObjectURL(u);
+    return true;
+  } catch (e) { return false; }
+}
+const USE_WORKER = canUseWorker();
+
+const demSource = new mlcontour.DemSource({
+  url: DEM_URL, encoding: "terrarium", maxzoom: DEM_MAXZ, worker: USE_WORKER
+});
+demSource.setupMaplibre(maplibregl);
+
+/* Metric intervals, thinning as you zoom out so the ranges do not fill in
+   solid. Every fifth line is a heavier index contour, which is the
+   convention on a paper topo and the thing that makes a slope countable. */
+const CONTOUR_TILES = demSource.contourProtocolUrl({
+  thresholds: { 10:[200,1000], 11:[100,500], 12:[50,250],
+                13:[20,100], 14:[20,100], 15:[10,50] },
+  elevationKey: "ele", levelKey: "level", contourLayer: "contours"
+});
 
 const map = new maplibregl.Map({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/liberty",
-  center: [138.4194, -31.8883],
-  zoom: 13,
-  hash: false,
+  center: [138.4194, -31.8883], zoom: 13,
   attributionControl: { compact: true }
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }));
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: "metric" }));
 
-let dayStyle = null;      /* what the style shipped with, so Day can go back */
+let dayStyle = null, mode = "night";
 
 function snapshot() {
   const out = {};
   map.getStyle().layers.forEach(function (l) {
-    const p = l.paint || {};
-    out[l.id] = {
-      type: l.type,
-      src: l["source-layer"] || "",
-      paint: JSON.parse(JSON.stringify(p))
-    };
+    out[l.id] = { type: l.type, src: l["source-layer"] || "",
+                  paint: JSON.parse(JSON.stringify(l.paint || {})) };
   });
   return out;
 }
-
-function setP(id, prop, val) {
-  try { map.setPaintProperty(id, prop, val); } catch (e) { /* layer has no such prop */ }
-}
-
+function setP(id, prop, val) { try { map.setPaintProperty(id, prop, val); } catch (e) {} }
 function widthExpr(spec, extra) {
   const e = ["interpolate", ["linear"], ["zoom"]];
-  for (let i = 0; i < spec.length; i += 2) e.push(spec[i], spec[i + 1] + (extra || 0));
+  for (let i = 0; i < spec.length; i += 2) e.push(spec[i], spec[i+1] + (extra || 0));
   return e;
 }
 
 function applyNight() {
   map.getStyle().layers.forEach(function (l) {
     const id = l.id, t = l.type, src = l["source-layer"] || "";
-
+    if (/^(contours|contour-labels|trail-)/.test(id)) return;   /* styled on their own */
     if (t === "background") { setP(id, "background-color", NIGHT.bg); return; }
-
     const rc = roadClass(id);
     if (rc && t === "line") {
-      const col = NIGHT.road[rc.cls];
-      const w = NIGHT.width[rc.cls];
       if (/rail/.test(rc.cls)) { setP(id, "line-color", NIGHT.rail); return; }
+      const col = NIGHT.road[rc.cls], w = NIGHT.width[rc.cls];
       if (!col) return;
       if (rc.casing) {
         setP(id, "line-color", NIGHT.casing);
         if (w) setP(id, "line-width", widthExpr(w, 2.4));
       } else {
-        setP(id, "line-color", col);
-        setP(id, "line-opacity", 1);
+        setP(id, "line-color", col); setP(id, "line-opacity", 1);
         if (w) setP(id, "line-width", widthExpr(w, 0));
       }
       return;
     }
-
     if (t === "fill") {
       if (src === "water") { setP(id, "fill-color", NIGHT.water); return; }
       if (src === "building") { setP(id, "fill-color", NIGHT.building); return; }
       if (src === "park" || /park|wood|forest|grass|scrub/.test(id)) {
         setP(id, "fill-color", NIGHT.park); return;
       }
-      setP(id, "fill-color", NIGHT.land);
-      return;
+      setP(id, "fill-color", NIGHT.land); return;
     }
-
     if (t === "line" && (src === "waterway" || /water/.test(id))) {
       setP(id, "line-color", NIGHT.water); return;
     }
-
     if (t === "symbol") {
       setP(id, "text-color", NIGHT.text);
       setP(id, "text-halo-color", NIGHT.halo);
       setP(id, "text-halo-width", 1.4);
-      setP(id, "icon-opacity", 0.85);
-      return;
+      setP(id, "icon-opacity", 0.85); return;
     }
-
     if (t === "fill-extrusion") { setP(id, "fill-extrusion-color", NIGHT.building); return; }
   });
+  styleContours(); styleTrail();
 }
 
 function applyDay() {
   if (!dayStyle) return;
   Object.keys(dayStyle).forEach(function (id) {
     const rec = dayStyle[id];
-    Object.keys(rec.paint).forEach(function (prop) {
-      setP(id, prop, rec.paint[prop]);
-    });
-    /* a property the style never set has to be put back to its default
-       rather than left carrying a night value */
+    Object.keys(rec.paint).forEach(function (p) { setP(id, p, rec.paint[p]); });
+    /* a width the style never set has to go back to its default rather than
+       be left carrying a night value */
     const rc = roadClass(id);
     if (rc && rec.type === "line" && !("line-width" in rec.paint)) {
       try { map.setPaintProperty(id, "line-width", undefined); } catch (e) {}
     }
   });
+  styleContours(); styleTrail();
 }
 
-let mode = "night";
 function setMode(m) {
   mode = m;
   document.getElementById("bDay").classList.toggle("on", m === "day");
@@ -223,102 +266,378 @@ function setMode(m) {
   if (m === "night") applyNight(); else applyDay();
 }
 
-/* ---------------------------------------------------------------------
-   Relief, which the vector tiles do not carry.
-
-   This is the honest gap: OpenStreetMap has no elevation in it, so a plain
-   OSM vector basemap draws Wilpena Pound as a flat polygon. The ground
-   shape comes from a separate source - a DEM, where each tile is a picture
-   of heights rather than of a map - and the phone shades it itself. Same
-   trick the app already uses for its Esri hillshade, except that here the
-   renderer can also stand the map up on it.
-
-   Contour LINES are a different question again and still missing: they have
-   to be generated from the DEM and shipped as their own vector layer, which
-   is a build step rather than a setting.
-   --------------------------------------------------------------------- */
+/* ---------- relief, contours, terrain: three uses of one DEM ------------- */
 function addDem() {
-  if (map.getSource("dem")) return;
-  map.addSource("dem", {
-    type: "raster-dem",
-    tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
-    tileSize: 256,
-    encoding: "terrarium",
-    maxzoom: 13,
-    attribution: "Elevation: Mapzen / AWS Open Data"
-  });
+  if (!map.getSource("dem")) {
+    map.addSource("dem", {
+      type: "raster-dem", tiles: [demSource.sharedDemProtocolUrl],
+      tileSize: 256, encoding: "terrarium", maxzoom: DEM_MAXZ,
+      attribution: "Elevation: Mapzen / AWS Open Data"
+    });
+  }
+}
+/* Ground shading and contours belong under the roads, the way they do on a
+   paper map, so nothing is ever drawn over a route. */
+function firstRoadLayer() {
+  return map.getStyle().layers.map(function (l) { return l.id; })
+    .filter(function (id) { return /^(road|bridge|tunnel)_/.test(id); })[0];
 }
 
-let reliefOn = false, terrainOn = false;
+let reliefOn = false, contourOn = false, terrainOn = false;
 
 function setRelief(on) {
   reliefOn = on;
   document.getElementById("bRelief").classList.toggle("on", on);
-  if (on) {
-    addDem();
-    if (!map.getLayer("relief")) {
-      /* under the roads, over the ground - the same order the paper maps
-         use, so the shading never sits on top of a route */
-      const firstRoad = map.getStyle().layers
-        .map(function (l) { return l.id; })
-        .filter(function (id) { return /^(road|bridge|tunnel)_/.test(id); })[0];
-      map.addLayer({
-        id: "relief", type: "hillshade", source: "dem",
-        paint: {
-          "hillshade-exaggeration": 0.55,
-          "hillshade-shadow-color": "#000000",
-          "hillshade-highlight-color": "#7E8CA0",
-          "hillshade-accent-color": "#0A0F16"
-        }
-      }, firstRoad);
-    }
-    map.setLayoutProperty("relief", "visibility", "visible");
-  } else if (map.getLayer("relief")) {
-    map.setLayoutProperty("relief", "visibility", "none");
+  addDem();
+  if (on && !map.getLayer("relief")) {
+    map.addLayer({ id: "relief", type: "hillshade", source: "dem",
+      paint: { "hillshade-exaggeration": 0.55, "hillshade-shadow-color": "#000000",
+               "hillshade-highlight-color": "#7E8CA0", "hillshade-accent-color": "#0A0F16" }
+    }, firstRoadLayer());
   }
+  if (map.getLayer("relief")) {
+    map.setLayoutProperty("relief", "visibility", on ? "visible" : "none");
+  }
+}
+
+function setContours(on) {
+  contourOn = on;
+  document.getElementById("bContour").classList.toggle("on", on);
+  if (on && !map.getSource("contour-src")) {
+    map.addSource("contour-src", { type: "vector", tiles: [CONTOUR_TILES], maxzoom: 15 });
+    map.addLayer({
+      id: "contours", type: "line", source: "contour-src", "source-layer": "contours",
+      layout: { "line-join": "round" },
+      paint: { "line-width": ["case", [">", ["get", "level"], 0], 1.1, 0.6] }
+    }, firstRoadLayer());
+    map.addLayer({
+      id: "contour-labels", type: "symbol", source: "contour-src",
+      "source-layer": "contours",
+      filter: [">", ["get", "level"], 0],
+      layout: { "symbol-placement": "line", "text-size": 10,
+                "text-field": ["concat", ["get", "ele"], " m"],
+                "text-font": ["Noto Sans Regular"] },
+      paint: { "text-halo-width": 1.4 }
+    });
+    styleContours();
+  }
+  ["contours", "contour-labels"].forEach(function (id) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+  });
+}
+
+/* Contours read as brown on a paper topo and that is what a driver expects
+   by day. At night brown on near-black is a line you cannot follow, so they
+   go to a dim blue-grey that sits under the roads without competing. */
+function styleContours() {
+  if (!map.getLayer("contours")) return;
+  const night = mode === "night";
+  setP("contours", "line-color", night ? "#4C5A6E" : "#A08154");
+  setP("contours", "line-opacity", night ? 0.75 : 0.6);
+  setP("contour-labels", "text-color", night ? "#7E8DA3" : "#8A6A3C");
+  setP("contour-labels", "text-halo-color", night ? "#05080D" : "#FFFFFF");
 }
 
 function setTerrain(on) {
   terrainOn = on;
   document.getElementById("b3D").classList.toggle("on", on);
-  /* Any camera move still in flight will ask the terrain how high the ground
+  /* A camera move still in flight will ask the terrain how high the ground
      is under it, so it has to be stopped while there is still a terrain to
      ask - otherwise the next jumpTo throws on a null. */
   map.stop();
+  addDem();
   if (on) {
-    addDem();
     map.setTerrain({ source: "dem", exaggeration: 1.6 });
-    if (map.getPitch() < 30) map.easeTo({ pitch: 62, bearing: -25, duration: 900 });
+    if (map.getPitch() < 30) map.easeTo({ pitch: 62, duration: 900 });
   } else {
     map.setTerrain(null);
-    map.jumpTo({ pitch: 0, bearing: 0 });
-    document.getElementById("bFlat").classList.add("on");
-    document.getElementById("bTilt").classList.remove("on");
+    map.jumpTo({ pitch: 0 });
   }
 }
 
+/* ---------- the app's own furniture ------------------------------------- */
+/* The real porting question is not whether a vector map looks better. It is
+   whether what TrailTracker already does still works: a vehicle holding the
+   centre, the map turning so the windscreen is up, a trail drawn behind.
+
+   All three are native here, and the second one matters most. Heading-up is
+   a camera property - setBearing - rather than a CSS transform on a
+   rotating div, which is how the app does it now. That is why the app has
+   to counter-rotate every pin so it stands upright, and run taps back
+   through an inverse projection read off the live CSS matrix. None of that
+   exists here; the pins stay upright because the renderer is told they are
+   viewport-aligned, and a tap is just a tap. */
+const ROUTE = [
+  [138.4194,-31.8883],[138.4300,-31.8600],[138.4450,-31.8200],[138.4600,-31.7800],
+  [138.4750,-31.7400],[138.4950,-31.7000],[138.5200,-31.6600],[138.5500,-31.6300],
+  [138.5750,-31.6050],[138.5950,-31.5850],[138.6050,-31.5700],[138.6100,-31.5580]
+];
+
+const vehEl = document.createElement("div");
+vehEl.className = "veh";
+vehEl.innerHTML =
+  '<svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#0D100F" ' +
+  'stroke="#8FB93E" stroke-width="2"/>' +
+  '<path d="M13 5 L19 20 L13 16.5 L7 20 Z" fill="#8FB93E"/></svg>';
+const vehicle = new maplibregl.Marker({ element: vehEl, rotationAlignment: "viewport" });
+
+let driving = false, headUp = false, driveT = 0, driveRAF = null;
+let trail = [], distKm = 0, lastAlt = 0;
+
+function lerp(a, b, t) { return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t]; }
+function bearingOf(a, b) {
+  const y = Math.sin((b[0]-a[0])*Math.PI/180) * Math.cos(b[1]*Math.PI/180);
+  const x = Math.cos(a[1]*Math.PI/180)*Math.sin(b[1]*Math.PI/180) -
+            Math.sin(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180) *
+            Math.cos((b[0]-a[0])*Math.PI/180);
+  return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+}
+function metres(a, b) {
+  const R = 6371000, p1 = a[1]*Math.PI/180, p2 = b[1]*Math.PI/180;
+  const dp = (b[1]-a[1])*Math.PI/180, dl = (b[0]-a[0])*Math.PI/180;
+  const s = Math.sin(dp/2)*Math.sin(dp/2) +
+            Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)*Math.sin(dl/2);
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+
+/* Height at a point, read straight out of the DEM the relief and contours
+   are already drawn from. Terrarium packs elevation into colour: red counts
+   256-metre steps, green the metres, blue the 1/256ths, and the lot is
+   offset by 32768 so anything below sea level still fits in a byte.
+
+   Worth having for its own sake. The app reads altitude off the GPS, which
+   wanders by tens of metres and goes away entirely with the fix; this is the
+   ground itself, needs no signal once the tile is on the phone, and reads
+   Lake Eyre as thirteen metres below the sea, which is right.
+
+   MapLibre's own queryTerrainElevation was tried first and returned zero
+   everywhere on this build, so the tile is decoded here instead. */
+const demCache = new Map();
+async function elevationAt(lng, lat) {
+  const n = Math.pow(2, DEM_MAXZ);
+  const fx = (lng + 180) / 360 * n;
+  const r = lat * Math.PI / 180;
+  const fy = (1 - Math.log(Math.tan(r) + 1/Math.cos(r)) / Math.PI) / 2 * n;
+  const x = Math.floor(fx), y = Math.floor(fy);
+  const key = x + "/" + y;
+  let tile = demCache.get(key);
+  if (tile === undefined) {
+    tile = null;
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";        /* needed to read the pixels back */
+      img.src = DEM_URL.replace("{z}", DEM_MAXZ).replace("{x}", x).replace("{y}", y);
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      tile = { d: ctx.getImageData(0, 0, img.width, img.height).data,
+               w: img.width, h: img.height };
+    } catch (e) { tile = null; }            /* off the edge of the coverage */
+    demCache.set(key, tile);
+  }
+  if (!tile) return null;
+  const px = Math.min(tile.w - 1, Math.floor((fx - x) * tile.w));
+  const py = Math.min(tile.h - 1, Math.floor((fy - y) * tile.h));
+  const i = (py * tile.w + px) * 4;
+  return tile.d[i]*256 + tile.d[i+1] + tile.d[i+2]/256 - 32768;
+}
+
+function ensureTrail() {
+  if (map.getSource("trail")) return;
+  map.addSource("trail", { type: "geojson",
+    data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } } });
+  map.addLayer({ id: "trail-casing", type: "line", source: "trail",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-width": 9, "line-opacity": .85 } });
+  map.addLayer({ id: "trail-line", type: "line", source: "trail",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-width": 4 } });
+  styleTrail();
+}
+function styleTrail() {
+  if (!map.getLayer("trail-line")) return;
+  setP("trail-casing", "line-color", "#05080D");
+  setP("trail-line", "line-color", "#8FB93E");
+}
+
+function driveStep() {
+  if (!driving) return;
+  driveT += 0.00055;
+  if (driveT >= ROUTE.length - 1) { setDrive(false); return; }
+  const i = Math.floor(driveT), f = driveT - i;
+  const pos = lerp(ROUTE[i], ROUTE[i+1], f);
+  const hdg = bearingOf(ROUTE[i], ROUTE[i+1]);
+
+  if (trail.length) distKm += metres(trail[trail.length-1], pos) / 1000;
+  trail.push(pos);
+  map.getSource("trail").setData(
+    { type: "Feature", geometry: { type: "LineString", coordinates: trail } });
+
+  vehicle.setLngLat(pos);
+  map.easeTo({ center: pos, bearing: headUp ? hdg : 0, duration: 60,
+               easing: function (t) { return t; } });
+
+  document.getElementById("hSpeed").textContent = "88";
+  document.getElementById("hHdg").textContent = String(Math.round(hdg)).padStart(3, "0");
+  document.getElementById("hDist").textContent = distKm.toFixed(2);
+  /* Asked twice a second rather than sixty times: the ground does not move,
+     and the first call for a tile has to decode a whole PNG. */
+  if (Date.now() - lastAlt > 500) {
+    lastAlt = Date.now();
+    elevationAt(pos[0], pos[1]).then(function (m) {
+      document.getElementById("hAlt").textContent =
+        (m == null) ? "--" : String(Math.round(m));
+    });
+  }
+
+  driveRAF = requestAnimationFrame(driveStep);
+}
+
+function setDrive(on) {
+  driving = on;
+  document.getElementById("bDrive").classList.toggle("on", on);
+  document.getElementById("hud").classList.toggle("on", on);
+  if (on) {
+    ensureTrail();
+    driveT = 0; trail = []; distKm = 0;
+    vehicle.setLngLat(ROUTE[0]).addTo(map);
+    map.stop();
+    map.jumpTo({ center: ROUTE[0], zoom: 14.2,
+                 bearing: headUp ? bearingOf(ROUTE[0], ROUTE[1]) : 0 });
+    driveRAF = requestAnimationFrame(driveStep);
+  } else {
+    if (driveRAF) cancelAnimationFrame(driveRAF);
+    map.stop();
+    map.easeTo({ bearing: 0, duration: 500 });
+  }
+}
+
+function setHeadUp(on) {
+  headUp = on;
+  document.getElementById("bHeadUp").classList.toggle("on", on);
+  if (!driving) map.easeTo({ bearing: 0, duration: 400 });
+}
+
+/* ---------- how big is an area pack, really ----------------------------- */
+/* The question the whole rebuild turns on. Counts every tile the current
+   view would need down to the deepest zoom each source carries, then fetches
+   a spread of them and scales - because asking a free service for four
+   thousand tiles to satisfy a curiosity is not on. */
+function tilesFor(bounds, z) {
+  const n = Math.pow(2, z);
+  const x0 = Math.floor((bounds.getWest()+180)/360*n);
+  const x1 = Math.floor((bounds.getEast()+180)/360*n);
+  const yy = function (lat) {
+    const r = lat*Math.PI/180;
+    return Math.floor((1 - Math.log(Math.tan(r) + 1/Math.cos(r))/Math.PI)/2*n);
+  };
+  const y0 = yy(bounds.getNorth()), y1 = yy(bounds.getSouth());
+  const out = [];
+  for (let x = Math.min(x0,x1); x <= Math.max(x0,x1); x++)
+    for (let y = Math.min(y0,y1); y <= Math.max(y0,y1); y++) out.push({ z:z, x:x, y:y });
+  return out;
+}
+
+async function sampleBytes(urls, cap) {
+  const pick = [], step = Math.max(1, Math.floor(urls.length / cap));
+  for (let i = 0; i < urls.length && pick.length < cap; i += step) pick.push(urls[i]);
+  let bytes = 0, got = 0;
+  const queue = pick.slice();
+  async function worker() {
+    while (queue.length) {
+      const u = queue.shift();
+      try {
+        const r = await fetch(u);
+        /* A 404 is a real answer - an empty tile costs nothing - so it
+           counts toward the average at zero rather than being dropped. */
+        if (r.ok) bytes += (await r.arrayBuffer()).byteLength;
+        got++;
+      } catch (e) { /* a network failure is not data; leave it out entirely */ }
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+  return { bytes: bytes, got: got, sampled: pick.length, total: urls.length };
+}
+
+async function measurePack() {
+  const b = document.getElementById("bPack"), note = document.getElementById("note");
+  b.disabled = true; b.textContent = "Measuring...";
+  const bounds = map.getBounds(), t0 = Date.now();
+
+  const vecTpl = (await (await fetch("https://tiles.openfreemap.org/planet")).json()).tiles[0];
+  const vecUrls = [], demUrls = [];
+  let vecCount = 0, demCount = 0;
+  for (let z = 8; z <= 14; z++) {
+    const ts = tilesFor(bounds, z); vecCount += ts.length;
+    ts.forEach(function (t) {
+      vecUrls.push(vecTpl.replace("{z}",t.z).replace("{x}",t.x).replace("{y}",t.y));
+    });
+  }
+  for (let z = 8; z <= DEM_MAXZ; z++) {
+    const ts = tilesFor(bounds, z); demCount += ts.length;
+    ts.forEach(function (t) {
+      demUrls.push(DEM_URL.replace("{z}",t.z).replace("{x}",t.x).replace("{y}",t.y));
+    });
+  }
+  const vec = await sampleBytes(vecUrls, 45);
+  const dem = await sampleBytes(demUrls, 25);
+  const vecMB = vec.got ? (vec.bytes/vec.got) * vec.total / 1048576 : 0;
+  const demMB = dem.got ? (dem.bytes/dem.got) * dem.total / 1048576 : 0;
+
+  /* The same ground as Esri raster, at the 11.2 KB per tile measured in the
+     Flinders, and down to z15 - because a raster map has to carry every zoom
+     it will ever be looked at, where a vector one draws them all from z14. */
+  let rasterTiles = 0;
+  for (let z = 8; z <= 15; z++) rasterTiles += tilesFor(bounds, z).length;
+  const rasterMB = rasterTiles * 11.2 / 1024;
+  const secs = ((Date.now()-t0)/1000).toFixed(1);
+
+  note.innerHTML =
+    '<span class="k">this view, as an offline pack</span>' +
+    '<table>' +
+    '<tr><td>Vector map, z8&ndash;14</td>' +
+      '<td class="n">' + vecCount.toLocaleString() + ' tiles</td>' +
+      '<td class="n">' + vecMB.toFixed(1) + ' MB</td></tr>' +
+    '<tr><td>Elevation, z8&ndash;13 <span style="opacity:.65">' +
+      '(relief, contours and 3D)</span></td>' +
+      '<td class="n">' + demCount.toLocaleString() + ' tiles</td>' +
+      '<td class="n">' + demMB.toFixed(1) + ' MB</td></tr>' +
+    '<tr><td><b>Vector total</b></td>' +
+      '<td class="n">' + (vecCount+demCount).toLocaleString() + ' tiles</td>' +
+      '<td class="n big">' + (vecMB+demMB).toFixed(1) + ' MB</td></tr>' +
+    '<tr><td style="padding-top:6px">Esri raster, z8&ndash;15</td>' +
+      '<td class="n" style="padding-top:6px">' + rasterTiles.toLocaleString() + ' tiles</td>' +
+      '<td class="n" style="padding-top:6px">' + rasterMB.toFixed(0) + ' MB</td></tr>' +
+    '</table>' +
+    '<div class="fine">Sampled ' + (vec.sampled + dem.sampled) + ' real tiles in ' +
+      secs + 's and scaled &mdash; not a guess, but not every tile either. ' +
+      'Raster at the 11.2&nbsp;KB/tile measured in the Flinders; it needs z15 ' +
+      'because it carries every zoom, where vector draws them all from z14.</div>';
+  b.disabled = false; b.textContent = "Measure area pack";
+}
+
+/* ---------- wiring ------------------------------------------------------ */
 map.on("load", function () {
   dayStyle = snapshot();
   setMode("night");
   window.__ready = true;
 });
 
-document.getElementById("bRelief").onclick = function () { setRelief(!reliefOn); };
-document.getElementById("b3D").onclick = function () { setTerrain(!terrainOn); };
-
-document.getElementById("bDay").onclick = function () { setMode("day"); };
-document.getElementById("bNight").onclick = function () { setMode("night"); };
-document.getElementById("bFlat").onclick = function () {
-  map.easeTo({ pitch: 0, bearing: 0, duration: 500 });
-  this.classList.add("on"); document.getElementById("bTilt").classList.remove("on");
-};
-document.getElementById("bTilt").onclick = function () {
-  map.easeTo({ pitch: 60, bearing: -20, duration: 700 });
-  this.classList.add("on"); document.getElementById("bFlat").classList.remove("on");
-};
+document.getElementById("bDay").onclick     = function () { setMode("day"); };
+document.getElementById("bNight").onclick   = function () { setMode("night"); };
+document.getElementById("bRelief").onclick  = function () { setRelief(!reliefOn); };
+document.getElementById("bContour").onclick = function () { setContours(!contourOn); };
+document.getElementById("b3D").onclick      = function () { setTerrain(!terrainOn); };
+document.getElementById("bDrive").onclick   = function () { setDrive(!driving); };
+document.getElementById("bHeadUp").onclick  = function () { setHeadUp(!headUp); };
+document.getElementById("bPack").onclick    = measurePack;
 document.querySelectorAll("[data-go]").forEach(function (b) {
   b.onclick = function () {
+    if (driving) setDrive(false);
     const p = b.dataset.go.split(",").map(Number);
+    map.stop();
     map.easeTo({ center: [p[1], p[0]], zoom: p[2], duration: 900 });
   };
 });

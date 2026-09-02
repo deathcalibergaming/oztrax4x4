@@ -24,7 +24,7 @@ actually apply.
 
 | File | State on 2 Sep 2026 |
 |---|---|
-| `vector-demo.html` | runs — open it directly, no server needed |
+| `vector-demo.html` | runs — open it directly; see the note on workers |
 | `day-night-prototype.patch` | applies cleanly |
 | `hillshade-prototype.patch` | needs hand-fitting |
 | `tilt-and-hillshade-prototype.patch` | needs hand-fitting |
@@ -38,57 +38,105 @@ resolving the offsets by hand.
 
 ## vector-demo.html
 
-Not a patch — a standalone page, built 2 Sep 2026 to answer "what would vector
-maps actually look like" before anyone commits to the rebuild. **Double-click
-it.** Both services it uses send `Access-Control-Allow-Origin: *`, including to
-a `file://` origin, so it needs no server. If a browser ever refuses, serve the
-folder over http and open it that way.
+Not a patch — a standalone page, built 2 Sep 2026 and extended the same day, to
+answer the questions that would actually decide whether the map layer gets
+rebuilt on vector tiles. Open it directly from disk; both services it uses send
+`Access-Control-Allow-Origin: *`, so it needs no server.
 
-Buttons: Day / Night, Flat / Tilt, Relief / 3D terrain, and jumps to Hawker,
-Wilpena, Birdsville and Adelaide.
+One caveat on opening it from disk, stated because it was **not** verifiable
+here: the contour tracing wants a Web Worker, and some browsers refuse a worker
+to a page loaded over `file://`. The page asks before assuming, and falls back
+to tracing on the main thread — same lines, less smooth panning. If contours
+feel sticky, serve the folder over http instead. Everything else was checked
+over http and works.
 
-It uses **OpenFreeMap** for planet-wide OpenStreetMap vector tiles (free, no
-API key) and **Mapzen/AWS Open Data** terrain tiles for the relief. MapLibre GL
-comes off a CDN. Nothing here is a commitment to any of those three — they were
-what let the question be answered in an afternoon.
+Buttons: **Day / Night**, **Relief / Contours / 3D**, **Drive / Heading up**,
+**Measure area pack**, and jumps to Hawker, Wilpena, Birdsville and Adelaide.
 
-**What it demonstrates, and why it matters here.** Day and night are the same
-download painted differently, switched instantly and offline: no second tile
-set, no second area download, no filter fighting a finished picture. Roads are
-lines in the data, so they are drawn as wide as a driver needs — which is the
-exact thing that killed [the day/night attempt](#day-night-prototypepatch),
-where inverting an Esri tile turned the road's white fill black and left the
-casing as a hairline.
+It uses **OpenFreeMap** for planet-wide OpenStreetMap vector tiles (free, no API
+key), **Mapzen / AWS Open Data** terrain tiles for elevation, MapLibre GL, and
+`maplibre-contour`. Nothing here is a commitment to any of them; they are what
+let the questions be answered in an afternoon.
 
-**The gap it also demonstrates.** Turn Relief off at Wilpena: OpenStreetMap
-carries no elevation, so the Pound is a flat polygon. Relief comes from a
-separate DEM and is shaded on the device; 3D terrain then stands the map up
-properly, with tracks draped over real geometry rather than the CSS
-approximation in `tilt-and-hillshade-prototype.patch`. Contour *lines* are
-still missing and are a build step of their own — they have to be generated
-from the DEM and shipped as a vector layer.
+### 1. Does it look right at night?
 
-**Measured, not estimated.** 60 random z14 tiles across South Australia plus 30
-across the Adelaide metro, 2 Sep 2026:
+Day and night are the same download painted differently — switched instantly and
+offline, with no second tile set and no second area download. Roads are lines in
+the data, so their width is a decision: about ten lines set it by class.
 
-| | size |
-|---|---|
-| whole of SA, full detail, vector | **~0.08 GB** |
-| whole of SA to z14, raster | 5.1 GB |
-| whole of SA to z15, raster | 20.3 GB |
+That is exactly what killed [the day/night attempt](#day-night-prototypepatch),
+where inverting an Esri tile turned a road's white fill black and left only the
+casing as a hairline. No filter could recover it. Here it is not a filter.
 
-Vector needs no z15 or z16 at all — every deeper zoom is drawn from z14 data on
-the device. Adelaide metro is 989 tiles at z14 averaging 15.7 KB; most of the
-state is empty desert at 0.2 KB a tile, where a raster tile still costs 11.2 KB
-whether anything is on it or not. That is the whole state as an 80 MB download,
-against the app's present cap of 2,500 tiles.
+### 2. Does it keep the topography?
 
-**What it would cost.** MapLibre GL is 784 KB against Leaflet's 144 KB on an app
-that is 255 KB entire, plus a rewrite of every `L.marker` / `L.polyline` /
-`L.divIcon` call and the `OfflineTileLayer` caching class. A rebuild of the map
-layer, not a patch. Three things still unchecked: OpenFreeMap's terms for bulk
-offline use, how any of it behaves on Mick's actual phone, and the styling here
-is a rough pass rather than a design.
+This was the real objection and it is now answered in full.
+
+- **Relief** — hillshading from a DEM, shaded on the device.
+- **Contours** — traced out of the *same* DEM by `maplibre-contour` while you
+  pan, with elevation labels and a heavier index line every fifth. Nothing is
+  pre-generated and nothing extra is downloaded; relief, contours and the 3D
+  surface are three readings of one set of tiles. Turn contours off at Wilpena
+  and you see the bare problem: OpenStreetMap carries no heights at all, so the
+  Pound is a flat polygon without them.
+- **3D terrain** — real geometry with tracks draped over the ground, not the CSS
+  approximation in `tilt-and-hillshade-prototype.patch`.
+- **Altitude** — the HUD reads height straight out of the DEM, decoded from the
+  terrarium encoding. Worth having on its own: the app reads altitude off the
+  GPS, which wanders and vanishes with the fix, where this is the ground itself
+  and needs no signal once the tile is on the phone. It reads Lake Eyre as 13 m
+  below sea level, which is right.
+
+### 3. Does the app's own furniture port?
+
+**Drive** runs a vehicle up the Hawker–Wilpena road with a trail behind it and
+a HUD, and **Heading up** turns the map so the windscreen is up.
+
+The second one is the one that matters. Heading-up is a camera property here —
+`setBearing` — where the app does it with a CSS transform on a rotating div.
+That is why the app has to counter-rotate every pin to keep it upright, and run
+taps back through an inverse projection read off the live CSS matrix. None of
+that exists here. It is less code than the app has now, not more.
+
+### 4. How big is an area pack?
+
+**Measure area pack** counts every tile the current view needs, fetches a spread
+of them and scales. For the Wilpena view at z11:
+
+| | tiles | size |
+|---|---|---|
+| Vector map, z8–14 | 268 | 0.5 MB |
+| Elevation, z8–13 | 88 | 2.0 MB |
+| **Vector total** | 356 | **2.5 MB** |
+| Esri raster, z8–15 | 964 | 11 MB |
+
+Note which half is bigger. **Elevation costs four times the map data** — the DEM
+is the real weight in an offline pack, not the vector tiles, and it buys relief,
+contours, 3D and altitude together.
+
+Whole-of-state, measured separately with 60 random z14 tiles plus 30 across the
+Adelaide metro: SA at full detail is **~0.08 GB of vector** against 5.1 GB of
+raster to z14 and 20.3 GB to z15. Vector needs no z15 at all, because every
+deeper zoom is drawn from z14 data on the device. Most of the state is empty
+desert at 0.2 KB a tile, where a raster tile costs 11.2 KB whether there is
+anything on it or not.
+
+### What it would cost, and what is still unchecked
+
+MapLibre GL is 784 KB against Leaflet's 144 KB on an app that is 255 KB entire,
+plus a rewrite of every `L.marker` / `L.polyline` / `L.divIcon` call and the
+`OfflineTileLayer` caching class. A rebuild of the map layer, not a patch.
+
+Still unchecked, and none of it is small:
+
+- **OpenFreeMap's terms for bulk offline use.** The same question that stopped
+  the raster packs. Settle it before building anything.
+- **Behaviour on Mick's actual phone** — GPU, memory and battery under a
+  GL renderer, none of which a desktop tells you.
+- **The styling is an afternoon's rough pass**, not a design.
+- **Nothing here is offline yet.** It proves the size of a pack, not that the
+  app can store and serve one; that is `OfflineTileLayer`'s job and it would
+  need rewriting for a vector source.
 
 The earlier raster measurements this sits alongside — per-state pack sizes,
 download times, and the storage-eviction and quota problems — are in the
