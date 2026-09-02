@@ -338,6 +338,11 @@ async function main() {
      empty while the tile holding it sat on the server, named in the manifest
      and never requested. */
   const places = {};
+  /* And which tiles each street name appears in, for a query that names no
+     suburb at all. Six times the size of the suburb index and wanted far
+     less often, so it is a third file and is fetched only when a search has
+     nothing else to go on. */
+  const roads = {};
   for (const [k, rows] of tiles) {
     const [xs, ys] = k.split("/");
     const x = +xs, y = +ys;
@@ -360,8 +365,11 @@ async function main() {
     (index[x] || (index[x] = [])).push(y);
     for (const town of towns) {
       if (!town) continue;
-      const list = places[town] || (places[town] = []);
-      list.push(x + "/" + y);
+      (places[town] || (places[town] = [])).push(x + "/" + y);
+    }
+    for (const name of streets) {
+      if (!name) continue;
+      (roads[name] || (roads[name] = [])).push(x + "/" + y);
     }
   }
   for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
@@ -387,8 +395,15 @@ async function main() {
      doubling the one every launch pays for. */
   await writeFile(join(OUT, "localities.json"), JSON.stringify(places));
 
+  /* Interning the tile references was measured and dropped: it takes the raw
+     file from 1385 KB to 1022 KB and the gzipped one barely at all, 328 KB
+     against 331 KB, because gzip was already doing that job on the repeated
+     strings. Plain keeps it the same shape as the suburb index. */
+  await writeFile(join(OUT, "streets.json"), JSON.stringify(roads));
+
   await rm(tmp, { recursive: true, force: true });
-  console.log(`wrote ${tiles.size} tiles and ${Object.keys(places).length} suburbs to ${OUT}/`);
+  console.log(`wrote ${tiles.size} tiles, ${Object.keys(places).length} suburbs ` +
+              `and ${Object.keys(roads).length} streets to ${OUT}/`);
 }
 
 main().catch((e) => {

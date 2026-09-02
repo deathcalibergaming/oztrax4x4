@@ -19,6 +19,7 @@ what that costs you.
     docs/addr/                 G-NAF address packs, one JSON per z13 tile,
                                plus index.json (which tiles exist) and
                                localities.json (which tiles a suburb is in)
+                               and streets.json (which tiles a street is in)
 
 ## Publishing
 
