@@ -20,6 +20,11 @@ what that costs you.
                                plus index.json (which tiles exist) and
                                localities.json (which tiles a suburb is in)
                                and streets.json (which tiles a street is in)
+    docs/route/                the road network the app routes on offline:
+                               backbone.json (every road of tertiary class
+                               or better in the state, one file) and one
+                               JSON per z13 tile for the streets and tracks,
+                               plus index.json
 
 ## Publishing
 
@@ -68,4 +73,8 @@ land on the very next launch.
 * Addresses — Geoscape G-NAF, cut into z13 packs under `docs/addr/` and
   served off this origin; built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
-* Routing — OSRM
+* Roads — OpenStreetMap via the Geofabrik South Australia extract, cut into a
+  state backbone and z13 packs under `docs/route/` and served off this origin;
+  built monthly by `tools/build-routing.mjs`
+* Routing — worked out on the phone from those packs, with OSRM behind it for
+  destinations outside the state and a plain bearing behind that

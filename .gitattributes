@@ -4,3 +4,7 @@
 # the code that changed rather than a million address records nobody can
 # read, and so they stay out of language statistics.
 docs/addr/** linguist-generated=true
+
+# The road packs are the same thing again and four times as many files,
+# written by tools/build-routing.mjs from the daily Geofabrik extract.
+docs/route/** linguist-generated=true
