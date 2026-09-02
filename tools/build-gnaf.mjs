@@ -332,6 +332,12 @@ async function main() {
      index. A street carries about forty addresses inside one z13 tile, so
      naming it once rather than forty times is most of the saving. */
   const index = {};
+  /* Which tiles each suburb occupies. Without it a search can only look at
+     packs the phone already holds, which are the ones near the vehicle - so
+     asking for an address in a suburb you have not driven through came back
+     empty while the tile holding it sat on the server, named in the manifest
+     and never requested. */
+  const places = {};
   for (const [k, rows] of tiles) {
     const [xs, ys] = k.split("/");
     const x = +xs, y = +ys;
@@ -352,6 +358,11 @@ async function main() {
       JSON.stringify({ o: [oLat, oLng], s: streets, t: towns, p: postcodes, a: addrs })
     );
     (index[x] || (index[x] = [])).push(y);
+    for (const town of towns) {
+      if (!town) continue;
+      const list = places[town] || (places[town] = []);
+      list.push(x + "/" + y);
+    }
   }
   for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
 
@@ -370,8 +381,14 @@ async function main() {
     })
   );
 
+  /* Kept out of index.json deliberately. The manifest is read at startup to
+     know which tiles exist at all; this is only wanted when somebody commits
+     to a search, so it is a second file and a second request rather than
+     doubling the one every launch pays for. */
+  await writeFile(join(OUT, "localities.json"), JSON.stringify(places));
+
   await rm(tmp, { recursive: true, force: true });
-  console.log(`wrote ${tiles.size} tiles to ${OUT}/${Z}/`);
+  console.log(`wrote ${tiles.size} tiles and ${Object.keys(places).length} suburbs to ${OUT}/`);
 }
 
 main().catch((e) => {

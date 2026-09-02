@@ -1449,6 +1449,10 @@ const CFG = {
      ceiling is on addresses rather than on tiles. */
   ADDR_MEM_MAX: 120000,
   ADDR_HITS: 40,           /* address matches gathered before ranking by distance */
+  /* Tiles one committed search may pull down for a suburb it named. A rural
+     locality can span ninety, though they are the sparse kind - a few
+     hundred addresses between the lot of them. */
+  ADDR_REACH_MAX: 60,
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -5463,6 +5467,7 @@ function setKindHidden(kind, hidden) {
    ===================================================================== */
 const Addr = {
   manifest: null,          /* which tiles exist, so desert is never asked for */
+  localities: null,        /* suburb -> the tiles it occupies, fetched on demand */
   mem: new Map(),          /* "x/y" -> parsed tile, most recent last */
   count: 0,                /* addresses held in mem, against ADDR_MEM_MAX */
   tried: new Set(),        /* asked for and failed, so a dead tile is asked once */
@@ -5496,6 +5501,69 @@ const Addr = {
     if (!this.manifest || !this.manifest.tiles) return false;
     const col = this.manifest.tiles[x];
     return !!col && col.indexOf(y) >= 0;
+  },
+
+  /* Which tiles each suburb occupies, so a committed search can go and get
+     the ones it needs. 1896 suburbs, 49 KB gzipped, fetched the first time
+     somebody presses Search rather than at startup - the manifest is what
+     every launch pays for and this is not wanted until then. */
+  loadLocalities: async function () {
+    if (this.localities) return this.localities;
+    try {
+      const held = await DB.get("addr", "localities");
+      if (held) { this.localities = held; return held; }
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    try {
+      const r = await fetch(CFG.ADDR_URL + "localities.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      this.localities = await r.json();
+      try { await DB.put("addr", this.localities, "localities"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      this.localities = null;
+    }
+    return this.localities;
+  },
+
+  /* The suburbs a query names. Matched on whole words against a query
+     flattened the same way, so Paradise is found in "12 Smith St Paradise"
+     but Hope Valley is not found in "hopeless". Longest first, so a query
+     naming Mount Gambier fetches its tiles before Gambier's if both exist
+     and the cap is close. */
+  placesIn: function (q, places) {
+    const s = " " + String(q).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() + " ";
+    const hits = [];
+    for (const name in places) {
+      if (name.length < 4) continue;
+      const n = " " + name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() + " ";
+      if (s.indexOf(n) >= 0) hits.push(name);
+    }
+    hits.sort(function (a, b) { return b.length - a.length; });
+    return hits;
+  },
+
+  /* Go and get the packs for a suburb the query named but the phone does
+     not hold. This is the one part of the address search that needs a
+     connection: the tile is on the server and nothing has ever asked for
+     it. What is already stored still answers without one.
+
+     Capped, because a rural locality can span ninety tiles - though they
+     are the sparse kind, a few hundred addresses between them. */
+  reachFor: async function (q) {
+    if (!navigator.onLine) return 0;
+    const places = await this.loadLocalities();
+    if (!places) return 0;
+    const named = this.placesIn(q, places);
+    if (!named.length) return 0;
+    let got = 0;
+    for (const name of named) {
+      for (const k of places[name]) {
+        if (got >= CFG.ADDR_REACH_MAX) return got;
+        const p = k.split("/");
+        await this.fetchTile(+p[0], +p[1], false);
+        got++;
+      }
+    }
+    return got;
   },
 
   /* Every tile touching a box. z13 is about 4.3 km across here, so a 5 km
@@ -5610,32 +5678,52 @@ const Addr = {
 
   /* A typed address split into the two things that are matched differently:
      a house number, which has to be exact, and the rest, which is matched
-     against street and town. Returns null when there is not enough to go on. */
+     against street and town together. Returns null when there is not enough
+     to go on.
+
+     The words are kept apart rather than left as one string. "12 Waterford
+     Avenue Dernancourt" is how an address is written down here, and the
+     street knows nothing about the suburb, so matching the whole of it
+     against street names found nothing and matching it against town names
+     found nothing either - the one form most likely to be typed was the one
+     form that could not work. */
   terms: function (q) {
     q = (q || "").trim();
     if (q.length < CFG.SUGGEST_MIN) return null;
     const m = q.match(/^(\d+[a-zA-Z]?)\s+(.+)$/);
     const text = (m ? m[2] : q).trim().toLowerCase();
     if (text.length < 2) return null;
-    return { num: m ? m[1].toLowerCase() : "", text: text };
+    const words = text.split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8);
+    if (!words.length) return null;
+    return { num: m ? m[1].toLowerCase() : "", words: words, all: (1 << words.length) - 1 };
   },
 
-  /* One tile, matched. Streets are checked before addresses because a tile
-     names about two hundred of them against a few thousand addresses, so a
-     tile that cannot match at all is discarded on the small list. */
+  /* Which of the query's words a name accounts for, as a bit per word. */
+  mask: function (name, words) {
+    const n = name.toLowerCase();
+    let m = 0;
+    for (let i = 0; i < words.length; i++) if (n.indexOf(words[i]) >= 0) m |= (1 << i);
+    return m;
+  },
+
+  /* One tile, matched. An address answers when its street and its suburb
+     between them account for every word typed - which is what lets the
+     street carry "waterford avenue" while the suburb carries "dernancourt".
+
+     The masks are worked out once per tile, over about two hundred street
+     names and a dozen suburbs, and the per-address test is then a single
+     bitwise or. A tile whose whole vocabulary cannot cover the query is
+     dropped before any address is looked at. */
   scan: function (tile, t, out, cap) {
     if (!tile || !tile.a) return;
-    const sHit = [], tHit = [];
-    for (let i = 0; i < tile.s.length; i++) {
-      if (tile.s[i].toLowerCase().indexOf(t.text) >= 0) sHit.push(i);
-    }
-    for (let i = 0; i < tile.t.length; i++) {
-      if (tile.t[i].toLowerCase().indexOf(t.text) >= 0) tHit.push(i);
-    }
-    if (!sHit.length && !tHit.length) return;
+    const sMask = [], tMask = [];
+    let anyS = 0, anyT = 0;
+    for (let i = 0; i < tile.s.length; i++) { sMask[i] = this.mask(tile.s[i], t.words); anyS |= sMask[i]; }
+    for (let i = 0; i < tile.t.length; i++) { tMask[i] = this.mask(tile.t[i], t.words); anyT |= tMask[i]; }
+    if ((anyS | anyT) !== t.all) return;
     for (let i = 0; i < tile.a.length && out.length < cap; i++) {
       const rec = tile.a[i];
-      if (sHit.indexOf(rec[2]) < 0 && tHit.indexOf(rec[3]) < 0) continue;
+      if (((sMask[rec[2]] | 0) | (tMask[rec[3]] | 0)) !== t.all) continue;
       if (t.num && String(rec[5]).toLowerCase() !== t.num) continue;
       out.push(this.row(tile, rec));
     }
@@ -5672,6 +5760,11 @@ const Addr = {
     const out = this.search(q, limit);
     const seen = {};
     out.forEach(function (r) { seen[r.id] = 1; });
+    /* A suburb the query names but the phone does not hold is fetched here,
+       before the store is read. This is the one part of the search that
+       wants a connection - the tile exists, it is named in the manifest,
+       and nothing has ever had a reason to ask for it. */
+    await this.reachFor(q);
     let tiles;
     try { tiles = await DB.all("addr"); } catch (e) { return out; }
     const wider = [];
@@ -5688,7 +5781,7 @@ const Addr = {
   stats: async function () {
     try {
       const keys = await DB.keys("addr");
-      return keys.filter(function (k) { return k !== "index"; }).length;
+      return keys.filter(function (k) { return k !== "index" && k !== "localities"; }).length;
     } catch (e) { return 0; }
   }
 };

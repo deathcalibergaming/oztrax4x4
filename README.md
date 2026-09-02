@@ -16,7 +16,9 @@ what that costs you.
     docs/icon-192.png
     docs/icon-512.png
     docs/.nojekyll             stops GitHub Pages running the files through Jekyll
-    docs/addr/                 G-NAF address packs, one JSON per z13 tile
+    docs/addr/                 G-NAF address packs, one JSON per z13 tile,
+                               plus index.json (which tiles exist) and
+                               localities.json (which tiles a suburb is in)
 
 ## Publishing
 
