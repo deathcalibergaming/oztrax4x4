@@ -6128,6 +6128,8 @@ function clearSuggest() {
   sugItems = [];
   sugPool = [];
   sugBaseQ = "";
+  sugPacks = [];
+  sugPacksQ = "";
   const box = $("#nmSuggest");
   if (box) { box.innerHTML = ""; box.classList.add("hidden"); }
 }
@@ -6207,16 +6209,25 @@ function sugMatches(s, q) {
 
 function showSuggest(q, list) {
   const local = homeSuggestion(q);
-  /* The address packs are searched on every render rather than fetched,
-     because they are already on the phone - so an address answers with no
-     signal, and answers before the geocoder would have been asked.
+  /* Two sources of address, and they answer at different speeds. What is
+     already in memory is searched on every render, so the bubble the
+     vehicle is in answers as fast as the letters arrive and answers with no
+     signal at all. What had to be fetched - a suburb four hundred
+     kilometres away, or a street named without its suburb - arrives when
+     the typing stops, and is held in sugPacks until it does.
 
-     Where the index has already offered the same address its copy wins:
+     Where the geocoder has already offered the same address its copy wins:
      it may have a name to go with it, and "Homeland - 1 King William
      Street" says everything the bare address says and more. */
   const claimed = {};
   list.forEach(function (s) { if (s.addrKey) claimed[s.addrKey] = 1; });
-  const mine = Addr.search(q, CFG.ADDR_HITS).filter(function (s) {
+  /* Fetched against an earlier, shorter query, so anything the extra
+     letters have ruled out goes. Same test the geocoder's own pool is
+     narrowed by, so the two cannot disagree about what still matches. */
+  const held = sugPacksQ && q.toLowerCase().indexOf(sugPacksQ.toLowerCase()) === 0
+    ? sugPacks.filter(function (s) { return sugMatches(s, q); })
+    : [];
+  const mine = Addr.search(q, CFG.ADDR_HITS).concat(held).filter(function (s) {
     if (claimed[s.addrKey]) return false;
     claimed[s.addrKey] = 1;                 /* and never twice from the packs */
     return true;
@@ -6285,8 +6296,35 @@ function homeSuggestion(q) {
            lat: home.lat, lng: home.lng, home: true };
 }
 
+/* Addresses off the packs, held apart from the memory search because
+   getting them can mean fetching a suburb's tiles - which is fine once the
+   typing has stopped and is not fine on every keystroke.
+
+   Without this the suggestion list could only see the bubble the vehicle
+   was standing in. Typing "12 waterford avenue dernancourt" in the Flinders
+   offered Waterford Avenue as a road, then four house numbers in Victoria,
+   and never the Dernancourt address that was sitting in a pack on the
+   server. Pressing Search found it; nobody presses Search when a list is
+   already open under the box. */
+let sugPacks = [], sugPacksQ = "";
+
+async function suggestFromPacks(q) {
+  try {
+    const hits = await Addr.searchStored(q, CFG.ADDR_HITS);
+    /* The box may have moved on while tiles were coming down. */
+    if ($("#nmQuery").value.trim() !== q) return;
+    sugPacks = hits;
+    sugPacksQ = q;
+    showSuggest(q, sugPool.length ? sugPool : []);
+  } catch (e) { /* the geocoder's answer still stands */ }
+}
+
 async function suggestPlaces(q) {
   const local = homeSuggestion(q);
+  /* Started here rather than awaited, so the packs and the geocoder run
+     together and neither waits on the other. It may fetch a suburb's tiles,
+     which is why it sits on the debounce and not on the keystroke. */
+  suggestFromPacks(q);
   if (sugCtl) sugCtl.abort();
   sugCtl = new AbortController();
   const here = view.has ? view.cur : poiAnchor();
