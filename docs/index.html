@@ -4757,6 +4757,27 @@ const POI_FIXES = [
     /* Folded into the store above, whose second line now carries it. Its
        own pin said the same thing five metres away. */
     drop: true
+  },
+  {
+    /* Hawker's workshop, which the app could only see as a servo.
+
+       OpenStreetMap has it as node 5936800120 carrying a name and
+       highway=services and nothing else - no shop, no craft, no amenity -
+       so poiKind has nothing to classify it by and drops it before it is
+       ever a POI. What was left is the fuel scheme's own record of the
+       same business twenty six metres away, which is real but is only half
+       of what the place is: the town's only mechanic was filed under Fuel
+       and the Mechanic category was empty in a town that has one. Break
+       down in Hawker and the app had nothing to offer.
+
+       Named the way the sign and the map both have it, and filed where a
+       driver would look for it. It keeps its scheme record, so the prices
+       still print on the card and a search for fuel still finds it - it
+       sells fuel, it is just not only a servo. */
+    at: [-31.88692, 138.42330], within: 120,
+    is: /^(repco:\s*)?chris'?s mechanical/i,
+    name: "Repco: Chris's Mechanical & Tyres",
+    kind: "mechanic"
   }
 ];
 
@@ -4778,6 +4799,7 @@ function applyPoiFixes(items) {
     const q = Object.assign({}, p);
     if (fix.name) q.name = fix.name;
     if (fix.sub) q.sub = fix.sub;
+    if (fix.kind) q.kind = fix.kind;
     if (fix.move) { q.lat = fix.move[0]; q.lng = fix.move[1]; }
     out.push(q);
   }
@@ -4841,8 +4863,12 @@ function poiMatches(p, q) {
      And the sign's second line, which is not decoration: Hawker's post
      office no longer has a pin of its own, so "post office" has to find
      the store that houses it or it finds nothing at all. */
+  /* And a place carrying fuel prices answers a search for fuel whatever
+     else it is filed under. Hawker's workshop is a mechanic on the map and
+     still the third servo in town; typing "diesel" has to find it. */
+  const alsoFuel = (p.site && p.kind !== "fuel") ? " fuel " + KIND_WORDS.fuel : "";
   return (p.name + " " + (p.sub || "") + " " + (p.info || "") + " " + (p.addr || "") + " " +
-          (m.label || "") + " " + p.kind + " " + (KIND_WORDS[p.kind] || ""))
+          (m.label || "") + " " + p.kind + " " + (KIND_WORDS[p.kind] || "") + alsoFuel)
          .toLowerCase().indexOf(q) !== -1;
 }
 
