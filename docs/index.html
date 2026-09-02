@@ -195,11 +195,35 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    app that can wreck your night vision - a white topo sheet at full
    brightness in a dark cab, an hour out of Marree.
 
-   Dimmed and drained rather than inverted. Inverting a raster topo turns the
-   water brown and the hillshade into glare, and it is the line work you are
-   actually reading; contrast comes up a little to hold the roads together as
-   the brightness goes down. */
-body.night .leaflet-tile{filter:saturate(.38) contrast(1.18) brightness(.45)}
+   This used to just dim the sheet, which kept it the wrong way round: pale
+   ground with dark roads drawn on it. A night map is the other way about -
+   dark ground with the roads picked out light - and on a raster tile the
+   only way to turn it over is to invert it.
+
+   Plain invert really does turn the water brown and the ranges into glare,
+   which is why it was passed over the first time. The rest of the chain is
+   what fixes that. grayscale pulls most of the colour out before the hue is
+   touched, so the inverted browns and greens have little left to be wrong
+   with; sepia then puts a single warm cast over everything, which is the
+   point - one hue is one thing to rotate, and 178 degrees lands it on navy.
+   saturate brings that back up to a colour rather than a stain. What comes
+   out is close to the dark road maps everyone knows: near-black ground,
+   roads in cool grey-blue, water darker than the land, parks still green.
+
+   Measured rather than eyeballed - Adelaide for street density, Gulf St
+   Vincent for a big body of water, Wilpena for relief. */
+body.night .leaflet-tile{
+  filter:invert(1) grayscale(.55) sepia(.6) hue-rotate(178deg) saturate(2.2)
+         brightness(.8) contrast(1.1)}
+/* Relief has to change sides with the map. The hillshade is a near-white
+   sheet that multiplies into a pale map to darken the slopes; inverted along
+   with everything else it becomes near-black, and multiplying that into an
+   already dark map takes the whole Flinders down to nothing - which is
+   exactly what it did. Screen is multiply's opposite number: the light
+   slopes of the inverted sheet add instead of subtract, and the country
+   comes back up out of the dark. Gentler than by day, because at night a
+   little relief goes a long way and the roads still have to win. */
+body.night .leaflet-tile-pane .shadeLayer{mix-blend-mode:screen;opacity:.45 !important}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
 #attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
