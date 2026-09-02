@@ -17,17 +17,90 @@ git apply --check prototypes/tilt-and-hillshade-prototype.patch
 `--check` tells you whether it still fits without touching anything. Drop it to
 actually apply.
 
-| Patch | State on 1 Sep 2026 |
+| Patch | State on 2 Sep 2026 |
 |---|---|
+| `day-night-prototype.patch` | applies cleanly |
 | `hillshade-prototype.patch` | needs hand-fitting |
 | `tilt-and-hillshade-prototype.patch` | needs hand-fitting |
 
-`index.html` moves constantly, so neither of these still lines up. When a patch
+`index.html` moves constantly, so the older two no longer line up. When a patch
 stops applying, read it rather than fighting it — every hunk carries a comment
 explaining what it is doing, and re-deriving from that is usually quicker than
 resolving the offsets by hand.
 
 ---
+
+## day-night-prototype.patch
+
+Automatic day/night, built and pulled back out on 2 Sep 2026. Shipped as PR #101
+and reverted the same day; PR #102 was closed unmerged. It went in three layers,
+and each is worth something on its own.
+
+**The sun, computed on the phone.** NOAA's solar equations — roughly sixty lines,
+no network. Checked against the US Naval Observatory across Adelaide, Mt Dare,
+Mount Gambier, Hobart and Birdsville at midsummer, midwinter and the equinox:
+thirty comparisons, 16 seconds mean error, 42 at worst, and USNO rounds to the
+minute so most of that is the rounding. The web API Mick found
+(`sunrise-sunset.org`) does work — https, CORS open, ~800 ms — and is out by up
+to 132 seconds against the same figures, besides needing signal at dusk on the
+Oodnadatta Track, which is where there is none.
+
+Two things in it that are easy to get wrong and are already right here: the
+solar position is taken at the instant asked about rather than at midnight,
+because declination moves ~0.4°/day near the equinoxes and that is four minutes
+of daylight at these latitudes; and the solar day is picked by longitude rather
+than by the UTC date, because in South Australia sunrise falls on yesterday's
+UTC date for most of the year. The night decision asks the sun's altitude rather
+than comparing a clock, which sidesteps the date question completely.
+
+**A night basemap by filter, which is the part that failed.** Dimming the topo
+keeps it the wrong way round — pale ground with dark roads on it — so it was
+inverted instead:
+
+```css
+invert(1) grayscale(.55) sepia(.6) hue-rotate(178deg)
+saturate(2.2) brightness(.8) contrast(1.1)
+```
+
+That lands on a convincing navy: dark ground, water darker than land, parks
+still green, labels legible, and it was checked on the three things that break
+this sort of filter — Adelaide for street density, Gulf St Vincent for a large
+body of water, Wilpena for relief. Terrain shading had to change sides with it,
+from `multiply` to `screen` at 45%, because an inverted near-white hillshade
+multiplied into an already dark map takes the whole Flinders to black.
+
+**The roads had to be drawn, not filtered.** This is the finding worth keeping.
+Esri draws a road as a white fill inside a thin dark casing, so inverting turns
+the fill black — the road itself disappears — and leaves the casing as a
+hairline. No filter recovers it: a threshold that catches the white of a road
+also catches the cream of the ground it crosses, which was tried and turned the
+Flinders into a photocopy. The information is not separable, because the road
+and the ground it sits on occupy the same few luminance values.
+
+So the last layer draws the network from the OSM extract the app already fetches
+for POIs. The parser used to discard any way without a posted speed limit — 19
+roads kept out of 129 around Hawker — and keeps all of them with their class
+instead, at about 40 KB per 5 km cell out there and 95 KB in the city against a
+1.8 MB download that was happening anyway. Own pane above the tiles and below
+the trail and route, canvas rather than SVG, casings in one pass and surfaces in
+another, weight and colour by class and scaled to zoom, tracks in their own
+colour because on this app a track is not a lesser road.
+
+**Why it is parked.** Mick's judgement on the road: not working well enough to
+keep. The filter half is the weak one — it is a single equation applied to a
+finished picture rather than cartography, so it lands well in the places it was
+tested and cannot promise anything anywhere else.
+
+**The road layer does not depend on any of that** and is the piece to lift out
+first if this is picked up again: the extract is already downloaded, and drawing
+it is useful in daylight too. Note that the speed sign shares the same array and
+the patch adds a `if (!roads[i].v) continue;` to `roadUnder` to keep it asking
+only about posted roads.
+
+The real answer to all of it is a vector basemap, where day and night are two
+stylesheets over one download instead of one filter fighting a picture. That was
+already the recommendation for three other reasons — map blur, real 3D tilt, and
+state-sized offline packs. This is a fourth.
 
 ## hillshade-prototype.patch
 

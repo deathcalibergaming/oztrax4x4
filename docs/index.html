@@ -191,15 +191,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #map{position:absolute;background:#0D100F}
 .leaflet-container{background:#0D100F;font-family:var(--ui);outline:none}
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
-/* Night. The chrome is already dark, so the map is the only thing in this
-   app that can wreck your night vision - a white topo sheet at full
-   brightness in a dark cab, an hour out of Marree.
-
-   Dimmed and drained rather than inverted. Inverting a raster topo turns the
-   water brown and the hillshade into glare, and it is the line work you are
-   actually reading; contrast comes up a little to hold the roads together as
-   the brightness goes down. */
-body.night .leaflet-tile{filter:saturate(.38) contrast(1.18) brightness(.45)}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
 #attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
@@ -676,7 +667,7 @@ details.sub > .sec-body{padding:12px 0 0}
    dark on dark, and no highlight at all, since ghost won the background. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
-#btnFuelAll.on,#btnFuelNone.on,#btnDnAuto.on,#btnDnDay.on,#btnDnNight.on{
+#btnFuelAll.on,#btnFuelNone.on{
   background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
@@ -1134,12 +1125,6 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="poi-status" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
-        <div class="sublabel">Day / Night
-          <button class="btn xs ghost" id="btnDnAuto">Auto</button>
-          <button class="btn xs ghost" id="btnDnDay">Day</button>
-          <button class="btn xs ghost" id="btnDnNight">Night</button>
-        </div>
-        <div class="poi-status" id="dnNote"></div>
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
@@ -1875,14 +1860,12 @@ const S = Object.assign({
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
-  hillshade: false,    /* shaded relief under the map, off by default */
-  dayNight: "auto"     /* or "day" or "night" - auto follows the sun */
+  hillshade: false     /* shaded relief under the map, off by default */
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
-                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
-                        dayNight: S.dayNight });
+                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
 }
 
 /* Home is a place rather than a preference, so it keeps its own key: a
@@ -2078,197 +2061,6 @@ function setHillshade(on) {
   if (typeof syncHillshadeButtons === "function") syncHillshadeButtons();
 }
 if (S.hillshade) setHillshade(true);
-
-/* =====================================================================
-   Where the sun is
-   ===================================================================== */
-/* NOAA's solar equations - the ones the almanac calculators are built on.
-
-   There is a web API for this, sunrise-sunset.org, and it does work: https,
-   CORS open, about 800ms. It is still the wrong tool twice over. It needs
-   signal, and dusk on the Oodnadatta Track is exactly where there is none;
-   and checked against the US Naval Observatory for Adelaide, Mt Dare, Mount
-   Gambier and Hobart across midsummer, midwinter and the equinox, it is out
-   by up to 132 seconds where this is out by at most 49.
-
-   The phone knows where it is and what the time is. The rest is arithmetic,
-   and arithmetic works in the desert. */
-const Sun = {
-  D: Math.PI / 180,
-  DEG: 180 / Math.PI,
-  DAY: 86400000,
-
-  /* The sun's centre sits 50 arcminutes below the horizon at the moment its
-     upper limb appears to touch it: 34' of atmospheric refraction and 16' of
-     the sun's own radius. That is the definition sunrise and sunset are
-     written to, and the one the almanacs publish against. */
-  HORIZON: -0.833,
-
-  /* Where the sun is at one instant - how far it is declined from the
-     equator, and how far ahead or behind the clock it is running.
-
-     Taken at the instant itself rather than at midnight. The declination
-     moves about 0.4 degrees a day around the equinoxes, which is a degree of
-     altitude by the time it reaches the horizon at these latitudes, and a
-     degree at the horizon is four minutes of daylight. It also keeps this
-     honest against times(): a sunrise it works out is a moment when this
-     function reports the sun at exactly the horizon, and the two can never
-     drift apart on a day boundary. */
-  solar: function (when) {
-    const D = this.D;
-    const T = (when / this.DAY + 2440587.5 - 2451545) / 36525;   /* Julian centuries */
-    const L0 = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360;
-    const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
-    const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
-    const C = Math.sin(M * D) * (1.914602 - T * (0.004817 + 0.000014 * T)) +
-              Math.sin(2 * M * D) * (0.019993 - 0.000101 * T) +
-              Math.sin(3 * M * D) * 0.000289;
-    const om = (125.04 - 1934.136 * T) * D;
-    const lambda = L0 + C - 0.00569 - 0.00478 * Math.sin(om);
-    const eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 +
-                0.00256 * Math.cos(om);
-    const y = Math.pow(Math.tan(eps * D / 2), 2);
-    return {
-      dec: Math.asin(Math.sin(eps * D) * Math.sin(lambda * D)) * this.DEG,
-      eqTime: 4 * this.DEG * (y * Math.sin(2 * L0 * D) - 2 * e * Math.sin(M * D) +
-        4 * e * y * Math.sin(M * D) * Math.cos(2 * L0 * D) -
-        0.5 * y * y * Math.sin(4 * L0 * D) - 1.25 * e * e * Math.sin(2 * M * D))
-    };
-  },
-
-  /* The instant the sun is due north, for the solar day this instant falls
-     in. The day is chosen by longitude rather than by the UTC date, which is
-     the whole trick: in South Australia sunrise happens on yesterday's UTC
-     date for most of the year, so a sunrise and a sunset picked off one UTC
-     date are not the same day's. Picked off this, they always are.
-
-     Two passes. The first places noon to within the equation of time - up to
-     a quarter of an hour - and the second reads the equation of time there
-     and is done, because it moves by seconds across a day. */
-  noon: function (lng, when) {
-    const guess = 720 - 4 * lng;                      /* minutes past UTC midnight */
-    const day = Math.round((when - guess * 60000) / this.DAY);
-    let at = day * this.DAY + guess * 60000;
-    at = day * this.DAY + (guess - this.solar(at).eqTime) * 60000;
-    return day * this.DAY + (guess - this.solar(at).eqTime) * 60000;
-  },
-
-  /* Sunrise and sunset either side of that noon. Both are null inside the
-     polar circles, where the sun can pass a whole day without reaching the
-     horizon; `up` says which way it stayed. Nowhere in Australia, but the
-     arithmetic should not lie about it. */
-  times: function (lat, lng, when) {
-    const D = this.D;
-    const at = this.noon(lng, when);
-    const dec = this.solar(at).dec;
-    const cosH = Math.cos((90 - this.HORIZON) * D) /
-                 (Math.cos(lat * D) * Math.cos(dec * D)) -
-                 Math.tan(lat * D) * Math.tan(dec * D);
-    if (cosH > 1 || cosH < -1) {
-      return { sunrise: null, sunset: null, noon: new Date(at), up: cosH < -1 };
-    }
-    const half = Math.acos(cosH) * this.DEG * 4 * 60000;   /* 4 minutes a degree */
-    return { sunrise: new Date(at - half), sunset: new Date(at + half),
-             noon: new Date(at), up: null };
-  },
-
-  /* How high the sun stands right now, in degrees above the horizon.
-
-     The day/night decision is taken from this rather than by comparing the
-     clock against a sunrise, which sidesteps the question of which day a
-     time belongs to entirely. */
-  altitude: function (lat, lng, when) {
-    const D = this.D, s = this.solar(when);
-    const mins = (when % this.DAY) / 60000;           /* past UTC midnight */
-    const ha = (mins + s.eqTime + 4 * lng) / 4 - 180; /* 15 degrees an hour */
-    return Math.asin(Math.sin(lat * D) * Math.sin(s.dec * D) +
-      Math.cos(lat * D) * Math.cos(s.dec * D) * Math.cos(ha * D)) * this.DEG;
-  },
-
-  isNight: function (lat, lng, when) {
-    return this.altitude(lat, lng, when) < this.HORIZON;
-  },
-
-  /* The next time the map will change, which is the part worth printing.
-     Yesterday is in the search because a sunset late on one solar day can
-     still be ahead of a clock that has just ticked past midnight. */
-  next: function (lat, lng, when) {
-    const out = [];
-    for (let k = -1; k <= 1; k++) {
-      const t = this.times(lat, lng, when + k * this.DAY);
-      if (!t.sunrise) continue;
-      if (t.sunrise.getTime() > when) out.push({ kind: "sunrise", at: t.sunrise });
-      if (t.sunset.getTime() > when) out.push({ kind: "sunset", at: t.sunset });
-    }
-    out.sort(function (a, b) { return a.at - b.at; });
-    return out[0] || null;
-  }
-};
-
-/* Where to stand the sun over: the vehicle if it has a fix, otherwise
-   whatever the map is looking at, which is the last place it was. Either is
-   near enough - sunset moves by about four minutes for every degree of
-   longitude, so being a town out is being a minute out. */
-function sunAnchor() {
-  if (typeof view !== "undefined" && view.has && view.cur) {
-    return { lat: view.cur.lat, lng: view.cur.lng };
-  }
-  const c = map.getCenter();
-  return { lat: c.lat, lng: c.lng };
-}
-
-function nightNow() {
-  if (S.dayNight === "day") return false;
-  if (S.dayNight === "night") return true;
-  const a = sunAnchor();
-  return Sun.isNight(a.lat, a.lng, Date.now());
-}
-
-function applyDayNight() {
-  document.body.classList.toggle("night", nightNow());
-  syncDayNightButtons();
-}
-
-function setDayNight(mode) {
-  if (S.dayNight === mode) return;
-  S.dayNight = mode;
-  saveSettings();
-  applyDayNight();
-}
-
-function syncDayNightButtons() {
-  const m = S.dayNight;
-  [["#btnDnAuto", "auto"], ["#btnDnDay", "day"], ["#btnDnNight", "night"]]
-    .forEach(function (pair) {
-      const el = $(pair[0]);
-      if (el) el.classList.toggle("on", m === pair[1]);
-    });
-  const note = $("#dnNote");
-  if (!note) return;
-  if (m === "day")   { note.textContent = "Map held bright, whatever the hour."; return; }
-  if (m === "night") { note.textContent = "Map held dim, whatever the hour."; return; }
-  const a = sunAnchor();
-  const nx = Sun.next(a.lat, a.lng, Date.now());
-  if (!nx) {
-    note.textContent = document.body.classList.contains("night")
-      ? "The sun does not rise here today, so the map stays dim."
-      : "The sun does not set here today, so the map stays bright.";
-    return;
-  }
-  const at = nx.at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  note.textContent = (nx.kind === "sunset" ? "Dimming at sunset, " : "Brightening at sunrise, ") +
-    at + ". Worked out on the phone, so it holds with no signal.";
-}
-
-/* A minute is close enough. The map changing a minute late at dusk is not
-   something anybody will notice, and the alternative - scheduling a wake-up
-   for the exact crossing - would have to be torn up and rebuilt every time
-   the vehicle moves, the clock shifts or the phone comes back from sleep. */
-setInterval(applyDayNight, 60000);
-document.addEventListener("visibilitychange", function () {
-  if (!document.hidden) applyDayNight();
-});
-applyDayNight();
 
 /* ---- layers ---- */
 /* route first so the recorded trail always draws on top of it */
@@ -7573,9 +7365,6 @@ function syncHillshadeButtons() {
   $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
   $("#btnShadeOff").classList.toggle("on", !S.hillshade);
 }
-$("#btnDnAuto").addEventListener("click", function () { setDayNight("auto"); });
-$("#btnDnDay").addEventListener("click", function () { setDayNight("day"); });
-$("#btnDnNight").addEventListener("click", function () { setDayNight("night"); });
 $("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
 $("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
