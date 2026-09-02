@@ -3709,6 +3709,66 @@ const SUPPLY_SHOP = {
    pathology counter off the Doctor chip instead of quietly joining it. */
 const GP_CLINIC = { clinic: 1, centre: 1, doctor: 1, general: 1 };
 
+/* healthcare:speciality is what tells a GP's rooms from a radiology suite,
+   and both wear amenity=doctors. Searching the loaded set for "gp" around
+   Salisbury turned up Radiology SA and SA Pathology sitting among the
+   medical centres, which is a wrong answer to the only question this
+   category exists to answer.
+
+   A blocklist here, where the shop and clinic rules use allowlists, and the
+   difference is deliberate. There the tag had to earn a pin; here the
+   primary tag has already said "doctors" and the speciality can only take
+   it away, so an unknown speciality keeps the pin. That is the right way
+   for this one to fail: 175 of South Australia's 259 doctors and clinics
+   name no speciality at all, and "urgent" and "bulk_billing" are in the
+   tail, which no list written in advance would have thought of.
+
+   Any one token clearing the list is enough. Pro Health Care Northwest
+   carries "general;physiatry;dentistry;psychiatry" - it is a medical centre
+   with specialists in it, and general is what matters. */
+const NOT_A_GP = {
+  radiology: 1, pathology: 1, laboratory: 1, sample_collection: 1,
+  dentistry: 1, orthodontics: 1, chiropractic: 1, physiotherapy: 1,
+  physiatry: 1, podiatry: 1, psychology: 1, psychiatry: 1, counselling: 1,
+  ophthalmology: 1, optometry: 1, audiology: 1, dermatology: 1,
+  cosmetic_surgery: 1, plastic_surgery: 1, acupuncture: 1, osteopathy: 1,
+  occupational_therapy: 1, speech_therapy: 1, dietetics: 1,
+  naturopathy: 1, homeopathy: 1
+};
+
+function isGpSpeciality(v) {
+  if (!v) return true;                  /* silence is an ordinary practice */
+  return String(v).toLowerCase().split(";").some(function (s) {
+    s = s.trim();
+    return s && !NOT_A_GP[s];
+  });
+}
+
+/* A record from the search index carries the headline tag and the name and
+   nothing else, so the speciality cannot be asked of it - which is how
+   Radiology SA and SA Pathology were still standing under Doctor around
+   Salisbury after the rule above went in. The name is all that is left,
+   and for one narrow family of words it is decisive: a business calling
+   itself Radiology or Pathology is an imaging suite or a collection
+   counter, never somewhere you can be seen.
+
+   Guarded, because a real practice can carry a specialist word in its name
+   too - "Marion Domain Medical and Dental Centre" and "Old Port Road
+   Dental and Medical Centre" are both general practices - so a name that
+   also claims to be medical keeps its pin, and dental is deliberately not
+   on the list at all. Run over all 230 named doctors and clinics in this
+   state it catches fifteen and misfires on none.
+
+   Only ever a fallback. Where the speciality tag exists it is the better
+   evidence and this is not consulted. */
+const DIAGNOSTIC_NAME = /(radiolog|patholog|imaging|x-?ray|ultrasound)/i;
+const CLAIMS_MEDICAL = /\b(medical|doctors?|clinic|surgery|health|practice|gp)\b/i;
+
+function isGpName(name) {
+  if (!name) return true;
+  return !DIAGNOSTIC_NAME.test(name) || CLAIMS_MEDICAL.test(name);
+}
+
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
@@ -3761,9 +3821,13 @@ function poiKind(tags) {
   const hc = tags.healthcare;
   if (a === "hospital" || hc === "hospital") return "hospital";
   if (a === "pharmacy" || tags.shop === "chemist" || hc === "pharmacy") return "chemist";
-  if (a === "doctors" || hc === "doctor") return "doctor";
-  if (a === "clinic") return !hc || GP_CLINIC[hc] ? "doctor" : null;
-  if (hc === "clinic" || hc === "centre") return "doctor";
+  if (a === "doctors" || hc === "doctor" || hc === "clinic" || hc === "centre" ||
+      (a === "clinic" && (!hc || GP_CLINIC[hc]))) {
+    /* the tag when there is one, the name only when there is not */
+    const sp = tags["healthcare:speciality"];
+    return (sp ? isGpSpeciality(sp) : isGpName(tags.name)) ? "doctor" : null;
+  }
+  if (a === "clinic") return null;
   if (a === "telephone" || tags.emergency === "phone") return "phone";
   if (a === "post_office") return "post";
   if (a === "bbq") return "bbq";
@@ -3952,10 +4016,12 @@ function poiAnchor() {
    v9 when the outdoor stores came out of Supplies.
    v10 when addresses came off the extract: a v9 cell holds every pin
    without one, so no card would say where it stood until the week ran
-   out and the cell was fetched again. */
+   out and the cell was fetched again.
+   v11 when the radiology suites and pathology counters stopped counting as
+   a doctor. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v10:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v11:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -4557,13 +4623,50 @@ function composePois() {
   renderPois();
 }
 
+/* The words a driver would type for a category, where the app happened to
+   choose a different one. This app calls it Chemist; half the country calls
+   it a pharmacy, and typing that returned nothing at all - which reads as
+   "there isn't one" rather than "not that word". That is exactly what
+   happened at Salisbury Plain, where the chemist was on the map the whole
+   time and could not be found by the word on its own front window.
+
+   Category words only, never a brand. "Coles" has to find Coles, not every
+   supermarket in the town, and a place that carries a name is already
+   searchable by it. */
+const KIND_WORDS = {
+  fuel:        "servo petrol diesel gas bowser service station",
+  mechanic:    "repairs workshop tyres puncture garage breakdown",
+  parts:       "spares filters accessories",
+  refill:      "drinking water potable tap fill tanks",
+  water:       "bore tank trough untreated raw",
+  spring:      "water soak",
+  hospital:    "emergency casualty medical",
+  doctor:      "gp surgery medical centre clinic",
+  chemist:     "pharmacy pharmacist prescription script",
+  campfree:    "camping free camp overnight bush",
+  camp:        "camping caravan park",
+  rest:        "picnic stop",
+  dump:        "black water cassette",
+  shower:      "wash",
+  supermarket: "groceries food shopping",
+  outdoor:     "camping gear tackle fishing hunting disposals",
+  shop:        "supplies store shopping",
+  toilets:     "loo dunny restroom",
+  bbq:         "barbecue",
+  parking:     "car park",
+  phone:       "landline payphone",
+  post:        "postal mail parcel",
+  viewpoint:   "lookout",
+  info:        "visitor centre ranger"
+};
+
 function poiMatches(p, q) {
   if (!q) return true;
   const m = POI_META[p.kind] || {};
   /* The address is searched too, so filtering the loaded set by a street
      name finds what stands on it. */
   return (p.name + " " + (p.info || "") + " " + (p.addr || "") + " " +
-          (m.label || "") + " " + p.kind)
+          (m.label || "") + " " + p.kind + " " + (KIND_WORDS[p.kind] || ""))
          .toLowerCase().indexOf(q) !== -1;
 }
 
