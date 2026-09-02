@@ -3831,11 +3831,44 @@ function isGpName(name) {
   return !DIAGNOSTIC_NAME.test(name) || CLAIMS_MEDICAL.test(name);
 }
 
+/* tourism=information covers two different things. An office or a visitor
+   centre is a place you drive to and walk into; a board, a map, a guidepost
+   or a route marker is a fixture bolted to something else - and what it is
+   bolted to is usually the toilet block or the picnic ground that already
+   earns the pin.
+
+   Only the first kind is read as a destination, which is what lets it
+   outrank the tags below without a board on a dunny wall stopping that
+   dunny being a dunny.
+
+   Semicolons because OSM allows a list, and "board;office" is an office
+   that also has a board outside it. */
+const INFO_DESTINATION = { office: 1, visitor_centre: 1 };
+
+function isInfoOffice(tags) {
+  if (tags.tourism !== "information") return false;
+  return String(tags.information || "").toLowerCase().split(";")
+    .some(function (v) { return INFO_DESTINATION[v.trim()] === 1; });
+}
+
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
   if (!tags) return null;
   const a = tags.amenity, t = tags.tourism, hw = tags.highway;
+  /* Read before everything else, because an information office tagged with
+     anything else was not merely being filed under the wrong label - it was
+     being deleted. Hawker's visitor centre carries amenity=fuel as well,
+     which made it a servo; the servo merge then found two fuel pins seven
+     metres apart claiming the same site on the price scheme, kept the
+     nearer one and threw the other away. The town's information centre was
+     not on the map at all.
+
+     Audited over all 987 tourism=information in this state: 981 already
+     reached the rule further down, and of the six that did not, this moves
+     exactly two - Hawker, and an unnamed shelter tagged board;office. The
+     other four are boards on toilet blocks and stay toilet blocks. */
+  if (isInfoOffice(tags)) return "info";
   if (a === "fuel") return "fuel";
   /* Water splits on the question actually being asked, which is "can I put
      this in the tanks", not "which tag did the mapper reach for". A public
@@ -4080,10 +4113,14 @@ function poiAnchor() {
    without one, so no card would say where it stood until the week ran
    out and the cell was fetched again.
    v11 when the radiology suites and pathology counters stopped counting as
-   a doctor. */
+   a doctor.
+   v12 when an information office stopped being read as whatever else was
+   tagged on it. A v11 cell holds Hawker's visitor centre as a servo - or
+   rather does not hold it at all, since being a servo is what got it
+   thrown away by the price merge. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v11:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v12:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
