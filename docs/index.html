@@ -974,7 +974,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <span>Placed by hand - tap to release</span>
       </button>
     </div>
-    <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap</div>
+    <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap &middot; Addresses &copy; Geoscape G-NAF</div>
     <div id="drawRect" class="hidden"></div>
     <div id="drawHint" class="hidden">
       <b>Select offline area</b>
@@ -1163,6 +1163,7 @@ input[type=date],input[type=time]{color-scheme:dark}
       <div class="sec-body">
         <div class="kv"><span>Cached tiles</span><b id="kvTiles">--</b></div>
         <div class="kv"><span>Cached POI cells</span><b id="kvPoi">--</b></div>
+        <div class="kv"><span>Address packs</span><b id="kvAddr">--</b></div>
         <div class="kv"><span>Estimated usage</span><b id="kvUsage">--</b></div>
         <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
@@ -1176,7 +1177,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
   <div class="dr-foot">
     TrailTracker &middot; offline 4x4 trail log<br>
-    Map tiles &copy; Esri &middot; POI data &copy; OpenStreetMap contributors (ODbL)
+    Map tiles &copy; Esri &middot; POI data &copy; OpenStreetMap contributors (ODbL)<br>
+    Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
+    Australia, licensed under the Open G-NAF end user licence agreement.
+    Not verified for mail delivery.
   </div>
 </aside>
 
@@ -1434,6 +1438,17 @@ const CFG = {
   SUGGEST_FETCH: 20,       /* asked for, before country and duplicate filtering */
   SUGGEST_MAX: 6,          /* offered, so the list never buries the map */
   POI_RADIUS: 5000,        /* metres around you */
+  /* Addresses come off our own origin - the packs are built quarterly by
+     tools/build-gnaf.mjs and committed, so there is no third party to be
+     unreachable from the field and no usage policy to stay inside. */
+  ADDR_URL: "addr/",
+  ADDR_Z: 13,              /* the zoom the packs are cut on, ~4.3 km a tile */
+  ADDR_RADIUS: 6000,       /* metres of addresses kept loaded around you */
+  /* Held in memory for the search to walk. Country tiles run to a few
+     hundred addresses and central Adelaide to twenty two thousand, so the
+     ceiling is on addresses rather than on tiles. */
+  ADDR_MEM_MAX: 120000,
+  ADDR_HITS: 40,           /* address matches gathered before ranking by distance */
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -1812,10 +1827,10 @@ function showUpdateBar() {
 })();
 
 /* =====================================================================
-   IndexedDB: tiles / poi cells / saved areas / recorded tracks
+   IndexedDB: tiles / poi cells / saved areas / recorded tracks / addresses
    ===================================================================== */
 const DB = (function () {
-  const NAME = "trailtracker", VER = 2;
+  const NAME = "trailtracker", VER = 3;
   let dbp = null;
   function open() {
     if (dbp) return dbp;
@@ -1827,6 +1842,10 @@ const DB = (function () {
         if (!db.objectStoreNames.contains("poi")) db.createObjectStore("poi");
         if (!db.objectStoreNames.contains("areas")) db.createObjectStore("areas", { keyPath: "id" });
         if (!db.objectStoreNames.contains("tracks")) db.createObjectStore("tracks", { keyPath: "id" });
+        /* v3: the address packs, keyed "13/x/y", plus the manifest under
+           "index". Same shape as the tile store - a fetched pack never
+           changes until the next quarterly release replaces it. */
+        if (!db.objectStoreNames.contains("addr")) db.createObjectStore("addr");
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = () => rej(rq.error);
@@ -4162,6 +4181,10 @@ async function fetchPois(force) {
   const a = poiAnchor();
   /* cheap to call on every fix: returns unless you have travelled far enough */
   if (!force && poiCentre && haversine(poiCentre, a) < CFG.POI_REFETCH) return;
+  /* Addresses ride the same movement trigger, but nothing waits on them and
+     a POI failure must not hold them up - the packs come off our own origin
+     and have no reason to be unreachable when a map server is. */
+  Addr.ensure(a);
   if (!force && Date.now() < poiRetryAt) return;
 
   poiBusy = true;
@@ -5419,6 +5442,232 @@ function setKindHidden(kind, hidden) {
   renderPois();
 }
 /* =====================================================================
+   Addresses, out of the national address file.
+
+   OpenStreetMap carries an address for well under a tenth of Australian
+   addresses and the coverage thins the further you get from a town, which
+   is the wrong way round for this. Geoscape's G-NAF is the Commonwealth's
+   own list and holds essentially all of them - a million and thirty eight
+   thousand in South Australia alone, pastoral lots included.
+
+   It is far too much to carry in the page, so tools/build-gnaf.mjs cuts it
+   into z13 tiles served off this same origin. Nine and a half thousand of
+   them cover the state at 28 MB, but only the ones you are near are ever
+   fetched: Hawker's entire town is 8.9 KB and the average tile is about a
+   kilobyte on the wire. The worst in the state is central Adelaide at
+   189 KB, which is one map tile's worth of waiting.
+
+   They are stored the same way the map tiles are, so an address looked up
+   once is there the next time with no signal - and an offline area drags
+   its addresses down with its imagery.
+   ===================================================================== */
+const Addr = {
+  manifest: null,          /* which tiles exist, so desert is never asked for */
+  mem: new Map(),          /* "x/y" -> parsed tile, most recent last */
+  count: 0,                /* addresses held in mem, against ADDR_MEM_MAX */
+  tried: new Set(),        /* asked for and failed, so a dead tile is asked once */
+  busy: false,
+
+  key: function (x, y) { return CFG.ADDR_Z + "/" + x + "/" + y; },
+
+  /* The manifest is 9604 tiles listed as {x:[y,...]}, about 60 KB. Read
+     once from the network, then kept in the same store as the tiles so a
+     phone that has been here before starts up knowing the coverage. */
+  loadManifest: async function () {
+    if (this.manifest) return this.manifest;
+    try {
+      const held = await DB.get("addr", "index");
+      if (held) { this.manifest = held; }
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    if (!this.manifest) {
+      try {
+        const r = await fetch(CFG.ADDR_URL + "index.json");
+        if (!r.ok) throw new Error("http " + r.status);
+        this.manifest = await r.json();
+        try { await DB.put("addr", this.manifest, "index"); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.manifest = null;
+      }
+    }
+    return this.manifest;
+  },
+
+  exists: function (x, y) {
+    if (!this.manifest || !this.manifest.tiles) return false;
+    const col = this.manifest.tiles[x];
+    return !!col && col.indexOf(y) >= 0;
+  },
+
+  /* Every tile touching a box. z13 is about 4.3 km across here, so a 5 km
+     bubble is four to nine of them. */
+  cover: function (south, west, north, east) {
+    const z = CFG.ADDR_Z;
+    const x0 = lngToTileX(west, z), x1 = lngToTileX(east, z);
+    const y0 = latToTileY(north, z), y1 = latToTileY(south, z);
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        if (this.exists(x, y)) out.push([x, y]);
+      }
+    }
+    return out;
+  },
+
+  /* Storage first, then the network. A tile never changes between quarterly
+     releases, so a stored one is never refetched to check.
+
+     keep says whether the tile also goes into memory for the search to
+     walk. An offline area passes false: it is writing a whole region to
+     storage and has no business turning over the working set of wherever
+     the vehicle actually is. */
+  fetchTile: async function (x, y, keep) {
+    const k = this.key(x, y);
+    if (this.tried.has(k)) return;
+    if (this.mem.has(k)) return;
+    let tile = null;
+    try { tile = await DB.get("addr", k); } catch (e) { /* fall through */ }
+    if (!tile) {
+      try {
+        const r = await fetch(CFG.ADDR_URL + k + ".json");
+        if (!r.ok) throw new Error("http " + r.status);
+        tile = await r.json();
+        try { await DB.put("addr", tile, k); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.tried.add(k);
+        return;
+      }
+    }
+    if (keep !== false) this.hold(k, tile);
+  },
+
+  /* Held in memory for the search to walk. Central Adelaide alone is 22000
+     addresses, so this is capped on addresses rather than on tiles - forty
+     country tiles cost less than two city ones.
+
+     What goes when the cap is reached is whatever was put in first, which
+     is only the right answer because ensure() loads the furthest tile
+     first and the one you are standing on last. Insertion order and
+     distance are the same order by the time this sees them. */
+  hold: function (k, tile) {
+    if (this.mem.has(k)) return;
+    this.mem.set(k, tile);
+    this.count += tile.a.length;
+    while (this.count > CFG.ADDR_MEM_MAX && this.mem.size > 1) {
+      const oldest = this.mem.keys().next().value;
+      this.count -= this.mem.get(oldest).a.length;
+      this.mem.delete(oldest);
+    }
+  },
+
+  /* Called as the vehicle moves, on the same trigger as the POIs. Fire and
+     forget: nothing waits on addresses, they turn up when they turn up.
+
+     Furthest first. The cap is generous enough that an ordinary bubble
+     never reaches it, but a wide radius over a city does, and loading in
+     grid order meant the tile under the wheels was the first one dropped -
+     a search for the street you were standing in came back empty while
+     four suburbs away stayed loaded. */
+  ensure: async function (a, radius) {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      await this.loadManifest();
+      if (!this.manifest) return;
+      const r = radius || CFG.ADDR_RADIUS;
+      const dLat = r / 111320;
+      const dLng = r / (111320 * Math.max(0.2, Math.cos(a.lat * Math.PI / 180)));
+      const want = this.cover(a.lat - dLat, a.lng - dLng, a.lat + dLat, a.lng + dLng);
+      const cx = lngToTileX(a.lng, CFG.ADDR_Z), cy = latToTileY(a.lat, CFG.ADDR_Z);
+      want.sort(function (p, q) {
+        const dp = (p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy);
+        const dq = (q[0] - cx) * (q[0] - cx) + (q[1] - cy) * (q[1] - cy);
+        return dq - dp;
+      });
+      for (const t of want) await this.fetchTile(t[0], t[1]);
+    } finally {
+      this.busy = false;
+    }
+  },
+
+  /* An address off a tile, back in the shape the suggestion list speaks. */
+  row: function (tile, rec) {
+    const lat = (tile.o[0] + rec[0]) / 1e5;
+    const lng = (tile.o[1] + rec[1]) / 1e5;
+    const street = tile.s[rec[2]] || "";
+    const town = tile.t[rec[3]] || "";
+    const pc = tile.p[rec[4]] || "";
+    const name = fmtAddress(rec[5], street);
+    return {
+      id: "gnaf" + lat.toFixed(5) + lng.toFixed(5),
+      name: name,
+      where: [town, pc, "South Australia"].filter(Boolean).join(", "),
+      kind: "address",
+      lat: lat, lng: lng,
+      named: false,
+      addrKey: (name + "|" + town).toLowerCase()
+    };
+  },
+
+  /* Typing an address searches what is stored rather than the network, so
+     it answers instantly and answers with no signal at all - which is the
+     whole reason the packs are on the phone.
+
+     A number is pulled off the front and matched exactly; the rest is
+     matched against street and town. Streets are checked first because a
+     tile names about two hundred of them against a few thousand addresses,
+     so a tile that cannot match is discarded on the small list. */
+  search: function (q, limit) {
+    q = (q || "").trim();
+    if (q.length < CFG.SUGGEST_MIN) return [];
+    const m = q.match(/^(\d+[a-zA-Z]?)\s+(.+)$/);
+    const num = m ? m[1].toLowerCase() : "";
+    const text = (m ? m[2] : q).trim().toLowerCase();
+    if (text.length < 2) return [];
+    const out = [];
+    const cap = (limit || CFG.ADDR_HITS) * 8;
+    for (const tile of this.mem.values()) {
+      const sHit = [], tHit = [];
+      for (let i = 0; i < tile.s.length; i++) {
+        if (tile.s[i].toLowerCase().indexOf(text) >= 0) sHit.push(i);
+      }
+      for (let i = 0; i < tile.t.length; i++) {
+        if (tile.t[i].toLowerCase().indexOf(text) >= 0) tHit.push(i);
+      }
+      if (!sHit.length && !tHit.length) continue;
+      for (let i = 0; i < tile.a.length; i++) {
+        const rec = tile.a[i];
+        if (sHit.indexOf(rec[2]) < 0 && tHit.indexOf(rec[3]) < 0) continue;
+        if (num && String(rec[5]).toLowerCase() !== num) continue;
+        out.push(this.row(tile, rec));
+        if (out.length >= cap) break;
+      }
+      if (out.length >= cap) break;
+    }
+    return out;
+  },
+
+  /* What is stored, for the storage panel. */
+  stats: async function () {
+    try {
+      const keys = await DB.keys("addr");
+      return keys.filter(function (k) { return k !== "index"; }).length;
+    } catch (e) { return 0; }
+  }
+};
+
+/* Slippy tile arithmetic, shared with the address packs. The map's own
+   tiles are handled by Leaflet, which never exposes these. */
+function lngToTileX(lng, z) {
+  return Math.floor(((lng + 180) / 360) * Math.pow(2, z));
+}
+function latToTileY(lat, z) {
+  const r = (lat * Math.PI) / 180;
+  return Math.floor(
+    ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z)
+  );
+}
+
+/* =====================================================================
    Place search beyond the 5 km bubble, via OSM's Nominatim geocoder.
    Its usage policy forbids autocomplete-style traffic, so this never
    fires per keystroke: typing filters what is already loaded, and the
@@ -5773,13 +6022,27 @@ function sugMatches(s, q) {
 
 function showSuggest(q, list) {
   const local = homeSuggestion(q);
+  /* The address packs are searched on every render rather than fetched,
+     because they are already on the phone - so an address answers with no
+     signal, and answers before the geocoder would have been asked.
+
+     Where the index has already offered the same address its copy wins:
+     it may have a name to go with it, and "Homeland - 1 King William
+     Street" says everything the bare address says and more. */
+  const claimed = {};
+  list.forEach(function (s) { if (s.addrKey) claimed[s.addrKey] = 1; });
+  const mine = Addr.search(q, CFG.ADDR_HITS).filter(function (s) {
+    if (claimed[s.addrKey]) return false;
+    claimed[s.addrKey] = 1;                 /* and never twice from the packs */
+    return true;
+  });
   /* Nearest first. Everything on this list already matched what was
      typed, so distance is the only question left - and out here the
      Turquoise Drive an hour away beats the one in Queensland.
 
      Sorted on every render rather than once when fetched, so narrowing
      the list cannot leave it in the order of an older position. */
-  const near = list.slice().sort(function (a, b) { return geoDist(a) - geoDist(b); });
+  const near = list.concat(mine).sort(function (a, b) { return geoDist(a) - geoDist(b); });
   sugItems = (local ? [local] : []).concat(near).slice(0, CFG.SUGGEST_MAX);
   renderSuggest();
 }
@@ -5821,6 +6084,10 @@ function scheduleSuggest() {
     showSuggest(q, narrowed);
     if (narrowed.length) return;
   }
+  /* The packs answer straight away, before the geocoder has been asked and
+     whether or not there is anything to ask it with. Photon replaces this
+     list when it lands; with no signal it stands as the answer. */
+  showSuggest(q, []);
   sugTimer = setTimeout(function () { suggestPlaces(q); }, CFG.SUGGEST_WAIT);
 }
 
@@ -6422,15 +6689,37 @@ async function runAreaDownload() {
   for (let i = 0; i < CFG.DL_CONC; i++) workers.push(worker());
   await Promise.all(workers);
   tally();
+  /* The addresses for the same ground, pulled without being asked for and
+     without a progress line of their own. They are a rounding error beside
+     the imagery - the whole of Hawker is 8.9 KB against a few megabytes of
+     tiles - and an area downloaded for the bush is exactly where looking an
+     address up over the air is not going to work.
+
+     A failure here never fails the area. The imagery is what it is for. */
+  let addrTiles = 0;
+  if (!dlAbort) {
+    try {
+      await Addr.loadManifest();
+      const want = Addr.cover(bounds.getSouth(), bounds.getWest(),
+                              bounds.getNorth(), bounds.getEast());
+      for (const t of want) {
+        if (dlAbort) break;
+        await Addr.fetchTile(t[0], t[1], false);
+        addrTiles++;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
 
   if (!dlAbort) {
     const area = {
-      id: uid(), name: name, maxZoom: z, tiles: total, ts: Date.now(),
+      id: uid(), name: name, maxZoom: z, tiles: total, addr: addrTiles, ts: Date.now(),
       bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]
     };
     try { await DB.put("areas", area); } catch (e) { /* ignore */ }
     await renderAreas();
-    toast("Area saved: " + fetched + " new, " + cached + " already cached", "ok");
+    toast("Area saved: " + fetched + " new, " + cached + " already cached" +
+          (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : ""), "ok");
   } else {
     toast("Download stopped", "warn");
   }
@@ -6483,6 +6772,7 @@ async function deleteArea(id) {
 async function refreshStorageStats() {
   try { $("#kvTiles").textContent = await DB.count("tiles"); } catch (e) { $("#kvTiles").textContent = "--"; }
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
+  try { $("#kvAddr").textContent = await Addr.stats(); } catch (e) { $("#kvAddr").textContent = "--"; }
   if (navigator.storage && navigator.storage.estimate) {
     try { const est = await navigator.storage.estimate(); $("#kvUsage").textContent = fmtBytes(est.usage || 0); }
     catch (e) { $("#kvUsage").textContent = "--"; }

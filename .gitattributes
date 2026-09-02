@@ -1,0 +1,6 @@
+# The address packs are machine output - nine and a half thousand files
+# written by tools/build-gnaf.mjs and rewritten whole on every quarterly
+# G-NAF release. Marked generated so a pull request that touches them shows
+# the code that changed rather than a million address records nobody can
+# read, and so they stay out of language statistics.
+docs/addr/** linguist-generated=true

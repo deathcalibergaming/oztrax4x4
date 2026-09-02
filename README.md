@@ -16,6 +16,7 @@ what that costs you.
     docs/icon-192.png
     docs/icon-512.png
     docs/.nojekyll             stops GitHub Pages running the files through Jekyll
+    docs/addr/                 G-NAF address packs, one JSON per z13 tile
 
 ## Publishing
 
@@ -61,5 +62,7 @@ land on the very next launch.
 
 * Map tiles — Esri World Topo, cached in IndexedDB for offline use
 * POIs — the OpenStreetMap `/map` API, with Photon as a standby
+* Addresses — Geoscape G-NAF, cut into z13 packs under `docs/addr/` and
+  served off this origin; built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
 * Routing — OSRM
