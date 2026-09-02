@@ -1,0 +1,59 @@
+name: Road network
+
+# The road packs the app routes on with no signal. Geofabrik rebuilds the
+# South Australia extract from OpenStreetMap every day, so there is always
+# something newer to take - which is exactly why this does not run daily.
+# A rebuild rewrites nineteen thousand tiles, and a road that moved in
+# Adelaide on a Tuesday is not worth a commit of that size. Once a month
+# keeps the network current to within a few weeks, which is far fresher
+# than the roads themselves change out here.
+#
+# The 12th rather than the 5th, so it does not land on the G-NAF job.
+
+on:
+  schedule:
+    - cron: "40 20 12 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if the extract has not changed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: osm-roads
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      # Two passes over a 67 MB extract, holding two million node
+      # coordinates between them. It peaks near a gigabyte and a half.
+      - name: Build the road packs
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: node tools/build-routing.mjs ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit if the extract moved
+        run: |
+          # Staged first, because a fresh build writes the whole tree from
+          # scratch and untracked files are invisible to a plain git diff.
+          git add -A docs/route
+          if git diff --cached --quiet; then
+            echo "road packs unchanged - nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Road network, OpenStreetMap via Geofabrik $(node -p "require('./docs/route/index.json').built")"
+          git push

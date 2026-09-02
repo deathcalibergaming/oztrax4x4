@@ -974,7 +974,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <span>Placed by hand - tap to release</span>
       </button>
     </div>
-    <div id="attrib">Tiles &copy; Esri &middot; POI &copy; OpenStreetMap &middot; Addresses &copy; Geoscape G-NAF</div>
+    <div id="attrib">Tiles &copy; Esri &middot; POI and roads &copy; OpenStreetMap &middot; Addresses &copy; Geoscape G-NAF</div>
     <div id="drawRect" class="hidden"></div>
     <div id="drawHint" class="hidden">
       <b>Select offline area</b>
@@ -1164,6 +1164,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="kv"><span>Cached tiles</span><b id="kvTiles">--</b></div>
         <div class="kv"><span>Cached POI cells</span><b id="kvPoi">--</b></div>
         <div class="kv"><span>Address packs</span><b id="kvAddr">--</b></div>
+        <div class="kv"><span>Road packs</span><b id="kvRoute">--</b></div>
         <div class="kv"><span>Estimated usage</span><b id="kvUsage">--</b></div>
         <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
@@ -1177,7 +1178,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
   <div class="dr-foot">
     TrailTracker &middot; offline 4x4 trail log<br>
-    Map tiles &copy; Esri &middot; POI data &copy; OpenStreetMap contributors (ODbL)<br>
+    Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
     Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
     Australia, licensed under the Open G-NAF end user licence agreement.
     Not verified for mail delivery.
@@ -1453,6 +1454,23 @@ const CFG = {
      locality can span ninety, though they are the sparse kind - a few
      hundred addresses between the lot of them. */
   ADDR_REACH_MAX: 60,
+  /* The road network, off our own origin as well, and cut on the same grid
+     as the addresses so a drive pulls both from the same tile numbers.
+     tools/build-routing.mjs builds them. */
+  ROUTE_URL: "route/",
+  ROUTE_Z: 13,
+  ROUTE_RADIUS: 6000,      /* metres of local streets kept loaded as you drive */
+  ROUTE_REACH: 4000,       /* and fetched around each end of a route being asked for */
+  /* Edges held in the graph before the local half is dropped and rebuilt
+     from the backbone. The state backbone is 69000 of them and never goes;
+     the rest is whatever streets the trip has driven past. */
+  ROUTE_MEM_MAX: 260000,
+  /* Standing further than this from any road the app holds, there is
+     nothing honest to route from. */
+  ROUTE_SNAP_MAX: 5000,
+  /* A safety valve, not a budget. The whole state backbone is 62000 nodes,
+     so a search that has looked at five times that is not converging. */
+  ROUTE_MAX_POPS: 300000,
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -1834,7 +1852,7 @@ function showUpdateBar() {
    IndexedDB: tiles / poi cells / saved areas / recorded tracks / addresses
    ===================================================================== */
 const DB = (function () {
-  const NAME = "trailtracker", VER = 3;
+  const NAME = "trailtracker", VER = 4;
   let dbp = null;
   function open() {
     if (dbp) return dbp;
@@ -1850,6 +1868,11 @@ const DB = (function () {
            "index". Same shape as the tile store - a fetched pack never
            changes until the next quarterly release replaces it. */
         if (!db.objectStoreNames.contains("addr")) db.createObjectStore("addr");
+        /* v4: the road network. Tiles keyed "13/x/y" like the addresses,
+           and the state backbone under "backbone" - four megabytes of it,
+           which is the one entry here worth more than the rest put
+           together and the one that has to survive going out of range. */
+        if (!db.objectStoreNames.contains("route")) db.createObjectStore("route");
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = () => rej(rq.error);
@@ -4185,10 +4208,14 @@ async function fetchPois(force) {
   const a = poiAnchor();
   /* cheap to call on every fix: returns unless you have travelled far enough */
   if (!force && poiCentre && haversine(poiCentre, a) < CFG.POI_REFETCH) return;
-  /* Addresses ride the same movement trigger, but nothing waits on them and
-     a POI failure must not hold them up - the packs come off our own origin
-     and have no reason to be unreachable when a map server is. */
+  /* Addresses and roads ride the same movement trigger, but nothing waits
+     on them and a POI failure must not hold them up - the packs come off
+     our own origin and have no reason to be unreachable when a map server
+     is. Route.ensure also brings down the state backbone the first time it
+     runs, which is the one download that has to happen before the signal
+     goes rather than after. */
   Addr.ensure(a);
+  Route.ensure(a);
   if (!force && Date.now() < poiRetryAt) return;
 
   poiBusy = true;
@@ -5853,6 +5880,561 @@ const Addr = {
 
 
 /* =====================================================================
+   Routing with nothing on the other end of it.
+
+   Every route used to come from the public OSRM server, which meant the
+   one place a route matters most - a long way out, on a track, with one
+   bar or none - was the one place the app could not draw one. It did not
+   even fall back to a straight line: navigateTo returned before it
+   touched the map, and you got "No route found" over an empty screen.
+
+   So the road network is carried instead, built by tools/build-routing.mjs
+   and served from our own origin in two parts:
+
+     backbone.json  every road of tertiary class or better in the state -
+                    thirty thousand kilometres, which is the whole touring
+                    network including the Oodnadatta, Birdsville and
+                    Strzelecki - in about a megabyte and a third over the
+                    wire. Fetched once and kept. Every long route is
+                    answered out of it with no further request at all.
+
+     13/x/y.json    the streets, station tracks and service roads, on the
+                    same grid as the address packs and fetched the same
+                    way. A country tile is under a kilobyte; the middle of
+                    Adelaide is the worst in the state at 163 KB. This is
+                    the first and last few kilometres of a trip.
+
+   The packs carry edges, not roads: a way is cut at every junction, so an
+   edge runs from one decision point to the next and the graph is rebuilt
+   here by matching the coordinates the two ends share. That is also why an
+   edge crossing a tile boundary was cut at a vertex rather than clipped -
+   the two halves have a point in common and rejoin without being told.
+   ===================================================================== */
+
+/* Free flow, km/h, used where OSM has no posted limit - which out here is
+   most of the network. Deliberately not optimistic: these are what the
+   road can be driven at with a van behind you, and a track is thirty
+   because that is what a track is, not because the sign says so. */
+const ROAD_SPEED = {
+  motorway: 100, trunk: 95, primary: 85, secondary: 75, tertiary: 65,
+  ferry: 12, unclassified: 55, residential: 40, living_street: 15,
+  service: 20, track: 30, road: 50, busway: 40
+};
+
+/* The pack stores a class as its index into this list, so it matches
+   CLASSES in tools/build-routing.mjs exactly and may be appended to but
+   never reordered. Kept here rather than read out of the manifest: a phone
+   that has the backbone in storage and no signal has no manifest to read,
+   and getting this wrong would not fail, it would quietly price a highway
+   like a station track. */
+const ROAD_CLASSES = [
+  "motorway", "trunk", "primary", "secondary", "tertiary", "ferry",
+  "unclassified", "residential", "living_street", "service", "track", "road", "busway"
+];
+
+/* A node is its own coordinate, packed into one number so the graph can be
+   a Map keyed on it. Latitude and longitude are already integers of a
+   hundred-thousandth of a degree; shifted positive and combined they reach
+   7.2e14, which a double holds exactly with three decimal orders to spare. */
+const NK_LAT = 9000000, NK_LNG = 18000000, NK_MUL = 40000000;
+
+const Route = {
+  manifest: null,
+  packs: new Set(),        /* pack ids already folded in - "bb", or "x/y" */
+  tried: new Set(),        /* asked for and not there, so a gap is asked once */
+  edges: [],               /* {cls,f,v,name,off,n,m,cost,a,b} */
+  geo: new Int32Array(1 << 16),   /* every loaded edge's points, back to back */
+  geoN: 0,
+  adj: new Map(),          /* node key -> slots, slot = i*2 forward, i*2+1 back */
+  bins: new Map(),         /* "x/y" -> edge indices, so snapping is local */
+  fixed: 0,                /* edges belonging to the backbone, never dropped */
+  busy: false,
+  bbBusy: null,
+
+  key: function (x, y) { return CFG.ROUTE_Z + "/" + x + "/" + y; },
+  nodeKey: function (la, lng) { return (la + NK_LAT) * NK_MUL + (lng + NK_LNG); },
+  nodeLat: function (k) { return Math.floor(k / NK_MUL) - NK_LAT; },
+  nodeLng: function (k) { return k - Math.floor(k / NK_MUL) * NK_MUL - NK_LNG; },
+
+  /* ---- the packs ---- */
+
+  loadManifest: async function () {
+    if (this.manifest) return this.manifest;
+    try {
+      const held = await DB.get("route", "index");
+      if (held) this.manifest = held;
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    if (!this.manifest) {
+      try {
+        const r = await fetch(CFG.ROUTE_URL + "index.json");
+        if (!r.ok) throw new Error("http " + r.status);
+        this.manifest = await r.json();
+        try { await DB.put("route", this.manifest, "index"); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.manifest = null;
+      }
+    }
+    return this.manifest;
+  },
+
+  exists: function (x, y) {
+    if (!this.manifest || !this.manifest.tiles) return false;
+    const col = this.manifest.tiles[x];
+    return !!col && col.indexOf(y) >= 0;
+  },
+
+  /* The backbone, once. Four megabytes of JSON and about a second and a
+     half to fetch and fold in on a phone, which is why it is pulled in the
+     background as soon as the app has something better to do than start up,
+     rather than at the moment somebody asks for a route.
+
+     Held under one promise: the startup fetch and a route asked for while
+     it is still in flight are the same download, not two. */
+  ensureBackbone: function () {
+    if (this.packs.has("bb")) return Promise.resolve(true);
+    if (this.bbBusy) return this.bbBusy;
+    const self = this;
+    this.bbBusy = (async function () {
+      let pk = null;
+      try { pk = await DB.get("route", "backbone"); } catch (e) { /* fall through */ }
+      if (!pk) {
+        try {
+          const r = await fetch(CFG.ROUTE_URL + "backbone.json");
+          if (!r.ok) throw new Error("http " + r.status);
+          pk = await r.json();
+          try { await DB.put("route", pk, "backbone"); } catch (e) { /* ignore */ }
+        } catch (e) {
+          self.bbBusy = null;
+          return false;
+        }
+      }
+      self.addPack(pk, "bb");
+      self.fixed = self.edges.length;
+      return true;
+    })();
+    return this.bbBusy;
+  },
+
+  /* On disk is a different question from in the graph, and an offline area
+     is asking the first one. Going through ensureBackbone would answer the
+     second: a phone that has routed once this session already holds the
+     backbone in memory, so it would report success and write nothing, and
+     the area would go out of range without the network it was downloaded
+     to do without. */
+  keepBackbone: async function () {
+    try { if (await DB.get("route", "backbone")) return true; } catch (e) { /* ask the server */ }
+    try {
+      const r = await fetch(CFG.ROUTE_URL + "backbone.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      await DB.put("route", await r.json(), "backbone");
+      return true;
+    } catch (e) { return false; }
+  },
+
+  /* keep says whether the tile also joins the graph. An offline area passes
+     false: it is writing a whole region to storage and has no business
+     turning over the working set of wherever the vehicle actually is - two
+     thousand tiles folded in would trip the cap and throw away the streets
+     under the wheels to make room for streets nobody has driven to yet. */
+  fetchTile: async function (x, y, keep) {
+    const k = this.key(x, y);
+    /* Already in the graph is only a reason to stop when the graph is what
+       was wanted. An offline area is filling storage, and asks again. */
+    if (keep !== false && (this.packs.has(k) || this.tried.has(k))) return;
+    let pk = null;
+    try { pk = await DB.get("route", k); } catch (e) { /* fall through */ }
+    if (pk && keep === false) return;             /* already stored, nothing to do */
+    if (!pk) {
+      try {
+        const r = await fetch(CFG.ROUTE_URL + k + ".json");
+        if (!r.ok) throw new Error("http " + r.status);
+        pk = await r.json();
+        try { await DB.put("route", pk, k); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.tried.add(k);
+        return;
+      }
+    }
+    if (keep !== false) this.addPack(pk, k);
+  },
+
+  /* Same box arithmetic the address packs use, and the same grid, so a
+     drive that pulls one pulls the other from the same tile numbers. */
+  cover: function (south, west, north, east) {
+    const z = CFG.ROUTE_Z;
+    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
+    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        if (this.exists(x, y)) out.push([x, y]);
+      }
+    }
+    return out;
+  },
+
+  around: function (lat, lng, radius) {
+    const dLat = radius / 111320;
+    const dLng = radius / (111320 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    return this.cover(lat - dLat, lng - dLng, lat + dLat, lng + dLng);
+  },
+
+  /* Called as the vehicle moves, on the same trigger as the addresses and
+     the POIs. Fire and forget - the backbone answers routes on its own and
+     these only sharpen the ends. */
+  ensure: async function (a) {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      await this.loadManifest();
+      if (!this.manifest) return;
+      /* Waited on rather than started and left, so the backbone is always
+         the first thing in the graph. It is the half that is never dropped,
+         and what is never dropped is decided by how many edges came before
+         the mark - so a tile that slipped in ahead of it would be pinned
+         there for the session and re-added as a duplicate after every
+         eviction. */
+      await this.ensureBackbone();
+      for (const t of this.around(a.lat, a.lng, CFG.ROUTE_RADIUS)) {
+        await this.fetchTile(t[0], t[1]);
+      }
+    } finally {
+      this.busy = false;
+    }
+  },
+
+  /* The streets at both ends of a route that is about to be worked out.
+     Without this a trip from a house to a house runs between the two
+     nearest arterials and misses the last kilometre at each end. */
+  reach: async function (from, to) {
+    await this.loadManifest();
+    if (!this.manifest) return;
+    const want = this.around(from.lat, from.lng, CFG.ROUTE_REACH)
+      .concat(this.around(to.lat, to.lng, CFG.ROUTE_REACH));
+    const seen = {};
+    for (const t of want) {
+      const k = t[0] + "/" + t[1];
+      if (seen[k]) continue;
+      seen[k] = 1;
+      await this.fetchTile(t[0], t[1]);
+    }
+  },
+
+  /* ---- the graph ---- */
+
+  room: function (n) {
+    if (this.geoN + n <= this.geo.length) return;
+    let size = this.geo.length;
+    while (size < this.geoN + n) size *= 2;
+    const bigger = new Int32Array(size);
+    bigger.set(this.geo.subarray(0, this.geoN));
+    this.geo = bigger;
+  },
+
+  addPack: function (pk, id) {
+    if (this.packs.has(id) || !pk || !pk.e) return;
+    /* The local half is dropped whole rather than a tile at a time. There
+       is no cheap way to pull one pack's points out of the middle of a flat
+       array, and by the time the cap is reached the vehicle is a long way
+       from where the early tiles were loaded anyway. */
+    if (this.edges.length > CFG.ROUTE_MEM_MAX) this.dropLocal();
+    this.packs.add(id);
+    const oLat = pk.o[0], oLng = pk.o[1];
+    for (let r = 0; r < pk.e.length; r++) {
+      const row = pk.e[r];
+      const n = (row.length - 4) >> 1;
+      if (n < 2) continue;
+      const cls = ROAD_CLASSES[row[0]] || "unclassified";
+      const off = this.geoN;
+      this.room(n * 2);
+      let la = oLat, lng = oLng, m = 0, pLa = 0, pLng = 0;
+      for (let i = 0; i < n; i++) {
+        la += row[4 + i * 2];
+        lng += row[5 + i * 2];
+        if (i) m += haversine({ lat: pLa / 1e5, lng: pLng / 1e5 }, { lat: la / 1e5, lng: lng / 1e5 });
+        this.geo[this.geoN++] = la;
+        this.geo[this.geoN++] = lng;
+        pLa = la; pLng = lng;
+      }
+      if (!m) { this.geoN = off; continue; }
+      const v = row[2] || ROAD_SPEED[cls] || 40;
+      let cost = m / (v / 3.6);
+      /* Gated, private or permit-only. Still routable, because out here a
+         station track is sometimes the only way through and the driver is
+         the one who knows whether they are allowed on it - but eight times
+         the cost, so it is never the convenient shortcut. */
+      if (row[1] & 4) cost *= 8;
+      /* A ferry is the wait, not the crossing. Fifteen minutes covers the
+         Murray punts either side of the timetable. */
+      if (cls === "ferry") cost += 900;
+      const i = this.edges.length;
+      this.edges.push({
+        cls: cls, f: row[1], name: row[3] >= 0 ? (pk.n[row[3]] || "") : "",
+        off: off, n: n, m: m, cost: cost,
+        a: this.nodeKey(this.geo[off], this.geo[off + 1]),
+        b: this.nodeKey(this.geo[off + n * 2 - 2], this.geo[off + n * 2 - 1])
+      });
+      this.link(i);
+    }
+  },
+
+  link: function (i) {
+    const e = this.edges[i];
+    if (!(e.f & 2)) this.slot(e.a, i * 2);
+    if (!(e.f & 1)) this.slot(e.b, i * 2 + 1);
+    /* Binned by every tile the edge touches, so snapping to the road under
+       the vehicle looks at a few dozen edges rather than a hundred thousand. */
+    let last = "";
+    for (let p = 0; p < e.n; p++) {
+      const la = this.geo[e.off + p * 2] / 1e5, lng = this.geo[e.off + p * 2 + 1] / 1e5;
+      const k = lon2tile(lng, CFG.ROUTE_Z) + "/" + lat2tile(la, CFG.ROUTE_Z);
+      if (k === last) continue;
+      last = k;
+      let bin = this.bins.get(k);
+      if (!bin) { bin = []; this.bins.set(k, bin); }
+      if (bin[bin.length - 1] !== i) bin.push(i);
+    }
+  },
+
+  slot: function (node, s) {
+    let list = this.adj.get(node);
+    if (!list) { list = []; this.adj.set(node, list); }
+    list.push(s);
+  },
+
+  dropLocal: function () {
+    this.edges.length = this.fixed;
+    this.geoN = this.fixed ? this.edges[this.fixed - 1].off +
+                             this.edges[this.fixed - 1].n * 2 : 0;
+    this.adj.clear();
+    this.bins.clear();
+    this.tried.clear();
+    const keep = this.packs.has("bb");
+    this.packs.clear();
+    if (keep) this.packs.add("bb");
+    for (let i = 0; i < this.edges.length; i++) this.link(i);
+  },
+
+  /* ---- snapping ---- */
+
+  /* The nearest point on any loaded road, as the edge it is on and how far
+     along it. Both ends of that edge become entrances to the graph, priced
+     by the time to drive the stub between them - which is what makes a
+     route from a house halfway down a street start at the house rather
+     than at the corner. */
+  snap: function (lat, lng) {
+    const x = lon2tile(lng, CFG.ROUTE_Z), y = lat2tile(lat, CFG.ROUTE_Z);
+    let best = null, bd = Infinity;
+    const seen = {};
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bin = this.bins.get((x + dx) + "/" + (y + dy));
+        if (!bin) continue;
+        for (const i of bin) {
+          if (seen[i]) continue;
+          seen[i] = 1;
+          const e = this.edges[i];
+          for (let p = 0; p < e.n; p++) {
+            const d = haversine({ lat: lat, lng: lng }, {
+              lat: this.geo[e.off + p * 2] / 1e5,
+              lng: this.geo[e.off + p * 2 + 1] / 1e5
+            });
+            if (d < bd) { bd = d; best = { i: i, p: p }; }
+          }
+        }
+      }
+    }
+    if (!best || bd > CFG.ROUTE_SNAP_MAX) return null;
+    best.d = bd;
+    return best;
+  },
+
+  /* The geometry of an edge from one of its ends up to a point on it, and
+     what that stretch costs. Used for the two stubs a route begins and ends
+     with, and for stitching them into the drawn line. */
+  part: function (i, from, to) {
+    const e = this.edges[i];
+    const pts = [];
+    let m = 0;
+    const step = from <= to ? 1 : -1;
+    for (let p = from; ; p += step) {
+      pts.push([this.geo[e.off + p * 2] / 1e5, this.geo[e.off + p * 2 + 1] / 1e5]);
+      if (p === to) break;
+      m += haversine(
+        { lat: this.geo[e.off + p * 2] / 1e5, lng: this.geo[e.off + p * 2 + 1] / 1e5 },
+        { lat: this.geo[e.off + (p + step) * 2] / 1e5,
+          lng: this.geo[e.off + (p + step) * 2 + 1] / 1e5 });
+    }
+    return { pts: pts, m: m, cost: e.m ? e.cost * (m / e.m) : 0 };
+  },
+
+  /* ---- the search ---- */
+
+  find: async function (from, to) {
+    const ok = await this.ensureBackbone();
+    if (!ok) return null;
+    await this.reach(from, to);
+
+    const a = this.snap(from.lat, from.lng);
+    const b = this.snap(to.lat, to.lng);
+    if (!a || !b) return null;
+
+    /* Both ends of the destination's edge are arrivals, each with the stub
+       from it back to the point actually asked for. */
+    const eb = this.edges[b.i];
+    const finish = new Map();
+    finish.set(eb.a, this.part(b.i, 0, b.p));
+    finish.set(eb.b, this.part(b.i, eb.n - 1, b.p));
+
+    const ea = this.edges[a.i];
+    const seeds = [
+      { node: ea.a, stub: this.part(a.i, a.p, 0) },
+      { node: ea.b, stub: this.part(a.i, a.p, ea.n - 1) }
+    ];
+
+    /* Standing on the destination's own edge, with nothing to search. */
+    if (a.i === b.i) {
+      const one = this.part(a.i, a.p, b.p);
+      return this.route([[from.lat, from.lng]].concat(one.pts, [[to.lat, to.lng]]),
+                        one.m, one.cost, a.d, b.d);
+    }
+
+    const goal = { lat: to.lat, lng: to.lng };
+    const g = new Map(), prev = new Map(), done = new Set();
+    const open = new RouteHeap();
+    for (const s of seeds) {
+      if (g.has(s.node) && g.get(s.node) <= s.stub.cost) continue;
+      g.set(s.node, s.stub.cost);
+      prev.set(s.node, null);
+      open.push(s.stub.cost + this.hope(s.node, goal), s.node);
+    }
+
+    let end = null;
+    let popped = 0;
+    while (open.size()) {
+      const n = open.pop();
+      if (done.has(n)) continue;
+      done.add(n);
+      if (++popped > CFG.ROUTE_MAX_POPS) break;
+      if (finish.has(n)) { end = n; break; }
+      const list = this.adj.get(n);
+      if (!list) continue;
+      const base = g.get(n);
+      for (const s of list) {
+        const e = this.edges[s >> 1];
+        const to2 = (s & 1) ? e.a : e.b;
+        const cost = base + e.cost;
+        if (g.has(to2) && g.get(to2) <= cost) continue;
+        g.set(to2, cost);
+        prev.set(to2, [n, s]);
+        open.push(cost + this.hope(to2, goal), to2);
+      }
+    }
+    if (end === null) return null;
+
+    /* Walked back from the arrival, so the chain comes out in reverse and
+       each edge is read in the direction it was driven. */
+    const chain = [];
+    let n = end;
+    while (prev.get(n)) { chain.push(prev.get(n)); n = prev.get(n)[0]; }
+    chain.reverse();
+
+    const seed = seeds.find(function (s) { return s.node === n; });
+    if (!seed) return null;
+    const startStub = seed.stub;
+    const pts = [[from.lat, from.lng]].concat(startStub.pts);
+    let m = startStub.m;
+    for (const [, s] of chain) {
+      const e = this.edges[s >> 1];
+      const back = !!(s & 1);
+      for (let p = 0; p < e.n; p++) {
+        const q = back ? e.n - 1 - p : p;
+        pts.push([this.geo[e.off + q * 2] / 1e5, this.geo[e.off + q * 2 + 1] / 1e5]);
+      }
+      m += e.m;
+    }
+    const endStub = finish.get(end);
+    for (let p = endStub.pts.length - 1; p >= 0; p--) pts.push(endStub.pts[p]);
+    pts.push([to.lat, to.lng]);
+    m += endStub.m;
+    return this.route(pts, m, g.get(end) + endStub.cost, a.d, b.d);
+  },
+
+  /* Time to the destination if the rest of the trip were a straight line at
+     highway speed. Never longer than the real thing, which is what keeps
+     A* honest, and close enough on a long haul to keep it quick. */
+  hope: function (node, goal) {
+    return haversine({ lat: this.nodeLat(node) / 1e5, lng: this.nodeLng(node) / 1e5 }, goal)
+           / (100 / 3.6);
+  },
+
+  route: function (pts, m, secs, snapA, snapB) {
+    /* Consecutive edges share the junction they meet at, so the join shows
+       up as the same coordinate twice. Harmless to draw and untidy to
+       measure against, so it goes. */
+    const coords = [];
+    for (const p of pts) {
+      const last = coords[coords.length - 1];
+      if (last && Math.abs(last[0] - p[0]) < 1e-7 && Math.abs(last[1] - p[1]) < 1e-7) continue;
+      coords.push(p);
+    }
+    return {
+      coords: coords, distance: m, duration: secs,
+      local: true, snap: Math.max(snapA, snapB)
+    };
+  },
+
+  stats: async function () {
+    try {
+      const keys = await DB.keys("route");
+      const tiles = keys.filter(function (k) { return k !== "index" && k !== "backbone"; }).length;
+      return (keys.indexOf("backbone") >= 0 ? "backbone + " : "") + tiles;
+    } catch (e) { return "0"; }
+  }
+};
+
+/* A binary heap, because the open list is popped tens of thousands of times
+   on a long route and re-sorting an array for each pop turned a seventy
+   millisecond search into several seconds. */
+function RouteHeap() {
+  this.p = [];       /* priorities */
+  this.v = [];       /* the node at the same index */
+}
+RouteHeap.prototype.size = function () { return this.p.length; };
+RouteHeap.prototype.push = function (pri, val) {
+  const p = this.p, v = this.v;
+  let i = p.length;
+  p.push(pri); v.push(val);
+  while (i > 0) {
+    const j = (i - 1) >> 1;
+    if (p[j] <= p[i]) break;
+    const tp = p[i]; p[i] = p[j]; p[j] = tp;
+    const tv = v[i]; v[i] = v[j]; v[j] = tv;
+    i = j;
+  }
+};
+RouteHeap.prototype.pop = function () {
+  const p = this.p, v = this.v;
+  const top = v[0];
+  const lp = p.pop(), lv = v.pop();
+  if (p.length) {
+    p[0] = lp; v[0] = lv;
+    let i = 0;
+    for (;;) {
+      const c = 2 * i + 1;
+      if (c >= p.length) break;
+      const m = (c + 1 < p.length && p[c + 1] < p[c]) ? c + 1 : c;
+      if (p[i] <= p[m]) break;
+      const tp = p[i]; p[i] = p[m]; p[m] = tp;
+      const tv = v[i]; v[i] = v[m]; v[m] = tv;
+      i = m;
+    }
+  }
+  return top;
+};
+
+
+/* =====================================================================
    Place search beyond the 5 km bubble, via OSM's Nominatim geocoder.
    Its usage policy forbids autocomplete-style traffic, so this never
    fires per keystroke: typing filters what is already loaded, and the
@@ -6981,16 +7563,38 @@ async function runAreaDownload() {
     } catch (e) { /* ignore */ }
   }
 
+  /* And the roads, for the same reasons and one more: an area is downloaded
+     because somebody is about to be out of range in it, and a route is the
+     thing they will want most once they are. The state backbone comes with
+     it whether or not it was already here - it is four megabytes against
+     the several this has just spent on imagery, and without it the streets
+     in this box lead nowhere. */
+  let routeTiles = 0;
+  if (!dlAbort) {
+    try {
+      await Route.keepBackbone();
+      await Route.loadManifest();
+      for (const t of Route.cover(bounds.getSouth(), bounds.getWest(),
+                                  bounds.getNorth(), bounds.getEast())) {
+        if (dlAbort) break;
+        await Route.fetchTile(t[0], t[1], false);
+        routeTiles++;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
 
   if (!dlAbort) {
     const area = {
-      id: uid(), name: name, maxZoom: z, tiles: total, addr: addrTiles, ts: Date.now(),
+      id: uid(), name: name, maxZoom: z, tiles: total, addr: addrTiles,
+      route: routeTiles, ts: Date.now(),
       bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]
     };
     try { await DB.put("areas", area); } catch (e) { /* ignore */ }
     await renderAreas();
     toast("Area saved: " + fetched + " new, " + cached + " already cached" +
-          (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : ""), "ok");
+          (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : "") +
+          (routeTiles ? ", " + routeTiles + " road pack" + (routeTiles > 1 ? "s" : "") : ""), "ok");
   } else {
     toast("Download stopped", "warn");
   }
@@ -7044,6 +7648,7 @@ async function refreshStorageStats() {
   try { $("#kvTiles").textContent = await DB.count("tiles"); } catch (e) { $("#kvTiles").textContent = "--"; }
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
   try { $("#kvAddr").textContent = await Addr.stats(); } catch (e) { $("#kvAddr").textContent = "--"; }
+  try { $("#kvRoute").textContent = await Route.stats(); } catch (e) { $("#kvRoute").textContent = "--"; }
   if (navigator.storage && navigator.storage.estimate) {
     try { const est = await navigator.storage.estimate(); $("#kvUsage").textContent = fmtBytes(est.usage || 0); }
     catch (e) { $("#kvUsage").textContent = "--"; }
@@ -7102,7 +7707,29 @@ async function runDiagnostics() {
     CFG.PHOTON + "?lat=-31.88753&lon=138.42284&radius=1&limit=1&osm_tag=amenity:fuel"));
 
   rows.push(await probe("Place search", CFG.NOMINATIM + "?format=jsonv2&limit=1&q=hawker"));
-  rows.push(await probe("Routing", CFG.OSRM + "/route/v1/driving/138.42,-31.88;138.43,-31.89?overview=false"));
+  /* Named for what it is now: the router that is used when the packs cannot
+     answer, which out of state is the only time. A red line here no longer
+     means no routes. */
+  rows.push(await probe("Routing (interstate)",
+    CFG.OSRM + "/route/v1/driving/138.42,-31.88;138.43,-31.89?overview=false"));
+
+  /* Not a probe - nothing is fetched. The question a driver about to lose
+     signal is actually asking is whether the road network is already on the
+     phone, and that is answered from storage. */
+  rows.push(await (async function () {
+    try {
+      const held = await DB.get("route", "backbone");
+      const tiles = (await DB.keys("route")).filter(function (k) {
+        return k !== "index" && k !== "backbone";
+      }).length;
+      return held
+        ? { label: "Routing (on this phone)", cls: "ok",
+            text: "backbone + " + tiles + " local" }
+        : { label: "Routing (on this phone)", cls: "bad", text: "backbone not downloaded" };
+    } catch (e) {
+      return { label: "Routing (on this phone)", cls: "bad", text: "storage unavailable" };
+    }
+  })());
 
   box.innerHTML = rows.map(function (r) {
     return "<div><span>" + esc(r.label) + '</span><b class="' + r.cls + '">' + esc(r.text) + "</b></div>";
@@ -7219,9 +7846,11 @@ const SIM_ROUTE = [
 ];
 
 /* =====================================================================
-   Navigation. Routes come from the public OSRM router over OpenStreetMap
-   data, so the line follows real roads and tracks. This is a follow-the-
-   line aid with distance and time remaining, not turn-by-turn guidance.
+   Navigation. The line follows real roads and tracks, worked out on the
+   phone from the packs in Route above, with the public OSRM router behind
+   it for anywhere the packs do not reach and a plain bearing behind that.
+   A follow-the-line aid with distance and time remaining, not turn-by-turn
+   guidance.
    ===================================================================== */
 const Nav = {
   active: false,
@@ -7232,7 +7861,11 @@ const Nav = {
   idx: 0,                /* cursor into coords, so progress is cheap */
   busy: false,
   lastCalc: 0,
-  note: ""
+  note: "",
+  via: "",               /* "local", "osrm" or "direct" - where the line came from */
+  /* What is true about the whole route rather than about this moment.
+     Progress messages come and go over the top of it and put it back. */
+  standing: ""
 };
 
 
@@ -7277,6 +7910,43 @@ function navBuildCum() {
   }
 }
 
+/* A bearing and a distance, for when there is no road data and no router.
+   Not a route and not offered as one - but it is what a paper map and a
+   compass give you, and it beats the empty screen that used to be the
+   answer out here. Sixty is a fair average over a mixed day's driving. */
+function directLine(from, to) {
+  const m = haversine(from, to);
+  const pts = [];
+  const steps = Math.max(2, Math.min(60, Math.round(m / 2000)));
+  for (let i = 0; i <= steps; i++) {
+    pts.push([from.lat + (to.lat - from.lat) * i / steps,
+              from.lng + (to.lng - from.lng) * i / steps]);
+  }
+  return { coords: pts, distance: m, duration: m / (60 / 3.6), direct: true };
+}
+
+/* Three answers, in the order they are worth having.
+
+   The packs come first, and not only because they work with no signal.
+   They answer in tens of milliseconds where OSRM answers in a second on a
+   good connection and in fifteen on a bad one, which out here is the
+   ordinary case - the old code spent that fifteen seconds waiting and then
+   drew nothing. Going to the packs first also means the offline path is
+   the one every route takes, so it cannot quietly stop working while the
+   online path covers for it.
+
+   OSRM is still there for what the packs do not carry: the backbone stops
+   at the state border, so Broken Hill or Mildura is its job. */
+async function findRoute(from, to) {
+  try {
+    const local = await Route.find(from, to);
+    if (local) return local;
+  } catch (e) { /* the router is not worth failing the trip over */ }
+  const remote = await osrmRoute(from, to);
+  if (remote) return remote;
+  return directLine(from, to);
+}
+
 async function navigateTo(dest, quiet) {
   if (!dest || !isFinite(dest.lat) || !isFinite(dest.lng)) return;
   if (Nav.busy) return;
@@ -7285,17 +7955,26 @@ async function navigateTo(dest, quiet) {
   setNavNote("");
   if (!quiet) { showNavPanel(); setNavNote("Finding a route..."); }
 
-  const r = await osrmRoute(navFrom(), Nav.dest);
+  const r = await findRoute(navFrom(), Nav.dest);
   Nav.busy = false;
   Nav.lastCalc = Date.now();
 
-  if (!r) {
-    Nav.note = "No route found - check your connection";
+  if (!r || !r.coords.length) {
+    Nav.note = "Could not work out a route to there";
     if (!Nav.active) { Nav.active = false; }
     setNavNote(Nav.note);
     if (!quiet) toast("Could not find a route", "err");
     return;
   }
+
+  Nav.via = r.direct ? "direct" : (r.local ? "local" : "osrm");
+  /* Two things the driver is owed for the length of the trip: that this is
+     a bearing rather than a route, and that the line starts somewhere other
+     than where they are standing because the nearest road we hold is a
+     paddock away. */
+  Nav.standing = r.direct
+    ? "Straight line - no roads mapped for this trip"
+    : (r.local && r.snap > 500 ? "Nearest road is " + fmtDist(r.snap) + " away" : "");
 
   Nav.active = true;
   Nav.coords = r.coords;
@@ -7308,7 +7987,7 @@ async function navigateTo(dest, quiet) {
   L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon("#4FA8E8", "flag", false) })
     .bindPopup('<div class="pop-t" style="color:#7FC1F0">' + esc(Nav.dest.name) + "</div>")
     .addTo(navDestMk);
-  setNavNote("");
+  setNavNote(Nav.standing);
   showNavPanel();
   navProgress();
   if (!quiet) {
@@ -7359,12 +8038,15 @@ function navProgress() {
   if (toDest <= CFG.NAV_ARRIVE) { navArrive(); return; }
 
   if (near.off > CFG.NAV_OFF_ROUTE) {
-    setNavNote("Off route by " + fmtDist(near.off) + " - recalculating");
+    /* Nothing to be off, when the line was only ever a bearing. It still
+       gets redrawn from where the vehicle now is, which is the whole of
+       what recalculating means for a straight line. */
+    if (Nav.via !== "direct") setNavNote("Off route by " + fmtDist(near.off) + " - recalculating");
     if (!Nav.busy && Date.now() - Nav.lastCalc > CFG.NAV_RECALC_GAP && view.has) {
       navigateTo(Nav.dest, true);
     }
-  } else if (Nav.note) {
-    setNavNote("");
+  } else if (Nav.note !== Nav.standing) {
+    setNavNote(Nav.standing);
   }
 }
 
@@ -7396,6 +8078,8 @@ function cancelNav(quiet) {
   Nav.coords = [];
   Nav.cum = [];
   Nav.idx = 0;
+  Nav.via = "";
+  Nav.standing = "";
   navLine.setLatLngs([]);
   navCasing.setLatLngs([]);
   navDestMk.clearLayers();
