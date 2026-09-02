@@ -1,0 +1,327 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Vector map demo — TrailTracker</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  :root{
+    --panel:#14181B; --line2:#2A3238; --sand:#D8D2C4; --dim:#8A9098; --rust:#C1552C;
+    --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0D100F;color:var(--sand);font-family:var(--ui)}
+  #wrap{position:absolute;inset:0;display:flex;flex-direction:column}
+  header{background:var(--panel);border-bottom:1px solid var(--line2);padding:8px 10px;
+    display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:0 0 auto}
+  .brand{font-weight:700;letter-spacing:.08em;font-size:13px;margin-right:6px}
+  .brand i{color:var(--rust);font-style:normal}
+  button{background:transparent;border:1px solid var(--line2);color:var(--dim);
+    border-radius:7px;padding:6px 10px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+  button.on{background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
+  .sep{width:1px;height:22px;background:var(--line2);margin:0 4px}
+  #map{flex:1 1 auto;position:relative}
+  #note{position:absolute;left:10px;bottom:10px;z-index:5;max-width:min(420px,calc(100% - 20px));
+    background:rgba(20,24,27,.92);border:1px solid var(--line2);border-radius:8px;
+    padding:9px 11px;font-size:12px;line-height:1.45;color:var(--sand)}
+  #note b{color:var(--rust)}
+  #note .k{font-family:var(--mono);font-size:10.5px;color:var(--dim);
+    letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:3px}
+  .maplibregl-ctrl-attrib{font-size:10px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <span class="brand">TRAIL<i>TRACKER</i> · vector demo</span>
+    <button id="bDay">Day</button>
+    <button id="bNight" class="on">Night</button>
+    <span class="sep"></span>
+    <button id="bFlat" class="on">Flat</button>
+    <button id="bTilt">Tilt</button>
+    <span class="sep"></span>
+    <button id="bRelief">Relief</button>
+    <button id="b3D">3D terrain</button>
+    <span class="sep"></span>
+    <button data-go="-31.8883,138.4194,13">Hawker</button>
+    <button data-go="-31.5580,138.6100,12.4">Wilpena</button>
+    <button data-go="-25.8994,139.3517,12">Birdsville</button>
+    <button data-go="-34.9285,138.6007,14">Adelaide</button>
+  </header>
+  <div id="map">
+    <div id="note"><span class="k">what you are looking at</span>
+      One download, restyled on the phone. <b>Night</b> is not a filter over a
+      picture — every road, park and waterline is coloured by what it is.</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+/* ---------------------------------------------------------------------
+   The point of the demo: the tiles carry data, not pictures, so the same
+   download can be drawn any way you like - instantly, offline, and with
+   roads as thick as a driver needs them.
+   --------------------------------------------------------------------- */
+
+const NIGHT = {
+  bg:       "#0A0F16",
+  land:     "#0D131B",
+  park:     "#0F1C16",
+  wood:     "#101B15",
+  water:    "#081420",
+  building: "#161E29",
+  casing:   "#04070C",
+  text:     "#C9D6E8",
+  halo:     "#04070C",
+  rail:     "#3A4557",
+  /* Roads run from a highway you want to see across the whole screen down
+     to a driveway you can ignore. Tracks are amber rather than another
+     grey, because on this app a track is the reason for the trip. */
+  road: {
+    motorway:           "#F7FAFF",
+    trunk_primary:      "#E9F1FF",
+    secondary_tertiary: "#CCD9ED",
+    minor:              "#9EAEC7",
+    street:             "#9EAEC7",
+    link:               "#CCD9ED",
+    service_track:      "#E4A65A",
+    path_pedestrian:    "#4E5A6E"
+  },
+  /* Line widths in screen pixels, by class. This is the half a raster map
+     can never do: the road is a line in the data, so it can be drawn as
+     wide as it needs to be. */
+  width: {
+    motorway:           [10, 2.2, 14, 6.5, 18, 20],
+    trunk_primary:      [10, 2.0, 14, 5.5, 18, 17],
+    secondary_tertiary: [10, 1.6, 14, 4.5, 18, 14],
+    minor:              [11, 1.2, 14, 3.4, 18, 11],
+    street:             [11, 1.2, 14, 3.4, 18, 11],
+    link:               [11, 1.2, 14, 3.4, 18, 11],
+    service_track:      [11, 1.1, 14, 3.0, 18, 9],
+    path_pedestrian:    [13, 0.8, 16, 1.6, 18, 3]
+  }
+};
+
+/* Which of the road classes above a layer id belongs to. The style names
+   them road_x / bridge_x / tunnel_x, with a _casing twin for the outline,
+   so one regex sorts the lot. */
+function roadClass(id) {
+  const m = /^(?:road|bridge|tunnel)_(.+?)(_casing)?$/.exec(id);
+  if (!m) return null;
+  return { cls: m[1], casing: !!m[2] };
+}
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/liberty",
+  center: [138.4194, -31.8883],
+  zoom: 13,
+  hash: false,
+  attributionControl: { compact: true }
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }));
+
+let dayStyle = null;      /* what the style shipped with, so Day can go back */
+
+function snapshot() {
+  const out = {};
+  map.getStyle().layers.forEach(function (l) {
+    const p = l.paint || {};
+    out[l.id] = {
+      type: l.type,
+      src: l["source-layer"] || "",
+      paint: JSON.parse(JSON.stringify(p))
+    };
+  });
+  return out;
+}
+
+function setP(id, prop, val) {
+  try { map.setPaintProperty(id, prop, val); } catch (e) { /* layer has no such prop */ }
+}
+
+function widthExpr(spec, extra) {
+  const e = ["interpolate", ["linear"], ["zoom"]];
+  for (let i = 0; i < spec.length; i += 2) e.push(spec[i], spec[i + 1] + (extra || 0));
+  return e;
+}
+
+function applyNight() {
+  map.getStyle().layers.forEach(function (l) {
+    const id = l.id, t = l.type, src = l["source-layer"] || "";
+
+    if (t === "background") { setP(id, "background-color", NIGHT.bg); return; }
+
+    const rc = roadClass(id);
+    if (rc && t === "line") {
+      const col = NIGHT.road[rc.cls];
+      const w = NIGHT.width[rc.cls];
+      if (/rail/.test(rc.cls)) { setP(id, "line-color", NIGHT.rail); return; }
+      if (!col) return;
+      if (rc.casing) {
+        setP(id, "line-color", NIGHT.casing);
+        if (w) setP(id, "line-width", widthExpr(w, 2.4));
+      } else {
+        setP(id, "line-color", col);
+        setP(id, "line-opacity", 1);
+        if (w) setP(id, "line-width", widthExpr(w, 0));
+      }
+      return;
+    }
+
+    if (t === "fill") {
+      if (src === "water") { setP(id, "fill-color", NIGHT.water); return; }
+      if (src === "building") { setP(id, "fill-color", NIGHT.building); return; }
+      if (src === "park" || /park|wood|forest|grass|scrub/.test(id)) {
+        setP(id, "fill-color", NIGHT.park); return;
+      }
+      setP(id, "fill-color", NIGHT.land);
+      return;
+    }
+
+    if (t === "line" && (src === "waterway" || /water/.test(id))) {
+      setP(id, "line-color", NIGHT.water); return;
+    }
+
+    if (t === "symbol") {
+      setP(id, "text-color", NIGHT.text);
+      setP(id, "text-halo-color", NIGHT.halo);
+      setP(id, "text-halo-width", 1.4);
+      setP(id, "icon-opacity", 0.85);
+      return;
+    }
+
+    if (t === "fill-extrusion") { setP(id, "fill-extrusion-color", NIGHT.building); return; }
+  });
+}
+
+function applyDay() {
+  if (!dayStyle) return;
+  Object.keys(dayStyle).forEach(function (id) {
+    const rec = dayStyle[id];
+    Object.keys(rec.paint).forEach(function (prop) {
+      setP(id, prop, rec.paint[prop]);
+    });
+    /* a property the style never set has to be put back to its default
+       rather than left carrying a night value */
+    const rc = roadClass(id);
+    if (rc && rec.type === "line" && !("line-width" in rec.paint)) {
+      try { map.setPaintProperty(id, "line-width", undefined); } catch (e) {}
+    }
+  });
+}
+
+let mode = "night";
+function setMode(m) {
+  mode = m;
+  document.getElementById("bDay").classList.toggle("on", m === "day");
+  document.getElementById("bNight").classList.toggle("on", m === "night");
+  if (m === "night") applyNight(); else applyDay();
+}
+
+/* ---------------------------------------------------------------------
+   Relief, which the vector tiles do not carry.
+
+   This is the honest gap: OpenStreetMap has no elevation in it, so a plain
+   OSM vector basemap draws Wilpena Pound as a flat polygon. The ground
+   shape comes from a separate source - a DEM, where each tile is a picture
+   of heights rather than of a map - and the phone shades it itself. Same
+   trick the app already uses for its Esri hillshade, except that here the
+   renderer can also stand the map up on it.
+
+   Contour LINES are a different question again and still missing: they have
+   to be generated from the DEM and shipped as their own vector layer, which
+   is a build step rather than a setting.
+   --------------------------------------------------------------------- */
+function addDem() {
+  if (map.getSource("dem")) return;
+  map.addSource("dem", {
+    type: "raster-dem",
+    tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
+    tileSize: 256,
+    encoding: "terrarium",
+    maxzoom: 13,
+    attribution: "Elevation: Mapzen / AWS Open Data"
+  });
+}
+
+let reliefOn = false, terrainOn = false;
+
+function setRelief(on) {
+  reliefOn = on;
+  document.getElementById("bRelief").classList.toggle("on", on);
+  if (on) {
+    addDem();
+    if (!map.getLayer("relief")) {
+      /* under the roads, over the ground - the same order the paper maps
+         use, so the shading never sits on top of a route */
+      const firstRoad = map.getStyle().layers
+        .map(function (l) { return l.id; })
+        .filter(function (id) { return /^(road|bridge|tunnel)_/.test(id); })[0];
+      map.addLayer({
+        id: "relief", type: "hillshade", source: "dem",
+        paint: {
+          "hillshade-exaggeration": 0.55,
+          "hillshade-shadow-color": "#000000",
+          "hillshade-highlight-color": "#7E8CA0",
+          "hillshade-accent-color": "#0A0F16"
+        }
+      }, firstRoad);
+    }
+    map.setLayoutProperty("relief", "visibility", "visible");
+  } else if (map.getLayer("relief")) {
+    map.setLayoutProperty("relief", "visibility", "none");
+  }
+}
+
+function setTerrain(on) {
+  terrainOn = on;
+  document.getElementById("b3D").classList.toggle("on", on);
+  /* Any camera move still in flight will ask the terrain how high the ground
+     is under it, so it has to be stopped while there is still a terrain to
+     ask - otherwise the next jumpTo throws on a null. */
+  map.stop();
+  if (on) {
+    addDem();
+    map.setTerrain({ source: "dem", exaggeration: 1.6 });
+    if (map.getPitch() < 30) map.easeTo({ pitch: 62, bearing: -25, duration: 900 });
+  } else {
+    map.setTerrain(null);
+    map.jumpTo({ pitch: 0, bearing: 0 });
+    document.getElementById("bFlat").classList.add("on");
+    document.getElementById("bTilt").classList.remove("on");
+  }
+}
+
+map.on("load", function () {
+  dayStyle = snapshot();
+  setMode("night");
+  window.__ready = true;
+});
+
+document.getElementById("bRelief").onclick = function () { setRelief(!reliefOn); };
+document.getElementById("b3D").onclick = function () { setTerrain(!terrainOn); };
+
+document.getElementById("bDay").onclick = function () { setMode("day"); };
+document.getElementById("bNight").onclick = function () { setMode("night"); };
+document.getElementById("bFlat").onclick = function () {
+  map.easeTo({ pitch: 0, bearing: 0, duration: 500 });
+  this.classList.add("on"); document.getElementById("bTilt").classList.remove("on");
+};
+document.getElementById("bTilt").onclick = function () {
+  map.easeTo({ pitch: 60, bearing: -20, duration: 700 });
+  this.classList.add("on"); document.getElementById("bFlat").classList.remove("on");
+};
+document.querySelectorAll("[data-go]").forEach(function (b) {
+  b.onclick = function () {
+    const p = b.dataset.go.split(",").map(Number);
+    map.easeTo({ center: [p[1], p[0]], zoom: p[2], duration: 900 });
+  };
+});
+</script>
+</body>
+</html>

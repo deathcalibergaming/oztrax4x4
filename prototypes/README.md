@@ -1,10 +1,15 @@
 # Prototypes
 
-Work that was built and deliberately not shipped. Each patch applies to
-`docs/index.html` and is kept because the thinking in it is worth more than the
-time it would take to rewrite.
+Work that was built and deliberately not shipped, kept because the thinking in
+it is worth more than the time it would take to rewrite. Most of it is patches
+against `docs/index.html`; `vector-demo.html` is a standalone page that runs on
+its own.
 
-Nothing in this folder is served. GitHub Pages only publishes `docs/`.
+Nothing in this folder is served. GitHub Pages only publishes `docs/`, so the
+demo has to be opened from a copy of the repo — see below. Moving it into
+`docs/` would put it on the live site and make it openable on the phone, which
+is where a map is actually judged; that is a one-line change and a deliberate
+decision, not an oversight.
 
 ## Applying one
 
@@ -17,8 +22,9 @@ git apply --check prototypes/tilt-and-hillshade-prototype.patch
 `--check` tells you whether it still fits without touching anything. Drop it to
 actually apply.
 
-| Patch | State on 2 Sep 2026 |
+| File | State on 2 Sep 2026 |
 |---|---|
+| `vector-demo.html` | runs — open it directly, no server needed |
 | `day-night-prototype.patch` | applies cleanly |
 | `hillshade-prototype.patch` | needs hand-fitting |
 | `tilt-and-hillshade-prototype.patch` | needs hand-fitting |
@@ -27,6 +33,66 @@ actually apply.
 stops applying, read it rather than fighting it — every hunk carries a comment
 explaining what it is doing, and re-deriving from that is usually quicker than
 resolving the offsets by hand.
+
+---
+
+## vector-demo.html
+
+Not a patch — a standalone page, built 2 Sep 2026 to answer "what would vector
+maps actually look like" before anyone commits to the rebuild. **Double-click
+it.** Both services it uses send `Access-Control-Allow-Origin: *`, including to
+a `file://` origin, so it needs no server. If a browser ever refuses, serve the
+folder over http and open it that way.
+
+Buttons: Day / Night, Flat / Tilt, Relief / 3D terrain, and jumps to Hawker,
+Wilpena, Birdsville and Adelaide.
+
+It uses **OpenFreeMap** for planet-wide OpenStreetMap vector tiles (free, no
+API key) and **Mapzen/AWS Open Data** terrain tiles for the relief. MapLibre GL
+comes off a CDN. Nothing here is a commitment to any of those three — they were
+what let the question be answered in an afternoon.
+
+**What it demonstrates, and why it matters here.** Day and night are the same
+download painted differently, switched instantly and offline: no second tile
+set, no second area download, no filter fighting a finished picture. Roads are
+lines in the data, so they are drawn as wide as a driver needs — which is the
+exact thing that killed [the day/night attempt](#day-night-prototypepatch),
+where inverting an Esri tile turned the road's white fill black and left the
+casing as a hairline.
+
+**The gap it also demonstrates.** Turn Relief off at Wilpena: OpenStreetMap
+carries no elevation, so the Pound is a flat polygon. Relief comes from a
+separate DEM and is shaded on the device; 3D terrain then stands the map up
+properly, with tracks draped over real geometry rather than the CSS
+approximation in `tilt-and-hillshade-prototype.patch`. Contour *lines* are
+still missing and are a build step of their own — they have to be generated
+from the DEM and shipped as a vector layer.
+
+**Measured, not estimated.** 60 random z14 tiles across South Australia plus 30
+across the Adelaide metro, 2 Sep 2026:
+
+| | size |
+|---|---|
+| whole of SA, full detail, vector | **~0.08 GB** |
+| whole of SA to z14, raster | 5.1 GB |
+| whole of SA to z15, raster | 20.3 GB |
+
+Vector needs no z15 or z16 at all — every deeper zoom is drawn from z14 data on
+the device. Adelaide metro is 989 tiles at z14 averaging 15.7 KB; most of the
+state is empty desert at 0.2 KB a tile, where a raster tile still costs 11.2 KB
+whether anything is on it or not. That is the whole state as an 80 MB download,
+against the app's present cap of 2,500 tiles.
+
+**What it would cost.** MapLibre GL is 784 KB against Leaflet's 144 KB on an app
+that is 255 KB entire, plus a rewrite of every `L.marker` / `L.polyline` /
+`L.divIcon` call and the `OfflineTileLayer` caching class. A rebuild of the map
+layer, not a patch. Three things still unchecked: OpenFreeMap's terms for bulk
+offline use, how any of it behaves on Mick's actual phone, and the styling here
+is a rough pass rather than a design.
+
+The earlier raster measurements this sits alongside — per-state pack sizes,
+download times, and the storage-eviction and quota problems — are in the
+`offline-vector-basemap` note kept with the memory files.
 
 ---
 
