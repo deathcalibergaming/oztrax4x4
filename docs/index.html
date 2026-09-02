@@ -3259,7 +3259,16 @@ const ICONS = {
   mechanic:  '<path d="M17.7 4.6a4.6 4.6 0 0 0-5.9 5.9l-7.2 7.2 2.3 2.3 7.2-7.2a4.6 4.6 0 0 0 5.9-5.9l-2.9 2.9-2.3-.6-.6-2.3z"/>',
   parts:     '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v3.1M12 18.3v3.1M21.4 12h-3.1M5.7 12H2.6M18.6 5.4l-2.2 2.2M7.6 16.4l-2.2 2.2M18.6 18.6l-2.2-2.2M7.6 7.6L5.4 5.4"/>',
   refill:    '<path d="M6.2 6.6h8.6a1.6 1.6 0 0 1 1.6 1.6v10.6a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6V8.2a1.6 1.6 0 0 1 1.6-1.6z"/><path d="M9 6.6V5.2a1.1 1.1 0 0 1 1.1-1.1h.8a1.1 1.1 0 0 1 1.1 1.1v1.4"/><path d="M16.4 10.4h2.4a.8.8 0 0 1 .8.8v2a.8.8 0 0 1-.8.8h-2.4"/>',
-  medical:   '<path d="M12 4.2v15.6M4.2 12h15.6"/>',
+  /* Three glyphs where there was one cross, because the three errands are
+     nothing like each other: the sign on the highway for a hospital, a
+     capsule for the chemist, a stethoscope for the doctor. Shape does the
+     separating, the way it does across the fuel grades - at eleven pixels
+     three crosses in three colours would be one pin wearing three hats. */
+  hospital:  '<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="3.4"/><path d="M12 7.8v8.4M7.8 12h8.4"/>',
+  chemist:   '<rect x="2.9" y="8.6" width="18.2" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6 14.4 14.4"/>',
+  /* the chest piece hangs off to one side, which is the whole difference
+     between a stethoscope and a pair of headphones */
+  doctor:    '<path d="M7.4 4v4.2a4.6 4.6 0 0 0 9.2 0V4"/><path d="M6.3 4h2.2M15.5 4h2.2"/><path d="M12 12.8v1.2q0 3.4 3 3.4"/><circle cx="17.6" cy="17.4" r="2.6"/>',
   dump:      '<path d="M12 2.8v8.6"/><path d="m8.6 8 3.4 3.4L15.4 8"/><path d="M4.6 13.6v4.6a2.4 2.4 0 0 0 2.4 2.4h10a2.4 2.4 0 0 0 2.4-2.4v-4.6"/>',
   shower:    '<path d="M12 2.8v4.4"/><path d="M5.6 12.4a6.4 6.4 0 0 1 12.8 0z"/><path d="M8.4 16v1.8M12 16.6v1.8M15.6 16v1.8"/>',
   bbq:       '<path d="M12 21c3.6 0 5.8-2.2 5.8-5.2 0-3.4-2.9-4.3-2.9-7.7 0-1.3.5-2.5 1.1-3.3-2.9.6-5.2 2.6-5.2 5.2 0 1.7.9 2.6.9 3.4 0 1.1-1.2 1.7-2 1.1-.6-.4-.9-1.1-.9-2C7.3 13.7 6.2 15.4 6.2 17.4 6.2 19.6 8.4 21 12 21z"/>',
@@ -3524,10 +3533,22 @@ const POI_META = {
   fuel:        { label: "Fuel",        icon: "fuel",        color: "#E8B923" },
   mechanic:    { label: "Mechanic",    icon: "mechanic",    color: "#77879B" },
   parts:       { label: "Auto parts",  icon: "parts",       color: "#5F6E8C" },
-  water:       { label: "Water",       icon: "water",       color: "#5FA8C8" },
-  refill:      { label: "Water refill", icon: "refill",     color: "#2FA0C8" },
+  /* Refill first of the three: it is the one the question is usually
+     about, so it wins a cluster and it wins a duplicate. The three used to
+     be #5FA8C8, #2FA0C8 and #4F8FB0 - three readings of the same blue,
+     which on a 22px badge is one colour. They are a value ramp now, and
+     the brightest is the one you can fill from. */
+  refill:      { label: "Water refill", icon: "refill",     color: "#1E8FD1" },
+  water:       { label: "Raw water",   icon: "water",       color: "#7FA6B4" },
   spring:      { label: "Spring",      icon: "spring",      color: "#4F8FB0" },
-  medical:     { label: "Medical",     icon: "medical",     color: "#C4483F" },
+  /* Red stays with the hospital, which is the one you are looking for when
+     it matters. Green for the chemist is the cross over every pharmacy
+     door in the country; the doctor takes the violet, because the doctor
+     and the hospital are the two you would confuse in a hurry and they had
+     better not sit next to each other on the wheel. */
+  hospital:    { label: "Hospital",    icon: "hospital",    color: "#C4483F" },
+  doctor:      { label: "Doctor",      icon: "doctor",      color: "#6E5FA8" },
+  chemist:     { label: "Chemist",     icon: "chemist",     color: "#3E9B64" },
   campfree:    { label: "Free camp",   icon: "campfree",    color: "#8FB93E" },
   camp:        { label: "Paid camp",   icon: "camppaid",    color: "#6E8C4B" },
   rest:        { label: "Rest area",   icon: "rest",        color: "#A8794F" },
@@ -3583,34 +3604,99 @@ const NOT_A_CAMP = {
   changing_rooms: 1, field_shelter: 1, sun_shelter: 1, bicycle_parking: 1
 };
 
+/* An access value that lets the public in. "customers" is in because the
+   tap behind a roadhouse is a tap you can use once you have bought
+   something, which out here you were going to do anyway. */
+const OPEN_ACCESS = {
+  yes: 1, public: 1, permissive: 1, customers: 1, destination: 1, community: 1
+};
+/* a bore that is on the map only because it used to be there */
+const DEAD_BORE = {
+  closed: 1, abandoned: 1, disused: 1, broken: 1, dry: 1, removed: 1
+};
+
+/* Bores, wells, tanks and troughs, which is where nearly all of the bad
+   water pins came from. Of South Australia's 187 mapped man_made=water_well
+   150 carry nothing but a name, and exactly two say anything about access:
+   they are station infrastructure on private country, and a pin on every
+   one of them is a promise the map cannot keep. The 5 km cell around Hawker
+   returned exactly one water POI and it was a bore you may not use.
+
+   So silence is read as "not yours" and only a positive statement puts one
+   on the map. That is deliberately strict - it means a bore you could
+   actually use goes missing until somebody tags it - because the failure
+   the other way round is a driver turning off the highway for water that
+   is behind a locked gate. */
+function boreKind(tags) {
+  if (DEAD_BORE[(tags.operational_status || "").toLowerCase()]) return null;
+  const acc = (tags.access || "").toLowerCase();
+  if (acc && !OPEN_ACCESS[acc]) return null;
+  if ((tags.drinking_water || "").toLowerCase() === "yes") return "refill";
+  if (acc) return "water";
+  return null;
+}
+
+/* healthcare= values that still mean "somewhere you can see a doctor" when
+   they sit on an amenity=clinic. An allowlist rather than a list of the
+   ones to reject, so a healthcare value nobody here has seen keeps a
+   pathology counter off the Doctor chip instead of quietly joining it. */
+const GP_CLINIC = { clinic: 1, centre: 1, doctor: 1, general: 1 };
+
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
 function poiKind(tags) {
   if (!tags) return null;
   const a = tags.amenity, t = tags.tourism, hw = tags.highway;
   if (a === "fuel") return "fuel";
-  /* A tap or a filling point is where you top the tanks up; the well and
-     the trough beside it are stock water. Both are "water" on a map and
-     they are not the same errand, so the ones you can actually fill from
-     get their own category. Neither happens to sit near Hawker, but there
-     are 481 water points and 1772 taps across the country. */
-  if (a === "water_point" || tags.man_made === "water_tap") return "refill";
-  if (a === "drinking_water" || tags.man_made === "water_well" ||
-      tags.man_made === "water_tank" || tags.man_made === "watering_place") return "water";
+  /* Water splits on the question actually being asked, which is "can I put
+     this in the tanks", not "which tag did the mapper reach for". A public
+     tap, a drinking fountain and a caravan filling point all answer yes and
+     all belong together; amenity=drinking_water used to be filed away from
+     the other two, which put the common case on the wrong side of the line.
+     It is not a small difference: within 5 km of Torrensville that is 230
+     fountains against 7 taps and points, so Water refill was a category
+     that in practice never appeared.
+
+     A tap someone has marked as not drinkable stays on the map as raw
+     water - you can still wash in it or fill a radiator - and a tap behind
+     a gate comes off it altogether. */
+  if (a === "drinking_water" || a === "water_point" || tags.man_made === "water_tap") {
+    const acc = (tags.access || "").toLowerCase();
+    if (acc && !OPEN_ACCESS[acc]) return null;
+    return (tags.drinking_water || "").toLowerCase() === "no" ? "water" : "refill";
+  }
+  if (tags.man_made === "water_well" || tags.man_made === "water_tank" ||
+      tags.man_made === "watering_place") return boreKind(tags);
   if (tags.natural === "spring") return "spring";
   if (a === "toilets") return "toilets";
   /* The facilities a trip is actually planned around, and none of them
      had anywhere to go before. A dump point and a shower are scarce
      enough out here to route by; a landline is worth knowing about
-     precisely where there is no signal to find one.
-
-     Medical takes the whole family rather than hospitals alone: three
-     hospitals is the entire Flinders, but a pharmacy or a doctor turns up
-     in any town big enough to have one. */
+     precisely where there is no signal to find one. */
   if (a === "sanitary_dump_station") return "dump";
   if (a === "shower") return "shower";
-  if (a === "hospital" || a === "pharmacy" || a === "doctors" ||
-      a === "clinic") return "medical";
+  /* Medical is three errands wearing one label. Filling a script, seeing a
+     doctor and getting to a hospital are answered by different buildings,
+     at different hours, sometimes eighty kilometres apart, and a single
+     Medical chip made you open every card to find out which one you were
+     looking at. In South Australia that was 98 hospitals, 148 doctors, 111
+     clinics and 250 pharmacies wearing the same pin.
+
+     healthcare= is the precise tag and 99 of this state's 111
+     amenity=clinic carry one, so a clinic is only read as a doctor while
+     healthcare agrees or stays quiet. That is what keeps Abbot Pathology,
+     Benson Radiology and Hearing Sense - all of them amenity=clinic too -
+     out of Doctor.
+
+     shop=chemist is here rather than in Supplies, where TerryWhite,
+     National Pharmacies, Priceline and Star Discount Chemist were all
+     sitting among the hairdressers: 36 of them in this state. */
+  const hc = tags.healthcare;
+  if (a === "hospital" || hc === "hospital") return "hospital";
+  if (a === "pharmacy" || tags.shop === "chemist" || hc === "pharmacy") return "chemist";
+  if (a === "doctors" || hc === "doctor") return "doctor";
+  if (a === "clinic") return !hc || GP_CLINIC[hc] ? "doctor" : null;
+  if (hc === "clinic" || hc === "centre") return "doctor";
   if (a === "telephone" || tags.emergency === "phone") return "phone";
   if (a === "post_office") return "post";
   if (a === "bbq") return "bbq";
@@ -3683,6 +3769,21 @@ function poiInfoLine(tags, kind) {
     if (tags["fuel:diesel"] === "yes") bits.push("diesel");
     if (tags.opening_hours) bits.push(tags.opening_hours);
   }
+  /* Water is the one category where the pin alone is not enough. Whether
+     it is drinkable, and what sort of thing it came off, is the whole
+     question - so both are said outright rather than left to the category
+     name, which only has room for one of them. */
+  if (kind === "refill" || kind === "water" || kind === "spring") {
+    const drink = (tags.drinking_water || "").toLowerCase();
+    if (drink === "yes") bits.push("drinking water");
+    else if (drink === "no") bits.push("not drinking water");
+    else if (kind !== "refill") bits.push("untreated - not tagged drinkable");
+    if (tags.man_made === "water_well") bits.push("bore");
+    else if (tags.man_made === "water_tank") bits.push("tank");
+    else if (tags.man_made === "watering_place") bits.push("stock water");
+    if (tags.seasonal === "yes") bits.push("seasonal");
+    if (tags.fee === "yes") bits.push("fee");
+  }
   if (tags.access && tags.access !== "yes") bits.push("access: " + tags.access);
   if (tags.description) bits.push(tags.description);
   return bits.join(" · ");
@@ -3745,10 +3846,13 @@ function poiAnchor() {
    at all, and v7 when tank refill points joined them.
    keep the speed sign away for the whole week the cell stays fresh - a
    feature silently missing rather than absent.
-   Auto filed as a workshop. */
+   Auto filed as a workshop.
+   v8 is the water and medical recut: a cell cached under v7 holds pins
+   whose category no longer exists, and bores that no longer earn a pin at
+   all, and it would have gone on serving them for a week. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v7:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v8:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
 }
 
@@ -3768,9 +3872,17 @@ function schedulePoi() {
    --------------------------------------------------------------------- */
 const PHOTON_GROUPS = [
   ["amenity:fuel"],
-  ["amenity:drinking_water", "man_made:water_well", "man_made:water_tank",
-   "man_made:watering_place", "natural:spring"],
-  ["amenity:water_point", "man_made:water_tap"],
+  /* Everything you can fill from, in one group, because that is now one
+     category. The bores are gone from here altogether: the index carries
+     the headline tag and nothing else, so a well arrives with no access
+     and no drinking_water and could never clear the bar that keeps station
+     infrastructure off the map. Asking for them spent a request to throw
+     the answer away.
+     Springs keep a group of their own rather than riding with the taps,
+     which outnumber them thirteen to one in this state and would fill the
+     fifty-result cap before a spring got a look in. */
+  ["amenity:drinking_water", "amenity:water_point", "man_made:water_tap"],
+  ["natural:spring"],
   ["tourism:camp_site", "tourism:caravan_site", "tourism:camp_pitch",
    "tourism:wilderness_hut", "tourism:alpine_hut", "amenity:shelter"],
   ["tourism:picnic_site", "highway:rest_area"],
@@ -3779,7 +3891,13 @@ const PHOTON_GROUPS = [
   ["shop:car_repair", "shop:tyres", "shop:car_parts"],
   ["amenity:toilets", "amenity:parking", "tourism:viewpoint",
    "tourism:information", "amenity:ranger_station"],
-  ["amenity:hospital", "amenity:pharmacy", "amenity:doctors", "amenity:clinic"],
+  /* The chemists get their own request. Sharing one with the hospitals put
+     250 pharmacies and 98 hospitals through a single fifty-result cap, and
+     the pin that loses that race is the one nobody can afford to lose. Two
+     requests instead of one returned 74 medical POIs around Torrensville
+     where the shared group returned 50. */
+  ["amenity:hospital", "amenity:doctors", "amenity:clinic"],
+  ["amenity:pharmacy", "shop:chemist"],
   ["amenity:shower", "amenity:sanitary_dump_station", "amenity:bbq",
    "amenity:telephone", "amenity:post_office"],
 ];
