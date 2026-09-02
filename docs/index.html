@@ -5502,8 +5502,8 @@ const Addr = {
      bubble is four to nine of them. */
   cover: function (south, west, north, east) {
     const z = CFG.ADDR_Z;
-    const x0 = lngToTileX(west, z), x1 = lngToTileX(east, z);
-    const y0 = latToTileY(north, z), y1 = latToTileY(south, z);
+    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
+    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
     const out = [];
     for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
       for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
@@ -5577,7 +5577,7 @@ const Addr = {
       const dLat = r / 111320;
       const dLng = r / (111320 * Math.max(0.2, Math.cos(a.lat * Math.PI / 180)));
       const want = this.cover(a.lat - dLat, a.lng - dLng, a.lat + dLat, a.lng + dLng);
-      const cx = lngToTileX(a.lng, CFG.ADDR_Z), cy = latToTileY(a.lat, CFG.ADDR_Z);
+      const cx = lon2tile(a.lng, CFG.ADDR_Z), cy = lat2tile(a.lat, CFG.ADDR_Z);
       want.sort(function (p, q) {
         const dp = (p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy);
         const dq = (q[0] - cx) * (q[0] - cx) + (q[1] - cy) * (q[1] - cy);
@@ -5608,41 +5608,79 @@ const Addr = {
     };
   },
 
-  /* Typing an address searches what is stored rather than the network, so
-     it answers instantly and answers with no signal at all - which is the
-     whole reason the packs are on the phone.
-
-     A number is pulled off the front and matched exactly; the rest is
-     matched against street and town. Streets are checked first because a
-     tile names about two hundred of them against a few thousand addresses,
-     so a tile that cannot match is discarded on the small list. */
-  search: function (q, limit) {
+  /* A typed address split into the two things that are matched differently:
+     a house number, which has to be exact, and the rest, which is matched
+     against street and town. Returns null when there is not enough to go on. */
+  terms: function (q) {
     q = (q || "").trim();
-    if (q.length < CFG.SUGGEST_MIN) return [];
+    if (q.length < CFG.SUGGEST_MIN) return null;
     const m = q.match(/^(\d+[a-zA-Z]?)\s+(.+)$/);
-    const num = m ? m[1].toLowerCase() : "";
     const text = (m ? m[2] : q).trim().toLowerCase();
-    if (text.length < 2) return [];
-    const out = [];
-    const cap = (limit || CFG.ADDR_HITS) * 8;
+    if (text.length < 2) return null;
+    return { num: m ? m[1].toLowerCase() : "", text: text };
+  },
+
+  /* One tile, matched. Streets are checked before addresses because a tile
+     names about two hundred of them against a few thousand addresses, so a
+     tile that cannot match at all is discarded on the small list. */
+  scan: function (tile, t, out, cap) {
+    if (!tile || !tile.a) return;
+    const sHit = [], tHit = [];
+    for (let i = 0; i < tile.s.length; i++) {
+      if (tile.s[i].toLowerCase().indexOf(t.text) >= 0) sHit.push(i);
+    }
+    for (let i = 0; i < tile.t.length; i++) {
+      if (tile.t[i].toLowerCase().indexOf(t.text) >= 0) tHit.push(i);
+    }
+    if (!sHit.length && !tHit.length) return;
+    for (let i = 0; i < tile.a.length && out.length < cap; i++) {
+      const rec = tile.a[i];
+      if (sHit.indexOf(rec[2]) < 0 && tHit.indexOf(rec[3]) < 0) continue;
+      if (t.num && String(rec[5]).toLowerCase() !== t.num) continue;
+      out.push(this.row(tile, rec));
+    }
+  },
+
+  /* Typing searches what is held in memory - the bubble you are standing in.
+     It answers instantly and it answers with no signal at all, which is the
+     whole reason the packs are on the phone. */
+  search: function (q, limit) {
+    const t = this.terms(q);
+    if (!t) return [];
+    const out = [], cap = (limit || CFG.ADDR_HITS) * 8;
     for (const tile of this.mem.values()) {
-      const sHit = [], tHit = [];
-      for (let i = 0; i < tile.s.length; i++) {
-        if (tile.s[i].toLowerCase().indexOf(text) >= 0) sHit.push(i);
-      }
-      for (let i = 0; i < tile.t.length; i++) {
-        if (tile.t[i].toLowerCase().indexOf(text) >= 0) tHit.push(i);
-      }
-      if (!sHit.length && !tHit.length) continue;
-      for (let i = 0; i < tile.a.length; i++) {
-        const rec = tile.a[i];
-        if (sHit.indexOf(rec[2]) < 0 && tHit.indexOf(rec[3]) < 0) continue;
-        if (num && String(rec[5]).toLowerCase() !== num) continue;
-        out.push(this.row(tile, rec));
-        if (out.length >= cap) break;
-      }
+      this.scan(tile, t, out, cap);
       if (out.length >= cap) break;
     }
+    return out;
+  },
+
+  /* Pressing Search looks wider: every pack on the phone rather than the
+     ones near the vehicle. Downloading an area for Port Augusta and then
+     finding an address in it from four hundred kilometres away is the
+     reason the packs came down with the imagery.
+
+     This reads the whole store, which is bounded by what was deliberately
+     downloaded - an area over Adelaide is about fifty tiles - rather than
+     by the state's nine and a half thousand. Memory is searched first and
+     its hits kept in front, so the near answer never sorts below a far one
+     that happens to share a street name. */
+  searchStored: async function (q, limit) {
+    const t = this.terms(q);
+    if (!t) return [];
+    const cap = (limit || CFG.ADDR_HITS) * 8;
+    const out = this.search(q, limit);
+    const seen = {};
+    out.forEach(function (r) { seen[r.id] = 1; });
+    let tiles;
+    try { tiles = await DB.all("addr"); } catch (e) { return out; }
+    const wider = [];
+    for (const tile of tiles) {
+      if (!tile || !tile.a) continue;            /* the manifest lives here too */
+      this.scan(tile, t, wider, cap);
+      if (wider.length >= cap) break;
+    }
+    wider.forEach(function (r) { if (!seen[r.id]) { seen[r.id] = 1; out.push(r); } });
     return out;
   },
 
@@ -5655,17 +5693,6 @@ const Addr = {
   }
 };
 
-/* Slippy tile arithmetic, shared with the address packs. The map's own
-   tiles are handled by Leaflet, which never exposes these. */
-function lngToTileX(lng, z) {
-  return Math.floor(((lng + 180) / 360) * Math.pow(2, z));
-}
-function latToTileY(lat, z) {
-  const r = (lat * Math.PI) / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z)
-  );
-}
 
 /* =====================================================================
    Place search beyond the 5 km bubble, via OSM's Nominatim geocoder.
@@ -6230,9 +6257,37 @@ async function geoSearch(q) {
     renderNavList();
     return;
   }
+  /* The packs answer before Nominatim is asked, and answer whether or not
+     there is anything to ask it with. Home is already handled this way and
+     an address deserves the same: a street you have downloaded is on the
+     phone, and waiting on a geocoder to be told so is the one thing this
+     app exists not to do.
+
+     Wider than the type-ahead, which only walks the bubble the vehicle is
+     in. This reads every pack stored, so an area pulled down for Port
+     Augusta answers from four hundred kilometres away. */
+  const mine = await Addr.searchStored(q);
+  const localCards = mine.map(function (r) {
+    return { id: r.id, name: r.name, where: r.where, kind: "address",
+             area: false, atype: "address", rank: 30, imp: 1,
+             lat: r.lat, lng: r.lng, stored: true,
+             /* so a named place at the same address claims it, the way the
+                suggestion list already reconciles the two */
+             addrKey: r.addrKey };
+  });
+  if (localCards.length) {
+    geoResults = localCards;
+    geoNote = localCards.length + " on this phone" +
+              (navigator.onLine ? ", still looking..." : "");
+    renderNavList();
+  }
+
   if (geoBusy) return;
   const wait = CFG.GEO_MIN_GAP - (Date.now() - geoAt);
-  if (wait > 0) { toast("Hold on a moment", "warn"); return; }
+  /* Rate limiting protects Nominatim, and the packs are not Nominatim. Being
+     told to hold on when the answer is already on the screen would read as
+     the app refusing to do what it just did. */
+  if (wait > 0) { if (!localCards.length) toast("Hold on a moment", "warn"); return; }
 
   /* The box filters nearby POIs while you type and searches the country when
      you commit. A town name matches nothing nearby, so pressing enter used to
@@ -6243,7 +6298,8 @@ async function geoSearch(q) {
   geoBusy = true;
   geoAt = Date.now();
   geoNote = "Searching for “" + q + "”...";
-  geoResults = [];
+  /* The stored answers stay on screen while the network one is fetched. */
+  geoResults = localCards.slice();
   renderNavList();
 
   /* Which country, decided by where the vehicle is rather than baked in. */
@@ -6334,6 +6390,10 @@ async function geoSearch(q) {
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
       };
     }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
+    /* Folded in before the collapsing, so a street the geocoder also knows
+       is reconciled by the same rules that reconcile two of its own rows
+       rather than appearing twice under slightly different words. */
+    geoResults = localCards.concat(geoResults);
     geoResults = collapseRoads(geoResults);
     geoResults = collapseAddresses(geoResults);
     geoResults = dedupePlaces(geoResults);
@@ -6380,8 +6440,19 @@ async function geoSearch(q) {
     const named = function (r) {
       return asked.indexOf((r.name || "").toLowerCase()) >= 0 ? 0 : 1;
     };
+    /* A house number in the query names one building, and the street it
+       stands on is not an answer to it. Both match the words and the street
+       is usually the nearer of the two - its pin sits at the middle of the
+       road - so "12 Elder Terrace" put Elder Terrace above number 12.
+       Only ever a tie-break above the existing rule, and only when the
+       query actually opens with a number. */
+    const numbered = /^\s*\d/.test(q);
+    const exact = function (r) {
+      return numbered && r.kind === "address" &&
+             asked.indexOf((r.name || "").toLowerCase()) >= 0 ? 0 : 1;
+    };
     geoResults.sort(function (a, b) {
-      return named(a) - named(b) || geoDist(a) - geoDist(b);
+      return exact(a) - exact(b) || named(a) - named(b) || geoDist(a) - geoDist(b);
     });
     /* Naming the country in both answers keeps the limit visible: a town
        just over a border comes back empty, and this says why. */
@@ -6390,7 +6461,11 @@ async function geoSearch(q) {
       : "Nothing found for “" + q + "”" +
         (country ? " in " + country.name : "");
   } catch (e) {
-    geoNote = "Place search needs a connection";
+    /* With addresses already on screen this is not a failure, it is the
+       limit of what the network could add to what the phone already knew. */
+    geoNote = localCards.length
+      ? localCards.length + " on this phone - no connection for a wider search"
+      : "Place search needs a connection";
   }
   geoBusy = false;
   renderNavList();
