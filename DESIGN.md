@@ -548,6 +548,14 @@ cursor in a moving vehicle.
 - **Go / Warn / Danger:** the same shape in Signal Green, Caution Yellow or
   Alert Red, each with a matched near-black text colour
 - **Ghost:** transparent fill, hairline-strong border, sand text
+- **Selected:** the chosen half of a segmented pair — Metric against
+  Imperial, Normal against Large, On against Off — is filled exactly as
+  Primary is, and its unchosen twin stays Ghost. A tint was tried here and
+  read as a difference you had to look for rather than one you could see.
+  Note that these buttons are Ghost in the markup, so a selected rule has
+  to outrank `.ghost`'s transparent fill or the ink lands on nothing; the
+  shipped rule does it with an id, and adding `.primary` to the markup
+  instead is the way this was broken once already
 - **Press:** `filter: brightness(1.25)` — the lamp behind the switch
 - **Sizes:** `sm` (8px 10px, 10px type) and `xs` (6px 9px, 9px type). Both
   carry a 36px floor on touch and shed it for a mouse; `xs`

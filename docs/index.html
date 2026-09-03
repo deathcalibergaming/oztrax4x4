@@ -1635,11 +1635,25 @@ details.sub > .sec-body{padding:12px 0 0}
    you were aiming at. */
 .sw::before{content:"";position:absolute;inset:-8px}
 .sw.on{background:rgba(204,90,46,.3);border-color:var(--rust)}
-/* The chosen unit reads like the switch below it: the same rust wash and
-   border, and the sand the rest of the menu is written in. It used to borrow
-   .primary, whose near-black text landed on .ghost's transparent background -
-   dark on dark, and no highlight at all, since ghost won the background. */
-/* A list of ids rather than a class, which means a new segmented control
+/* The chosen half of a pair is filled, the same solid rust and near-black
+   ink Download New Area wears, rather than the 30% wash it used to carry.
+   A wash reads as a tint on a dark panel; in the light this app is used in
+   it was leaving the question "which one is on" to a difference you had to
+   look for. A fill answers it before it is asked.
+
+   This was tried once before by adding .primary to the markup and it came
+   out invisible - near-black ink on nothing, because these buttons are
+   .btn.ghost, and .ghost's transparent background is declared after
+   .primary's fill and wins between two single-class selectors. That is why
+   the fill is set here instead. Every selector below is an id plus .on, so
+   it outranks .ghost outright and the background actually lands. Do not
+   "simplify" this by putting .primary back on the buttons.
+
+   #12100E is the ink the fill takes, not sand: sand on solid rust is
+   2.6:1 and unreadable in the sun this is for, where near-black on it is
+   4.6:1. The Ink On Fill Rule in DESIGN.md is this, written down.
+
+   A list of ids rather than a class, which means a new segmented control
    does not get the selected state until it is added here - the text size
    buttons were live and highlighting nothing until this line grew. Left as
    a list rather than generalised to .btn.ghost.on, because .on is also worn
@@ -1649,7 +1663,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
 #btnText1.on,#btnText2.on,
 #btnFuelAll.on,#btnFuelNone.on{
-  background:rgba(204,90,46,.3);border-color:var(--rust);color:var(--sand)}
+  background:var(--rust);border-color:var(--rust);color:#12100E}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
 
 /* ---------- floating form (clamped to viewport) ---------- */
