@@ -1127,6 +1127,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    fact Sim's amber already stands for elsewhere on this screen: what you
    are looking at is not live. */
 #manualChip{border-color:var(--warn);color:var(--warn)}
+/* Sim's own chip, same amber, same job: the zoom-column button explains
+   itself once through a toast when it is pressed, and says nothing again
+   until it is pressed a second time to stop. Something has to keep saying
+   it for as long as it is true - a driver who glances at the screen ten
+   seconds late, or someone who was never watching when Sim was switched on,
+   should not have to find the small button again just to learn a fake
+   drive is running, or to end one. */
+#simChip{border-color:var(--warn);color:var(--warn)}
 /* A filter being on is not a caution and nobody chose it as the one mode
    in play - it is the same fact a selected category chip states in the
    drawer, so it wears that chip's own sand-on-dark rather than a colour
@@ -1977,6 +1985,10 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button id="manualChip" class="mapchip hidden">
         <svg viewBox="0 0 24 24"><path d="M12 21.2s-6.4-5.3-6.4-10.2a6.4 6.4 0 0 1 12.8 0c0 4.9-6.4 10.2-6.4 10.2z"/><circle cx="12" cy="11" r="2.3"/></svg>
         <span>Placed by hand - tap to release</span>
+      </button>
+      <button id="simChip" class="mapchip hidden">
+        <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
+        <span>Simulated drive - tap to stop</span>
       </button>
     </div>
     <div id="drawRect" class="hidden"></div>
@@ -9568,6 +9580,7 @@ const Sim = {
     const self = this;
     this.timer = setInterval(function () { self.step(); }, CFG.SIM_TICK);
     $("#btnSim").classList.add("on");
+    $("#simChip").classList.remove("hidden");
     if (!S.follow) resumeFollow();
     toast("Simulated drive: Hawker to Parachilna", "warn");
     updateGpsPill();
@@ -9578,6 +9591,7 @@ const Sim = {
     clearInterval(this.timer);
     this.timer = null;
     $("#btnSim").classList.remove("on");
+    $("#simChip").classList.add("hidden");
     document.querySelector(".gps-icon").classList.remove("sim");
     toast("Simulation stopped", "warn");
     updateGpsPill();
@@ -10209,6 +10223,7 @@ $("#wpCats").addEventListener("click", function (e) {
 $("#wpName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveWpForm(); });
 
 $("#btnSim").addEventListener("click", function () { Sim.toggle(); });
+$("#simChip").addEventListener("click", function () { Sim.stop(); });
 
 $("#fuelTypes").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-fuel]");
