@@ -334,6 +334,13 @@ not fit belongs in a panel that scrolls inside itself.
 custom properties, and everything that must clear them measures from those
 properties. Never hard-code a bar's size into another element's offset.
 
+**The Nothing Behind The Glass Rule.** A panel moved off screen with a
+transform is still in the tab order and still in the accessibility tree. The
+drawer and the POI panel go to `visibility:hidden` at the end of their slide
+out and back to visible at the start of the slide in, so what a keyboard can
+reach is what an eye can see. Overlays that hide with `display:none` already
+do this; anything that hides by moving has to be told.
+
 **The Two Hands Rule.** Every control is sized from `--tap` (44px) or
 `--tap-sm` (36px), never from a number, and the choice between them is the
 scene rather than the screen: `--tap` for what is pressed while the vehicle
@@ -484,6 +491,27 @@ title in the category's colour lifted to ink, an optional second line for a
 place that has one, then a monospaced meta line of category, source and
 distance.
 
+### Dialogs
+
+Panel fill in a 10px box on a near-black scrim, capped at 360px wide and at
+the viewport height less 32px, with the modal shadow. A head carrying the
+title, a scrolling body, a foot of buttons.
+
+- **Semantics:** `role="dialog"`, `aria-modal="true"`, and
+  `aria-labelledby` pointing at the title — a dialog that claims the screen
+  has to say so and has to have a name
+- **Keyboard:** Tab is held inside the box and wraps at both ends; Escape
+  closes; focus goes to the first field on open and back where it came from
+  on close
+- **Closed:** `display:none`, so nothing inside is reachable or announced
+
+### Switches
+
+A 48×28 track with a 22px knob, and a 64×44 hit area it does not draw. Built
+as a `<button role="switch">` carrying `aria-checked` — the state is the
+control's, not a class's, so a screen reader and the stylesheet read the same
+truth.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -531,7 +559,9 @@ distance.
 - **Don't** add a category colour outside the 24-entry scale.
 - **Don't** put Burnt Orange on more than one control in a view.
 - **Don't** make the application scroll; put overflow inside a panel.
-- **Don't** load a webfont, or anything else from the network, into the
-  shell. The file must open and be legible with no connection.
+- **Don't** load a webfont, a script, a stylesheet or anything else from the
+  network into the shell. The map library is embedded in the file for this
+  reason; the file has to open, render and be legible with no connection and
+  no server, from a copy on a stick.
 - **Don't** give a POI pin a solid outline or a waypoint pin a dashed one —
   the silhouettes mean different things.

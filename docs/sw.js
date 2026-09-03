@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v125";
+const CACHE = "trailtracker-v128";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -27,20 +27,23 @@ const SHELL = [
   "./fuel.json",
   "./manifest.webmanifest",
   "./icon-192.png",
-  "./icon-512.png",
-  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
-  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+  "./icon-512.png"
 ];
 
+/* Leaflet used to be two more entries here, fetched from cdnjs. It is inside
+   index.html now, so the shell is one request and there is nothing on this
+   list that is not ours. The install can no longer be spoiled by someone
+   else's CDN having a bad minute. */
+
 /* Each item is fetched on its own. addAll fails the whole install if any one
-   URL fails, which would mean a single flaky CDN request leaves the driver
-   with no offline copy at all. */
+   URL fails, which would mean a single flaky request leaves the driver with
+   no offline copy at all. */
 self.addEventListener("install", function (e) {
   e.waitUntil((async function () {
     const cache = await caches.open(CACHE);
     await Promise.all(SHELL.map(async function (url) {
       try {
-        const r = await fetch(url, { cache: "reload", mode: url.startsWith("http") ? "cors" : "same-origin" });
+        const r = await fetch(url, { cache: "reload", mode: "same-origin" });
         if (r.ok) await cache.put(url, r);
       } catch (err) { /* offline on first load: picked up later by the fetch handler */ }
     }));
