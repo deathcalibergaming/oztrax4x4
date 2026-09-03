@@ -3012,7 +3012,21 @@ const map = L.map(mapEl, {
   zoomControl: false, attributionControl: false,
   fadeAnimation: false, zoomAnimation: true,
   inertia: true, worldCopyJump: false,
-  tap: false, doubleClickZoom: false
+  tap: false, doubleClickZoom: false,
+  /* Pinch is off on the map too, not just on the page.
+
+     Leaflet zooms a pinch by scaling the map pane with a CSS transform for
+     the length of the gesture and re-rendering tiles when it ends. That
+     pane sits inside #rotWrap and #panWrap, which are both permanently
+     promoted with will-change:transform so the map can be rotated smoothly
+     - so a pinch makes the browser re-rasterise two full-screen layers over
+     and over while a finger is moving. It is the same mechanism that made
+     page zoom flash and drop to black on a real phone, and it produced the
+     same result here.
+
+     Zoom is the + and - buttons, which are 44px and one-handed, and which
+     a driver can hit without needing two fingers on the glass anyway. */
+  touchZoom: false
 });
 mapReady = true;
 
