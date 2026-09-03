@@ -354,6 +354,16 @@ out and back to visible at the start of the slide in, so what a keyboard can
 reach is what an eye can see. Overlays that hide with `display:none` already
 do this; anything that hides by moving has to be told.
 
+**The Frozen Layer Rule.** Browser page zoom is off, and has to be. The
+shell is `position: fixed` across the viewport with two full-screen
+`will-change: transform` layers under the map, so a pinch magnifies a frozen
+layer rather than reflowing anything — and forces both promoted layers to
+re-rasterise mid-gesture, which flashes and drops to the stage's near-black
+on real hardware. Making type bigger here is the app's own job, scaling the
+type and reflowing the panels. Until that control exists this is an open
+accessibility gap, recorded rather than papered over: nothing in the
+interface can currently be enlarged.
+
 **The Two Hands Rule.** Every control is sized from `--tap` (44px) or
 `--tap-sm` (36px), never from a number, and the choice between them is the
 scene rather than the screen: `--tap` for what is pressed while the vehicle
@@ -472,8 +482,8 @@ slack, and a count pushed to a shared right edge.
 ### Inputs
 
 - **Style:** Field (`#111513`) fill, hairline-strong border, 4px radius,
-  16px type — under 16px iOS zooms the page on focus, and with page zoom
-  restored there is nothing suppressing it
+  16px type — the better size to type into on a phone, and it keeps the
+  field independent of what the viewport meta happens to allow
 - **Focus:** border becomes Burnt Orange; no glow, no ring. Every field type
   has one, selects included — the native outline is removed here, so a
   control that does not replace it has no focus state at all

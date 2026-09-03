@@ -2,15 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- No maximum-scale and no user-scalable=no. They were here to stop the map
-     fighting a pinch, but they applied to the whole document, so they also
-     took page zoom away from anyone who needs the 8.5px gauge labels bigger -
-     and there is no other way to get them bigger. #stage carries
-     touch-action:pan-x pan-y, which is the scoped version of the same
-     intent: the browser will not pinch-zoom over the map, Leaflet keeps its
-     own gesture, and everywhere else pinch works the way the phone's
-     accessibility settings expect it to. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Page zoom is off, and this is the second time that decision has been
+     made. It was removed once to answer an accessibility finding - the 8.5px
+     gauge labels cannot be enlarged any other way - and putting it back
+     flashed the screen on a real phone and sometimes left it black.
+
+     The reason is the shell, not the tuning. #app is position:fixed across
+     the whole viewport, so it is laid out against the layout viewport while
+     a pinch moves the visual one: nothing reflows, the type does not grow,
+     the interface is simply magnified and its edges go off the glass. On top
+     of that #rotWrap and #panWrap are both full-screen will-change:transform
+     layers, permanently promoted so the map can be rotated smoothly. A pinch
+     makes the browser re-rasterise both of them at every step of the
+     gesture, and what shows while a layer is still blank is #stage's own
+     near-black. That is the flash, and that is the black screen.
+
+     So pinch could never have done the job it was restored for. Making the
+     type bigger in a fixed shell has to be the app's own control, scaling
+     the type and reflowing the panels, rather than the browser magnifying a
+     frozen layer. Until that exists this is a real accessibility gap, and it
+     is recorded as one rather than papered over. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#14181B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -812,10 +824,11 @@ html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:v
 button,.sw,.swrow,summary,label{touch-action:manipulation}
 button{font-family:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
 /* 16px, not 15. iOS zooms the page when a field under 16px takes focus, and
-   15 was only ever getting away with it because maximum-scale=1 suppressed
-   the zoom along with everybody else's. With that gone the threshold is
-   real, and a field that yanks the viewport every time the driver taps it
-   is worse than the pixel it saves. */
+   maximum-scale=1 is what suppresses it - which the viewport meta carries
+   again, so strictly this could go back to 15. It stays at 16 because 16 is
+   the better size to type into on a phone, and because leaving it here means
+   the field does not depend on the viewport meta to behave. If page zoom is
+   ever solved properly, this line does not have to be remembered. */
 input,select,textarea{font-family:inherit;font-size:16px;color:var(--sand);background:#111513;
   border:1px solid var(--line2);border-radius:4px;padding:9px 10px;width:100%;outline:none;-webkit-user-select:text;user-select:text;
   caret-color:var(--rust2)}
