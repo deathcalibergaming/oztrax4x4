@@ -359,10 +359,19 @@ shell is `position: fixed` across the viewport with two full-screen
 `will-change: transform` layers under the map, so a pinch magnifies a frozen
 layer rather than reflowing anything — and forces both promoted layers to
 re-rasterise mid-gesture, which flashes and drops to the stage's near-black
-on real hardware. Making type bigger here is the app's own job, scaling the
-type and reflowing the panels. Until that control exists this is an open
-accessibility gap, recorded rather than papered over: nothing in the
-interface can currently be enlarged.
+on real hardware. Making type bigger here is the app's own job, and Settings
+carries it: Text Size, at 1, 1.15 or 1.3.
+
+Every `font-size` in the file derives from `--uiScale` — twenty tokens named
+for the pixel value they start at, because the ramp has twenty steps and
+inventing six roles to hold them would be renaming the design rather than
+describing it. The two bar heights and the landscape rail scale with the
+type, or a larger label would be clipped by a height that did not move.
+
+Three things deliberately sit outside it. The tap sizes, because 44px is a
+thumb and not a letter. The map, which has its own zoom. And the speed sign,
+whose numerals are cut to sit inside a 47px ring on a 56px plate — a road
+sign is a road sign at one size.
 
 **The Two Hands Rule.** Every control is sized from `--tap` (44px) or
 `--tap-sm` (36px), never from a number, and the choice between them is the
@@ -535,6 +544,18 @@ as a `<button role="switch">` carrying `aria-checked` — the state is the
 control's, not a class's, so a screen reader and the stylesheet read the same
 truth.
 
+### Text Size
+
+A three-step segmented control in Settings — Normal, Large, Larger — built
+like the Units and Screen Lock rows beside it, and the app's answer to page
+zoom rather than an extra on top of it. At Larger the 8.5px gauge labels
+read at 11px and the instrument values at 22px, and the panels reflow around
+them instead of being magnified.
+
+Any new rule inherits this for free by using a size token; there is nothing
+to remember. A literal `font-size` in px is now the exception and should
+carry a comment saying why it does not scale.
+
 ### Motion
 
 There is no focal moment and there should not be one. An instrument cluster
@@ -581,6 +602,8 @@ Same information, no movement.
   larger scale.
 - **Do** reserve monospace for values that change, and say the unit in
   uppercase beside it (`KM/H`).
+- **Do** size type from a scale token, never a literal px. A literal is the
+  exception and has to say why it is one.
 - **Do** lift a mark colour rather than substitute one when it has to carry
   a word, and leave the mark itself alone.
 - **Do** theme the surfaces the browser would otherwise paint for itself —
@@ -604,6 +627,9 @@ Same information, no movement.
 - **Don't** dim text with element `opacity` stacked on an already
   transparent colour. The two multiply, and the result is not visible in
   either value.
+- **Don't** put a row of controls in a flex line without `flex-wrap` and
+  `min-width: 0`. A flex item will not shrink below its longest word, so a
+  row that fits at one text size hangs off the edge at a larger one.
 - **Don't** use colour as the only difference between a label and its value;
   size and weight already do that job, and colour is needed for classifying.
 - **Don't** add a category colour outside the 24-entry scale.
