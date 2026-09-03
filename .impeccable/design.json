@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-03T04:36:20.408Z",
+  "generatedAt": "2026-09-03T15:03:58.161Z",
   "title": "Design System: TrailTracker",
   "extensions": {
     "colorMeta": {
@@ -407,6 +407,14 @@
       "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 10px 5px 5px;border-radius:9px;border:1px solid rgba(216,203,170,.48);background:#0F1311;color:rgba(216,203,170,.72);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11.5px;cursor:pointer;text-align:left;opacity:.8;touch-action:manipulation}\n.ds-chip[aria-pressed=\"true\"]{opacity:1;color:#73934F;border-color:#73934F;background:rgba(255,255,255,.05)}\n.ds-chip-dot{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:#6E8C4B}\n.ds-chip-label{flex:1;min-width:0}\n.ds-chip-count{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-style:normal;font-size:10px;flex:0 0 auto}\n.ds-chip:focus-visible{outline:2px solid #DC8767;outline-offset:2px}"
     },
     {
+      "name": "Category Choice Chip",
+      "kind": "chip",
+      "refersTo": "chip-category-choice",
+      "description": "Picks the one category a new waypoint belongs to — exactly one is on, unlike the filter chip where several can be. Icon and label only, no count, no per-category colour: a waypoint's own pin already carries that colour, so the picker stays neutral and shows only which one is selected.",
+      "html": "<div class=\"ds-catgrid\"><button class=\"ds-catchoice ds-on\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.5\"/></svg><span>Camp</span></button><button class=\"ds-catchoice\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 2 2 7l10 5 10-5-10-5z\"/></svg><span>Fuel</span></button></div>",
+      "css": ".ds-catgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}\n.ds-catchoice{display:flex;align-items:center;gap:5px;padding:8px 6px;border:1px solid rgba(216,203,170,.48);border-radius:5px;background:#111513;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:rgba(216,203,170,.72);font-weight:600;cursor:pointer;touch-action:manipulation}\n.ds-catchoice.ds-on{border-color:#D8CBAA;color:#D8CBAA;background:#1E2420}\n.ds-catchoice:focus-visible{outline:2px solid #DC8767;outline-offset:2px}"
+    },
+    {
       "name": "Card",
       "kind": "card",
       "refersTo": "card",
@@ -469,7 +477,7 @@
     "keyCharacteristics": [
       "Warm dark ground with sand text; never grey-on-grey",
       "Monospaced readouts for anything numeric and glanceable",
-      "Tight radii (4–10px) and hairline borders; nothing pill-shaped or blobby",
+      "Tight radii (4–10px) and hairline borders, with exactly two components closing into a true pill (the status pill, the map chips) and nothing blobby beyond them",
       "Every overlay sits above the map with a real, dark shadow",
       "Colour classifies; size and weight carry hierarchy",
       "Uppercase, wide-tracked labels on every control"
@@ -487,7 +495,12 @@
       },
       {
         "name": "The One Accent Rule",
-        "body": "Burnt Orange means action and nothing else. A screen should carry it on one control. If two things are orange, one of them is wrong. Its lit twin is the same colour under this rule, not a second one — a control cannot use both to look like two things.",
+        "body": "Burnt Orange means action and nothing else. A screen should carry it on one control. If two things are orange, one of them is wrong. Its lit twin is the same colour under this rule, not a second one — a control cannot use both to look like two things. The test for which control that is: did the driver deliberately choose this as the mode they are in, or is it a status they are currently in the middle of? A choice earns the accent; a status — paused, simulated, off the live position — takes Caution Yellow instead. Two controls answering \"yes\" to the first question at once is the violation this rule bans; a chosen mode and a fallen-into status lighting different colours at the same time is not one, because nothing about them claims to be the same fact.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink On Fill Rule",
+        "body": "A solid accent fill needs a word to sit on it somewhere — Save, Go, Pause, Delete — and neither the fill colour nor its lit twin can carry that word: the lit twin exists precisely so the accent can be read as a small mark or a line of text on a dark ground, not so it can read as ink on top of its own, brighter self. So the ink goes the other way instead: near-black, tinted a few degrees toward the fill under it, never plain black. Burnt Orange takes #12100E, Signal Green #12160B, Caution Yellow #171204, Alert Red #170B08 — four different blacks, each one degree warmer or cooler than the last, so a button face and its label never fight for which of them is actually the colour.",
         "section": "colors"
       },
       {
@@ -503,6 +516,11 @@
       {
         "name": "The Shouting Labels Rule",
         "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.",
+        "section": "typography"
+      },
+      {
+        "name": "The Instrument Label Rule",
+        "body": "There are two button-label sizes, chosen by scene rather than by any property of the button itself — the same split --tap and --tap-sm already make for touch targets. Micro is for a control read while the vehicle is moving: the stat bar, the action bar. Label is for a control reached at a stop: the drawer, dialogs, panels. The same button never needs to ask which one it is, because it never leaves its scene.",
         "section": "typography"
       },
       {
@@ -542,7 +560,7 @@
       },
       {
         "name": "The Tight Corner Rule",
-        "body": "No radius exceeds 10px on a rectangular surface. Large radii read as a consumer app and are out of character with the instrument face.",
+        "body": "No radius exceeds 10px on a surface that stays a rectangle at that radius. Large radii read as a consumer app and are out of character with the instrument face. The status pill and the map chips are not an exception to this — a capsule whose radius has closed into a stadium is a different shape, not a rectangle wearing a bigger number, and this rule has no opinion on it. It has an opinion on the next control that is tempted to round a card or a panel past 10px and call itself a pill to get there.",
         "section": "shapes"
       }
     ],
