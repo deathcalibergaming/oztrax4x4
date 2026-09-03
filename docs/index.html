@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- No maximum-scale and no user-scalable=no. They were here to stop the map
+     fighting a pinch, but they applied to the whole document, so they also
+     took page zoom away from anyone who needs the 8.5px gauge labels bigger -
+     and there is no other way to get them bigger. #stage carries
+     touch-action:pan-x pan-y, which is the scoped version of the same
+     intent: the browser will not pinch-zoom over the map, Leaflet keeps its
+     own gesture, and everywhere else pinch works the way the phone's
+     accessibility settings expect it to. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14181B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -73,6 +81,19 @@
      never the problem; its height was. */
   --dim:rgba(216,203,170,.72);
   --hud:#FFFFFF;
+  /* How big a thing has to be before a thumb can hit it. Two sizes, and the
+     split is the scene rather than the screen: tap is for what gets pressed
+     while the vehicle is moving - the map controls, the action rail, the
+     navigation panel, a popup's buttons - and tap-sm is for what gets
+     pressed at a stop, which is the drawer, the settings and the cards.
+     44 is the size a gloved thumb needs on a corrugated road. 36 is the size
+     a bare thumb needs sitting still, and is already the floor the category
+     chips were built to.
+     A mouse needs neither, and the trip gets planned on a laptop as often as
+     it gets driven, so (pointer:fine) hands the density back at the bottom
+     of the stylesheet. Coarse is the base because the vehicle is the base. */
+  --tap:44px;
+  --tap-sm:36px;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --topH:50px;
@@ -106,8 +127,20 @@
 html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:var(--ink);color:var(--sand);
   font-family:var(--ui);font-size:15px;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
   -webkit-text-size-adjust:100%}
+/* touch-action:manipulation drops the double-tap-to-zoom gesture on controls
+   while leaving pinch alone. Without it, restoring page zoom would mean a
+   driver who taps a button twice over a corrugation - which is exactly what
+   a bump makes you do - gets the whole interface zoomed instead of the
+   button pressed twice. Scoped to the controls, so pinch still works on
+   everything that is there to be read. */
+button,.sw,.swrow,summary,label{touch-action:manipulation}
 button{font-family:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:15px;color:var(--sand);background:#111513;
+/* 16px, not 15. iOS zooms the page when a field under 16px takes focus, and
+   15 was only ever getting away with it because maximum-scale=1 suppressed
+   the zoom along with everybody else's. With that gone the threshold is
+   real, and a field that yanks the viewport every time the driver taps it
+   is worse than the pixel it saves. */
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--sand);background:#111513;
   border:1px solid var(--line2);border-radius:4px;padding:9px 10px;width:100%;outline:none;-webkit-user-select:text;user-select:text;
   caret-color:var(--rust2)}
 /* The select used to sit in this list without its :focus, so it wore the
@@ -138,7 +171,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   font-size:14px;font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
 .brand .b2{color:var(--rust2)}
-.icon-btn{width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+.icon-btn{width:var(--tap);height:var(--tap);border-radius:6px;display:flex;align-items:center;justify-content:center;
   border:1px solid transparent;flex:0 0 auto;transition:background .12s,border-color .12s}
 .icon-btn:active{background:rgba(216,203,170,.16)}
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -253,7 +286,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   font-size:8.5px;color:var(--dim);background:rgba(20,24,27,.9);padding:2px 6px;border-radius:3px;
   pointer-events:none;letter-spacing:.02em}
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
-#zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
+#zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
 /* The simulated drive sits under the zoom buttons and takes their size and
@@ -368,7 +401,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* the list a cluster popup shows: one tappable row per place underneath */
 .pop-rows{margin-top:7px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
   -webkit-overflow-scrolling:touch}
-.pop-row{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;text-align:left;
+.pop-row{display:flex;align-items:center;gap:8px;width:100%;min-height:var(--tap);text-align:left;
   background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:5px;padding:6px 8px;
   color:var(--sand);font:inherit;cursor:pointer}
 .pop-row:active{background:rgba(216,203,170,.12)}
@@ -459,7 +492,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack.pair .np-figs i{font-size:7px;letter-spacing:.06em}
 #panelStack.pair .np-figs > div{gap:0}
 #panelStack.pair .np-btns .btn,#panelStack.pair .rp-btns .btn{
-  padding:9px 4px;font-size:8.5px;letter-spacing:.04em;min-height:38px}
+  padding:9px 4px;font-size:8.5px;letter-spacing:.04em;min-height:var(--tap)}
 #panelStack.pair .np-note{font-size:8.5px;letter-spacing:.02em}
 #panelStack.pair .np-ico{width:13px;height:13px}
 #navPanel,#recPanel{display:flex;flex-direction:column}
@@ -471,7 +504,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--nav2)}
 .np-btns{display:flex;margin-top:8px}
-.np-btns .btn{padding:11px 12px;min-height:40px}
+.np-btns .btn{padding:11px 12px;min-height:var(--tap)}
 .np-figs{display:flex;margin-top:7px}
 .np-figs > div{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
   border-right:1px solid var(--line)}
@@ -496,7 +529,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .rp-btns{display:flex;gap:6px}
 
 /* ---------- buttons ---------- */
-.btn{flex:1;padding:11px 12px;border-radius:6px;border:1px solid var(--line2);background:var(--panel2);
+.btn{flex:1;padding:11px 12px;min-height:var(--tap);border-radius:6px;border:1px solid var(--line2);background:var(--panel2);
   font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:center;
   display:flex;align-items:center;justify-content:center;gap:6px}
 .btn:active{filter:brightness(1.25)}
@@ -505,8 +538,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .btn.warnb{background:var(--warn);border-color:var(--warn);color:#171204}
 .btn.dangerb{background:var(--danger);border-color:var(--danger);color:#170B08}
 .btn.ghost{background:transparent}
-.btn.sm{padding:8px 10px;font-size:10px;letter-spacing:.1em}
-.btn.xs{padding:6px 9px;font-size:9px;letter-spacing:.09em;flex:0 0 auto}
+.btn.sm{padding:8px 10px;min-height:var(--tap-sm);font-size:10px;letter-spacing:.1em}
+.btn.xs{padding:6px 9px;min-height:var(--tap-sm);min-width:var(--tap-sm);font-size:9px;letter-spacing:.09em;flex:0 0 auto}
 .btn[disabled]{opacity:.4;pointer-events:none}
 .row{display:flex;gap:6px}
 
@@ -654,7 +687,7 @@ details.sub > .sec-body{padding:12px 0 0}
    which. Two lines in a chip that is already 34px tall costs about 4px and
    settles it at any width. */
 #fuelTypes .kchip > span:not(.dotmark){white-space:normal;line-height:1.15}
-.kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
+.kchip{display:flex;align-items:center;gap:6px;min-height:var(--tap-sm);padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
   font-size:11.5px;cursor:pointer;opacity:.8;text-align:left}
 /* the label takes the slack so the count is pushed to the same right edge
@@ -715,7 +748,18 @@ details.sub > .sec-body{padding:12px 0 0}
 /* The street address, above the attribute line and a shade brighter than it:
    where a place is reads ahead of what it offers. */
 .card-ad{font-size:11.5px;color:rgba(216,203,170,.8);margin-top:5px;line-height:1.35;word-break:break-word}
-.card-acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.card-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+/* Delete sat between Go To and the edge of the card at a 5px gap, which on a
+   corrugated road is close enough to Go To to lose a recorded track to a
+   bump. Size alone does not fix that - a bigger button next to a bigger
+   button is the same mistake at a larger scale - so the destructive one is
+   pushed to its own end of the row and given the gap for company. It lands
+   on the right of whatever line it wraps onto, away from the thumb's path
+   across the actions you actually meant. */
+.card-acts .btn[data-act="del"],
+.card-acts .btn.dangerb{margin-left:auto}
+.card-acts .btn[data-act="del"] + .btn,
+.card-acts .btn.dangerb + .btn{margin-left:0}
 .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
@@ -726,10 +770,15 @@ details.sub > .sec-body{padding:12px 0 0}
 .dotmark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
 .swrow{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:12px}
-.sw{width:42px;height:24px;border-radius:12px;background:#0F1311;border:1px solid var(--line2);
+.sw{width:48px;height:28px;border-radius:14px;background:#0F1311;border:1px solid var(--line2);
   position:relative;flex:0 0 auto;transition:background .16s,border-color .16s}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
   background:var(--dim);transition:transform .16s,background .16s}
+/* A switch reads wrong at 44px tall - it stops looking like a switch - so it
+   keeps its shape and grows an invisible one instead. The listener is on the
+   track, so this is the whole of the target: 64 by 44, centred on the thing
+   you were aiming at. */
+.sw::before{content:"";position:absolute;inset:-8px}
 .sw.on{background:rgba(204,90,46,.3);border-color:var(--rust)}
 /* The chosen unit reads like the switch below it: the same rust wash and
    border, and the sand the rest of the menu is written in. It used to borrow
@@ -739,7 +788,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:rgba(204,90,46,.3);border-color:var(--rust);color:var(--sand)}
-.sw.on::after{transform:translateX(18px);background:var(--rust)}
+.sw.on::after{transform:translateX(20px);background:var(--rust)}
 
 /* ---------- floating form (clamped to viewport) ---------- */
 .float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));background:var(--panel);
@@ -836,7 +885,13 @@ input[type=date],input[type=time]{color-scheme:dark}
 @media (orientation: landscape) and (max-height: 520px) {
   #app{display:grid;
     grid-template-columns:var(--railW) 1fr;
-    grid-template-rows:calc(40px + var(--safeT)) 1fr;
+    /* The row follows the tap size rather than a number, because the menu
+       button is the only way into the drawer and a fixed 40 clipped it the
+       moment a thumb-sized button went in. max() so a mouse never shrinks
+       the bar below the 40 it has always been. It costs four pixels of a
+       360px-tall map, once, in the orientation where the rail carries the
+       controls you actually use while moving. */
+    grid-template-rows:calc(max(40px, var(--tap)) + var(--safeT) + 1px) 1fr;   /* +1 for the bar's own bottom hairline */
     grid-template-areas:"top top" "stats stage"}
   #topbar{grid-area:top;height:auto}
   #stage{grid-area:stage}
@@ -930,9 +985,9 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* The readings ran up against the cancel button and read as sitting on it,
      so the button is pushed off them by more than the column gap alone. */
   #panelStack #navPanel .np-btns{margin-left:10px}
-  #panelStack #navPanel .np-btns .btn{font-size:0;padding:7px 12px;min-height:32px}
+  #panelStack #navPanel .np-btns .btn{font-size:0;padding:7px 12px;min-height:var(--tap-sm)}
   #panelStack #navPanel .np-btns .btn::after{content:"CANCEL";font-size:9px;letter-spacing:.08em}
-  #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:32px;white-space:nowrap;flex:0 0 auto}
+  #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:var(--tap-sm);white-space:nowrap;flex:0 0 auto}
   #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
 
   /* the attribution is on the left now, with no rail to clear - only the
@@ -969,6 +1024,29 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{flex:1 1 100%}
   #panelStack #navPanel .np-btns .btn,#panelStack #recPanel .rp-btns .btn{flex:1 1 auto}
   #panelStack #navPanel .np-top,#panelStack #recPanel .rp-top{flex:1 1 auto}
+}
+
+/* ---------- the desk ----------
+   The only query in this file that asks about the hand rather than the
+   screen. A trip is planned sitting down with a mouse as often as it is
+   driven, and a mouse does not need 44px or a gap beside Delete: a pointer
+   lands where it is put, and the extra height only costs the planner rows
+   of the list they could otherwise see at once. So the vehicle keeps the
+   base sizing and the desk gets the density back.
+
+   This is deliberately (pointer: fine) and not a width breakpoint. A phone
+   held in landscape is still a thumb, and a touchscreen laptop is still a
+   mouse; width knows neither. Nothing here is hover-dependent, so there is
+   no functionality behind the query - only spacing. */
+@media (pointer: fine) {
+  :root{--tap:34px;--tap-sm:28px}
+  .card-acts{gap:5px}
+  .btn.xs{padding:6px 9px;min-width:auto}
+  .sw::before{inset:-4px}
+  /* A mouse can aim, so Delete goes back in the row rather than holding the
+     end of it. The separation is for the thumb, not for the caution. */
+  .card-acts .btn[data-act="del"],
+  .card-acts .btn.dangerb{margin-left:0}
 }
 </style>
 </head>
