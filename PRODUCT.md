@@ -36,8 +36,11 @@ the user:
 - **Total offline, including routing.** Not just cached tiles. The road
   network, the addresses and the POIs are carried on the device, and a route
   is computed on the phone rather than fetched from a server.
-- **One file, no account.** No sign-up, no subscription, no telemetry, no app
-  store dependency. A single self-contained HTML file.
+- **One file, no account.** No sign-up, no subscription, no telemetry, and
+  nothing the app needs a store or a server for once it is on the phone. A
+  single self-contained HTML file. It is *sold* on Google Play, so "no app
+  store dependency" is not a claim future work may make — the honest version
+  is that the store is where you buy it, not something it runs on.
 - **Built for the vehicle, not the desk.** Designed for use while driving in
   rough country rather than adapted from a desktop interface.
 
@@ -77,13 +80,21 @@ prices; a simulated drive for demonstration.
   that uses the network must degrade to something useful without it.
 - **Legible in sun, usable one-handed.** High contrast, large targets, no
   fine motor control, nothing needing two hands or careful aim.
+- **Text scales in the app, not in the browser.** The in-app Text Size
+  control is how type gets bigger. Browser page zoom and map pinch are both
+  off deliberately: the shell is fixed to the viewport, and on a real phone
+  zooming it flashes and blanks the map. Future work must not re-enable
+  either one as a way of making something legible — make it legible at every
+  step of the Text Size scale instead.
 - **No accounts, tracking or paywall.** No sign-in, no analytics, no feature
   gated behind a payment inside the app.
 
-**Commercial model (confirmed):** a single up-front purchase for the app.
-After that everything works — no account, no subscription, no in-app
-purchase, nothing locked. "No paywall" constrains what happens *inside* the
-product; it is not a claim that the app is free to acquire.
+**Commercial model (confirmed):** a single up-front purchase, sold as a paid
+app on Google Play. Any surface that asks for the sale points there; there is
+no direct-sale channel to send people to. After that everything works — no
+account, no subscription, no in-app purchase, nothing locked. "No paywall"
+constrains what happens *inside* the product; it is not a claim that the app
+is free to acquire.
 
 **Geographic scope (confirmed):** an Australian product whose data coverage
 is currently South Australian. Addresses, the routing network and fuel prices
@@ -94,9 +105,11 @@ stated direction; no date is set.
 
 ## Brand Commitments
 
-- Names in use: **TrailTracker** (the application, as it appears in the
-  manifest and the interface) and **OzTrax 4x4** (the project). No decision
-  recorded on whether these consolidate.
+- **TrailTracker is the product name** (confirmed). It is what the manifest,
+  the interface and the installed app already say, and it is the name every
+  surface addressing a user uses — including the Play listing. **OzTrax 4x4**
+  is the repository and project name and stays that way. The split is
+  deliberate, not an open question.
 - Existing assets: `docs/icon-192.png`, `docs/icon-512.png`.
 - No voice, tone, tagline or identity system has been confirmed. Future work
   must not treat the current interface as an approved brand.
@@ -144,6 +157,9 @@ rather than by a compliance target:
 - Legible in direct sunlight.
 - Operable one-handed, without fine motor control, on a vibrating surface.
 - No interaction may require precise aim or two hands.
+- Text size is adjustable from inside the app, in discrete steps, and every
+  layout has to hold at all of them. Pinch and browser zoom are not
+  available — see Capabilities and Constraints.
 
 No formal standard (e.g. a WCAG conformance level) has been established.
 Recorded as undecided rather than assumed.
