@@ -95,19 +95,19 @@ components:
     textColor: "{colors.warm-sand}"
     rounded: "{rounded.sm}"
     padding: "9px 10px"
-    fontSize: "15px"
+    fontSize: "16px"
   chip-category:
     backgroundColor: "#0F1311"
     textColor: "{colors.muted-sand}"
     rounded: "9px"
     padding: "5px 10px 5px 5px"
-    height: "34px"
+    height: "36px"
   chip-category-on:
     backgroundColor: "#0F1311"
     textColor: "{colors.warm-sand}"
     rounded: "9px"
     padding: "5px 10px 5px 5px"
-    height: "34px"
+    height: "36px"
   pin-waypoint:
     size: "26px"
   pin-poi:
@@ -316,10 +316,14 @@ and a bottom panel stack that splits width when two are open at once. Spacing
 is tight throughout — gaps of 6–14px, card padding 10px — because the density
 of the instrument face is the point.
 
-Only two breakpoints exist, and both are about landscape height rather than
-phone width: `(orientation: landscape) and (max-height: 520px)`, with a
-tighter variant at `max-width: 720px` that gives buttons their own row when
-name, readings and controls cannot share one line.
+Only two width-or-height breakpoints exist, and both are about landscape
+height rather than phone width: `(orientation: landscape) and (max-height:
+520px)`, with a tighter variant at `max-width: 720px` that gives buttons
+their own row when name, readings and controls cannot share one line.
+
+The third query is not about the screen at all. `(pointer: fine)` asks what
+is doing the pressing, and it is the only place the layout changes for
+anything other than the shape of the glass.
 
 ### Named Rules
 
@@ -329,6 +333,27 @@ not fit belongs in a panel that scrolls inside itself.
 **The Rail Follows Itself Rule.** The bars' heights and widths are single
 custom properties, and everything that must clear them measures from those
 properties. Never hard-code a bar's size into another element's offset.
+
+**The Two Hands Rule.** Every control is sized from `--tap` (44px) or
+`--tap-sm` (36px), never from a number, and the choice between them is the
+scene rather than the screen: `--tap` for what is pressed while the vehicle
+is moving — the map controls, the action rail, the navigation panel, a
+popup's buttons — and `--tap-sm` for what is pressed at a stop, which is the
+drawer, the settings and the cards. A control that will not read right at
+44px keeps its shape and grows an invisible target instead; the switch is
+48×28 with a 64×44 hit area.
+
+Coarse is the base, because the vehicle is the base. `(pointer: fine)` hands
+the density back for the desk, where the trip gets planned and where a
+pointer lands exactly where it is put. Never key this off viewport width: a
+phone held in landscape is still a thumb, and a touchscreen laptop is still
+a mouse.
+
+**The Elbow Room Rule.** Where a destructive control shares a row with the
+ones you meant to press, it takes its own end of that row and the gap that
+comes with it. Size is not separation — Delete at 36px next to Go To at 36px
+is the same mis-tap with a bigger surface. On a fine pointer it goes back in
+line; the distance is for the thumb, not for the caution.
 
 ## Elevation & Depth
 
@@ -399,7 +424,8 @@ cursor in a moving vehicle.
   Alert Red, each with a matched near-black text colour
 - **Ghost:** transparent fill, hairline-strong border, sand text
 - **Press:** `filter: brightness(1.25)` — the lamp behind the switch
-- **Sizes:** `sm` (8px 10px, 10px type) and `xs` (6px 9px, 9px type); `xs`
+- **Sizes:** `sm` (8px 10px, 10px type) and `xs` (6px 9px, 9px type). Both
+  carry a 36px floor on touch and shed it for a mouse; `xs`
   does not stretch
 - **Disabled:** 40% opacity and pointer-events off
 
@@ -426,7 +452,8 @@ slack, and a count pushed to a shared right edge.
 ### Inputs
 
 - **Style:** Field (`#111513`) fill, hairline-strong border, 4px radius,
-  15px type — large enough not to trigger zoom on iOS
+  16px type — under 16px iOS zooms the page on focus, and with page zoom
+  restored there is nothing suppressing it
 - **Focus:** border becomes Burnt Orange; no glow, no ring. Every field type
   has one, selects included — the native outline is removed here, so a
   control that does not replace it has no focus state at all
@@ -471,8 +498,12 @@ distance.
   sand transparencies rather than filled dividers.
 - **Do** set control labels in uppercase with at least .09em tracking, and
   widen the tracking as the type shrinks.
-- **Do** keep tappable controls at 34px minimum height — the chip's floor is
-  the system's floor, set for a gloved thumb.
+- **Do** size a control from `--tap` or `--tap-sm` rather than a number, and
+  pick between them by asking whether it gets pressed while the vehicle is
+  moving.
+- **Do** give a destructive control its own end of a row. Size does not fix
+  adjacency; a bigger Delete beside a bigger Go To is the same mistake at a
+  larger scale.
 - **Do** reserve monospace for values that change, and say the unit in
   uppercase beside it (`KM/H`).
 - **Do** lift a mark colour rather than substitute one when it has to carry
