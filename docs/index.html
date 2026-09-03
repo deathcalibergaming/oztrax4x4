@@ -10207,7 +10207,11 @@ $("#btnRecPause").addEventListener("click", function () {
 });
 $("#btnRecStop").addEventListener("click", function () { Rec.stop(); });
 
-$("#btnClearTrail").addEventListener("click", function () {
+$("#btnClearTrail").addEventListener("click", async function () {
+  const msg = Rec.state !== "idle"
+    ? "The line on the map will clear, and the points recorded so far in this track will be lost for good."
+    : "The line on the map will clear. Saved tracks are not affected.";
+  if (!(await ask(msg))) return;
   trailLine.setLatLngs([]); trailCasing.setLatLngs([]);
   ghostLayer.clearLayers(); shownTrackId = null;
   if (Rec.state !== "idle") { Rec.points = []; Rec.dist = 0; Rec.persist(); }
@@ -10489,9 +10493,13 @@ $("#amCancel").addEventListener("click", function () {
   else { dlAbort = true; }
 });
 $("#amGo").addEventListener("click", runAreaDownload);
-$("#btnClearTiles").addEventListener("click", clearTileCache);
+$("#btnClearTiles").addEventListener("click", async function () {
+  if (!(await ask("Every offline area's cached map tiles will be deleted, not just one. Re-downloading them needs a connection."))) return;
+  clearTileCache();
+});
 $("#btnDiag").addEventListener("click", runDiagnostics);
 $("#btnClearPoi").addEventListener("click", async function () {
+  if (!(await ask("Cached points of interest will be cleared and searched for again. This needs a connection."))) return;
   try { await DB.clear("poi"); } catch (e) { /* nothing cached */ }
   poiCentre = null; poiRetryAt = 0; setPois([]);
   refreshStorageStats();
