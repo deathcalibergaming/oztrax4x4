@@ -1,164 +1,280 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-02T23:47:03.395Z",
+  "generatedAt": "2026-09-03T04:36:20.408Z",
   "title": "Design System: TrailTracker",
   "extensions": {
     "colorMeta": {
-      "burnt-orange": {
-        "role": "primary",
-        "displayName": "Burnt Orange",
-        "canonical": "#C1552C",
-        "tonalRamp": [
-          "#3E1B0E",
-          "#6C3019",
-          "#9A4423",
-          "#C7582D",
-          "#D87955",
-          "#E39D82",
-          "#EFC7B8",
-          "#FAEFEA"
-        ]
-      },
-      "signal-green": {
-        "role": "secondary",
-        "displayName": "Signal Green",
-        "canonical": "#8FB93E",
-        "tonalRamp": [
-          "#2C3913",
-          "#4D6321",
-          "#6D8D2F",
-          "#8EB73D",
-          "#A7CB62",
-          "#BFD98C",
-          "#DAE9BE",
-          "#F4F9EC"
-        ]
-      },
-      "caution-yellow": {
-        "role": "secondary",
-        "displayName": "Caution Yellow",
-        "canonical": "#E8B923",
-        "tonalRamp": [
-          "#453607",
-          "#785E0D",
-          "#AB8612",
-          "#DEAE17",
-          "#EBC342",
-          "#F1D374",
-          "#F7E6B1",
-          "#FDF8E8"
-        ]
-      },
-      "alert-red": {
-        "role": "secondary",
-        "displayName": "Alert Red",
-        "canonical": "#B9432E",
-        "tonalRamp": [
-          "#3D160F",
-          "#6A261A",
-          "#973726",
-          "#C44731",
-          "#D56B58",
-          "#E19284",
-          "#EEC1BA",
-          "#FAEDEB"
-        ]
-      },
-      "warm-sand": {
-        "role": "neutral",
-        "displayName": "Warm Sand",
-        "canonical": "#D8CBAA",
-        "tonalRamp": [
-          "#342C18",
-          "#5B4D2A",
-          "#816E3B",
-          "#A88E4D",
-          "#BDA770",
-          "#CFBF96",
-          "#E4DBC4",
-          "#F7F4EE"
-        ]
-      },
       "near-black": {
         "role": "neutral",
         "displayName": "Near Black",
-        "canonical": "#14181B",
+        "canonical": "oklch(20.6% 0.009 240.3)",
         "tonalRamp": [
-          "#21272C",
-          "#38444C",
-          "#50606C",
-          "#687D8D",
-          "#8799A6",
-          "#A7B4BE",
-          "#CDD5DA",
-          "#F0F3F4"
+          "#090B0D",
+          "#222628",
+          "#3E4346",
+          "#5D6266",
+          "#7E8387",
+          "#A1A6A9",
+          "#C6CACD",
+          "#EDEFF0"
         ]
       },
       "panel": {
         "role": "neutral",
         "displayName": "Panel",
-        "canonical": "#1B211D",
+        "canonical": "oklch(24.0% 0.012 156.2)",
         "tonalRamp": [
-          "#222A25",
-          "#3C4940",
-          "#55685B",
-          "#6E8776",
-          "#8CA193",
-          "#ABBAB0",
-          "#CFD8D2",
-          "#F1F4F2"
+          "#090C0A",
+          "#212723",
+          "#3D443F",
+          "#5C635E",
+          "#7D847F",
+          "#A0A7A2",
+          "#C5CBC7",
+          "#EDEFED"
+        ]
+      },
+      "panel-head": {
+        "role": "neutral",
+        "displayName": "Panel Head",
+        "canonical": "oklch(22.0% 0.009 159.2)",
+        "tonalRamp": [
+          "#090C0A",
+          "#222624",
+          "#3E4440",
+          "#5D635F",
+          "#7E8480",
+          "#A1A7A3",
+          "#C6CAC7",
+          "#EDEFEE"
+        ]
+      },
+      "panel-raised": {
+        "role": "neutral",
+        "displayName": "Panel Raised",
+        "canonical": "oklch(28.0% 0.014 157.9)",
+        "tonalRamp": [
+          "#080C0A",
+          "#202723",
+          "#3C443F",
+          "#5B645E",
+          "#7C857F",
+          "#9FA8A2",
+          "#C4CBC7",
+          "#ECEFED"
         ]
       },
       "card": {
         "role": "neutral",
         "displayName": "Card",
-        "canonical": "#161B18",
+        "canonical": "oklch(21.6% 0.010 159.2)",
         "tonalRamp": [
-          "#222A25",
-          "#3C4941",
-          "#55685C",
-          "#6E8778",
-          "#8CA194",
-          "#ABBAB1",
-          "#CFD8D3",
-          "#F1F4F2"
+          "#090C0A",
+          "#222624",
+          "#3E4440",
+          "#5D635F",
+          "#7E8480",
+          "#A1A7A3",
+          "#C6CAC7",
+          "#EDEFEE"
         ]
       },
       "field": {
         "role": "neutral",
         "displayName": "Field",
-        "canonical": "#111513",
+        "canonical": "oklch(19.1% 0.007 164.1)",
         "tonalRamp": [
-          "#222A26",
-          "#3B4942",
-          "#54685E",
-          "#6E877A",
-          "#8BA196",
-          "#AABBB3",
-          "#CFD8D4",
-          "#F1F4F2"
+          "#090C0B",
+          "#222624",
+          "#3F4341",
+          "#5E6360",
+          "#7F8481",
+          "#A1A6A4",
+          "#C6CAC8",
+          "#EDEFEE"
         ]
+      },
+      "warm-sand": {
+        "role": "neutral",
+        "displayName": "Warm Sand",
+        "canonical": "oklch(84.4% 0.046 89.1)",
+        "tonalRamp": [
+          "#100A00",
+          "#2D240B",
+          "#4C4125",
+          "#6C6042",
+          "#8D8163",
+          "#B0A487",
+          "#D2C9B2",
+          "#F2EEE5"
+        ],
+        "purpose": "All primary text, icons and borders. Everything neutral is a transparency of it."
+      },
+      "burnt-orange": {
+        "role": "primary",
+        "displayName": "Burnt Orange",
+        "canonical": "oklch(60.4% 0.156 40.3)",
+        "tonalRamp": [
+          "#290000",
+          "#550000",
+          "#7F0D00",
+          "#A63700",
+          "#CC5B30",
+          "#EF835C",
+          "#FFB193",
+          "#FFE6D9"
+        ],
+        "purpose": "The single accent: primary buttons, the input focus ring, active control states."
+      },
+      "burnt-orange-lit": {
+        "role": "primary",
+        "displayName": "Burnt Orange Lit",
+        "canonical": "oklch(70.6% 0.114 41.3)",
+        "tonalRamp": [
+          "#220000",
+          "#4A0800",
+          "#712704",
+          "#964729",
+          "#BA694B",
+          "#DD8F71",
+          "#F7B9A1",
+          "#FFE8DF"
+        ],
+        "purpose": "The accent where it is read rather than filled — the wordmark, map chips, the caret."
+      },
+      "signal-green": {
+        "role": "secondary",
+        "displayName": "Signal Green",
+        "canonical": "oklch(73.1% 0.157 126.2)",
+        "tonalRamp": [
+          "#021000",
+          "#132E00",
+          "#2D4E00",
+          "#4A6F00",
+          "#6B9200",
+          "#8EB548",
+          "#B7D687",
+          "#E7F4D6"
+        ]
+      },
+      "caution-yellow": {
+        "role": "secondary",
+        "displayName": "Caution Yellow",
+        "canonical": "oklch(80.6% 0.157 89.1)",
+        "tonalRamp": [
+          "#1C0400",
+          "#3F1A00",
+          "#623800",
+          "#855800",
+          "#A77B00",
+          "#C99F14",
+          "#E6C672",
+          "#FAEECF"
+        ]
+      },
+      "alert-red": {
+        "role": "secondary",
+        "displayName": "Alert Red",
+        "canonical": "oklch(60.1% 0.162 32.1)",
+        "tonalRamp": [
+          "#2A0000",
+          "#580000",
+          "#820000",
+          "#AA301B",
+          "#D05640",
+          "#F37E68",
+          "#FFAE9B",
+          "#FFE5DC"
+        ],
+        "purpose": "Destructive and urgent as a fill or a mark."
+      },
+      "alert-red-lit": {
+        "role": "secondary",
+        "displayName": "Alert Red Lit",
+        "canonical": "oklch(69.2% 0.130 35.0)",
+        "tonalRamp": [
+          "#250000",
+          "#4F0000",
+          "#771D04",
+          "#9D4029",
+          "#C3634B",
+          "#E58971",
+          "#FEB4A1",
+          "#FFE7DF"
+        ],
+        "purpose": "The same red as ink: failed diagnostics, the recording state line, error toasts."
+      },
+      "navigation-blue": {
+        "role": "secondary",
+        "displayName": "Navigation Blue",
+        "canonical": "oklch(70.4% 0.127 242.8)",
+        "tonalRamp": [
+          "#000A2A",
+          "#002656",
+          "#00467E",
+          "#0067A3",
+          "#2E89C7",
+          "#5EADE8",
+          "#96D1FF",
+          "#DBF2FF"
+        ],
+        "purpose": "The route and the destination pin, drawn on a pale map."
+      },
+      "navigation-blue-lit": {
+        "role": "secondary",
+        "displayName": "Navigation Blue Lit",
+        "canonical": "oklch(78.4% 0.095 240.5)",
+        "tonalRamp": [
+          "#000C22",
+          "#00284A",
+          "#00476E",
+          "#246792",
+          "#4989B5",
+          "#71ACD6",
+          "#A3D0F1",
+          "#E0F1FF"
+        ],
+        "purpose": "Navigation text and icons on a dark panel."
       },
       "instrument-white": {
         "role": "neutral",
         "displayName": "Instrument White",
-        "canonical": "#FFFFFF",
+        "canonical": "oklch(100.0% 0.000 89.9)",
         "tonalRamp": [
-          "#262626",
+          "#0B0B0B",
+          "#252525",
           "#424242",
-          "#5E5E5E",
-          "#7A7A7A",
-          "#969696",
-          "#B3B3B3",
-          "#D4D4D4",
-          "#F2F2F2"
-        ]
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "purpose": "Anything read at speed: the two instrument bars, their labels and their units."
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgba(216,203,170,.22)",
+        "purpose": "Decorative dividers between rows."
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong",
+        "canonical": "rgba(216,203,170,.48)",
+        "purpose": "Control boundaries. Clears 3:1 on every surface, because the ramp is flat by design."
+      },
+      "muted-sand": {
+        "role": "neutral",
+        "displayName": "Muted Sand",
+        "canonical": "rgba(216,203,170,.72)",
+        "purpose": "Secondary text, units, counts, hints. 5.4:1 to 6.5:1 on every surface in the app."
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "A single large figure in a panel - a distance, a count, a total. Sand, not white."
+        "purpose": "A single large figure in a panel — a distance, a count, a total. Sand, not white."
       },
       "title": {
         "displayName": "Title",
@@ -166,7 +282,7 @@
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Popup and card prose. The only role set in sentence case."
+        "purpose": "Popup and card prose."
       },
       "label": {
         "displayName": "Label",
@@ -174,23 +290,23 @@
       },
       "readout": {
         "displayName": "Readout",
-        "purpose": "Instrument values - speed, heading, altitude, distance, time - in Instrument White."
+        "purpose": "The instrument values — speed, heading, altitude, distance, time — in Instrument White."
       },
       "micro": {
         "displayName": "Micro",
-        "purpose": "Gauge labels and units. KM/H, never km/h."
+        "purpose": "Gauge labels; units drop to 8px. KM/H, never km/h."
       }
     },
     "shadows": [
       {
         "name": "pin",
         "value": "0 2px 5px rgba(0,0,0,.55)",
-        "purpose": "Map markers resting on the map plane."
+        "purpose": "Map markers."
       },
       {
-        "name": "floating-control",
+        "name": "floating",
         "value": "0 2px 10px rgba(0,0,0,.55)",
-        "purpose": "The speed sign and the map chips."
+        "purpose": "The speed sign and map chips."
       },
       {
         "name": "popup",
@@ -199,7 +315,7 @@
       },
       {
         "name": "panel",
-        "value": "0 12px 34px rgba(0,0,0,.62)",
+        "value": "0 8px 22px rgba(0,0,0,.6)",
         "purpose": "The bottom panel stack."
       },
       {
@@ -210,165 +326,150 @@
       {
         "name": "modal",
         "value": "0 16px 42px rgba(0,0,0,.7)",
-        "purpose": "The deepest level, for dialogs."
-      },
-      {
-        "name": "bevel-lip",
-        "value": "linear-gradient(180deg,#1B211D 0%,#171C19 100%)",
-        "purpose": "Not a shadow: the machined face on an instrument panel, with a 3px lip and a matching border-image hairline."
+        "purpose": "The deepest, for dialogs."
       }
     ],
     "motion": [
       {
+        "name": "panel-slide",
+        "value": "transform .24s cubic-bezier(.3,.7,.3,1)",
+        "purpose": "Drawer and panel entry and exit. Visibility flips at the end of the exit so a closed panel leaves the tab order."
+      },
+      {
         "name": "control",
         "value": "background .12s, border-color .12s",
-        "purpose": "Chip and control state changes. Fast enough to feel mechanical."
+        "purpose": "Control state changes."
       },
       {
-        "name": "state",
-        "value": "background .16s, border-color .16s",
-        "purpose": "Button and field state changes."
+        "name": "press",
+        "value": "filter: brightness(1.25)",
+        "purpose": "Button press. There is no cursor in a moving vehicle, so there is no hover state — the lamp behind the switch is the feedback."
       },
       {
-        "name": "panel",
-        "value": "transform .24s cubic-bezier(.3,.7,.3,1)",
-        "purpose": "Drawers and panels sliding in. The only eased curve in the system."
-      },
-      {
-        "name": "fade",
+        "name": "scrim",
         "value": "opacity .22s ease",
-        "purpose": "Toasts and overlays appearing."
+        "purpose": "The scrim behind the drawer."
       }
     ],
     "breakpoints": [
       {
         "name": "landscape-short",
-        "value": "(orientation: landscape) and (max-height: 520px)"
+        "value": "(orientation: landscape) and (max-height: 520px)",
+        "purpose": "The bars stand on end and the shell becomes a grid."
       },
       {
-        "name": "landscape-tight",
-        "value": "(orientation: landscape) and (max-height: 520px) and (max-width: 720px)"
+        "name": "landscape-narrow",
+        "value": "(orientation: landscape) and (max-height: 520px) and (max-width: 720px)",
+        "purpose": "Panel buttons take a row of their own."
+      },
+      {
+        "name": "fine-pointer",
+        "value": "(pointer: fine)",
+        "purpose": "The only query that asks about the hand rather than the glass. Hands the density back for a mouse: --tap 44 to 34, --tap-sm 36 to 28."
       }
     ],
-    "categoricalPalette": {
-      "purpose": "A closed 24-entry scale identifying place categories. One colour per category, used on its pin, its list dot and its filter chip. Defined in POI_META in docs/index.html. Never draw from it for anything else, and never add to it ad hoc.",
-      "entries": {
-        "fuel": "#E8B923",
-        "mechanic": "#77879B",
-        "parts": "#5F6E8C",
-        "refill": "#1E8FD1",
-        "water": "#7FA6B4",
-        "spring": "#4F8FB0",
-        "hospital": "#C4483F",
-        "doctor": "#6E5FA8",
-        "chemist": "#3E9B64",
-        "campfree": "#8FB93E",
-        "camp": "#6E8C4B",
-        "rest": "#A8794F",
-        "dump": "#7E6B4F",
-        "shower": "#8AC4D8",
-        "supermarket": "#4FA89B",
-        "outdoor": "#4A8F32",
-        "shop": "#2E7C74",
-        "toilets": "#9C8FB0",
-        "bbq": "#D07A3A",
-        "parking": "#8A9A8F",
-        "phone": "#B85FA8",
-        "post": "#5F7FC8",
-        "viewpoint": "#D8CBAA",
-        "info": "#C77B9E"
+    "tapTargets": [
+      {
+        "name": "tap",
+        "value": "44px",
+        "purpose": "Pressed while the vehicle is moving: map controls, action rail, navigation panel, popup rows."
+      },
+      {
+        "name": "tap-sm",
+        "value": "36px",
+        "purpose": "Pressed at a stop: the drawer, the settings, the cards."
       }
-    }
+    ]
   },
   "components": [
     {
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The single action on a view. Brightens on press rather than hovering - there is no cursor in a moving vehicle.",
-      "html": "<button class=\"ds-btn ds-btn-primary\">Navigate</button>",
-      "css": ".ds-btn{padding:11px 12px;border-radius:6px;border:1px solid rgba(216,203,170,.30);background:#232B26;color:#D8CBAA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:background .16s,border-color .16s}.ds-btn-primary{background:#C1552C;border-color:#C1552C;color:#12100E}.ds-btn-primary:active{filter:brightness(1.25)}.ds-btn-primary:focus-visible{outline:2px solid #D8CBAA;outline-offset:2px}"
+      "description": "The one action on a screen. Burnt Orange fill, near-black label, 44px floor for a gloved thumb.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Download New Area</button>",
+      "css": ".ds-btn{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:11px 12px;min-height:44px;border-radius:6px;border:1px solid rgba(216,203,170,.48);background:#232B26;color:#D8CBAA;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation}\n.ds-btn-primary{background:#CC5A2E;border-color:#CC5A2E;color:#12100E}\n.ds-btn:active{filter:brightness(1.25)}\n.ds-btn:focus-visible{outline:2px solid #DC8767;outline-offset:2px}\n.ds-btn[disabled]{opacity:.4;pointer-events:none}"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "The secondary action. Structure drawn with a hairline rather than a fill.",
-      "html": "<button class=\"ds-btn ds-btn-ghost\">Cancel</button>",
-      "css": ".ds-btn-ghost{padding:11px 12px;border-radius:6px;border:1px solid rgba(216,203,170,.30);background:transparent;color:#D8CBAA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .16s}.ds-btn-ghost:active{filter:brightness(1.25)}.ds-btn-ghost:focus-visible{outline:2px solid #D8CBAA;outline-offset:2px}"
+      "description": "Secondary action. Transparent, drawn entirely by its hairline, which is why that line has to clear 3:1.",
+      "html": "<button class=\"ds-btn-ghost\">Clear Trail</button>",
+      "css": ".ds-btn-ghost{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:11px 12px;min-height:44px;border-radius:6px;border:1px solid rgba(216,203,170,.48);background:transparent;color:#D8CBAA;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation}\n.ds-btn-ghost:active{filter:brightness(1.25)}\n.ds-btn-ghost:focus-visible{outline:2px solid #DC8767;outline-offset:2px}"
     },
     {
       "name": "Category Chip",
       "kind": "chip",
       "refersTo": "chip-category",
-      "description": "A place-category filter. Dot in the category colour, label taking the slack, count pushed to a shared right edge. 34px floor is the system's minimum target, set for a gloved thumb.",
-      "html": "<button class=\"ds-chip ds-chip-on\"><span class=\"ds-chip-dot\"><svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5.5\"/><path d=\"M12 7.7v.1\"/></svg></span><span class=\"ds-chip-label\">Information</span><span class=\"ds-chip-count\">1</span></button>",
-      "css": ".ds-chip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;border-radius:9px;border:1px solid rgba(216,203,170,.30);background:#0F1311;color:rgba(216,203,170,.55);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11.5px;cursor:pointer;opacity:.55;text-align:left;transition:background .12s,border-color .12s,opacity .12s}.ds-chip-on{opacity:1;color:#D8CBAA}.ds-chip:focus-visible{outline:2px solid #D8CBAA;outline-offset:2px}.ds-chip-dot{width:24px;height:24px;border-radius:50%;background:#C77B9E;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.ds-chip-dot svg{width:13px;height:13px;stroke:#14181B;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.ds-chip-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-chip-count{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9.5px;background:rgba(216,203,170,.12);color:rgba(216,203,170,.55);padding:2px 6px;border-radius:10px;letter-spacing:.06em}"
+      "description": "A POI filter. A dot in the category's colour, a label taking the slack, a count on a shared right edge. Off is 80% opacity, not less: opacity multiplies with the text colour's own transparency.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\"><span class=\"ds-chip-dot\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"#14181B\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21h18M6 21V8l6-5 6 5v13\"/></svg></span><span class=\"ds-chip-label\">Camping</span><i class=\"ds-chip-count\">12</i></button>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 10px 5px 5px;border-radius:9px;border:1px solid rgba(216,203,170,.48);background:#0F1311;color:rgba(216,203,170,.72);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11.5px;cursor:pointer;text-align:left;opacity:.8;touch-action:manipulation}\n.ds-chip[aria-pressed=\"true\"]{opacity:1;color:#73934F;border-color:#73934F;background:rgba(255,255,255,.05)}\n.ds-chip-dot{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:#6E8C4B}\n.ds-chip-label{flex:1;min-width:0}\n.ds-chip-count{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-style:normal;font-size:10px;flex:0 0 auto}\n.ds-chip:focus-visible{outline:2px solid #DC8767;outline-offset:2px}"
     },
     {
       "name": "Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "A list row inside a panel. Titles clip to one line so a long name cannot widen the list. No shadow - cards live inside panels, not on the map.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-top\"><div class=\"ds-card-mark\"><svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5.5\"/><path d=\"M12 7.7v.1\"/></svg></div><div class=\"ds-card-col\"><div class=\"ds-card-t\">Hawker General Store</div><div class=\"ds-card-sub\">Post Office &amp; Cafe</div><div class=\"ds-card-m\"><span>SUPERMARKET</span><span>14 m away</span></div></div></div></div>",
-      "css": ".ds-card{background:#161B18;border:1px solid rgba(216,203,170,.14);border-radius:7px;padding:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#D8CBAA;max-width:320px}.ds-card-top{display:flex;align-items:flex-start;gap:8px}.ds-card-mark{width:26px;height:26px;border-radius:50%;background:#4FA89B;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.ds-card-mark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.ds-card-col{flex:1;min-width:0}.ds-card-t{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-card-sub{font-size:11.5px;font-weight:500;color:rgba(216,203,170,.88);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-card-m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9.5px;color:rgba(216,203,170,.55);letter-spacing:.06em;margin-top:3px;display:flex;flex-wrap:wrap;gap:3px 10px}"
+      "description": "A saved track, waypoint or place. Lives inside a panel, so it casts no shadow: the surface ramp and a hairline do the work. Titles clip on one line so a long name cannot widen the list, and Delete holds its own end of the action row.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-top\"><div class=\"ds-card-mark\"></div><div class=\"ds-card-col\"><div class=\"ds-card-t\">Wangkangurru Yarluyandi crossing</div><div class=\"ds-card-m\">CAMP &middot; OSM &middot; 14.2 KM</div></div></div><div class=\"ds-card-acts\"><button class=\"ds-cbtn ds-cbtn-primary\">Navigate</button><button class=\"ds-cbtn\">Go To</button><button class=\"ds-cbtn ds-del\">Delete</button></div></div>",
+      "css": ".ds-card{background:#161B18;border:1px solid rgba(216,203,170,.22);border-radius:7px;padding:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#D8CBAA;max-width:320px}\n.ds-card-top{display:flex;align-items:flex-start;gap:8px}\n.ds-card-mark{width:22px;height:22px;border-radius:4px;flex:0 0 auto;background:#6E8C4B}\n.ds-card-col{flex:1;min-width:0}\n.ds-card-t{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.ds-card-m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:9.5px;color:rgba(216,203,170,.72);letter-spacing:.06em;margin-top:3px}\n.ds-card-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}\n.ds-cbtn{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:6px 9px;min-height:36px;min-width:36px;border-radius:6px;border:1px solid rgba(216,203,170,.48);background:transparent;color:#D8CBAA;cursor:pointer;flex:0 0 auto;touch-action:manipulation}\n.ds-cbtn-primary{background:#CC5A2E;border-color:#CC5A2E;color:#12100E}\n.ds-cbtn:active{filter:brightness(1.25)}\n.ds-cbtn:focus-visible{outline:2px solid #DC8767;outline-offset:2px}\n.ds-del{margin-left:auto}"
     },
     {
       "name": "Text Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "15px type deliberately - large enough not to trigger zoom on iOS. Focus shifts the border to the accent; no glow, no ring.",
-      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Address, Town, Roadhouse\">",
-      "css": ".ds-input{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;color:#D8CBAA;background:#111513;border:1px solid rgba(216,203,170,.30);border-radius:4px;padding:9px 10px;width:100%;max-width:320px;outline:none;box-sizing:border-box;transition:border-color .16s}.ds-input::placeholder{color:rgba(216,203,170,.40)}.ds-input:focus{border-color:#C1552C}"
+      "description": "16px, because under 16 iOS zooms the page on focus and there is no longer anything suppressing it. Focus shifts the border to the accent; there is no glow and no ring.",
+      "html": "<label class=\"ds-fld-cap\" for=\"ds-in\">Area name</label><input class=\"ds-input\" id=\"ds-in\" type=\"text\" value=\"Flinders Ranges\" />",
+      "css": ".ds-fld-cap{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:9px;letter-spacing:.15em;color:rgba(216,203,170,.72);text-transform:uppercase;margin-bottom:5px}\n.ds-input{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;color:#D8CBAA;background:#111513;border:1px solid rgba(216,203,170,.48);border-radius:4px;padding:9px 10px;width:100%;max-width:320px;outline:none;caret-color:#DC8767;box-sizing:border-box}\n.ds-input:focus{border-color:#CC5A2E}\n.ds-input::selection{background:rgba(204,90,46,.42);color:#D8CBAA}"
+    },
+    {
+      "name": "Switch",
+      "kind": "custom",
+      "refersTo": "switch",
+      "description": "A button carrying role=switch and aria-checked, so a screen reader and the stylesheet read the same state. 48x28 to look at, 64x44 to hit, because a switch drawn 44px tall stops reading as a switch.",
+      "html": "<div class=\"ds-swrow\"><button type=\"button\" class=\"ds-sw\" role=\"switch\" aria-checked=\"true\" aria-labelledby=\"ds-swl\"></button><span id=\"ds-swl\">Show POIs on map</span></div>",
+      "css": ".ds-swrow{display:flex;align-items:center;gap:10px;padding:9px 2px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#D8CBAA}\n.ds-sw{width:48px;height:28px;border-radius:14px;background:#0F1311;border:1px solid rgba(216,203,170,.48);position:relative;flex:0 0 auto;cursor:pointer;transition:background .16s,border-color .16s;touch-action:manipulation}\n.ds-sw::before{content:\"\";position:absolute;inset:-8px}\n.ds-sw::after{content:\"\";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:rgba(216,203,170,.72);transition:transform .16s,background .16s}\n.ds-sw[aria-checked=\"true\"]{background:rgba(204,90,46,.3);border-color:#CC5A2E}\n.ds-sw[aria-checked=\"true\"]::after{transform:translateX(20px);background:#CC5A2E}\n.ds-sw:focus-visible{outline:2px solid #DC8767;outline-offset:4px}"
     },
     {
       "name": "Instrument Gauge",
       "kind": "custom",
-      "refersTo": null,
-      "description": "The signature component. Micro label, monospaced value in Instrument White, unit beneath. Columns size to their content rather than splitting equally. The hairline divider stops short of the panel's bevel.",
-      "html": "<div class=\"ds-gauge-row\"><div class=\"ds-gauge\"><label>Speed</label><b>88</b><i>km/h</i></div><div class=\"ds-gauge\"><label>Heading</label><b><em>NNW</em>334</b><i>deg</i></div><div class=\"ds-gauge\"><label>Alt</label><b>291</b><i>m</i></div></div>",
-      "css": ".ds-gauge-row{display:flex;height:56px;background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);border-top:1px solid rgba(216,203,170,.14);border-bottom:1px solid rgba(216,203,170,.14);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.ds-gauge{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 10px;border-right:1px solid rgba(216,203,170,.14)}.ds-gauge:last-child{border-right:none}.ds-gauge label{font-size:8.5px;letter-spacing:.14em;color:#FFFFFF;text-transform:uppercase}.ds-gauge b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:17px;font-weight:600;line-height:1.05;color:#FFFFFF;white-space:nowrap}.ds-gauge b em{font-style:normal;letter-spacing:.04em;margin-right:5px}.ds-gauge i{font-size:8px;font-style:normal;color:#FFFFFF;letter-spacing:.08em;text-transform:uppercase}"
-    },
-    {
-      "name": "Speed Sign",
-      "kind": "custom",
-      "refersTo": null,
-      "description": "A literal Australian speed-limit sign. Deliberately not themed and not on the palette - it is recognisable because it looks exactly like the sign on the road.",
-      "html": "<div class=\"ds-speed\"><div class=\"ds-speed-ring\"><b>110</b></div></div>",
-      "css": ".ds-speed{width:56px;height:56px;border-radius:7px;background:#FFFFFF;box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}.ds-speed-ring{width:47px;height:47px;border-radius:50%;border:5.5px solid #C8102E;display:flex;align-items:center;justify-content:center;box-sizing:border-box}.ds-speed b{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-weight:800;color:#0B0B0B;font-size:17px;line-height:1;letter-spacing:-1px}"
+      "refersTo": "gauge",
+      "description": "The signature component. An uppercase micro label, a monospaced value in Instrument White, a unit beneath. Columns are sized to their content, because a three-letter cardinal and a five-character clock do not need the same room.",
+      "html": "<div class=\"ds-statsbar\"><div class=\"ds-stat\" role=\"group\" aria-label=\"Speed\"><span class=\"ds-lbl\">Speed</span><b>88</b><i>km/h</i></div><div class=\"ds-stat\" role=\"group\" aria-label=\"Heading\"><span class=\"ds-lbl\">Heading</span><b><em>WSW</em>241</b><i>deg</i></div><div class=\"ds-stat\" role=\"group\" aria-label=\"Distance\"><span class=\"ds-lbl\">Dist</span><b>142.60</b><i>km</i></div></div>",
+      "css": ".ds-statsbar{display:flex;height:56px;background:linear-gradient(180deg,#111513 0,#111513 calc(100% - 3px),#1B221D calc(100% - 3px),#333D36 100%);box-shadow:0 1px 0 rgba(0,0,0,.65),0 6px 12px -6px rgba(0,0,0,.55);max-width:360px}\n.ds-stat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 2px;border-right:1px solid rgba(216,203,170,.22);border-image:linear-gradient(180deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}\n.ds-stat:last-child{border-right:none}\n.ds-lbl{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:8.5px;letter-spacing:.14em;color:#FFFFFF;text-transform:uppercase}\n.ds-stat b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:17px;font-weight:600;line-height:1.05;color:#FFFFFF;white-space:nowrap}\n.ds-stat b em{font-style:normal;color:#FFFFFF;letter-spacing:.04em;margin-right:5px}\n.ds-stat i{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:8px;font-style:normal;letter-spacing:.12em;color:#FFFFFF;text-transform:uppercase}"
     },
     {
       "name": "Map Popup",
       "kind": "custom",
       "refersTo": "popup",
-      "description": "Sits above the map with the popup shadow. Coloured uppercase title, optional second line for a place whose sign has one, then a monospaced meta line of category, source and distance.",
-      "html": "<div class=\"ds-popup\"><div class=\"ds-popup-t\">Hawker General Store</div><div class=\"ds-popup-sub\">Post Office &amp; Cafe</div><div class=\"ds-popup-m\">SUPERMARKET &middot; OSM &middot; 14 m away</div></div>",
-      "css": ".ds-popup{background:#1B211D;color:#D8CBAA;border:1px solid rgba(216,203,170,.30);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.4;max-width:260px}.ds-popup-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:3px;color:#4FA89B}.ds-popup-sub{font-weight:600;font-size:11.5px;color:#D8CBAA;opacity:.9;margin:-1px 0 4px}.ds-popup-m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;color:rgba(216,203,170,.55);letter-spacing:.05em}"
+      "description": "A place, tapped on the map. The title is the category's colour lifted to ink; the pin keeps the original. Width is capped off the stage so it fits a 320px phone.",
+      "html": "<div class=\"ds-pop\"><div class=\"ds-pop-t\">Hawker General Store</div><div class=\"ds-pop-sub\">Post Office &amp; Cafe</div><div class=\"ds-pop-m\">SUPERMARKET &middot; OSM &middot; 240 M</div></div>",
+      "css": ".ds-pop{background:#1B211D;color:#D8CBAA;border:1px solid rgba(216,203,170,.48);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);padding:10px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:1.4;max-width:300px}\n.ds-pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:3px;color:#5CC0B2}\n.ds-pop-sub{font-weight:600;font-size:11.5px;color:#D8CBAA;opacity:.9;margin:-1px 0 4px}\n.ds-pop-m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:10px;color:rgba(216,203,170,.72);letter-spacing:.05em}"
     },
     {
       "name": "Waypoint Pin",
       "kind": "custom",
       "refersTo": "pin-waypoint",
-      "description": "Something the driver put there. A rotated square with one sharp corner - the point marks the spot.",
-      "html": "<div class=\"ds-pin-wpt\"><div class=\"ds-pin-wpt-badge\"><svg viewBox=\"0 0 24 24\"><path d=\"M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.6\"/></svg></div></div>",
-      "css": ".ds-pin-wpt{display:inline-block;padding:6px}.ds-pin-wpt-badge{width:26px;height:26px;border-radius:50% 50% 2px 50%;transform:rotate(45deg);background:#8FB93E;border:1.5px solid #0D100F;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.55)}.ds-pin-wpt-badge svg{width:13px;height:13px;transform:rotate(-45deg);stroke:#14181B;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}"
+      "description": "Something the driver put there. A 26px square with one sharp corner, rotated 45 degrees, so the point marks the spot. Solid outline, per The Mine Versus Mapped Rule.",
+      "html": "<div class=\"ds-pinwrap\"><div class=\"ds-pin-badge\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"#14181B\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 21V4l9 4-9 4\"/></svg></div></div>",
+      "css": ".ds-pinwrap{display:inline-block;padding:8px}\n.ds-pin-badge{width:26px;height:26px;border-radius:50% 50% 2px 50%;transform:rotate(45deg);border:1.5px solid #0D100F;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.55);background:#CC5A2E}\n.ds-pin-badge svg{transform:rotate(-45deg);display:block}"
     },
     {
       "name": "POI Pin",
       "kind": "custom",
       "refersTo": "pin-poi",
-      "description": "Something the map knows about. A dashed circle - the silhouette carries the distinction from a waypoint before any colour or icon does.",
-      "html": "<div class=\"ds-pin-poi\"><div class=\"ds-pin-poi-badge\"><svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 11v5.5\"/><path d=\"M12 7.7v.1\"/></svg></div></div>",
-      "css": ".ds-pin-poi{display:inline-block;padding:6px}.ds-pin-poi-badge{width:22px;height:22px;border-radius:50%;background:#C77B9E;border:1.5px dashed #0D100F;opacity:.92;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.55)}.ds-pin-poi-badge svg{width:12px;height:12px;stroke:#14181B;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
+      "description": "Something the map knows about. A 22px circle with a dashed border. The silhouette carries the distinction before any colour or icon does.",
+      "html": "<div class=\"ds-pinwrap\"><div class=\"ds-pin-poi\"><svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"#14181B\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21h18M6 21V8l6-5 6 5v13\"/></svg></div></div>",
+      "css": ".ds-pin-poi{width:22px;height:22px;border-radius:50%;border:1.5px dashed #0D100F;opacity:.92;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.55);background:#6E8C4B}\n.ds-pin-poi svg{display:block}"
     }
   ],
   "narrative": {
     "northStar": "The Instrument Cluster",
-    "overview": "TrailTracker is fitted to a vehicle, not added to a website. The two bars that frame the map are gauges: labelled, unit-suffixed, monospaced, and read at a glance by someone whose eyes belong on the track. The map between them is the windscreen. Everything else - panels, popups, pins - is an object resting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground is a near-black with green in it, not a neutral grey; the text is a warm sand rather than white; the accent is a burnt orange that belongs to oxide and ochre. Panel faces carry a shallow bevel and a hairline along their edge, so a surface reads as a face with an edge rather than a rectangle with a fill. The result should feel like well-kept equipment - a logbook, a marked map, a dash that has been in the sun - not like software with a dark theme switched on.\n\nRestraint is the operating principle. Controls are precise and quiet so the map and the readings lead; colour is used to classify, not to decorate; and the interface says plainly when it does not know something rather than maintaining a confident surface. Confirmed anti-references: consumer nav apps (rounded white cards, blue accents, floating pill search bars) and generic dark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient shadow everywhere).",
+    "overview": "TrailTracker is fitted to a vehicle, not added to a website. The two bars\nthat frame the map are gauges: labelled, unit-suffixed, monospaced, and read\nat a glance by someone whose eyes belong on the track. The map between them\nis the windscreen. Everything else — panels, popups, pins — is an object\nresting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground\nis a near-black with green in it, not a neutral grey; the text is a warm sand\nrather than white; the accent is a burnt orange that belongs to oxide and\nochre. Panel faces carry a shallow bevel and a hairline along their edge, so\na surface reads as a face with an edge rather than a rectangle with a fill.\nThe result should feel like well-kept equipment — a logbook, a marked map, a\ndash that has been in the sun — not like software with a dark theme switched\non.\n\nRestraint is the operating principle. Controls are precise and quiet so the\nmap and the readings lead; colour is used to classify, not to decorate; and\nthe interface says plainly when it does not know something rather than\nmaintaining a confident surface. Confirmed anti-references: consumer nav apps\n(rounded white cards, blue accents, floating pill search bars) and generic\ndark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient\nshadow everywhere).",
     "keyCharacteristics": [
       "Warm dark ground with sand text; never grey-on-grey",
       "Monospaced readouts for anything numeric and glanceable",
-      "Tight radii (4-10px) and hairline borders; nothing pill-shaped or blobby",
+      "Tight radii (4–10px) and hairline borders; nothing pill-shaped or blobby",
       "Every overlay sits above the map with a real, dark shadow",
       "Colour classifies; size and weight carry hierarchy",
       "Uppercase, wide-tracked labels on every control"
@@ -376,73 +477,97 @@
     "rules": [
       {
         "name": "The Full Sun Rule",
-        "section": "colors",
-        "body": "The two instrument bars use Instrument White (#FFFFFF), not sand, and their labels and units use it too. Sand at 55% opacity is comfortable indoors and unreadable on the Flinders at midday. Size and weight separate a label from its number, so nothing is lost by taking colour out of that job. Any new element read at speed inherits this rule."
+        "body": "The two instrument bars use Instrument White (`#FFFFFF`), not sand, and their labels and units use it too. Even Warm Sand at full strength is a warm off-white, and a reading taken at 80 km/h through sunglasses cannot afford the difference. Size and weight separate a label from its number, so nothing is lost by taking colour out of that job. Any new element read at speed inherits this rule. The rule runs the whole ramp, not just the bars. Everything below them is read at a stop rather than at speed, but it is read in the same light, so every text colour in the system clears 4.5:1 against the surface it is set on and every control border clears 3:1. Nothing is exempt for being small, secondary, or a caption; small type is the type that needs it most.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mark Versus Ink Rule",
+        "body": "A colour chosen to be a mark and a colour used as ink are different jobs with different floors. A pin, a dot, a route line or a status lamp is a mark, and clears 3:1. The moment the same hex is set as a word — a popup title, a chip label, a button face — it is ink, and has to clear 4.5:1 against its ground. Where a mark colour cannot, it is lifted in lightness with its hue and saturation held, and only the text moves; the mark keeps its exact colour. Burnt Orange Lit and Alert Red Lit are this rule written down for the accents, and `inkOf()` in `docs/index.html` is the same rule applied to the categorical scales at render time. Never solve it by picking a different colour.",
+        "section": "colors"
       },
       {
         "name": "The One Accent Rule",
-        "section": "colors",
-        "body": "Burnt Orange means action and nothing else. A screen should carry it on one control. If two things are orange, one of them is wrong."
+        "body": "Burnt Orange means action and nothing else. A screen should carry it on one control. If two things are orange, one of them is wrong. Its lit twin is the same colour under this rule, not a second one — a control cannot use both to look like two things.",
+        "section": "colors"
       },
       {
         "name": "The Closed Scale Rule",
-        "section": "colors",
-        "body": "Category colour comes from the 24-entry scale or it does not exist. Never invent a colour to distinguish a new kind of place; add it to the scale or reuse the category that already fits."
+        "body": "Category colour comes from the 24-entry scale or it does not exist. Never invent a colour to distinguish a new kind of place; add it to the scale or reuse the category that already fits. A colour added to the scale is chosen as a mark and only has to clear 3:1 there; The Mark Versus Ink Rule makes it legible wherever it is set as a word, so it does not need a hand-picked text variant and must not be given one.",
+        "section": "colors"
       },
       {
         "name": "The Monospace Rule",
-        "section": "typography",
-        "body": "Monospace is for values that change: readings, prices, coordinates, counts, timestamps. Prose is never monospaced, and a number that never moves is not a readout."
+        "body": "Monospace is for values that change: readings, prices, coordinates, counts, timestamps. Prose is never monospaced, and a number that never moves is not a readout.",
+        "section": "typography"
       },
       {
         "name": "The Shouting Labels Rule",
-        "section": "typography",
-        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading."
+        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.",
+        "section": "typography"
       },
       {
         "name": "The One Screen Rule",
-        "section": "layout",
-        "body": "The application never scrolls. Anything that does not fit belongs in a panel that scrolls inside itself."
+        "body": "The application never scrolls. Anything that does not fit belongs in a panel that scrolls inside itself.",
+        "section": "layout"
       },
       {
         "name": "The Rail Follows Itself Rule",
-        "section": "layout",
-        "body": "The bars' heights and widths are single custom properties, and everything that must clear them measures from those properties. Never hard-code a bar's size into another element's offset."
+        "body": "The bars' heights and widths are single custom properties, and everything that must clear them measures from those properties. Never hard-code a bar's size into another element's offset.",
+        "section": "layout"
+      },
+      {
+        "name": "The Nothing Behind The Glass Rule",
+        "body": "A panel moved off screen with a transform is still in the tab order and still in the accessibility tree. The drawer and the POI panel go to `visibility:hidden` at the end of their slide out and back to visible at the start of the slide in, so what a keyboard can reach is what an eye can see. Overlays that hide with `display:none` already do this; anything that hides by moving has to be told.",
+        "section": "layout"
+      },
+      {
+        "name": "The Two Hands Rule",
+        "body": "Every control is sized from `--tap` (44px) or `--tap-sm` (36px), never from a number, and the choice between them is the scene rather than the screen: `--tap` for what is pressed while the vehicle is moving — the map controls, the action rail, the navigation panel, a popup's buttons — and `--tap-sm` for what is pressed at a stop, which is the drawer, the settings and the cards. A control that will not read right at 44px keeps its shape and grows an invisible target instead; the switch is 48×28 with a 64×44 hit area. Coarse is the base, because the vehicle is the base. `(pointer: fine)` hands the density back for the desk, where the trip gets planned and where a pointer lands exactly where it is put. Never key this off viewport width: a phone held in landscape is still a thumb, and a touchscreen laptop is still a mouse.",
+        "section": "layout"
+      },
+      {
+        "name": "The Elbow Room Rule",
+        "body": "Where a destructive control shares a row with the ones you meant to press, it takes its own end of that row and the gap that comes with it. Size is not separation — Delete at 36px next to Go To at 36px is the same mis-tap with a bigger surface. On a fine pointer it goes back in line; the distance is for the thumb, not for the caution.",
+        "section": "layout"
       },
       {
         "name": "The Above The Map Rule",
-        "section": "elevation",
-        "body": "Anything drawn over the map casts a shadow from this vocabulary. Anything inside a panel does not - it uses the surface ramp and the bevel instead."
+        "body": "Anything drawn over the map casts a shadow from this vocabulary. Anything inside a panel does not — it uses the surface ramp and the bevel instead.",
+        "section": "elevation & depth"
       },
       {
         "name": "The Mine Versus Mapped Rule",
-        "section": "shapes",
-        "body": "A solid, pointed pin is something the driver put there. A dashed circle is something the map knows about. The silhouette carries that distinction before any colour or icon does; never blur it."
+        "body": "A solid, pointed pin is something the driver put there. A dashed circle is something the map knows about. The silhouette carries that distinction before any colour or icon does; never blur it.",
+        "section": "shapes"
       },
       {
         "name": "The Tight Corner Rule",
-        "section": "shapes",
-        "body": "No radius exceeds 10px on a rectangular surface. Large radii read as a consumer app and are out of character with the instrument face."
+        "body": "No radius exceeds 10px on a rectangular surface. Large radii read as a consumer app and are out of character with the instrument face.",
+        "section": "shapes"
       }
     ],
     "dos": [
-      "Do use Instrument White (#FFFFFF) for anything read at speed - values, their labels and their units. Sand at 55% is not legible in full sun.",
-      "Do give every map overlay a shadow from the vocabulary, and give panel internals none.",
-      "Do keep radii between 3px and 10px, and draw structure with one-pixel sand transparencies rather than filled dividers.",
-      "Do set control labels in uppercase with at least .09em tracking, and widen the tracking as the type shrinks.",
-      "Do keep tappable controls at 34px minimum height - the chip's floor is the system's floor, set for a gloved thumb.",
-      "Do reserve monospace for values that change, and say the unit in uppercase beside it (KM/H).",
-      "Do state absence plainly in the interface - an unmapped road, a stale price, a straight-line fallback. A confident surface over missing data is a defect here, not a polish win."
+      "**Do** use Instrument White (`#FFFFFF`) for anything read at speed —",
+      "**Do** give every map overlay a shadow from the vocabulary, and give panel",
+      "**Do** keep radii between 3px and 10px, and draw structure with one-pixel",
+      "**Do** set control labels in uppercase with at least .09em tracking, and",
+      "**Do** size a control from `--tap` or `--tap-sm` rather than a number, and",
+      "**Do** give a destructive control its own end of a row. Size does not fix",
+      "**Do** reserve monospace for values that change, and say the unit in",
+      "**Do** lift a mark colour rather than substitute one when it has to carry",
+      "**Do** theme the surfaces the browser would otherwise paint for itself —",
+      "**Do** state absence plainly in the interface — an unmapped road, a stale"
     ],
     "donts": [
-      "Don't reach for rounded white cards, blue accents, floating pill search bars or friendly illustration. That is the phone's built-in map, and it is a confirmed anti-reference.",
-      "Don't introduce purple gradients, glassmorphism, large radii or soft ambient shadow. That is dark-mode SaaS, and it is the other confirmed anti-reference.",
-      "Don't use colour as the only difference between a label and its value; size and weight already do that job, and colour is needed for classifying.",
-      "Don't add a category colour outside the 24-entry scale.",
-      "Don't put Burnt Orange on more than one control in a view.",
-      "Don't make the application scroll; put overflow inside a panel.",
-      "Don't load a webfont, or anything else from the network, into the shell. The file must open and be legible with no connection.",
-      "Don't give a POI pin a solid outline or a waypoint pin a dashed one - the silhouettes mean different things."
+      "**Don't** reach for rounded white cards, blue accents, floating pill search",
+      "**Don't** introduce purple gradients, glassmorphism, large radii or soft",
+      "**Don't** dim text with element `opacity` stacked on an already",
+      "**Don't** use colour as the only difference between a label and its value;",
+      "**Don't** add a category colour outside the 24-entry scale.",
+      "**Don't** put Burnt Orange on more than one control in a view.",
+      "**Don't** make the application scroll; put overflow inside a panel.",
+      "**Don't** load a webfont, a script, a stylesheet or anything else from the",
+      "**Don't** give a POI pin a solid outline or a waypoint pin a dashed one —"
     ]
   }
 }
