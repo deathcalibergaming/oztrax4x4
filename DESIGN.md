@@ -251,6 +251,19 @@ rule written down for the accents, and `inkOf()` in `docs/index.html` is the
 same rule applied to the categorical scales at render time. Never solve it
 by picking a different colour.
 
+The rule runs in both directions, because a colour can be on either side of
+the contrast. `Legible.ink()` raises a category colour until it can be read
+*on* the panel. `Legible.ground()` raises it until near-black can be read
+*on it* — which is what a cluster pin needs, since the count inside it is a
+number and therefore text at 4.5:1, not a glyph at 3:1. Seven of the
+twenty-four could not carry near-black at the text bar and are lifted; the
+single pin keeps the category colour exactly, and only the pile moves.
+
+A colour that has to carry text is also opaque. The cluster badge went to
+full opacity for this: three percent of whatever terrain happened to be
+behind it was enough to drag a lifted fill from 4.6 back to 4.4 over dark
+ground, and a contrast that depends on the map is not a contrast.
+
 **The One Accent Rule.** Burnt Orange means action and nothing else. A screen
 should carry it on one control. If two things are orange, one of them is
 wrong. Its lit twin is the same colour under this rule, not a second one — a
@@ -512,6 +525,30 @@ as a `<button role="switch">` carrying `aria-checked` — the state is the
 control's, not a class's, so a screen reader and the stylesheet read the same
 truth.
 
+### Motion
+
+There is no focal moment and there should not be one. An instrument cluster
+does not perform. Motion here does exactly three jobs: a panel slides so you
+know where it came from, a control changes colour so you know it took the
+press, and the recording dot pulses so you know the track is still running.
+
+- **Panels and drawers:** 0.24s on `cubic-bezier(.3,.7,.3,1)`
+- **Controls:** 0.12s on background and border; the press itself is
+  `filter: brightness(1.25)` with no transition, because feedback that
+  arrives late reads as latency
+- **Reduced motion:** spatial movement goes, feedback stays. Panels appear
+  rather than travel, the sign stops sliding, the switch knob stops moving
+  but still changes colour. This is not a blanket `0.01ms` kill — a driver
+  tapping controls that give nothing back is a worse interface, not a
+  gentler one.
+
+**The Ring Instead Of A Pulse Rule.** Where an animation is the only thing
+distinguishing two states, reduced motion has to replace it, not remove it.
+The recording dot pulses when live and sits still when paused; stop the
+pulse and the two differ by colour alone, which this system forbids
+everywhere else. Under reduced motion the live dot wears a ring instead.
+Same information, no movement.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -539,6 +576,9 @@ truth.
 - **Do** theme the surfaces the browser would otherwise paint for itself —
   the selection, the caret, the scrollbar, the focus ring. A system-blue
   selection belongs to no palette here.
+- **Do** give a message that appears and disappears a live region, so what
+  the interface says out loud matches what it shows. The toast is
+  `role="status"`, or `role="alert"` when it is carrying an error.
 - **Do** state absence plainly in the interface — an unmapped road, a stale
   price, a straight-line fallback. A confident surface over missing data is a
   defect here, not a polish win.
