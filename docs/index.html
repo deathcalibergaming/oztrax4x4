@@ -1073,7 +1073,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:12px}
 .pop-a{display:flex;gap:6px;margin-top:9px}
 /* a pile of pins collapsed into one: the count replaces the glyph */
-.pin.poi.cluster .badge{border-style:solid;opacity:.97;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
+/* Fully opaque, unlike the single pin at .92. The count inside is text, and
+   three percent of whatever the map happens to be showing was enough to
+   drag the lifted fills from 4.6 back down to 4.4 over dark ground - a
+   contrast that depends on the terrain is not a contrast you can rely on. */
+.pin.poi.cluster .badge{border-style:solid;opacity:1;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
 .pin.poi.cluster .cnum{font-family:var(--mono);font-size:11px;font-weight:700;color:#14181B;
   letter-spacing:0;line-height:1}
 /* the list a cluster popup shows: one tappable row per place underneath */
@@ -1743,6 +1747,41 @@ input[type=date],input[type=time]{color-scheme:dark}
   .card-acts .btn[data-act="del"],
   .card-acts .btn.dangerb{margin-left:0}
 }
+
+/* ---------- reduced motion ----------
+   Not a kill switch. What goes is spatial movement - the sliding, the
+   travelling, the pulsing. What stays is every transition that carries
+   meaning rather than distance: colour on a control that has just been
+   pressed, opacity on a panel arriving, the scrim darkening. Turning all of
+   that off would leave a driver tapping controls that give nothing back,
+   which is a worse interface, not a gentler one.
+
+   The one animation that has to be replaced rather than removed is the
+   recording dot. It pulses to say the track is live, and its paused state is
+   a different colour standing still. Stop the pulse and the two states
+   differ by colour alone, which this design system does not allow anywhere
+   else - so the live dot keeps a ring instead. Same information, no
+   movement. */
+@media (prefers-reduced-motion: reduce) {
+  /* Panels arrive by appearing rather than travelling. The transform is how
+     they are hidden, so it stays; only its duration goes, and visibility has
+     to lose the matching delay or a closed panel would linger invisible-but-
+     present for the length of a slide that no longer happens. */
+  #drawer,#poiPanel{transition:transform .01s linear,visibility 0s linear .01s}
+  #drawer.open,#poiPanel.open{transition:transform .01s linear,visibility 0s}
+  /* The sign shifting up to clear a panel is pure travel. */
+  #speedSign{transition:none}
+  /* The knob stops sliding; its colour still changes, which is the state. */
+  .sw::after{transition:background .16s}
+  /* A determinate bar jumping to its value still reads as progress. */
+  .prog i{transition:none}
+  /* The toast still fades; it just does not fly in. */
+  #toast{transform:translateX(-50%);transition:opacity .2s}
+  #toast.show{transform:translateX(-50%)}
+  /* Recording: a ring instead of a pulse. */
+  .rec-dot{animation:none;box-shadow:0 0 0 3px rgba(207,83,61,.4)}
+  .rec-dot.pause{box-shadow:none}
+}
 </style>
 </head>
 <body>
@@ -1781,8 +1820,8 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="stat" id="stTimeBox" role="group" aria-label="Elapsed time"><span class="lbl">Time</span><b id="stTime">00:00</b><i>h:m</i></div>
   </div>
 
-  <div id="stage">
-    <div id="rotWrap"><div id="panWrap"><div id="map"></div></div></div>
+  <div id="stage" role="main">
+    <div id="rotWrap"><div id="panWrap"><div id="map" role="region" aria-label="Map"></div></div></div>
     <div id="zoomCtl">
       <button id="btnZin" aria-label="Zoom in">+</button>
       <button id="btnZout" aria-label="Zoom out">&minus;</button>
@@ -2230,7 +2269,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     </div>
   </div>
 </div>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- ===================================================================
      Leaflet 1.9.4, embedded.
@@ -2563,8 +2602,23 @@ function closeAsk(answer) {
 
 function askOpen() { return !$("#askModal").classList.contains("hidden"); }
 let toastTimer = null;
+/* Seventy-nine call sites end up here, and until now every one of them said
+   its piece in pixels only - "could not save changes, storage unavailable",
+   "track discarded, too few points", "saved: Oodnadatta Track". The element
+   is a live region now, so the sentence is spoken as well as shown.
+
+   Polite for the ordinary ones, so a confirmation waits its turn. Assertive
+   for an error, which is the one case where interrupting is the point. The
+   role is set alongside so the two never disagree.
+
+   textContent is assigned after the politeness, not before: a live region
+   that changes its own urgency in the same tick as its text can announce
+   under the previous setting. */
 function toast(msg, kind) {
   const t = $("#toast");
+  const urgent = kind === "err";
+  t.setAttribute("aria-live", urgent ? "assertive" : "polite");
+  t.setAttribute("role", urgent ? "alert" : "status");
   t.textContent = msg;
   t.className = "show " + (kind || "");
   clearTimeout(toastTimer);
@@ -2992,12 +3046,12 @@ if (S.hillshade) setHillshade(true);
    a colour added to POI_META or CATS later is legible without anyone having
    to remember this. The scale stays closed: nothing here invents a hue, it
    only raises one that was already chosen. */
-const inkOf = (function () {
-  const memo = {};
+const Legible = (function () {
   const PANEL = [0x1B, 0x21, 0x1D];          /* --panel, the ground a popup sits on */
+  const GLYPH = [0x14, 0x18, 0x1B];          /* near-black, the ink inside every pin */
   const chan = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
   const lum = c => 0.2126 * chan(c[0]) + 0.7152 * chan(c[1]) + 0.0722 * chan(c[2]);
-  const ratio = c => { const a = lum(c), b = lum(PANEL); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+  const against = (c, other) => { const a = lum(c), b = lum(other); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
   function toHSL(c) {
     const r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
@@ -3021,24 +3075,43 @@ const inkOf = (function () {
     };
     return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
   }
-  return function (hex) {
+  /* One walk, two directions. Both take a colour from the scale and raise its
+     lightness - holding hue and saturation - until a 4.5:1 contrast is met.
+     They differ only in what is being read against what:
+
+       ink    the colour is the word, the panel is behind it
+       ground the colour is behind the word, and the word is the near-black
+              every pin glyph is already drawn in
+
+     `fallback` is where a hue that cannot reach 4.5 at any lightness ends up. */
+  function raise(hex, other, fallback, memo) {
     if (typeof hex !== "string" || hex.charAt(0) !== "#" || hex.length !== 7) return hex;
     if (memo[hex]) return memo[hex];
     const c0 = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
     if (c0.some(isNaN)) return hex;
     let out = hex;
-    if (ratio(c0) < 4.5) {
+    if (against(c0, other) < 4.5) {
       const hsl = toHSL(c0);
-      out = "#D8CBAA";                        /* sand, if the hue cannot get there at all */
-      for (let l = hsl[2]; l <= 0.95; l += 0.01) {
+      out = fallback;
+      for (let l = hsl[2]; l <= 0.98; l += 0.01) {
         const c = toRGB(hsl[0], hsl[1], l);
-        if (ratio(c) >= 4.5) { out = "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""); break; }
+        if (against(c, other) >= 4.5) { out = "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""); break; }
       }
     }
     memo[hex] = out;
     return out;
+  }
+  const inkMemo = {}, groundMemo = {};
+  return {
+    /* A category colour used as a word: a popup title, an active chip label. */
+    ink:    hex => raise(hex, PANEL, "#D8CBAA", inkMemo),
+    /* A category colour used as the ground under near-black: the cluster pin,
+       whose count is a number and therefore text, not a glyph. Seventeen of
+       the twenty-four already clear it and come back untouched. */
+    ground: hex => raise(hex, GLYPH, "#D8CBAA", groundMemo),
   };
 })();
+const inkOf = Legible.ink;
 
 /* The palette lives in :root and nowhere else. Leaflet wants a plain string
    rather than a custom property, so read the token once here instead of
@@ -6389,7 +6462,11 @@ function clusterIcon(group) {
     const at = POI_ORDER.indexOf(p.kind);
     if (at > -1 && (bestAt === -1 || at < bestAt)) { best = p.kind; bestAt = at; }
   });
-  const c = POI_META[best].color;
+  /* The count inside a cluster is a number, which makes it text at 4.5:1 -
+     not a glyph at 3. Seven of the twenty-four category colours cannot carry
+     near-black at that bar, so the badge ground is lifted until it can. The
+     single pin keeps the category colour exactly; only the pile moves. */
+  const c = Legible.ground(POI_META[best].color);
   return L.divIcon({
     className: "pin poi cluster",
     iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
