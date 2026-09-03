@@ -782,10 +782,45 @@ svg.leaflet-image-layer.leaflet-interactive path {
      of the stylesheet. Coarse is the base because the vehicle is the base. */
   --tap:44px;
   --tap-sm:36px;
+  /* ---- text size ----
+     Page zoom cannot work in this shell (see the viewport comment), so the
+     app scales its own type instead. One multiplier, and every font-size in
+     the file derives from it - twenty of them, named for the pixel value
+     they start at rather than for a role, because the type ramp has twenty
+     steps and inventing six roles to hold them would be renaming the design
+     rather than describing it.
+
+     The bars grow with the type, or a larger label would be clipped by a
+     height that did not move. The tap sizes deliberately do not: 44px is a
+     thumb, not a letter, and it is already right.
+
+     The speed sign does not scale either. It is a literal road sign whose
+     numerals are cut to keep the red ring clear at a fixed 56px plate. */
+  --uiScale:1;
+  --f65:calc(6.5px * var(--uiScale));
+  --f7:calc(7px * var(--uiScale));
+  --f8:calc(8px * var(--uiScale));
+  --f85:calc(8.5px * var(--uiScale));
+  --f9:calc(9px * var(--uiScale));
+  --f95:calc(9.5px * var(--uiScale));
+  --f10:calc(10px * var(--uiScale));
+  --f105:calc(10.5px * var(--uiScale));
+  --f11:calc(11px * var(--uiScale));
+  --f115:calc(11.5px * var(--uiScale));
+  --f12:calc(12px * var(--uiScale));
+  --f125:calc(12.5px * var(--uiScale));
+  --f13:calc(13px * var(--uiScale));
+  --f14:calc(14px * var(--uiScale));
+  --f15:calc(15px * var(--uiScale));
+  --f16:calc(16px * var(--uiScale));
+  --f17:calc(17px * var(--uiScale));
+  --f20:calc(20px * var(--uiScale));
+  --f21:calc(21px * var(--uiScale));
+  --f26:calc(26px * var(--uiScale));
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --topH:50px;
-  --statsH:56px;
+  --topH:calc(50px * var(--uiScale));
+  --statsH:calc(56px * var(--uiScale));
   /* The action bar stands the same height as the stats row rather than the
      76px it was given for a gloved thumb. Kept as its own name because the
      speed sign and the panel stack both measure up from it, and should
@@ -795,7 +830,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
      both of them in landscape. One number so the stats column and the
      action rail cannot drift apart, and so everything that has to clear
      the rail moves when it does. */
-  --railW:80px;
+  --railW:calc(80px * var(--uiScale));
   --maprot:0deg;
   --safeT:env(safe-area-inset-top,0px);
   --safeB:env(safe-area-inset-bottom,0px);
@@ -813,7 +848,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 ::-webkit-scrollbar-thumb:hover{background:rgba(216,203,170,.66);background-clip:content-box}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:var(--ink);color:var(--sand);
-  font-family:var(--ui);font-size:15px;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+  font-family:var(--ui);font-size:var(--f15);overscroll-behavior:none;-webkit-user-select:none;user-select:none;
   -webkit-text-size-adjust:100%}
 /* touch-action:manipulation drops the double-tap-to-zoom gesture on controls
    while leaving pinch alone. Without it, restoring page zoom would mean a
@@ -829,7 +864,7 @@ button{font-family:inherit;color:inherit;background:none;border:none;padding:0;c
    the better size to type into on a phone, and because leaving it here means
    the field does not depend on the viewport meta to behave. If page zoom is
    ever solved properly, this line does not have to be remembered. */
-input,select,textarea{font-family:inherit;font-size:16px;color:var(--sand);background:#111513;
+input,select,textarea{font-family:inherit;font-size:var(--f16);color:var(--sand);background:#111513;
   border:1px solid var(--line2);border-radius:4px;padding:9px 10px;width:100%;outline:none;-webkit-user-select:text;user-select:text;
   caret-color:var(--rust2)}
 /* The select used to sit in this list without its :focus, so it wore the
@@ -857,7 +892,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
 .brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:1px;letter-spacing:.16em;
-  font-size:14px;font-weight:700;text-transform:uppercase}
+  font-size:var(--f14);font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
 .brand .b2{color:var(--rust2)}
 .icon-btn{width:var(--tap);height:var(--tap);border-radius:6px;display:flex;align-items:center;justify-content:center;
@@ -890,7 +925,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Android's own shape, so it is recognised before it is read: the number on
    the left, the cell on the right, filling from the flat end. White until a
    fifth is left, and then the colour of the warning it has become. */
-#battPill{font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+#battPill{font-family:var(--mono);font-size:var(--f10);letter-spacing:.04em;
   color:var(--hud);white-space:nowrap}
 #battPill svg{width:24px;height:12px;flex:0 0 auto}
 #battPill .shell{fill:none;stroke:var(--dim);stroke-width:1.2}
@@ -951,11 +986,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
                                          four days recording and still fits:
                                          what flex-grow hands this column back
                                          is wider than its basis on any phone */
-.stat .lbl{display:block;font-size:8.5px;letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
-.stat b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.05;color:var(--hud);
+.stat .lbl{display:block;font-size:var(--f85);letter-spacing:.14em;color:var(--hud);text-transform:uppercase}
+.stat b{font-family:var(--mono);font-size:var(--f17);font-weight:600;line-height:1.05;color:var(--hud);
   white-space:nowrap}
 .stat b em{font-style:normal;color:var(--hud);letter-spacing:.04em;margin-right:5px}
-.stat i{font-size:8px;font-style:normal;color:var(--hud);letter-spacing:.08em;
+.stat i{font-size:var(--f8);font-style:normal;color:var(--hud);letter-spacing:.08em;
   text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:pan-x pan-y}
@@ -979,7 +1014,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    Attribution is still shown; it is shown properly, one tap away. */
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
-  font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
+  font-family:var(--mono);font-size:var(--f20);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
@@ -1031,6 +1066,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   transition:transform .24s cubic-bezier(.3,.7,.3,1)}
 #speedSign .ring{width:47px;height:47px;border-radius:50%;border:5.5px solid #C8102E;
   display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+/* Literal, not a scale token. The plate is 56px and the ring inside it is
+   47px with a 5.5px stroke; the numerals are cut to sit inside that ring. A
+   road sign is a road sign at one size, and growing the number with a text
+   setting would push it into the red. */
 #speedSign b{font-family:var(--ui);font-weight:800;color:#0B0B0B;
   font-size:21px;line-height:1;letter-spacing:-.5px}
 /* three digits have to give a little back to keep the ring clear */
@@ -1041,7 +1080,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #mapChips > *{pointer-events:auto;max-width:100%}
 .mapchip{display:flex;align-items:center;gap:6px;
   background:rgba(20,24,27,.92);border:1px solid var(--rust);border-radius:20px;
-  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust2);
+  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:var(--f95);letter-spacing:.1em;color:var(--rust2);
   text-transform:uppercase}
 .mapchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
@@ -1071,19 +1110,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pin.poi .badge svg{width:12px;height:12px;transform:none;stroke-width:2.2}
 .leaflet-popup-content-wrapper{background:var(--panel);color:var(--sand);border:1px solid var(--line2);
   border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
-.leaflet-popup-content{margin:10px 12px;font-size:13px;line-height:1.4}
+.leaflet-popup-content{margin:10px 12px;font-size:var(--f13);line-height:1.4}
 .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line2)}
 .leaflet-popup-close-button{color:var(--dim) !important}
-.pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;margin-bottom:3px}
+.pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:var(--f12);margin-bottom:3px}
 /* The second line of a sign, where a place has one. Sits right under the
    name and above the category, because it is part of what the place calls
    itself rather than something the app worked out about it - and not
    uppercased, so the two lines read as a sign rather than as one heading
    that ran on. */
-.pop-sub{font-weight:600;font-size:11.5px;color:var(--sand);opacity:.9;margin:-1px 0 4px}
-.pop-m{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.05em}
-.pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:12.5px}
-.pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:12px}
+.pop-sub{font-weight:600;font-size:var(--f115);color:var(--sand);opacity:.9;margin:-1px 0 4px}
+.pop-m{font-family:var(--mono);font-size:var(--f10);color:var(--dim);letter-spacing:.05em}
+.pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:var(--f125)}
+.pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:var(--f12)}
 .pop-a{display:flex;gap:6px;margin-top:9px}
 /* a pile of pins collapsed into one: the count replaces the glyph */
 /* Fully opaque, unlike the single pin at .92. The count inside is text, and
@@ -1091,7 +1130,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    drag the lifted fills from 4.6 back down to 4.4 over dark ground - a
    contrast that depends on the terrain is not a contrast you can rely on. */
 .pin.poi.cluster .badge{border-style:solid;opacity:1;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
-.pin.poi.cluster .cnum{font-family:var(--mono);font-size:11px;font-weight:700;color:#14181B;
+.pin.poi.cluster .cnum{font-family:var(--mono);font-size:var(--f11);font-weight:700;color:#14181B;
   letter-spacing:0;line-height:1}
 /* the list a cluster popup shows: one tappable row per place underneath */
 .pop-rows{margin-top:7px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
@@ -1100,9 +1139,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:5px;padding:6px 8px;
   color:var(--sand);font:inherit;cursor:pointer}
 .pop-row:active{background:rgba(216,203,170,.12)}
-.pop-row-t{flex:1;min-width:0;display:block;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;
+.pop-row-t{flex:1;min-width:0;display:block;font-size:var(--f125);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
-.pop-row-t i{display:block;font-family:var(--mono);font-size:9px;font-style:normal;color:var(--dim);
+.pop-row-t i{display:block;font-family:var(--mono);font-size:var(--f9);font-style:normal;color:var(--dim);
   letter-spacing:.06em;margin-top:1px}
 .dotmark.sm{width:18px;height:18px;border-radius:3px}
 .dotmark.sm svg{width:11px;height:11px}
@@ -1163,7 +1202,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act{border-image:linear-gradient(0deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}
 .act:active{background:rgba(216,203,170,.15)}
 .act svg{width:23px;height:23px;stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.act span{font-size:9px;letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
+.act span{font-size:var(--f9);letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
 /* The rust border went with the radius, and the tint took its place: with
    nothing rounding it off it fills the cell corner to corner and lights up
    like a segment on a dash panel, which says it louder than the chip did. */
@@ -1182,13 +1221,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack > *{pointer-events:auto;flex:1 1 0;min-width:0}
 /* Half a phone width is not much, so when both are up the type and the
    buttons tighten rather than the content wrapping or spilling. */
-#panelStack.pair .np-name,#panelStack.pair .rp-name{font-size:11px;letter-spacing:.03em}
-#panelStack.pair .np-figs b{font-size:11px}
-#panelStack.pair .np-figs i{font-size:7px;letter-spacing:.06em}
+#panelStack.pair .np-name,#panelStack.pair .rp-name{font-size:var(--f11);letter-spacing:.03em}
+#panelStack.pair .np-figs b{font-size:var(--f11)}
+#panelStack.pair .np-figs i{font-size:var(--f7);letter-spacing:.06em}
 #panelStack.pair .np-figs > div{gap:0}
 #panelStack.pair .np-btns .btn,#panelStack.pair .rp-btns .btn{
-  padding:9px 4px;font-size:8.5px;letter-spacing:.04em;min-height:var(--tap)}
-#panelStack.pair .np-note{font-size:8.5px;letter-spacing:.02em}
+  padding:9px 4px;font-size:var(--f85);letter-spacing:.04em;min-height:var(--tap)}
+#panelStack.pair .np-note{font-size:var(--f85);letter-spacing:.02em}
 #panelStack.pair .np-ico{width:13px;height:13px}
 #navPanel,#recPanel{display:flex;flex-direction:column}
 #panelStack.pair .np-btns,#panelStack.pair .rp-btns{margin-top:auto}
@@ -1208,7 +1247,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .np-top{display:flex;align-items:center;gap:8px}
 .np-ico{width:15px;height:15px;stroke:var(--nav2);fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
-.np-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+.np-name{flex:1;min-width:0;font-size:var(--f125);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--nav2)}
 .np-btns{display:flex;margin-top:8px}
 .np-btns .btn{padding:11px 12px;min-height:var(--tap)}
@@ -1216,10 +1255,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-figs > div{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
   border-right:1px solid var(--line)}
 .np-figs > div:last-child{border-right:none}
-.np-figs b{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--sand);line-height:1.05;
+.np-figs b{font-family:var(--mono);font-size:var(--f16);font-weight:600;color:var(--sand);line-height:1.05;
   white-space:nowrap}
-.np-figs i{font-size:8px;font-style:normal;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
-.np-note{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--warn);
+.np-figs i{font-size:var(--f8);font-style:normal;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+.np-note{font-family:var(--mono);font-size:var(--f95);letter-spacing:.05em;color:var(--warn);
   margin-top:6px;text-align:center}
 .np-note:empty{display:none}
 #recPanel{z-index:500;
@@ -1229,15 +1268,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .rec-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex:0 0 auto;animation:blink 1.4s infinite}
 .rec-dot.pause{background:var(--warn);animation:none}
 @keyframes blink{0%,45%{opacity:1}55%,100%{opacity:.15}}
-.rp-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+.rp-name{flex:1;min-width:0;font-size:var(--f125);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rp-state{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--danger2)}
+.rp-state{font-family:var(--mono);font-size:var(--f95);letter-spacing:.14em;color:var(--danger2)}
 .rp-state.pause{color:var(--warn)}
 .rp-btns{display:flex;gap:6px}
 
 /* ---------- buttons ---------- */
-.btn{flex:1;padding:11px 12px;min-height:var(--tap);border-radius:6px;border:1px solid var(--line2);background:var(--panel2);
-  font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:center;
+.btn{flex:1;min-width:0;padding:11px 12px;min-height:var(--tap);border-radius:6px;border:1px solid var(--line2);background:var(--panel2);
+  font-size:var(--f115);font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:center;
   display:flex;align-items:center;justify-content:center;gap:6px}
 .btn:active{filter:brightness(1.25)}
 .btn.primary{background:var(--rust);border-color:var(--rust);color:#12100E}
@@ -1245,10 +1284,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .btn.warnb{background:var(--warn);border-color:var(--warn);color:#171204}
 .btn.dangerb{background:var(--danger);border-color:var(--danger);color:#170B08}
 .btn.ghost{background:transparent}
-.btn.sm{padding:8px 10px;min-height:var(--tap-sm);font-size:10px;letter-spacing:.1em}
-.btn.xs{padding:6px 9px;min-height:var(--tap-sm);min-width:var(--tap-sm);font-size:9px;letter-spacing:.09em;flex:0 0 auto}
+.btn.sm{padding:8px 10px;min-height:var(--tap-sm);font-size:var(--f10);letter-spacing:.1em}
+.btn.xs{padding:6px 9px;min-height:var(--tap-sm);min-width:var(--tap-sm);font-size:var(--f9);letter-spacing:.09em;flex:0 0 auto}
 .btn[disabled]{opacity:.4;pointer-events:none}
-.row{display:flex;gap:6px}
+/* Wraps. A flex item defaults to min-width:auto, which means it will not go
+   narrower than its own longest word - so a row of three buttons that
+   happened to fit at one text size simply hung off the edge at a larger one
+   instead of reflowing. Clear Tile Cache was 16px past the drawer.
+   Both halves are needed, and .btn carries the other: min-width:0 lets the
+   labels break inside the buttons first, so the row usually does not have to
+   wrap at all, and this is here for when it genuinely cannot hold them. */
+.row{display:flex;gap:6px;flex-wrap:wrap}
 
 /* ---------- drawer ---------- */
 #scrim{position:fixed;inset:0;background:rgba(6,8,7,.62);z-index:900;opacity:0;pointer-events:none;
@@ -1304,12 +1350,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #poiPanel details.sub:not([open]) ~ #poiList{border-top:none;margin-top:0}
 .dr-head{flex:0 0 auto;height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);display:flex;align-items:center;
   gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:var(--head)}
-.dr-head .t{flex:1;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+.dr-head .t{flex:1;font-size:var(--f13);font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .dr-foot{flex:0 0 auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
-  font-size:9px;color:var(--dim);line-height:1.5}
+  font-size:var(--f9);color:var(--dim);line-height:1.5}
 details{border-bottom:1px solid var(--line)}
-summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:11.5px;
+summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:var(--f115);
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
 summary::-webkit-details-marker{display:none}
 summary .chev{width:9px;height:9px;border-right:1.6px solid var(--dim);border-bottom:1.6px solid var(--dim);
@@ -1317,7 +1363,7 @@ summary .chev{width:9px;height:9px;border-right:1.6px solid var(--dim);border-bo
 details[open] summary .chev{transform:rotate(45deg)}
 summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;stroke-linecap:round;
   stroke-linejoin:round;flex:0 0 auto}
-.cnt{font-family:var(--mono);font-size:9.5px;background:rgba(216,203,170,.12);color:var(--dim);
+.cnt{font-family:var(--mono);font-size:var(--f95);background:rgba(216,203,170,.12);color:var(--dim);
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
 /* The same open-and-shut section as the drawer headings, but sitting
@@ -1345,15 +1391,15 @@ details.sub > .sec-body{padding:12px 0 0}
    section they act on. */
 .kbulk{margin-bottom:7px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
-.diag{font-family:var(--mono);font-size:9.5px;line-height:1.7;color:var(--dim);margin-top:9px}
+.diag{font-family:var(--mono);font-size:var(--f95);line-height:1.7;color:var(--dim);margin-top:9px}
 .diag:empty{display:none}
 .diag div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:2px 0}
 .diag b{font-weight:600}
 .diag .ok{color:var(--green)}
 .diag .bad{color:var(--danger2)}
 .diag .warn{color:var(--warn)}
-.poi-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
-.sublabel{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;
+.poi-status{font-family:var(--mono);font-size:var(--f95);letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
+.sublabel{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:var(--f95);
   letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:10px 2px 6px}
 .sublabel .btn{margin-left:auto}
 .sublabel .btn + .btn{margin-left:0}
@@ -1372,11 +1418,11 @@ details.sub > .sec-body{padding:12px 0 0}
    and the roadside board does not print them either. */
 .fuelp{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
 .fuelp > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
-.fuelp > div > span{font-size:10.5px;color:var(--sand);opacity:.85;overflow:hidden;
+.fuelp > div > span{font-size:var(--f105);color:var(--sand);opacity:.85;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.fuelp > div > b{font-family:var(--mono);font-size:13px;color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
+.fuelp > div > b{font-family:var(--mono);font-size:var(--f13);color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
 .fuelp > i{display:block;margin-top:3px;font-family:var(--mono);font-style:normal;
-  font-size:8px;letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
+  font-size:var(--f8);letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
 /* minmax(0,...) rather than a bare 1fr: a grid track will not shrink below
    the widest thing in it, so one long label pushes the whole column past the
    drawer and takes a horizontal scrollbar with it. */
@@ -1405,7 +1451,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #fuelTypes .kchip > span:not(.dotmark){white-space:normal;line-height:1.15}
 .kchip{display:flex;align-items:center;gap:6px;min-height:var(--tap-sm);padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
-  font-size:11.5px;cursor:pointer;opacity:.8;text-align:left}
+  font-size:var(--f115);cursor:pointer;opacity:.8;text-align:left}
 /* the label takes the slack so the count is pushed to the same right edge
    in every chip, and a long one ellipses rather than widening the column */
 .kchip > span:not(.dotmark){flex:1;min-width:0;overflow:hidden;
@@ -1415,7 +1461,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .kchip .dotmark{width:20px;height:20px}
 .kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.kchip i{font-family:var(--mono);font-style:normal;font-size:10px;flex:0 0 auto}
+.kchip i{font-family:var(--mono);font-style:normal;font-size:var(--f10);flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
 /* The type-ahead list, tucked under the search box. Buttons rather than
@@ -1432,21 +1478,21 @@ details.sub > .sec-body{padding:12px 0 0}
    column, so a long address wraps under the name rather than pushing
    the number off the row. */
 .sug .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.sug .n{font-size:12.5px;font-weight:600;color:var(--sand);line-height:1.25;
+.sug .n{font-size:var(--f125);font-weight:600;color:var(--sand);line-height:1.25;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sug .w{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.04em;
+.sug .w{font-family:var(--mono);font-size:var(--f9);color:var(--dim);letter-spacing:.04em;
   text-transform:uppercase}
-.sug .d{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;
+.sug .d{flex:0 0 auto;font-family:var(--mono);font-size:var(--f95);font-weight:700;
   color:var(--dim);letter-spacing:.04em;padding-top:2px;white-space:nowrap}
-.empty{font-size:11px;color:var(--dim);font-style:italic;padding:4px 2px 10px}
+.empty{font-size:var(--f11);color:var(--dim);font-style:italic;padding:4px 2px 10px}
 .card{background:#161B18;border:1px solid var(--line);border-radius:7px;padding:10px}
 .card-top{display:flex;align-items:flex-start;gap:8px}
-.card-t{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-t{flex:1;min-width:0;font-size:var(--f13);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* The sign's second line again, clipped the same way the first one is so a
    long one cannot push the card wider than the list. */
-.card-sub{font-size:11.5px;font-weight:500;color:rgba(216,203,170,.88);margin-top:2px;
+.card-sub{font-size:var(--f115);font-weight:500;color:rgba(216,203,170,.88);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-m{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.06em;margin-top:3px;
+.card-m{font-family:var(--mono);font-size:var(--f95);color:var(--dim);letter-spacing:.06em;margin-top:3px;
   display:flex;flex-wrap:wrap;gap:3px 10px}
 /* A saved track carries seven readings. Run together as one dim line they
    had to be decoded rather than read - which number was the distance and
@@ -1456,14 +1502,14 @@ details.sub > .sec-body{padding:12px 0 0}
    numbers are the content. */
 .trk-m{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:8px}
 .trk-m > div{min-width:0;display:flex;flex-direction:column;gap:1px}
-.trk-m b{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+.trk-m b{font-size:var(--f8);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dim)}
-.trk-m span{font-family:var(--mono);font-size:11.5px;color:var(--sand);
+.trk-m span{font-family:var(--mono);font-size:var(--f115);color:var(--sand);
   letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-n{font-size:11.5px;color:var(--dim);margin-top:5px;line-height:1.35;word-break:break-word}
+.card-n{font-size:var(--f115);color:var(--dim);margin-top:5px;line-height:1.35;word-break:break-word}
 /* The street address, above the attribute line and a shade brighter than it:
    where a place is reads ahead of what it offers. */
-.card-ad{font-size:11.5px;color:rgba(216,203,170,.8);margin-top:5px;line-height:1.35;word-break:break-word}
+.card-ad{font-size:var(--f115);color:rgba(216,203,170,.8);margin-top:5px;line-height:1.35;word-break:break-word}
 .card-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
 /* Delete sat between Go To and the edge of the card at a 5px gap, which on a
    corrugated road is close enough to Go To to lose a recorded track to a
@@ -1476,7 +1522,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .card-acts .btn.dangerb{margin-left:auto}
 .card-acts .btn[data-act="del"] + .btn,
 .card-acts .btn.dangerb + .btn{margin-left:0}
-.tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;
+.tag{font-family:var(--mono);font-size:var(--f85);letter-spacing:.1em;padding:2px 6px;border-radius:3px;
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
 .tag.medium{background:rgba(232,185,35,.16);color:var(--warn);border:1px solid rgba(232,185,35,.35)}
@@ -1485,7 +1531,7 @@ details.sub > .sec-body{padding:12px 0 0}
   flex:0 0 auto}
 .dotmark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
-.swrow{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:12px}
+.swrow{display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:var(--f12)}
 .sw{width:48px;height:28px;border-radius:14px;background:#0F1311;border:1px solid var(--line2);
   position:relative;flex:0 0 auto;transition:background .16s,border-color .16s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
@@ -1500,8 +1546,15 @@ details.sub > .sec-body{padding:12px 0 0}
    border, and the sand the rest of the menu is written in. It used to borrow
    .primary, whose near-black text landed on .ghost's transparent background -
    dark on dark, and no highlight at all, since ghost won the background. */
+/* A list of ids rather than a class, which means a new segmented control
+   does not get the selected state until it is added here - the text size
+   buttons were live and highlighting nothing until this line grew. Left as
+   a list rather than generalised to .btn.ghost.on, because .on is also worn
+   by controls that style it their own way, and quietly restyling those to
+   fix this one would be the larger change. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
+#btnText1.on,#btnText2.on,#btnText3.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:rgba(204,90,46,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
@@ -1512,7 +1565,7 @@ details.sub > .sec-body{padding:12px 0 0}
   display:flex;flex-direction:column;overflow:hidden}
 .float-head{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--line);
   background:var(--head);flex:0 0 auto}
-.float-head .t{flex:1;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.float-head .t{flex:1;font-size:var(--f11);font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .float-body{padding:12px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
@@ -1523,18 +1576,18 @@ details.sub > .sec-body{padding:12px 0 0}
 .timepick{display:flex;align-items:center;gap:4px}
 .timepick select{flex:1 1 auto;min-width:0;background:#0F1311;color:var(--sand);
   border:1px solid var(--line2);border-radius:6px;padding:9px 6px;font-family:var(--mono);
-  font-size:13px;-webkit-appearance:none;appearance:none;text-align:center}
+  font-size:var(--f13);-webkit-appearance:none;appearance:none;text-align:center}
 .timepick .tp-ap{flex:0 0 auto;width:62px}
 .timepick b{color:var(--dim);font-family:var(--mono);flex:0 0 auto}
-.fld label,.fld .fld-cap{display:block;font-size:9px;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
+.fld label,.fld .fld-cap{display:block;font-size:var(--f9);letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
 .seg{display:flex;gap:0;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
-.seg button{flex:1;padding:9px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+.seg button{flex:1;padding:9px 4px;font-size:var(--f10);font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--dim);border-right:1px solid var(--line2);background:#111513}
 .seg button:last-child{border-right:none}
 .seg button.on{background:var(--rust);color:#12100E}
 .catgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .catgrid button{display:flex;align-items:center;gap:5px;padding:8px 6px;border:1px solid var(--line2);
-  border-radius:5px;background:#111513;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
+  border-radius:5px;background:#111513;font-size:var(--f95);letter-spacing:.05em;text-transform:uppercase;
   color:var(--dim);font-weight:600}
 .catgrid button svg{width:15px;height:15px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.9;
   stroke-linecap:round;stroke-linejoin:round}
@@ -1547,28 +1600,28 @@ details.sub > .sec-body{padding:12px 0 0}
 .modal-box{width:min(360px,100%);max-height:calc(100vh - 32px);background:var(--panel);border:1px solid var(--line2);
   border-radius:10px;box-shadow:0 16px 42px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
 .modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:8px}
-.modal-head .t{flex:1;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.modal-head .t{flex:1;font-size:var(--f12);font-weight:700;letter-spacing:.16em;text-transform:uppercase}
 .modal-body{padding:14px;overflow-y:auto}
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
 #askModal{z-index:1050;background:rgba(6,8,7,.45)}
-.askmsg{font-size:13px;line-height:1.5;color:var(--sand)}
+.askmsg{font-size:var(--f13);line-height:1.5;color:var(--sand)}
 .fld2{display:flex;gap:8px}
 .fld2 .fld{flex:1;min-width:0}
 input[type=date],input[type=time]{color-scheme:dark}
 .modal-body{min-height:0}
-.hint{font-size:10.5px;color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
-.bignum{font-family:var(--mono);font-size:26px;color:var(--sand);letter-spacing:.02em}
+.hint{font-size:var(--f105);color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
+.bignum{font-family:var(--mono);font-size:var(--f26);color:var(--sand);letter-spacing:.02em}
 .bignum.over{color:var(--danger2)}
 .prog{height:7px;border-radius:4px;background:#0F1311;border:1px solid var(--line);overflow:hidden;margin:10px 0 7px}
 .prog i{display:block;height:100%;width:0;background:var(--rust);transition:width .18s}
-.kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim);
+.kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:var(--f10);color:var(--dim);
   letter-spacing:.06em;padding:3px 0}
 .kv b{color:var(--sand);font-weight:600}
 
 /* ---------- draw box ---------- */
 #drawHint{position:absolute;top:12px;left:12px;right:60px;z-index:470;background:rgba(23,28,25,.95);
-  border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.4;color:var(--sand)}
-#drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:10px;display:block;margin-bottom:3px;text-transform:uppercase}
+  border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--f11);line-height:1.4;color:var(--sand)}
+#drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--f10);display:block;margin-bottom:3px;text-transform:uppercase}
 #drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
 #stage.drawing{cursor:crosshair}
 
@@ -1580,7 +1633,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(-14px);
   top:calc(var(--topH) + var(--safeT) + var(--statsH) + 12px);
   z-index:1100;background:#0E1210;border:1px solid var(--line2);border-radius:7px;padding:10px 15px;
-  font-size:12px;letter-spacing:.03em;box-shadow:0 8px 22px rgba(0,0,0,.6);opacity:0;pointer-events:none;
+  font-size:var(--f12);letter-spacing:.03em;box-shadow:0 8px 22px rgba(0,0,0,.6);opacity:0;pointer-events:none;
   transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.ok{border-color:rgba(143,185,62,.5);color:var(--green)}
@@ -1629,10 +1682,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* the widths above are widths, and down here the axis is vertical */
   .stat:nth-child(n){flex-basis:0}
   .stat:last-child{border-bottom:none}
-  .stat .lbl{font-size:7px;letter-spacing:.08em}
-  .stat b{font-size:13px}
+  .stat .lbl{font-size:var(--f7);letter-spacing:.08em}
+  .stat b{font-size:var(--f13)}
   .stat b em{margin-right:3px}
-  .stat i{font-size:7px}
+  .stat i{font-size:var(--f7)}
 
   /* the action bar becomes a rail down the right of the map, docked to the
      edge like the instrument column it now bookends. The clearances below
@@ -1651,7 +1704,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      to come back toward the portrait 23 and 9 without crowding the sides.
      WAYPOINT is the longest label and still clears them. */
   .act svg{width:21px;height:21px}
-  .act span{font-size:8.5px;letter-spacing:.06em}
+  .act span{font-size:var(--f85);letter-spacing:.06em}
 
   /* Half height, by laying each panel out along its width instead of down
      its height: name, readings and buttons on one line, the pair spanning
@@ -1679,7 +1732,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #navPanel .np-top{flex:1 1 92px}
   #panelStack #recPanel .rp-top{flex:1 1 64px}
   #panelStack #navPanel .np-name,#panelStack #recPanel .rp-name{
-    font-size:8.5px;line-height:1.2;letter-spacing:.03em;white-space:normal;
+    font-size:var(--f85);line-height:1.2;letter-spacing:.03em;white-space:normal;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   #panelStack #navPanel .np-ico{width:12px;height:12px}
   /* The three readings are given equal columns and spread across the space
@@ -1689,22 +1742,22 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #navPanel .np-figs{margin-top:0;flex:1 1 auto;min-width:0;
     position:relative;top:4px}
   #panelStack #navPanel .np-figs > div{flex:1 1 0;min-width:0;padding:0 7px}
-  #panelStack #navPanel .np-figs b{font-size:11.5px}
+  #panelStack #navPanel .np-figs b{font-size:var(--f115)}
   /* Shorter words for the same meaning, so the numbers keep their room and
      stay the size they need to be read at a glance. */
   #panelStack #navPanel .np-figs i{font-size:0;letter-spacing:0}
   #panelStack #navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT"}
   #panelStack #navPanel .np-figs > div:nth-child(2) i::after{content:"TIME"}
   #panelStack #navPanel .np-figs > div:nth-child(3) i::after{content:"ETA"}
-  #panelStack #navPanel .np-figs i::after{font-size:6.5px;letter-spacing:.1em}
+  #panelStack #navPanel .np-figs i::after{font-size:var(--f65);letter-spacing:.1em}
   #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{margin-top:0;flex:0 0 auto}
   /* The readings ran up against the cancel button and read as sitting on it,
      so the button is pushed off them by more than the column gap alone. */
   #panelStack #navPanel .np-btns{margin-left:10px}
   #panelStack #navPanel .np-btns .btn{font-size:0;padding:7px 12px;min-height:var(--tap-sm)}
-  #panelStack #navPanel .np-btns .btn::after{content:"CANCEL";font-size:9px;letter-spacing:.08em}
-  #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:var(--tap-sm);white-space:nowrap;flex:0 0 auto}
-  #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
+  #panelStack #navPanel .np-btns .btn::after{content:"CANCEL";font-size:var(--f9);letter-spacing:.08em}
+  #panelStack #recPanel .rp-btns .btn{font-size:var(--f85);padding:7px 9px;min-height:var(--tap-sm);white-space:nowrap;flex:0 0 auto}
+  #panelStack #navPanel .np-note{font-size:var(--f8);margin-top:0;flex:1 1 100%;text-align:left}
 
   /* the sign changes sides in landscape, so here it has the rail to clear as
      well as the bottom edge */
@@ -1725,7 +1778,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   .pop-rows{max-height:38vh}
   #drawer,#poiPanel{width:min(70vw,340px)}
   .dr-head{height:calc(42px + var(--safeT))}
-  .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:8px;line-height:1.4}
+  .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:var(--f8);line-height:1.4}
   summary{padding:12px 14px}
 }
 
@@ -2008,6 +2061,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnUnitImperial">Imperial</button>
         </div>
         <div class="poi-status" id="unitNote"></div>
+        <div class="sublabel" role="radiogroup" aria-label="Text size">Text Size
+          <button class="btn xs ghost" id="btnText1" data-scale="1">Normal</button>
+          <button class="btn xs ghost" id="btnText2" data-scale="1.15">Large</button>
+          <button class="btn xs ghost" id="btnText3" data-scale="1.3">Larger</button>
+        </div>
+        <div class="poi-status" id="textNote">Every label and reading in the app, the gauges included. The map, the speed sign and the size of the buttons do not change.</div>
         <div class="sublabel">Screen Lock
           <button class="btn xs ghost" id="btnAwakeOn">On</button>
           <button class="btn xs ghost" id="btnAwakeOff">Off</button>
@@ -2844,12 +2903,14 @@ const S = Object.assign({
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
-  hillshade: false     /* shaded relief under the map, off by default */
+  hillshade: false,    /* shaded relief under the map, off by default */
+  textScale: 1         /* 1, 1.15 or 1.3 - drives --uiScale */
 }, loadLS(LS.settings, {}));
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
-                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade });
+                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
+                        textScale: S.textScale });
 }
 
 /* Home is a place rather than a preference, so it keeps its own key: a
@@ -10298,6 +10359,54 @@ $("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
 $("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
 $("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); });
+
+/* ---------------------------------------------------------------------
+   Text size.
+
+   The browser's own zoom cannot work here - the shell is position:fixed
+   with two promoted map layers under it, so a pinch magnifies a frozen
+   picture and re-rasterises both layers while it does. This is the
+   replacement, and it is the better tool anyway: it scales the type and
+   lets the panels reflow around it, which is what someone who cannot read
+   an 8.5px gauge label actually wanted.
+
+   The step is applied to --uiScale on the root and every font-size in the
+   file derives from it, so there is nothing to remember when a new rule is
+   added. The map, the speed sign and the tap sizes are deliberately outside
+   it: a sign is a sign, and 44px is a thumb rather than a letter.
+   --------------------------------------------------------------------- */
+const TEXT_STEPS = [1, 1.15, 1.3];
+
+function applyTextScale() {
+  const s = TEXT_STEPS.indexOf(S.textScale) === -1 ? 1 : S.textScale;
+  document.documentElement.style.setProperty("--uiScale", String(s));
+  /* The bars changed height, so everything measured off them is stale -
+     the map's own size most of all, or it keeps the rows it had before. */
+  if (typeof sizeMap === "function") sizeMap();
+  if (typeof liftSpeedSign === "function") liftSpeedSign();
+}
+
+function syncTextButtons() {
+  const btns = [$("#btnText1"), $("#btnText2"), $("#btnText3")];
+  btns.forEach(function (b) {
+    const on = parseFloat(b.dataset.scale) === S.textScale;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-checked", on ? "true" : "false");
+    b.setAttribute("role", "radio");
+  });
+}
+
+function setTextScale(n) {
+  if (S.textScale === n) return;
+  S.textScale = n;
+  saveSettings();
+  applyTextScale();
+  syncTextButtons();
+}
+
+[["#btnText1", 1], ["#btnText2", 1.15], ["#btnText3", 1.3]].forEach(function (pair) {
+  $(pair[0]).addEventListener("click", function () { setTextScale(pair[1]); });
+});
 $("#btnPoiRefresh").addEventListener("click", function () {
   poiCentre = null;
   fetchPois(true);
@@ -10538,6 +10647,9 @@ document.addEventListener("keydown", function (e) {
   syncPoiSwitch();
   syncAwakeButtons();
   syncUnitButtons();
+  /* before anything measures the bars, since it can change their height */
+  applyTextScale();
+  syncTextButtons();
   updateFollowUI();
   syncDragMode();
   Rec.restore();
