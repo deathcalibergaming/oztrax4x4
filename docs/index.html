@@ -100,8 +100,8 @@
   --statsH:56px;
   /* The action bar stands the same height as the stats row rather than the
      76px it was given for a gloved thumb. Kept as its own name because the
-     speed sign, the attribution and the panel stack all measure up from it
-     and should follow it, not the stats row, if the two ever part again. */
+     speed sign and the panel stack both measure up from it, and should
+     follow it, not the stats row, if the two ever part again. */
   --actH:var(--statsH);
   /* The width of the two instrument bars where they stand on end, which is
      both of them in landscape. One number so the stats column and the
@@ -282,9 +282,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
-#attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
-  font-size:8.5px;color:var(--dim);background:rgba(20,24,27,.9);padding:2px 6px;border-radius:3px;
-  pointer-events:none;letter-spacing:.02em}
+/* The attribution used to sit here, bottom left, over the map. It is in the
+   drawer footer instead, where the notice is the full one - OpenStreetMap
+   contributors and the ODbL by name, the G-NAF licence, and the caveat that
+   the addresses are not verified for mail delivery. The map only ever
+   carried the short form of the same thing, in 8.5px, across the terrain.
+   Attribution is still shown; it is shown properly, one tap away. */
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-family:var(--mono);font-size:20px;line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
@@ -330,9 +333,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* The Australian regulatory speed sign: black numerals inside a red ring
    on a white plate. Drawn rather than fetched, so it costs nothing and
    works with no signal. It sits bottom right, the side the driver sits on
-   and the near hand can reach without crossing the wheel, and the
-   attribution takes the bottom left it used to hold. Clear of the chips at
-   the top either way. */
+   and the near hand can reach without crossing the wheel. The bottom left
+   it used to hold is map now. Clear of the chips at the top either way. */
 #speedSign{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
   z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
   box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
@@ -990,12 +992,8 @@ input[type=date],input[type=time]{color-scheme:dark}
   #panelStack #recPanel .rp-btns .btn{font-size:8.5px;padding:7px 9px;min-height:var(--tap-sm);white-space:nowrap;flex:0 0 auto}
   #panelStack #navPanel .np-note{font-size:8px;margin-top:0;flex:1 1 100%;text-align:left}
 
-  /* the attribution is on the left now, with no rail to clear - only the
-     bottom edge, which the rail leaves free */
-  #attrib{bottom:calc(8px + var(--safeB))}
-  /* the sign changed sides with it, so here it has the rail to clear as
-     well as the bottom edge, and lands level with the attribution across
-     the map from it */
+  /* the sign changes sides in landscape, so here it has the rail to clear as
+     well as the bottom edge */
   #speedSign{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB))}
   #zoomCtl{right:calc(var(--railW) + 8px);flex-direction:row}
   /* the zoom row is four buttons wide now, so the chips have to stop sooner:
@@ -1118,7 +1116,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <span>Placed by hand - tap to release</span>
       </button>
     </div>
-    <div id="attrib">Tiles &copy; Esri &middot; POI and roads &copy; OpenStreetMap &middot; Addresses &copy; Geoscape G-NAF</div>
     <div id="drawRect" class="hidden"></div>
     <div id="drawHint" class="hidden">
       <b>Select offline area</b>
