@@ -354,13 +354,21 @@ out and back to visible at the start of the slide in, so what a keyboard can
 reach is what an eye can see. Overlays that hide with `display:none` already
 do this; anything that hides by moving has to be told.
 
-**The Frozen Layer Rule.** Browser page zoom is off, and has to be. The
-shell is `position: fixed` across the viewport with two full-screen
+**The Frozen Layer Rule.** Pinch does nothing anywhere in this app, and has
+to do nothing. Browser page zoom is off and Leaflet's `touchZoom` is off,
+for one reason with two faces. The shell is `position: fixed` across the
+viewport with two full-screen
 `will-change: transform` layers under the map, so a pinch magnifies a frozen
 layer rather than reflowing anything — and forces both promoted layers to
 re-rasterise mid-gesture, which flashes and drops to the stage's near-black
 on real hardware. Making type bigger here is the app's own job, and Settings
 carries it: Text Size, at 1, 1.15 or 1.3.
+
+Leaflet's own pinch fails the same way. It scales the map pane with a CSS
+transform for the length of the gesture, and that pane is inside those two
+promoted wrappers — so a pinch re-rasterises two full-screen layers while a
+finger is moving. Map zoom is the + and − buttons, 44px and one-handed,
+which a driver can reach without putting two fingers on the glass.
 
 Every `font-size` in the file derives from `--uiScale` — twenty tokens named
 for the pixel value they start at, because the ramp has twenty steps and
