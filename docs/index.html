@@ -915,6 +915,22 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   border:1px solid transparent;flex:0 0 auto;transition:background .12s,border-color .12s}
 .icon-btn:active{background:rgba(216,203,170,.16)}
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* The three lines are three paths rather than one, so they can take up the
+   press in sequence. Held down, they draw two pixels toward the left edge -
+   top first, then middle, then bottom, forty milliseconds end to end - the
+   way a linkage takes up its slack before the thing at the far end moves.
+   What is at the far end is the drawer, which arrives from that edge.
+
+   It is not a hamburger that turns into a cross, and it cannot be: this
+   button sits at the top left and the drawer opens over 84% of the width
+   from the same edge, so by the time there is an X to see, the drawer is
+   sitting on top of it. A morph here would animate something nobody can
+   look at. The press is the only moment this button is both visible and
+   doing something, so the press is where the character goes. */
+#btnMenu svg path{transition:transform .12s cubic-bezier(.3,.7,.3,1)}
+#btnMenu svg path:nth-child(2){transition-delay:.02s}
+#btnMenu svg path:nth-child(3){transition-delay:.04s}
+#btnMenu:active svg path{transform:translateX(-2px)}
 .icon-btn.on{border-color:var(--rust);background:rgba(204,90,46,.16)}
 .icon-btn.on svg{stroke:var(--rust)}
 /* The header carries two lamps rather than a sentence. GPS is a glyph and a
@@ -1429,6 +1445,20 @@ summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8
 .cnt{font-family:var(--mono);font-size:var(--f95);background:rgba(216,203,170,.12);color:var(--dim);
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
+/* A section body used to appear and disappear on the spot, which was the
+   one place in the drawer that broke the rule the drawer itself is built
+   on: a panel moves so you know where it came from. Everything below a
+   section jumped when it opened, and nothing said the body had come out of
+   the row that was just pressed.
+
+   It is clipped and grown from its top edge instead - the edge sitting
+   directly under the summary - so the body is uncovered downward, out from
+   behind its own heading. Same curve as the drawer, because it is the same
+   idea one level down; shorter, because it is a smaller thing moving a
+   shorter distance. discloseToggle drives the height, since a closed
+   <details> stops rendering its body and CSS alone cannot animate its way
+   out of that. The clip is only worn while it moves. */
+.sec-body.discl{overflow:hidden}
 /* The same open-and-shut section as the drawer headings, but sitting
    inside a panel body rather than being the panel. The drawer's summary
    assumes the full width and carries a rule underneath it, both of which
@@ -1916,6 +1946,13 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* Recording: a ring instead of a pulse. */
   .rec-dot{animation:none;box-shadow:0 0 0 3px rgba(207,83,61,.4)}
   .rec-dot.pause{box-shadow:none}
+  /* The menu lines stop taking up their slack. The button still lights
+     under the thumb, which is the part that says the press landed; the
+     two pixels of travel were character, not confirmation. Sections stop
+     travelling too, in discloseToggle - the body is still uncovered, it
+     just does not take a fifth of a second about it. */
+  #btnMenu svg path{transition:none}
+  #btnMenu:active svg path{transform:none}
 }
 </style>
 </head>
@@ -1924,7 +1961,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 
   <header id="topbar">
     <button id="btnMenu" class="icon-btn" aria-label="Open menu">
-      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
     </button>
     <div class="brand"><span class="b1">TRAIL</span><span class="b2">TRACKER</span></div>
     <div id="statusPill">
@@ -10165,6 +10202,118 @@ $("#btnPoi").addEventListener("click", function () {
 });
 $("#btnClosePoi").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
+
+/* ---- opening and shutting a section ----
+   A <details> stops rendering its body the instant it is no longer [open],
+   so the browser gives us no way to animate the way out - the body is gone
+   before a transition can start. The toggle is taken over here instead:
+   the click is intercepted, `open` is set when we want the body rendered,
+   and the height is driven from script so both directions can be seen.
+
+   Written against summary rather than the toggle event, because toggle
+   fires after the fact and there is nothing left to hold back by then.
+
+   Every way of activating a summary that produces a click lands here and
+   is treated identically - thumb, mouse, and the keyboard on engines that
+   dispatch one. It is worth knowing that not every engine does: pressing
+   Enter on a focused summary in the browser this was built in raises a
+   keydown and no click, and the section does not open. That is the case
+   before this handler exists as much as after - it was checked against
+   the deployed build to be sure - so nothing here has taken a keyboard
+   path away. Where a click does arrive, it animates; where one never did,
+   this changes nothing either way.
+
+   Delegated from the two panels that use this pattern rather than from
+   each section, so a section rendered later is animated without being
+   registered - and so the drawer and the POI panel cannot drift into
+   opening the same component two different ways. */
+const DISCL_OPEN = 220, DISCL_SHUT = 160, DISCL_EASE = "cubic-bezier(.3,.7,.3,1)";
+
+function discloseToggle(det) {
+  const body = det.querySelector(":scope > .sec-body");
+  if (!body) { det.open = !det.open; return; }
+
+  /* Reduced motion keeps the state change and drops the travel: the body
+     is still uncovered, it simply does not take 220ms to do it. The
+     chevron still turns, because its two ends are what say open or shut,
+     and the turn between them is not the information. */
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    det.open = !det.open;
+    return;
+  }
+
+  /* Which way this tap is going. While a slide is running `open` is not
+     the answer - it stays true for the whole of a close, because the body
+     has to keep rendering until it has finished leaving - so the direction
+     in flight is what gets reversed, not the attribute. */
+  const opening = det._discl ? det._disclDir === "shut" : !det.open;
+
+  /* Where it is starting from. A second tap mid-slide picks the body up at
+     whatever height it has reached, so an impatient thumb never sees it
+     snap back to full height before closing again. That measurement has to
+     be taken before the running animation is cancelled, or the element has
+     already jumped back to its resting size by the time we look.
+
+     A closed section is the one case that cannot be measured: Chrome keeps
+     a box on the hidden content and reports the full height for it, so a
+     shut section reads as open and both ends of the slide come out the
+     same number. Opening from rest is therefore known rather than asked -
+     it is zero, because that is what shut means. */
+  let from = 0;
+  if (det._discl) {
+    from = body.getBoundingClientRect().height;
+    det._discl.cancel();
+  } else if (!opening) {
+    from = body.getBoundingClientRect().height;
+  }
+
+  if (opening) det.open = true;          /* render it before measuring */
+  let to = 0;
+  if (opening) {
+    body.style.height = "auto";
+    to = body.getBoundingClientRect().height;
+  }
+
+  body.classList.add("discl");
+  /* Opacity is done well before the height is. The clip edge travelling
+     down the body is what reveals it; the fade only stops the first line
+     of text arriving as a hard edge, and a fade that ran the full length
+     would read as the section being slow rather than being opened. */
+  const anim = body.animate(
+    opening
+      ? [{ height: from + "px", opacity: 0 },
+         { height: (from + (to - from) * 0.6) + "px", opacity: 1, offset: .6 },
+         { height: to + "px", opacity: 1 }]
+      : [{ height: from + "px", opacity: 1 },
+         { height: "0px", opacity: 0 }],
+    { duration: opening ? DISCL_OPEN : DISCL_SHUT, easing: DISCL_EASE, fill: "both" }
+  );
+  det._discl = anim;
+  det._disclDir = opening ? "open" : "shut";
+
+  /* A cancelled animation never reaches here, so the newer one that
+     replaced it is the only thing that gets to clear these. */
+  anim.onfinish = function () {
+    anim.cancel();                       /* drop fill:both before measuring resumes */
+    det._discl = null;
+    det._disclDir = null;
+    body.classList.remove("discl");
+    body.style.height = "";
+    /* Closing waits for the body to have finished leaving before the
+       element stops rendering it, which is the whole reason for the
+       interception. */
+    if (!opening) det.open = false;
+  };
+}
+
+["#drawer", "#poiPanel"].forEach(function (sel) {
+  $(sel).addEventListener("click", function (e) {
+    const sum = e.target.closest("summary");
+    if (!sum || !this.contains(sum)) return;
+    e.preventDefault();                   /* we own the toggle now */
+    discloseToggle(sum.parentElement);
+  });
+});
 
 /* Map orientation lives on the map itself, bottom right, the same size as
    the zoom buttons. Active (heading up) turns rust, and the needle rotates
