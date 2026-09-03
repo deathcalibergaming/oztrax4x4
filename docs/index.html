@@ -879,6 +879,22 @@ input:focus,select:focus,textarea:focus{border-color:var(--rust)}
    screen where a driver is reading back a name or a coordinate. */
 ::selection{background:rgba(204,90,46,.42);color:var(--sand)}
 ::-moz-selection{background:rgba(204,90,46,.42);color:var(--sand)}
+/* The last surface the browser was still painting for us. Chrome draws its
+   own ring on these controls - auto 0.8px in an orange that belongs to no
+   palette here, and a different colour and weight in every other engine.
+
+   Drawn inside the control rather than around it. Both bars run their cells
+   edge to edge, so an outer ring would be cut off by the screen edge on the
+   first cell and would cross the hairline into the neighbour on every other
+   one. Three pixels in, it stops where the facet does and reads as a segment
+   lighting up rather than as a box drawn round a button.
+
+   Rust, not sand: the cell contents are already sand, and the accent is what
+   this design system uses to say a control is the one in play. It is on one
+   control at a time by definition, so it does not spend the one-accent rule.
+   Fields are deliberately not in here - they answer focus with their own
+   border colour, which is the only focus this app has ever shown. */
+button:focus-visible,summary:focus-visible{outline:2px solid var(--rust2);outline-offset:-3px}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 .hidden{display:none !important}
@@ -955,7 +971,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    hold, which is the same way the FOLLOW PAUSED chip and the 20% amber
    Sim wash were lost. Three pixels at full brightness survives the wash
    and still reads as a line rather than a haze. */
-#statsbar{height:var(--statsH);flex:0 0 auto;display:flex;border-bottom:none;
+#statsbar{height:var(--statsH);flex:0 0 auto;display:flex;
   background:linear-gradient(180deg,#111513 0,#111513 calc(100% - 3px),
              #1B221D calc(100% - 3px),#333D36 100%);
   box-shadow:0 1px 0 rgba(0,0,0,.65),0 6px 12px -6px rgba(0,0,0,.55);
@@ -990,6 +1006,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .stat b{font-family:var(--mono);font-size:var(--f17);font-weight:600;line-height:1.05;color:var(--hud);
   white-space:nowrap}
 .stat b em{font-style:normal;color:var(--hud);letter-spacing:.04em;margin-right:5px}
+/* The cardinal is empty until a fix lands, and an empty inline box still
+   carries its margin - so the dashes, and any heading that arrives without a
+   cardinal, sat 2.5px right of centre in the one cell built to read as
+   centred. It is the state the app opens in. Specificity carries this over
+   the landscape 3px as well, so the column is fixed in both orientations. */
+.stat b em:empty{margin-right:0}
 .stat i{font-size:var(--f8);font-style:normal;color:var(--hud);letter-spacing:.08em;
   text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
 
@@ -1182,8 +1204,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
      the shadow thrown the other way */
   background:linear-gradient(0deg,#111513 0,#111513 calc(100% - 3px),
              #1B221D calc(100% - 3px),#333D36 100%);
-  border:none;border-radius:0;
-  backdrop-filter:none;-webkit-backdrop-filter:none;
   box-shadow:0 -1px 0 rgba(0,0,0,.65),0 -6px 12px -6px rgba(0,0,0,.55)}
 /* Cells rather than chips, divided by the same hairline the stats use and
    squared off to meet it.
@@ -1674,18 +1694,22 @@ input[type=date],input[type=time]{color-scheme:dark}
   #statsbar{grid-area:stats;height:auto;flex-direction:column;
     background:linear-gradient(90deg,#111513 0,#111513 calc(100% - 3px),
                #1B221D calc(100% - 3px),#333D36 100%);
-    box-shadow:1px 0 0 rgba(0,0,0,.65),6px 0 12px -6px rgba(0,0,0,.55);
-    border-bottom:none;border-right:none}
+    box-shadow:1px 0 0 rgba(0,0,0,.65),6px 0 12px -6px rgba(0,0,0,.55)}
   .stat,.act{border-image:none}
   .stat{flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:0;
     padding:0 3px;border-right:none;border-bottom:1px solid var(--line)}
   /* the widths above are widths, and down here the axis is vertical */
   .stat:nth-child(n){flex-basis:0}
   .stat:last-child{border-bottom:none}
-  .stat .lbl{font-size:var(--f7);letter-spacing:.08em}
+  /* Tracking widens as the type comes down, which is the way round this
+     system has it everywhere else - these two went the other way when the
+     column was first cut to 80px and there was no room for anything. There
+     is room now: HEADING sets 38px of a 74px cell at the sizes below, and
+     KM/H 21. */
+  .stat .lbl{font-size:var(--f7);letter-spacing:.16em}
   .stat b{font-size:var(--f13)}
   .stat b em{margin-right:3px}
-  .stat i{font-size:var(--f7)}
+  .stat i{font-size:var(--f7);letter-spacing:.10em}
 
   /* the action bar becomes a rail down the right of the map, docked to the
      edge like the instrument column it now bookends. The clearances below
@@ -1695,8 +1719,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     height:auto;width:var(--railW);flex-direction:column;gap:0;
     background:linear-gradient(270deg,#111513 0,#111513 calc(100% - 3px),
                #1B221D calc(100% - 3px),#333D36 100%);
-    box-shadow:-1px 0 0 rgba(0,0,0,.65),-6px 0 12px -6px rgba(0,0,0,.55);
-    border:none}
+    box-shadow:-1px 0 0 rgba(0,0,0,.65),-6px 0 12px -6px rgba(0,0,0,.55)}
   .act{gap:3px;border-right:none;border-bottom:1px solid var(--line)}
   .act:last-child{border-bottom:none}
   /* Sized for the rail it is in. At 56px wide these were 18px and 7.5px,
@@ -1704,7 +1727,10 @@ input[type=date],input[type=time]{color-scheme:dark}
      to come back toward the portrait 23 and 9 without crowding the sides.
      WAYPOINT is the longest label and still clears them. */
   .act svg{width:21px;height:21px}
-  .act span{font-size:var(--f85);letter-spacing:.06em}
+  /* .06em is what fitted the 56px rail these labels came from. The size came
+     back toward the portrait 9 and the tracking did not follow it. WAYPOINT
+     is the longest and sets 51px of the 74px cell here, 59 at Large. */
+  .act span{font-size:var(--f85);letter-spacing:.13em}
 
   /* Half height, by laying each panel out along its width instead of down
      its height: name, readings and buttons on one line, the pair spanning
@@ -1969,7 +1995,7 @@ input[type=date],input[type=time]{color-scheme:dark}
       <!-- The needle keeps pointing at true north, so it doubles as a
            compass; the mode is spelled out in the label rather than
            squeezed into the glyph, which is what the other buttons do. -->
-      <button class="act" id="btnOrient" aria-label="Map orientation: north up or heading up">
+      <button class="act" id="btnOrient">
         <svg viewBox="0 0 24 24">
           <path d="M12 4.4 17 14.2 12 20.4 7 14.2Z"/>
           <path class="solid" d="M12 4.4 17 14.2H7Z"/>
@@ -10099,6 +10125,13 @@ function syncNorthUI() {
   $("#btnOrient").classList.toggle("on", headingUp);
   $("#orientLabel").textContent = headingUp ? "HDG" : "N Up";
   $("#btnOrient").setAttribute("aria-pressed", headingUp ? "true" : "false");
+  /* The accessible name has to contain the word on the button, or voice
+     control cannot ask for the thing the driver can see. The static label
+     named both modes and so matched neither of the two words the button
+     ever wears. This one leads with the label it is wearing; the state
+     stays where it was, on aria-pressed. */
+  $("#btnOrient").setAttribute("aria-label",
+    headingUp ? "HDG - map orientation, heading up" : "N Up - map orientation, north up");
   $("#btnOrient").title = headingUp ? "Heading up - tap for north up" : "North up - tap for heading up";
 }
 
