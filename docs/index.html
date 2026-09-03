@@ -1040,14 +1040,21 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button:active{background:var(--rust)}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
-   saying. Running, it fills solid rust and keeps its sand glyph - the same
-   look the whole column wears while pressed, held down for as long as the
-   drive is fake. A 20% amber wash said the same thing too quietly to catch
-   in sunlight, which is the one place it matters. */
+   saying. A 20% amber wash was tried here once and read as too quiet to
+   catch in sunlight - but that was a wash, not a fill, and a fill is what
+   the rest of the column already proves reads in full sun. Solid at the
+   same weight the pressed state uses, just in amber rather than rust: Sim
+   is a caution, not a chosen mode, and rust is spent on Heading Up now -
+   the one persistent toggle in this view that actually is one. The ink
+   swaps to the same near-black .btn.warnb already puts on amber, since
+   sand on amber is two light colours and reads at barely a point of
+   contrast where sand on rust read at two and a half. Unverified in real
+   sun, same as the wash before it was tried; check it there before calling
+   it settled. */
 #btnSim svg{width:20px;height:20px;stroke:var(--sand);fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
-#btnSim.on{background:var(--rust);border-color:var(--rust)}
-#btnSim.on svg{stroke:var(--sand);fill:var(--sand)}
+#btnSim.on{background:var(--warn);border-color:var(--warn)}
+#btnSim.on svg{stroke:#171204;fill:#171204}
 /* Recentring is a map control rather than an action on the trip, and it is
    wanted in the same breath as a zoom - the driver has been looking around
    and wants the vehicle back - so it joins the zoom column and takes its
@@ -1100,9 +1107,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #mapChips{position:absolute;left:8px;top:12px;z-index:450;display:flex;flex-direction:column;
   align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
 #mapChips > *{pointer-events:auto;max-width:100%}
+/* Rust lived on the base rule, which meant a chip wore the accent by
+   default and had to be opted out rather than in - fine while there were
+   two chips and both wanted it, wrong once two more turned up wanting
+   something else. The base is structural now, the same line and dim ink
+   every unclassified control gets, and every chip below states its own
+   colour instead of inheriting one nobody chose for it. */
 .mapchip{display:flex;align-items:center;gap:6px;
-  background:rgba(20,24,27,.92);border:1px solid var(--rust);border-radius:20px;
-  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:var(--f95);letter-spacing:.1em;color:var(--rust2);
+  background:rgba(20,24,27,.92);border:1px solid var(--line2);border-radius:20px;
+  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:var(--f95);letter-spacing:.1em;color:var(--dim);
   text-transform:uppercase}
 .mapchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
@@ -1110,6 +1123,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .mapchip:active{background:rgba(216,203,170,.16)}
 #poiOfferChip{border-color:var(--warn);color:var(--warn)}
 #updateChip{border-color:var(--green);color:var(--green)}
+/* The view is off the vehicle's real position, which is the same kind of
+   fact Sim's amber already stands for elsewhere on this screen: what you
+   are looking at is not live. */
+#manualChip{border-color:var(--warn);color:var(--warn)}
+/* A filter being on is not a caution and nobody chose it as the one mode
+   in play - it is the same fact a selected category chip states in the
+   drawer, so it wears that chip's own sand-on-dark rather than a colour
+   that would compete with Heading Up for the one rust slot in this view. */
+#poiFilterChip{border-color:var(--sand);color:var(--sand)}
 
 /* ---------- markers ---------- */
 .upright{transform:rotate(calc(-1 * var(--maprot)));transform-origin:50% 50%}
@@ -1225,10 +1247,23 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act span{font-size:var(--f9);letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
 /* The rust border went with the radius, and the tint took its place: with
    nothing rounding it off it fills the cell corner to corner and lights up
-   like a segment on a dash panel, which says it louder than the chip did. */
+   like a segment on a dash panel, which says it louder than the chip did.
+
+   .on is shared by two buttons that used to mean two different things in
+   the same colour. Heading Up keeps it - the mode a driver actually chose,
+   the one thing in this view rust is still spent on. Paused gets its own
+   rule instead: amber, the same colour the recording dot and the panel's
+   own PAUSED label already turn, because right here rust was answering
+   "were you the one who set this" for a state that isn't a choice, it's a
+   pause you fall into mid-task. A refuel stop already made this cell and
+   Heading Up's needle read as the identical thing on the same bar; now
+   only one of the two still is. */
 .act.on{background:rgba(204,90,46,.18)}
 .act.on svg{stroke:var(--rust)}
 .act.on span{color:var(--rust2)}
+#btnRec.on{background:rgba(232,185,35,.18)}
+#btnRec.on svg{stroke:var(--warn)}
+#btnRec.on span{color:var(--warn)}
 .act.rec svg{stroke:var(--danger);fill:var(--danger)}
 .act.rec span{color:var(--danger2)}
 
