@@ -16,18 +16,62 @@
   --head:#171C19;         /* the bar a panel or section heading sits on */
   --panel2:#232B26;
   --sand:#D8CBAA;
-  --rust:#C1552C;
+  /* Lifted four deltaE, which is about the smallest step the eye registers.
+     It buys near-black text on the primary button 4.6:1 instead of 4.2, and
+     the accent as a mark 3.5:1 instead of 3.2. Same hue, same saturation:
+     the accent has not changed, it was half a stop under where a colour has
+     to sit before you can print on it. */
+  --rust:#CC5A2E;
   --green:#8FB93E;
   --warn:#E8B923;
-  --danger:#B9432E;
-  --line:rgba(216,203,170,.14);
-  --line2:rgba(216,203,170,.30);
-  --dim:rgba(216,203,170,.55);
-  /* The two bars that are read at a glance through sunglasses in full
-     sun. Sand is a warm off white and the dim is barely half opaque,
-     which is fine indoors and not on the Flinders at midday. Size and
-     weight still separate a label from its number, so nothing is lost
-     by taking the colour out of that job. */
+  /* The same lift for the same reason, and this one was failing twice over.
+     Near-black on the Clear Tile Cache button was 3.6:1 - the most
+     destructive control in the app wearing the least readable label - and
+     the red was 2.7:1 as a bare mark, under the floor for the recording dot
+     and the critical battery glyph, which are only ever a shape. */
+  --danger:#CF533D;
+  /* Burnt orange and alert red are the right colours at the wrong height to
+     be read. As a fill behind near black text they are fine; as ink on a
+     panel they come in at 3.6 and 3.0, which is under the floor for body
+     text and a long way under what a windscreen asks for. So each keeps a
+     twin lifted to the same lightness - same hue, same saturation, only
+     raised - and the twin is what carries a word. The accent is still one
+     accent; this is the same paint at the height you can read it.
+     The red was already here as .diag .bad, solved once locally. It is a
+     token now so the next thing that has to say something went wrong does
+     not have to solve it again. */
+  --rust2:#DC8767;
+  --danger2:#E07C63;
+  /* Navigation: the destination, the route, and the panel counting it down.
+     Chrome rather than a category of place, so it gets its own name instead
+     of living as six loose hexes - which is how the route line came to be
+     drawn in the same blue the price chips use for Unleaded 91. The colour
+     is unchanged and the grade moved instead; a route is identified by
+     being a route, and a driver reading a price board has learnt the grade.
+     Two heights, because the mark is drawn on a pale map and the text sits
+     on a dark panel, and neither colour survives the other's ground. */
+  --nav:#4FA8E8;
+  --nav2:#7FC1F0;
+  /* The structural sand transparencies. line2 draws the edge of a control
+     and has to clear 3:1 against every surface it is drawn on, because the
+     surface ramp is flat by design and the line is the only thing saying
+     where a button stops. At .30 it was 2.1 and the button had no edge in
+     sunlight. line is decoration - a divider between rows - and only has to
+     be seen. */
+  --line:rgba(216,203,170,.22);
+  --line2:rgba(216,203,170,.48);
+  /* The two bars that are read at a glance through sunglasses in full sun
+     are white, because sand is a warm off white and does not survive the
+     glare. Size and weight still separate a label from its number, so
+     nothing is lost by taking the colour out of that job.
+
+     Everything below those bars is read at a stop rather than at speed, but
+     it is read in the same light. Dim is the secondary tier - units, counts,
+     hints, the second line of a card - and at .55 it landed on 4.0 against
+     every ground in the app, under the floor on all of them. At .72 it runs
+     5.4 to 6.5 and is still plainly quieter than sand at 10. The tier was
+     never the problem; its height was. */
+  --dim:rgba(216,203,170,.72);
   --hud:#FFFFFF;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -57,15 +101,27 @@
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px;
   border:2px solid transparent;background-clip:content-box}
-::-webkit-scrollbar-thumb:hover{background:rgba(216,203,170,.45);background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(216,203,170,.66);background-clip:content-box}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:var(--ink);color:var(--sand);
   font-family:var(--ui);font-size:15px;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
   -webkit-text-size-adjust:100%}
 button{font-family:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
 input,select,textarea{font-family:inherit;font-size:15px;color:var(--sand);background:#111513;
-  border:1px solid var(--line2);border-radius:4px;padding:9px 10px;width:100%;outline:none;-webkit-user-select:text;user-select:text}
-input:focus,select,textarea:focus{border-color:var(--rust)}
+  border:1px solid var(--line2);border-radius:4px;padding:9px 10px;width:100%;outline:none;-webkit-user-select:text;user-select:text;
+  caret-color:var(--rust2)}
+/* The select used to sit in this list without its :focus, so it wore the
+   accent standing still and had nothing left to say when it was focused -
+   the one control in the app that could not show you where the keyboard
+   was. The timepick sets its own border, so it needs its own focus too or
+   the class rule swallows it at every state. */
+input:focus,select:focus,textarea:focus{border-color:var(--rust)}
+.timepick select:focus{border-color:var(--rust)}
+/* The two surfaces the browser paints for us. Left alone the selection is
+   a system blue that belongs to no palette here, and it lands on the one
+   screen where a driver is reading back a name or a coordinate. */
+::selection{background:rgba(204,90,46,.42);color:var(--sand)}
+::-moz-selection{background:rgba(204,90,46,.42);color:var(--sand)}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 .hidden{display:none !important}
@@ -81,12 +137,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:1px;letter-spacing:.16em;
   font-size:14px;font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
-.brand .b2{color:var(--rust)}
+.brand .b2{color:var(--rust2)}
 .icon-btn{width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;
   border:1px solid transparent;flex:0 0 auto;transition:background .12s,border-color .12s}
-.icon-btn:active{background:rgba(216,203,170,.10)}
+.icon-btn:active{background:rgba(216,203,170,.16)}
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.icon-btn.on{border-color:var(--rust);background:rgba(193,85,44,.16)}
+.icon-btn.on{border-color:var(--rust);background:rgba(204,90,46,.16)}
 .icon-btn.on svg{stroke:var(--rust)}
 /* The header carries two lamps rather than a sentence. GPS is a glyph and a
    dot - green while fixes are landing, amber while the simulator drives, red
@@ -120,7 +176,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #battPill .fill{fill:var(--hud);stroke:none}
 #battPill.low{color:var(--warn)}
 #battPill.low .fill{fill:var(--warn)}
-#battPill.crit{color:var(--danger)}
+#battPill.crit{color:var(--danger2)}
 #battPill.crit .fill{fill:var(--danger)}
 /* Charging lays the bolt over whatever the level happens to be, keylined in
    the bar's own dark so it reads against a full cell and an empty one
@@ -154,7 +210,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    alone it carried on across the facet and read as a scratch through it.
    border-image paints the very same line the border already was and
    simply runs out three pixels early. */
-.stat{border-image:linear-gradient(180deg,rgba(216,203,170,.14) calc(100% - 3px),transparent 0) 1}
+.stat{border-image:linear-gradient(180deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}
 /* Five equal columns meant the widest reading in each got a different
    amount of room. SPEED sat in 42px of spare while TIME overflowed its
    cell by 5, and HEADING was down to 7px with a three letter cardinal
@@ -194,7 +250,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
 #attrib{position:absolute;left:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);z-index:450;
-  font-size:8.5px;color:rgba(216,203,170,.45);background:rgba(20,24,27,.6);padding:2px 6px;border-radius:3px;
+  font-size:8.5px;color:var(--dim);background:rgba(20,24,27,.9);padding:2px 6px;border-radius:3px;
   pointer-events:none;letter-spacing:.02em}
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:38px;height:38px;border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
@@ -261,7 +317,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #mapChips > *{pointer-events:auto;max-width:100%}
 .mapchip{display:flex;align-items:center;gap:6px;
   background:rgba(20,24,27,.92);border:1px solid var(--rust);border-radius:20px;
-  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust);
+  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--rust2);
   text-transform:uppercase}
 .mapchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
@@ -376,18 +432,18 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   border-radius:0;border:none;border-right:1px solid var(--line);padding:0 2px;transition:background .12s}
 .act:last-child{border-right:none}
 /* stopped short of the facet for the same reason the stats dividers are */
-.act{border-image:linear-gradient(0deg,rgba(216,203,170,.14) calc(100% - 3px),transparent 0) 1}
-.act:active{background:rgba(216,203,170,.09)}
+.act{border-image:linear-gradient(0deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}
+.act:active{background:rgba(216,203,170,.15)}
 .act svg{width:23px;height:23px;stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .act span{font-size:9px;letter-spacing:.11em;color:var(--hud);text-transform:uppercase;font-weight:600}
 /* The rust border went with the radius, and the tint took its place: with
    nothing rounding it off it fills the cell corner to corner and lights up
    like a segment on a dash panel, which says it louder than the chip did. */
-.act.on{background:rgba(193,85,44,.18)}
+.act.on{background:rgba(204,90,46,.18)}
 .act.on svg{stroke:var(--rust)}
-.act.on span{color:var(--rust)}
+.act.on span{color:var(--rust2)}
 .act.rec svg{stroke:var(--danger);fill:var(--danger)}
-.act.rec span{color:var(--danger)}
+.act.rec span{color:var(--danger2)}
 
 /* ---------- recording panel ---------- */
 /* Navigating while recording used to cost two stacked panels and most of the
@@ -408,12 +464,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack.pair .np-ico{width:13px;height:13px}
 #navPanel,#recPanel{display:flex;flex-direction:column}
 #panelStack.pair .np-btns,#panelStack.pair .rp-btns{margin-top:auto}
-#navPanel{background:rgba(23,28,25,.96);border:1px solid rgba(79,168,232,.45);border-radius:10px;padding:9px 10px;
+#navPanel{background:rgba(23,28,25,.96);border:1px solid rgba(127,193,240,.55);border-radius:10px;padding:9px 10px;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .np-top{display:flex;align-items:center;gap:8px}
-.np-ico{width:15px;height:15px;stroke:#4FA8E8;fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
+.np-ico{width:15px;height:15px;stroke:var(--nav2);fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
 .np-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7FC1F0}
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--nav2)}
 .np-btns{display:flex;margin-top:8px}
 .np-btns .btn{padding:11px 12px;min-height:40px}
 .np-figs{display:flex;margin-top:7px}
@@ -427,7 +483,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   margin-top:6px;text-align:center}
 .np-note:empty{display:none}
 #recPanel{z-index:500;
-  background:rgba(23,28,25,.96);border:1px solid rgba(185,67,46,.45);border-radius:10px;padding:9px 10px;
+  background:rgba(23,28,25,.96);border:1px solid rgba(224,124,99,.65);border-radius:10px;padding:9px 10px;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .rp-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .rec-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex:0 0 auto;animation:blink 1.4s infinite}
@@ -435,7 +491,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 @keyframes blink{0%,45%{opacity:1}55%,100%{opacity:.15}}
 .rp-name{flex:1;min-width:0;font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rp-state{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--danger)}
+.rp-state{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--danger2)}
 .rp-state.pause{color:var(--warn)}
 .rp-btns{display:flex;gap:6px}
 
@@ -502,7 +558,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .dr-head .t{flex:1;font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .dr-foot{flex:0 0 auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
-  font-size:9px;color:rgba(216,203,170,.4);line-height:1.5}
+  font-size:9px;color:var(--dim);line-height:1.5}
 details{border-bottom:1px solid var(--line)}
 summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:11.5px;
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
@@ -545,7 +601,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .diag div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:2px 0}
 .diag b{font-weight:600}
 .diag .ok{color:var(--green)}
-.diag .bad{color:#E07C63}
+.diag .bad{color:var(--danger2)}
 .diag .warn{color:var(--warn)}
 .poi-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--dim);padding:7px 2px 3px}
 .sublabel{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;
@@ -600,7 +656,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #fuelTypes .kchip > span:not(.dotmark){white-space:normal;line-height:1.15}
 .kchip{display:flex;align-items:center;gap:6px;min-height:34px;padding:5px 10px 5px 5px;
   border-radius:9px;border:1px solid var(--line2);background:#0F1311;color:var(--dim);
-  font-size:11.5px;cursor:pointer;opacity:.55;text-align:left}
+  font-size:11.5px;cursor:pointer;opacity:.8;text-align:left}
 /* the label takes the slack so the count is pushed to the same right edge
    in every chip, and a long one ellipses rather than widening the column */
 .kchip > span:not(.dotmark){flex:1;min-width:0;overflow:hidden;
@@ -610,7 +666,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .kchip .dotmark{width:20px;height:20px}
 .kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.kchip i{font-family:var(--mono);font-style:normal;font-size:10px;opacity:.9;flex:0 0 auto}
+.kchip i{font-family:var(--mono);font-style:normal;font-size:10px;flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
 /* The type-ahead list, tucked under the search box. Buttons rather than
@@ -652,10 +708,10 @@ details.sub > .sec-body{padding:12px 0 0}
 .trk-m{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:8px}
 .trk-m > div{min-width:0;display:flex;flex-direction:column;gap:1px}
 .trk-m b{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  color:rgba(216,203,170,.75)}
+  color:var(--dim)}
 .trk-m span{font-family:var(--mono);font-size:11.5px;color:var(--sand);
   letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-n{font-size:11.5px;color:rgba(216,203,170,.7);margin-top:5px;line-height:1.35;word-break:break-word}
+.card-n{font-size:11.5px;color:var(--dim);margin-top:5px;line-height:1.35;word-break:break-word}
 /* The street address, above the attribute line and a shade brighter than it:
    where a place is reads ahead of what it offers. */
 .card-ad{font-size:11.5px;color:rgba(216,203,170,.8);margin-top:5px;line-height:1.35;word-break:break-word}
@@ -664,7 +720,7 @@ details.sub > .sec-body{padding:12px 0 0}
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
 .tag.medium{background:rgba(232,185,35,.16);color:var(--warn);border:1px solid rgba(232,185,35,.35)}
-.tag.hard{background:rgba(185,67,46,.2);color:#E07C63;border:1px solid rgba(185,67,46,.4)}
+.tag.hard{background:rgba(207,83,61,.2);color:var(--danger2);border:1px solid rgba(207,83,61,.4)}
 .dotmark{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;
   flex:0 0 auto}
 .dotmark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2;
@@ -674,7 +730,7 @@ details.sub > .sec-body{padding:12px 0 0}
   position:relative;flex:0 0 auto;transition:background .16s,border-color .16s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
   background:var(--dim);transition:transform .16s,background .16s}
-.sw.on{background:rgba(193,85,44,.3);border-color:var(--rust)}
+.sw.on{background:rgba(204,90,46,.3);border-color:var(--rust)}
 /* The chosen unit reads like the switch below it: the same rust wash and
    border, and the sand the rest of the menu is written in. It used to borrow
    .primary, whose near-black text landed on .ghost's transparent background -
@@ -682,7 +738,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
-  background:rgba(193,85,44,.3);border-color:var(--rust);color:var(--sand)}
+  background:rgba(204,90,46,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(18px);background:var(--rust)}
 
 /* ---------- floating form (clamped to viewport) ---------- */
@@ -737,7 +793,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 .modal-body{min-height:0}
 .hint{font-size:10.5px;color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
 .bignum{font-family:var(--mono);font-size:26px;color:var(--sand);letter-spacing:.02em}
-.bignum.over{color:var(--danger)}
+.bignum.over{color:var(--danger2)}
 .prog{height:7px;border-radius:4px;background:#0F1311;border:1px solid var(--line);overflow:hidden;margin:10px 0 7px}
 .prog i{display:block;height:100%;width:0;background:var(--rust);transition:width .18s}
 .kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--dim);
@@ -747,8 +803,8 @@ input[type=date],input[type=time]{color-scheme:dark}
 /* ---------- draw box ---------- */
 #drawHint{position:absolute;top:12px;left:12px;right:60px;z-index:470;background:rgba(23,28,25,.95);
   border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.4;color:var(--sand)}
-#drawHint b{color:var(--rust);letter-spacing:.1em;font-size:10px;display:block;margin-bottom:3px;text-transform:uppercase}
-#drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(193,85,44,.15);pointer-events:none}
+#drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:10px;display:block;margin-bottom:3px;text-transform:uppercase}
+#drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
 #stage.drawing{cursor:crosshair}
 
 /* ---------- toast ---------- */
@@ -764,7 +820,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.ok{border-color:rgba(143,185,62,.5);color:var(--green)}
 #toast.warn{border-color:rgba(232,185,35,.5);color:var(--warn)}
-#toast.err{border-color:rgba(185,67,46,.6);color:#E07C63}
+#toast.err{border-color:rgba(207,83,61,.6);color:var(--danger2)}
 .scrollarea{max-height:320px;overflow-y:auto;overscroll-behavior:contain}
 .float-body{min-height:0}
 .float-head,.modal-foot{flex:0 0 auto}
@@ -1727,7 +1783,7 @@ function toast(msg, kind) {
   const icon =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
     '<rect width="512" height="512" rx="96" fill="#14181B"/>' +
-    '<path d="M64 372 L176 176 L262 300 L318 214 L448 372 Z" fill="none" stroke="#C1552C" stroke-width="26" stroke-linejoin="round"/>' +
+    '<path d="M64 372 L176 176 L262 300 L318 214 L448 372 Z" fill="none" stroke="#CC5A2E" stroke-width="26" stroke-linejoin="round"/>' +
     '<circle cx="176" cy="176" r="30" fill="#8FB93E"/>' +
     '<path d="M96 424h320" stroke="#D8CBAA" stroke-width="20" stroke-linecap="round"/></svg>';
   const iconURL = "data:image/svg+xml;base64," + btoa(icon);
@@ -2128,10 +2184,81 @@ function setHillshade(on) {
 }
 if (S.hillshade) setHillshade(true);
 
+/* A category colour is picked to be a mark: a pin on a pale map, a dot on a
+   chip. A mark only has to clear 3:1, and all thirty of them do. The moment
+   the same hex is set as a popup title it stops being a mark and becomes
+   ink, which has to clear 4.5 - and thirteen of the thirty did not, down to
+   3.0 for the doctor's violet and 3.1 for an obstacle.
+
+   Rather than keep a second column of hand-picked hexes that can drift from
+   the first, the word is drawn in the same hue lifted until it can be read.
+   The pin keeps its exact colour; only the text moves. This is the rule the
+   accent already follows in --rust2 and --danger2, applied to the scale, so
+   a colour added to POI_META or CATS later is legible without anyone having
+   to remember this. The scale stays closed: nothing here invents a hue, it
+   only raises one that was already chosen. */
+const inkOf = (function () {
+  const memo = {};
+  const PANEL = [0x1B, 0x21, 0x1D];          /* --panel, the ground a popup sits on */
+  const chan = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = c => 0.2126 * chan(c[0]) + 0.7152 * chan(c[1]) + 0.0722 * chan(c[2]);
+  const ratio = c => { const a = lum(c), b = lum(PANEL); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+  function toHSL(c) {
+    const r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0, s = 0; const l = (mx + mn) / 2;
+    if (d) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4);
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+  function toRGB(h, s, l) {
+    if (!s) return [l * 255, l * 255, l * 255];
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    const f = t => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 0.5) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
+  }
+  return function (hex) {
+    if (typeof hex !== "string" || hex.charAt(0) !== "#" || hex.length !== 7) return hex;
+    if (memo[hex]) return memo[hex];
+    const c0 = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+    if (c0.some(isNaN)) return hex;
+    let out = hex;
+    if (ratio(c0) < 4.5) {
+      const hsl = toHSL(c0);
+      out = "#D8CBAA";                        /* sand, if the hue cannot get there at all */
+      for (let l = hsl[2]; l <= 0.95; l += 0.01) {
+        const c = toRGB(hsl[0], hsl[1], l);
+        if (ratio(c) >= 4.5) { out = "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""); break; }
+      }
+    }
+    memo[hex] = out;
+    return out;
+  };
+})();
+
+/* The palette lives in :root and nowhere else. Leaflet wants a plain string
+   rather than a custom property, so read the token once here instead of
+   keeping a second copy of the colour in the script - a second copy is how
+   the route line and the Unleaded 91 price chip came to be the same blue
+   without either one having decided to be. */
+const PAINT = (function () {
+  const cs = getComputedStyle(document.documentElement);
+  return { nav: cs.getPropertyValue("--nav").trim() || "#4FA8E8" };
+})();
+
 /* ---- layers ---- */
 /* route first so the recorded trail always draws on top of it */
 const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
-const navLine     = L.polyline([], { color: "#4FA8E8", weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
+const navLine     = L.polyline([], { color: PAINT.nav, weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
 const navDestMk   = L.layerGroup().addTo(map);
 const trailCasing = L.polyline([], { color: "#0D100F", weight: 9, opacity: .85, lineCap: "round", lineJoin: "round" }).addTo(map);
 const trailLine   = L.polyline([], { color: "#8FB93E", weight: 4, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
@@ -3387,7 +3514,7 @@ function renderWaypoints() {
     const c = CATS[w.cat] || CATS.flag;
     const m = L.marker([w.lat, w.lng], { icon: pinIcon(c.color, w.cat, false) });
     m.bindPopup(
-      '<div class="pop-t" style="color:' + c.color + '">' + esc(w.name) + "</div>" +
+      '<div class="pop-t" style="color:' + inkOf(c.color) + '">' + esc(w.name) + "</div>" +
       '<div class="pop-m">' + c.label.toUpperCase() + " &middot; " + w.lat.toFixed(5) + ", " + w.lng.toFixed(5) + "</div>" +
       (w.note ? '<div class="pop-n">' + esc(w.note) + "</div>" : "") +
       '<div class="pop-m" style="margin-top:6px">' + fmtDate(w.ts) + "</div>" +
@@ -4921,7 +5048,7 @@ function visiblePois() {
    scheme gives it and falls back to the fuel pin's own colour, so a new
    grade appears as a working switch rather than not at all. */
 const FUEL_LOOK = {
-  2:  { label: "Unleaded 91",         color: "#4FA8E8", icon: "fuel" },
+  2:  { label: "Unleaded 91",         color: "#7C93D8", icon: "fuel" },
   3:  { label: "Diesel",              color: "#9AA3A0", icon: "droplet", group: "diesel" },
   4:  { label: "LPG",                 color: "#4BC0B5", icon: "gascyl" },
   /* ULP, not "Unleaded", on the two premiums alone. They are the only labels
@@ -5310,7 +5437,7 @@ function poiSource(p) {
 
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
-  return '<div class="pop-t" style="color:' + m.color + '">' + esc(p.name) + "</div>" +
+  return '<div class="pop-t" style="color:' + inkOf(m.color) + '">' + esc(p.name) + "</div>" +
     (p.sub ? '<div class="pop-sub">' + esc(p.sub) + "</div>" : "") +
     '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
     poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
@@ -5630,7 +5757,7 @@ function renderPoiFilters() {
   box.innerHTML = kinds.map(function (k) {
     const m = POI_META[k], on = !hiddenKinds.has(k);
     return '<button class="kchip' + (on ? " on" : "") + '" data-kind="' + k + '" ' +
-      'aria-pressed="' + on + '" style="--kc:' + m.color + '">' +
+      'aria-pressed="' + on + '" style="--kc:' + inkOf(m.color) + '">' +
       '<span class="dotmark poi" style="background:' + m.color + '">' + catIcon(m.icon) + "</span>" +
       "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
   }).join("");
@@ -5700,7 +5827,7 @@ function renderFuelTypes() {
   box.innerHTML = groups.map(function (g) {
     const on = g.ids.some(function (id) { return sel.has(id); });
     return '<button class="kchip' + (on ? " on" : "") + '" data-fuel="' + g.key + '" ' +
-      'aria-pressed="' + on + '" style="--kc:' + g.color + '">' +
+      'aria-pressed="' + on + '" style="--kc:' + inkOf(g.color) + '">' +
       '<span class="dotmark poi" style="background:' + g.color + '">' +
       catIcon(g.icon) + "</span>" +
       "<span>" + esc(g.label) + "</span><i>" + (counts[g.key] || 0) + "</i></button>";
@@ -8237,8 +8364,8 @@ async function navigateTo(dest, quiet) {
   navLine.setLatLngs(Nav.coords);
   navCasing.setLatLngs(Nav.coords);
   navDestMk.clearLayers();
-  L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon("#4FA8E8", "flag", false) })
-    .bindPopup('<div class="pop-t" style="color:#7FC1F0">' + esc(Nav.dest.name) + "</div>")
+  L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon(PAINT.nav, "flag", false) })
+    .bindPopup('<div class="pop-t" style="color:var(--nav2)">' + esc(Nav.dest.name) + "</div>")
     .addTo(navDestMk);
   setNavNote(Nav.standing);
   showNavPanel();

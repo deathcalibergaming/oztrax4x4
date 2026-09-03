@@ -9,14 +9,18 @@ colors:
   card: "#161B18"
   field: "#111513"
   warm-sand: "#D8CBAA"
-  burnt-orange: "#C1552C"
+  burnt-orange: "#CC5A2E"
+  burnt-orange-lit: "#DC8767"
   signal-green: "#8FB93E"
   caution-yellow: "#E8B923"
-  alert-red: "#B9432E"
+  alert-red: "#CF533D"
+  alert-red-lit: "#E07C63"
+  navigation-blue: "#4FA8E8"
+  navigation-blue-lit: "#7FC1F0"
   instrument-white: "#FFFFFF"
-  hairline: "rgba(216,203,170,.14)"
-  hairline-strong: "rgba(216,203,170,.30)"
-  muted-sand: "rgba(216,203,170,.55)"
+  hairline: "rgba(216,203,170,.22)"
+  hairline-strong: "rgba(216,203,170,.48)"
+  muted-sand: "rgba(216,203,170,.72)"
 typography:
   display:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
@@ -161,27 +165,44 @@ categorical scale for places.
 
 ### Primary
 
-- **Burnt Orange** (`#C1552C`): the single accent. Primary buttons, the input
-  focus ring, the second half of the wordmark, and the active state on
-  controls. It is the only colour that means "this is the action".
+- **Burnt Orange** (`#CC5A2E`): the single accent. Primary buttons, the input
+  focus ring, and the active state on controls. It is the only colour that
+  means "this is the action".
+- **Burnt Orange Lit** (`#DC8767`): the same accent where it has to be read
+  rather than filled — the second half of the wordmark, the map chip, an
+  active action-bar label, the caret. Same hue, same saturation, raised until
+  a word set in it clears 4.5:1. It is not a second accent; it is the accent
+  at the height you can read it. See The Mark Versus Ink Rule.
 
 ### Secondary
 
 - **Signal Green** (`#8FB93E`): affirmative and go. The recorded trail line,
   confirm buttons, free camps.
 - **Caution Yellow** (`#E8B923`): attention without alarm. Warnings, fuel.
-- **Alert Red** (`#B9432E`): destructive and urgent. Delete actions, hazards.
+- **Alert Red** (`#CF533D`): destructive and urgent. Delete actions, hazards.
+- **Alert Red Lit** (`#E07C63`): the same red as ink — a diagnostic that
+  failed, the recording state line, an over-budget figure, an error toast.
+- **Navigation Blue** (`#4FA8E8`) and **Navigation Blue Lit** (`#7FC1F0`):
+  the destination and the route to it — the polyline, the destination pin,
+  the navigation panel. Chrome rather than a category of place, which is why
+  it has a name of its own instead of borrowing a fuel grade's hex. Ink is
+  drawn on a pale map and stays dark; lit sits on a dark panel and stays
+  light. Neither survives the other's ground.
 
 ### Neutral
 
 - **Warm Sand** (`#D8CBAA`): all body text, icons and borders. The identity
   colour of the system — everything neutral is a transparency of it, which is
   what keeps the greys warm.
-- **Muted Sand** (`rgba(216,203,170,.55)`): secondary text, units, inactive
-  chips.
-- **Hairline** (`rgba(216,203,170,.14)`) and **Hairline Strong**
-  (`rgba(216,203,170,.30)`): dividers and control borders. Structure is drawn
-  with one-pixel lines, not with fills.
+- **Muted Sand** (`rgba(216,203,170,.72)`): secondary text, units, inactive
+  chips. It runs 5.4:1 to 6.5:1 against every surface in the app, and is
+  still plainly quieter than sand at 10:1 — the tier is carried by the gap,
+  not by being close to the ground.
+- **Hairline** (`rgba(216,203,170,.22)`) and **Hairline Strong**
+  (`rgba(216,203,170,.48)`): dividers and control borders. Structure is drawn
+  with one-pixel lines, not with fills — so Hairline Strong has to clear
+  3:1 on every surface it is drawn on, because with the surface ramp as flat
+  as it is, that line is the only thing saying where a control stops.
 - **Near Black** (`#14181B`): the app ground and the browser theme colour.
 - **Panel** (`#1B211D`), **Panel Head** (`#171C19`), **Panel Raised**
   (`#232B26`), **Card** (`#161B18`), **Field** (`#111513`): the surface ramp.
@@ -196,21 +217,51 @@ pin, its dot in a list, and its filter chip, so a colour learned once is
 recognised everywhere. The scale is defined in `POI_META` in
 `docs/index.html`; it is a closed set, not a palette to draw from.
 
+Every colour in it is chosen as a mark and clears 3:1 as one — against the
+pale map behind a pin, and against the dark ground behind a chip's dot.
+None is chosen as ink, and thirteen of the thirty across this scale and the
+six waypoint categories cannot carry a word unaided. `inkOf()` lifts those
+at render time so a popup title or an active chip label is legible while the
+pin keeps its exact colour. Add a colour here for how it reads as a mark;
+the ink takes care of itself.
+
 ### Named Rules
 
 **The Full Sun Rule.** The two instrument bars use Instrument White
-(`#FFFFFF`), not sand, and their labels and units use it too. Sand at 55%
-opacity is comfortable indoors and unreadable on the Flinders at midday. Size
-and weight separate a label from its number, so nothing is lost by taking
-colour out of that job. Any new element read at speed inherits this rule.
+(`#FFFFFF`), not sand, and their labels and units use it too. Even Warm Sand
+at full strength is a warm off-white, and a reading taken at 80 km/h through
+sunglasses cannot afford the difference. Size and weight separate a label
+from its number, so nothing is lost by taking colour out of that job. Any new
+element read at speed inherits this rule.
+
+The rule runs the whole ramp, not just the bars. Everything below them is
+read at a stop rather than at speed, but it is read in the same light, so
+every text colour in the system clears 4.5:1 against the surface it is set
+on and every control border clears 3:1. Nothing is exempt for being small,
+secondary, or a caption; small type is the type that needs it most.
+
+**The Mark Versus Ink Rule.** A colour chosen to be a mark and a colour used
+as ink are different jobs with different floors. A pin, a dot, a route line
+or a status lamp is a mark, and clears 3:1. The moment the same hex is set
+as a word — a popup title, a chip label, a button face — it is ink, and has
+to clear 4.5:1 against its ground. Where a mark colour cannot, it is lifted
+in lightness with its hue and saturation held, and only the text moves; the
+mark keeps its exact colour. Burnt Orange Lit and Alert Red Lit are this
+rule written down for the accents, and `inkOf()` in `docs/index.html` is the
+same rule applied to the categorical scales at render time. Never solve it
+by picking a different colour.
 
 **The One Accent Rule.** Burnt Orange means action and nothing else. A screen
 should carry it on one control. If two things are orange, one of them is
-wrong.
+wrong. Its lit twin is the same colour under this rule, not a second one — a
+control cannot use both to look like two things.
 
 **The Closed Scale Rule.** Category colour comes from the 24-entry scale or
 it does not exist. Never invent a colour to distinguish a new kind of place;
-add it to the scale or reuse the category that already fits.
+add it to the scale or reuse the category that already fits. A colour added
+to the scale is chosen as a mark and only has to clear 3:1 there; The Mark
+Versus Ink Rule makes it legible wherever it is set as a word, so it does
+not need a hand-picked text variant and must not be given one.
 
 ## Typography
 
@@ -359,7 +410,7 @@ slack, and a count pushed to a shared right edge.
 
 - **Style:** `#0F1311` fill, hairline-strong border, 9px radius, minimum
   height 34px
-- **State:** off is 55% opacity with muted-sand text; on is full opacity with
+- **State:** off is muted-sand text at 80% opacity; on is full opacity with
   the category colour on the dot
 
 ### Cards
@@ -376,8 +427,12 @@ slack, and a count pushed to a shared right edge.
 
 - **Style:** Field (`#111513`) fill, hairline-strong border, 4px radius,
   15px type — large enough not to trigger zoom on iOS
-- **Focus:** border becomes Burnt Orange; no glow, no ring
+- **Focus:** border becomes Burnt Orange; no glow, no ring. Every field type
+  has one, selects included — the native outline is removed here, so a
+  control that does not replace it has no focus state at all
 - **Select:** the native arrow is replaced with two muted-sand gradients
+- **Caret:** Burnt Orange Lit, so the insertion point belongs to the palette
+  rather than to the browser
 
 ### Instrument Gauge
 
@@ -397,17 +452,19 @@ size to keep the ring clear.
 
 ### Popups
 
-Panel fill, hairline-strong border, 6px radius, popup shadow. A coloured
-uppercase title, an optional second line for a place that has one, then a
-monospaced meta line of category, source and distance.
+Panel fill, hairline-strong border, 6px radius, popup shadow. An uppercase
+title in the category's colour lifted to ink, an optional second line for a
+place that has one, then a monospaced meta line of category, source and
+distance.
 
 ## Do's and Don'ts
 
 ### Do:
 
 - **Do** use Instrument White (`#FFFFFF`) for anything read at speed —
-  values, their labels and their units. Sand at 55% is not legible in full
-  sun.
+  values, their labels and their units — and keep every other text colour
+  above 4.5:1 and every control border above 3:1, because the rest of the
+  interface is read in the same light.
 - **Do** give every map overlay a shadow from the vocabulary, and give panel
   internals none.
 - **Do** keep radii between 3px and 10px, and draw structure with one-pixel
@@ -418,6 +475,11 @@ monospaced meta line of category, source and distance.
   the system's floor, set for a gloved thumb.
 - **Do** reserve monospace for values that change, and say the unit in
   uppercase beside it (`KM/H`).
+- **Do** lift a mark colour rather than substitute one when it has to carry
+  a word, and leave the mark itself alone.
+- **Do** theme the surfaces the browser would otherwise paint for itself —
+  the selection, the caret, the scrollbar, the focus ring. A system-blue
+  selection belongs to no palette here.
 - **Do** state absence plainly in the interface — an unmapped road, a stale
   price, a straight-line fallback. A confident surface over missing data is a
   defect here, not a polish win.
@@ -430,6 +492,9 @@ monospaced meta line of category, source and distance.
 - **Don't** introduce purple gradients, glassmorphism, large radii or soft
   ambient shadow. That is dark-mode SaaS, and it is the other confirmed
   anti-reference.
+- **Don't** dim text with element `opacity` stacked on an already
+  transparent colour. The two multiply, and the result is not visible in
+  either value.
 - **Don't** use colour as the only difference between a label and its value;
   size and weight already do that job, and colour is needed for classifying.
 - **Don't** add a category colour outside the 24-entry scale.
