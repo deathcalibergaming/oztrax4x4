@@ -362,7 +362,7 @@ viewport with two full-screen
 layer rather than reflowing anything — and forces both promoted layers to
 re-rasterise mid-gesture, which flashes and drops to the stage's near-black
 on real hardware. Making type bigger here is the app's own job, and Settings
-carries it: Text Size, at 1, 1.15 or 1.3.
+carries it: Text Size, at 1 or 1.15.
 
 Leaflet's own pinch fails the same way. It scales the map pane with a CSS
 transform for the length of the gesture, and that pane is inside those two
@@ -554,11 +554,16 @@ truth.
 
 ### Text Size
 
-A three-step segmented control in Settings — Normal, Large, Larger — built
-like the Units and Screen Lock rows beside it, and the app's answer to page
-zoom rather than an extra on top of it. At Larger the 8.5px gauge labels
-read at 11px and the instrument values at 22px, and the panels reflow around
-them instead of being magnified.
+A two-step segmented control in Settings — Normal and Large — built like the
+Units and Screen Lock rows beside it, and the app's answer to page zoom
+rather than an extra on top of it. At Large the 8.5px gauge labels read at
+9.8px and the instrument values at 19.6px, and the panels reflow around them
+instead of being magnified.
+
+There was a third step at 1.3, and it is gone. The bars scale with the type,
+so it took about 32px off the map on a phone — tested in the vehicle and
+judged not worth the trade. Large takes 16, which is. A saved 1.3 migrates
+up to Large rather than down to Normal: whoever chose it wanted bigger.
 
 Any new rule inherits this for free by using a size token; there is nothing
 to remember. A literal `font-size` in px is now the exception and should

@@ -1554,7 +1554,7 @@ details.sub > .sec-body{padding:12px 0 0}
    fix this one would be the larger change. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
-#btnText1.on,#btnText2.on,#btnText3.on,
+#btnText1.on,#btnText2.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:rgba(204,90,46,.3);border-color:var(--rust);color:var(--sand)}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
@@ -2064,7 +2064,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="sublabel" role="radiogroup" aria-label="Text size">Text Size
           <button class="btn xs ghost" id="btnText1" data-scale="1">Normal</button>
           <button class="btn xs ghost" id="btnText2" data-scale="1.15">Large</button>
-          <button class="btn xs ghost" id="btnText3" data-scale="1.3">Larger</button>
         </div>
         <div class="poi-status" id="textNote">Every label and reading in the app, the gauges included. The map, the speed sign and the size of the buttons do not change.</div>
         <div class="sublabel">Screen Lock
@@ -10389,11 +10388,20 @@ $("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); }
    added. The map, the speed sign and the tap sizes are deliberately outside
    it: a sign is a sign, and 44px is a thumb rather than a letter.
    --------------------------------------------------------------------- */
-const TEXT_STEPS = [1, 1.15, 1.3];
+/* Two steps, not three. Larger was 1.3, and the bars scale with the type, so
+   it cost about 32px of map on a phone - tested in the vehicle and judged
+   not worth it. Large is 1.15 and costs about 16, which is. */
+const TEXT_STEPS = [1, 1.15];
 
 function applyTextScale() {
-  const s = TEXT_STEPS.indexOf(S.textScale) === -1 ? 1 : S.textScale;
-  document.documentElement.style.setProperty("--uiScale", String(s));
+  if (TEXT_STEPS.indexOf(S.textScale) === -1) {
+    /* A step that no longer exists, which today means Larger carried over in
+       someone's saved settings. Land on the biggest one that survives rather
+       than back at Normal: whoever chose it wanted bigger, not default. */
+    S.textScale = S.textScale > 1 ? TEXT_STEPS[TEXT_STEPS.length - 1] : TEXT_STEPS[0];
+    saveSettings();
+  }
+  document.documentElement.style.setProperty("--uiScale", String(S.textScale));
   /* The bars changed height, so everything measured off them is stale -
      the map's own size most of all, or it keeps the rows it had before. */
   if (typeof sizeMap === "function") sizeMap();
@@ -10401,7 +10409,7 @@ function applyTextScale() {
 }
 
 function syncTextButtons() {
-  const btns = [$("#btnText1"), $("#btnText2"), $("#btnText3")];
+  const btns = [$("#btnText1"), $("#btnText2")];
   btns.forEach(function (b) {
     const on = parseFloat(b.dataset.scale) === S.textScale;
     b.classList.toggle("on", on);
@@ -10418,7 +10426,7 @@ function setTextScale(n) {
   syncTextButtons();
 }
 
-[["#btnText1", 1], ["#btnText2", 1.15], ["#btnText3", 1.3]].forEach(function (pair) {
+[["#btnText1", 1], ["#btnText2", 1.15]].forEach(function (pair) {
   $(pair[0]).addEventListener("click", function () { setTextScale(pair[1]); });
 });
 $("#btnPoiRefresh").addEventListener("click", function () {
