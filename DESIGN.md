@@ -11,10 +11,14 @@ colors:
   warm-sand: "#D8CBAA"
   burnt-orange: "#CC5A2E"
   burnt-orange-lit: "#DC8767"
+  burnt-orange-ink: "#12100E"
   signal-green: "#8FB93E"
+  signal-green-ink: "#12160B"
   caution-yellow: "#E8B923"
+  caution-yellow-ink: "#171204"
   alert-red: "#CF533D"
   alert-red-lit: "#E07C63"
+  alert-red-ink: "#170B08"
   navigation-blue: "#4FA8E8"
   navigation-blue-lit: "#7FC1F0"
   instrument-white: "#FFFFFF"
@@ -54,6 +58,7 @@ rounded:
   md: "6px"
   lg: "7px"
   xl: "10px"
+  pill: "20px"
   full: "50%"
 spacing:
   xs: "6px"
@@ -64,13 +69,25 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.burnt-orange}"
-    textColor: "#12100E"
+    textColor: "{colors.burnt-orange-ink}"
     typography: "{typography.label}"
     rounded: "{rounded.md}"
     padding: "11px 12px"
   button-go:
     backgroundColor: "{colors.signal-green}"
-    textColor: "#12160B"
+    textColor: "{colors.signal-green-ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "11px 12px"
+  button-warn:
+    backgroundColor: "{colors.caution-yellow}"
+    textColor: "{colors.caution-yellow-ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "11px 12px"
+  button-danger:
+    backgroundColor: "{colors.alert-red}"
+    textColor: "{colors.alert-red-ink}"
     typography: "{typography.label}"
     rounded: "{rounded.md}"
     padding: "11px 12px"
@@ -103,11 +120,20 @@ components:
     padding: "5px 10px 5px 5px"
     height: "36px"
   chip-category-on:
-    backgroundColor: "#0F1311"
-    textColor: "{colors.warm-sand}"
+    backgroundColor: "rgba(255,255,255,.05)"
     rounded: "9px"
     padding: "5px 10px 5px 5px"
     height: "36px"
+  chip-category-choice:
+    backgroundColor: "{colors.field}"
+    textColor: "{colors.muted-sand}"
+    rounded: "5px"
+    padding: "8px 6px"
+  chip-category-choice-on:
+    backgroundColor: "#1E2420"
+    textColor: "{colors.warm-sand}"
+    rounded: "5px"
+    padding: "8px 6px"
   pin-waypoint:
     size: "26px"
   pin-poi:
@@ -152,7 +178,9 @@ shadow everywhere).
 
 - Warm dark ground with sand text; never grey-on-grey
 - Monospaced readouts for anything numeric and glanceable
-- Tight radii (4–10px) and hairline borders; nothing pill-shaped or blobby
+- Tight radii (4–10px) and hairline borders, with exactly two components
+  closing into a true pill (the status pill, the map chips) and nothing
+  blobby beyond them
 - Every overlay sits above the map with a real, dark shadow
 - Colour classifies; size and weight carry hierarchy
 - Uppercase, wide-tracked labels on every control
@@ -166,8 +194,11 @@ categorical scale for places.
 ### Primary
 
 - **Burnt Orange** (`#CC5A2E`): the single accent. Primary buttons, the input
-  focus ring, and the active state on controls. It is the only colour that
-  means "this is the action".
+  focus ring, and the one persistent mode a driver actually chose — Heading
+  Up is currently the only toggle that qualifies. It is the only colour that
+  means "this is the action", not "this is some state right now" — a status
+  the driver fell into rather than chose is Caution Yellow. See The One
+  Accent Rule.
 - **Burnt Orange Lit** (`#DC8767`): the same accent where it has to be read
   rather than filled — the second half of the wordmark, the map chip, an
   active action-bar label, the caret. Same hue, same saturation, raised until
@@ -178,7 +209,12 @@ categorical scale for places.
 
 - **Signal Green** (`#8FB93E`): affirmative and go. The recorded trail line,
   confirm buttons, free camps.
-- **Caution Yellow** (`#E8B923`): attention without alarm. Warnings, fuel.
+- **Caution Yellow** (`#E8B923`): attention without alarm, and the colour
+  for a state the driver did not choose so much as fall into. Warnings,
+  fuel, a paused recording, a simulated drive, a manually placed map centre
+  — none of them is the one thing in a view Burnt Orange is reserved for,
+  and all of them are the same kind of fact: what you are looking at right
+  now is not the plain, live, chosen thing.
 - **Alert Red** (`#CF533D`): destructive and urgent. Delete actions, hazards.
 - **Alert Red Lit** (`#E07C63`): the same red as ink — a diagnostic that
   failed, the recording state line, an over-budget figure, an error toast.
@@ -267,7 +303,25 @@ ground, and a contrast that depends on the map is not a contrast.
 **The One Accent Rule.** Burnt Orange means action and nothing else. A screen
 should carry it on one control. If two things are orange, one of them is
 wrong. Its lit twin is the same colour under this rule, not a second one — a
-control cannot use both to look like two things.
+control cannot use both to look like two things. The test for which control
+that is: did the driver deliberately choose this as the mode they are in, or
+is it a status they are currently in the middle of? A choice earns the
+accent; a status — paused, simulated, off the live position — takes Caution
+Yellow instead. Two controls answering "yes" to the first question at once
+is the violation this rule bans; a chosen mode and a fallen-into status
+lighting different colours at the same time is not one, because nothing
+about them claims to be the same fact.
+
+**The Ink On Fill Rule.** A solid accent fill needs a word to sit on it
+somewhere — Save, Go, Pause, Delete — and neither the fill colour nor its
+lit twin can carry that word: the lit twin exists precisely so the accent
+can be read as a small mark or a line of text on a dark ground, not so it
+can read as ink on top of its own, brighter self. So the ink goes the other
+way instead: near-black, tinted a few degrees toward the fill under it,
+never plain black. Burnt Orange takes `#12100E`, Signal Green `#12160B`,
+Caution Yellow `#171204`, Alert Red `#170B08` — four different blacks, each
+one degree warmer or cooler than the last, so a button face and its label
+never fight for which of them is actually the colour.
 
 **The Closed Scale Rule.** Category colour comes from the 24-entry scale or
 it does not exist. Never invent a colour to distinguish a new kind of place;
@@ -295,12 +349,17 @@ reserved strictly for values that change.
 - **Title** (700, 13px, letter-spacing .18em, uppercase): panel and drawer
   headings. The widest tracking in the system.
 - **Body** (13px, line-height 1.4): popup and card prose.
-- **Label** (700, 11.5px, letter-spacing .12em, uppercase): every button and
-  section summary. Controls never use sentence case.
+- **Label** (700, 11.5px, letter-spacing .12em, uppercase): a button reached
+  at a stop — drawer, dialog and panel buttons — and section summaries.
+  Controls never use sentence case.
 - **Readout** (mono, 600, 17px, line-height 1.05): the instrument values —
   speed, heading, altitude, distance, time — in Instrument White.
-- **Micro** (8.5px, letter-spacing .14em, uppercase): gauge labels; units
-  drop to 8px. `KM/H`, never `km/h`.
+- **Micro** (8.5px, letter-spacing .14em, uppercase): a control read at
+  speed rather than reached at a stop — the stat bar's own labels and the
+  action bar's button labels, the same size for the same reason. The zoom
+  column reads at speed too but currently carries no text at all, label or
+  otherwise; see The Instrument Label Rule. Units drop to 8px. `KM/H`, never
+  `km/h`.
 
 ### Named Rules
 
@@ -311,6 +370,14 @@ number that never moves is not a readout.
 **The Shouting Labels Rule.** Every control label is uppercase with tracking
 of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label
 tracks further than a 13px heading.
+
+**The Instrument Label Rule.** There are two button-label sizes, chosen by
+scene rather than by any property of the button itself — the same split
+`--tap` and `--tap-sm` already make for touch targets. Micro is for a
+control read while the vehicle is moving: the stat bar, the action bar. Label
+is for a control reached at a stop: the drawer, dialogs, panels. The same
+button never needs to ask which one it is, because it never leaves its
+scene.
 
 ## Layout
 
@@ -434,9 +501,16 @@ and the bevel instead.
 ## Shapes
 
 Small, hard-edged geometry. Radii run 3–10px with 6px for controls, 7px for
-cards and 4px for fields; a single 20px case exists and nothing is pill-
-shaped. Borders are one-pixel sand transparencies, so form is drawn with a
-line rather than a fill.
+cards and 4px for fields. Borders are one-pixel sand transparencies, so form
+is drawn with a line rather than a fill.
+
+Two components stand outside that range on purpose: the header's GPS/battery
+status pill and the map's floating chips (`rounded.pill`, 20px) are both
+short enough top to bottom that the radius runs the full height and closes
+into a true capsule, not a rectangle with a large corner. A stadium is a
+different shape family from a rounded rectangle — every other surface in the
+system stays legibly rectangular at its radius, which is what The Tight
+Corner Rule actually governs.
 
 Two pin silhouettes carry most of the identity and are deliberately different
 from each other:
@@ -452,9 +526,13 @@ from each other:
 put there. A dashed circle is something the map knows about. The silhouette
 carries that distinction before any colour or icon does; never blur it.
 
-**The Tight Corner Rule.** No radius exceeds 10px on a rectangular surface.
-Large radii read as a consumer app and are out of character with the
-instrument face.
+**The Tight Corner Rule.** No radius exceeds 10px on a surface that stays a
+rectangle at that radius. Large radii read as a consumer app and are out of
+character with the instrument face. The status pill and the map chips are
+not an exception to this — a capsule whose radius has closed into a stadium
+is a different shape, not a rectangle wearing a bigger number, and this rule
+has no opinion on it. It has an opinion on the next control that is tempted
+to round a card or a panel past 10px and call itself a pill to get there.
 
 ## Components
 
@@ -478,13 +556,29 @@ cursor in a moving vehicle.
 
 ### Chips
 
-Category filters. A dot in the category's colour, a label that takes the
-slack, and a count pushed to a shared right edge.
+Two chips share a shape family and mean different things, because filtering
+what is already on the map and choosing one category for a new waypoint are
+different tasks.
+
+**The filter chip** (`chip-category` / `chip-category-on`) turns POI
+categories on and off on the map — several can be on at once. A dot in the
+category's colour, a label that takes the slack, and a count pushed to a
+shared right edge.
 
 - **Style:** `#0F1311` fill, hairline-strong border, 9px radius, minimum
-  height 34px
-- **State:** off is muted-sand text at 80% opacity; on is full opacity with
-  the category colour on the dot
+  height 36px (`--tap-sm`)
+- **State:** off is muted-sand text at 80% opacity. On lifts to full opacity
+  and a wash of `rgba(255,255,255,.05)`, and its border and text take that
+  category's own colour, lifted for contrast the same way a pin's ink is —
+  see The Mark Versus Ink Rule. The dot itself never changes; it is always
+  the category's colour, on or off.
+
+**The choice chip** (`chip-category-choice` / `chip-category-choice-on`)
+picks the one category a new waypoint belongs to — exactly one is on. Field
+(`#111513`) fill, hairline border, 5px radius. Selected trades the border and
+text for Warm Sand and lifts the fill one step, to `#1E2420` — a neutral
+"this one" rather than the category's own colour, because a waypoint's icon
+already carries that colour and the chip does not need to repeat it.
 
 ### Cards
 
