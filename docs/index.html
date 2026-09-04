@@ -2824,6 +2824,14 @@ const CFG = {
   POI_CAPTION_M: 80,       /* an unnamed POI this close to a named one of the same kind
                               is that place mapped a second time, not a new one */
   PLACE_DUP_M: 25000,      /* and a searched place this close to its own name is one town */
+  /* Two sources putting the same house number and street this close are
+     geocoding one house. 25 km is the right span for a town of one name
+     and far too wide for a doorway - it would fold two genuinely different
+     30 Turquoise Drives, in suburbs twenty minutes apart, into one. The
+     packs and the geocoder disagree by about nine metres on the same
+     house, so this is generous by a factor of twenty-five and still far
+     inside the gap between two streets that happen to share a name. */
+  ADDR_DUP_M: 250,
   PLACE_SMALL_RANK: 19,    /* a place this rank or higher is a dot on the map, not a town */
   PLACE_SERVICE_KM: 6,     /* how far from one to look for the roadhouse it is named after */
   SERVICE_SAME_M: 400,     /* two service names this close, one inside the other, are one stop */
@@ -8480,7 +8488,16 @@ function dedupePlaces(list) {
     const bucket = groups[key] || (groups[key] = []);
     let joined = false;
     for (let i = 0; i < bucket.length && !joined; i++) {
-      if (haversine(bucket[i][0], p) <= CFG.PLACE_DUP_M) { bucket[i].push(p); joined = true; }
+      /* A doorway is not a town. Two places of one name 25 km apart are
+         one town mapped twice; two addresses of one name 25 km apart are
+         two different houses on two different Turquoise Drives, and
+         folding them would answer the wrong one. The suggestion list
+         reconciles addresses on the same span, so the list under the box
+         and the list behind Search cannot disagree about what one address
+         is. */
+      const span = (bucket[i][0].kind === "address" && p.kind === "address")
+        ? CFG.ADDR_DUP_M : CFG.PLACE_DUP_M;
+      if (haversine(bucket[i][0], p) <= span) { bucket[i].push(p); joined = true; }
     }
     if (!joined) bucket.push([p]);
   });
@@ -8819,6 +8836,27 @@ function showSuggest(q, list) {
      Street" says everything the bare address says and more. */
   const claimed = {};
   list.forEach(function (s) { if (s.addrKey) claimed[s.addrKey] = 1; });
+  /* The key alone was not enough, because it carries the town and the two
+     sources do not agree on what the town is. The packs name the suburb -
+     "30 turquoise drive|salisbury east" - and Photon reports p.city, which
+     in a capital is the capital: "30 turquoise drive|adelaide". Same house,
+     two keys, so neither claimed the other and it appeared twice under the
+     box. Country towns hid it: in Hawker the city is Hawker, the keys
+     matched, and the reconciliation looked like it worked.
+
+     So the second test is where the house actually is, which both sources
+     do agree on - nine metres apart for this one. Same number and street
+     within ADDR_DUP_M is one doorway, whatever either source calls the
+     district around it. */
+  const sameDoorway = function (s) {
+    const n = sugFlat(s.name || "");
+    if (!n) return false;
+    for (let i = 0; i < list.length; i++) {
+      if (sugFlat(list[i].name || "") !== n) continue;
+      if (haversine(list[i], s) <= CFG.ADDR_DUP_M) return true;
+    }
+    return false;
+  };
   /* Fetched against an earlier, shorter query, so anything the extra
      letters have ruled out goes. Same test the geocoder's own pool is
      narrowed by, so the two cannot disagree about what still matches. */
@@ -8826,7 +8864,7 @@ function showSuggest(q, list) {
     ? sugPacks.filter(function (s) { return sugMatches(s, q); })
     : [];
   const mine = Addr.search(q, CFG.ADDR_HITS).concat(held).filter(function (s) {
-    if (claimed[s.addrKey]) return false;
+    if (claimed[s.addrKey] || sameDoorway(s)) return false;
     claimed[s.addrKey] = 1;                 /* and never twice from the packs */
     return true;
   });
