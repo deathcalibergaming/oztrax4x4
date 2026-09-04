@@ -721,10 +721,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --green:#8FB93E;
   --warn:#E8B923;
   /* The same lift for the same reason, and this one was failing twice over.
-     Near-black on the Clear Tile Cache button was 3.6:1 - the most
-     destructive control in the app wearing the least readable label - and
-     the red was 2.7:1 as a bare mark, under the floor for the recording dot
-     and the critical battery glyph, which are only ever a shape. */
+     Near-black on it came out at 3.6:1 where it was used as a fill - it was
+     on Clear Tile Cache at the time, since gone to ghost - and the red was
+     2.7:1 as a bare mark, under the floor for the recording dot and the
+     critical battery glyph, which are only ever a shape. Stop And Save
+     still wears the fill, so both halves of that still have to hold. */
   --danger:#CF533D;
   /* Burnt orange and alert red are the right colours at the wrong height to
      be read. As a fill behind near black text they are fine; as ink on a
@@ -1430,9 +1431,36 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .dr-head{flex:0 0 auto;height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);display:flex;align-items:center;
   gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:var(--head)}
 .dr-head .t{flex:1;font-size:var(--f13);font-weight:700;letter-spacing:.18em;text-transform:uppercase}
-.dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.dr-foot{flex:0 0 auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
+/* A column so the attribution can be held to the bottom by an auto margin
+   rather than by being taken out of the scroll. The children are pinned to
+   their own heights: a flex item may be shrunk below its content, and a
+   long section inside a short drawer would otherwise be squeezed rather
+   than scrolled to. */
+.dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column}
+.dr-body > *{flex:0 0 auto}
+/* Sits on the bottom edge of the menu whenever the sections above it do not
+   fill the height, and travels up out of sight with them when they do. The
+   auto margin is what does it, and it does it inside the scroller - so the
+   notice is always at the foot of the menu without ever being bolted to the
+   glass, which is what used to cost a landscape drawer a fifth of its
+   height to say something nobody reads twice. */
+.dr-foot{margin-top:auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
   font-size:var(--f9);color:var(--dim);line-height:1.5}
+/* A saved track carries six controls, which is two too many for a row and
+   an awkward number for a wrap. They go on a grid of thirds instead: every
+   button the same width, every row full to both edges, and the columns
+   lining up down the card as well as across it. minmax(0,1fr) rather than
+   1fr because a grid column will not shrink below its content otherwise,
+   and Export GPX is wider than a third of a 320px phone - given the floor
+   it wraps to two lines and the row grows, which is the one behaviour here
+   that degrades rather than overflows.
+
+   Not .card-acts: that is a flex row whose Delete carries margin-left:auto
+   to hold the end of it, and an auto margin inside a grid cell would push
+   the button off its own column. Waypoint and area cards keep it. */
+.trk-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}
+.trk-acts .btn{min-width:0}
 details{border-bottom:1px solid var(--line)}
 summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:var(--f115);
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
@@ -1730,7 +1758,22 @@ input[type=date],input[type=time]{color-scheme:dark}
   border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--f11);line-height:1.4;color:var(--sand)}
 #drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--f10);display:block;margin-bottom:3px;text-transform:uppercase}
 #drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
-#stage.drawing{cursor:crosshair}
+/* Drawing the box needs the finger's whole gesture, and by default it does
+   not get it. #stage and Leaflet's own container both declare
+   touch-action:pan-x pan-y, which tells the browser a one-finger drag is a
+   pan it should handle itself - so it takes the gesture over, fires
+   pointercancel, and the box stops growing the moment the finger moves.
+   With a mouse none of that applies, which is why this worked at a desk and
+   not in a vehicle.
+
+   Turning dragging off in Leaflet does not help: that stops Leaflet panning
+   the map, not the browser claiming the touch. Only touch-action does that.
+   The descendants need it too, because the value that counts is the one on
+   the element the finger lands on, and the finger lands on a tile inside the
+   container, not on the stage. Scoped to .drawing, so the map pans normally
+   the rest of the time. */
+#stage.drawing{cursor:crosshair;touch-action:none}
+#stage.drawing *{touch-action:none}
 
 /* ---------- toast ---------- */
 /* Sits just under the stats row at the top of the map, where it is read
@@ -2123,9 +2166,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="trackList" class="list"></div>
-        <div class="row">
-          <button class="btn sm ghost" id="btnClearTrail">Clear Trail Line</button>
-        </div>
       </div>
     </details>
 
@@ -2136,9 +2176,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="wptList" class="list"></div>
-        <div class="row">
-          <button class="btn sm ghost" id="btnAddWptMenu">Add At Map Centre</button>
-        </div>
       </div>
     </details>
 
@@ -2242,18 +2279,24 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="row" style="margin-top:11px">
           <button class="btn sm ghost" id="btnDiag">Test Connection</button>
           <button class="btn sm ghost" id="btnClearPoi">Clear POI Cache</button>
-          <button class="btn sm dangerb" id="btnClearTiles">Clear Tile Cache</button>
+          <!-- Ghost like everything either side of it. A filled red button
+               was the only one of its kind in the whole menu - Test
+               Connection and Clear POI Cache sit in the same row, Delete on
+               a track card is ghost too - so the fill was not marking this
+               out as destructive, it was marking it out as the odd one. The
+               confirm in front of it is what guards it now. -->
+          <button class="btn sm ghost" id="btnClearTiles">Clear Tile Cache</button>
         </div>
       </div>
     </details>
 
-  </div>
-  <div class="dr-foot">
-    TrailTracker &middot; offline 4x4 trail log<br>
-    Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
-    Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
-    Australia, licensed under the Open G-NAF end user licence agreement.
-    Not verified for mail delivery.
+    <div class="dr-foot">
+      TrailTracker &middot; offline 4x4 trail log<br>
+      Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
+      Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
+      Australia, licensed under the Open G-NAF end user licence agreement.
+      Not verified for mail delivery.
+    </div>
   </div>
 </aside>
 
@@ -4417,15 +4460,24 @@ async function renderTracks() {
           return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
         }).join("") +
       "</div>" +
-      '<div class="card-acts">' +
+      /* Two rows of three, on a grid rather than a wrap, so every button is
+         a third of the card and no row ends in a gap. A flex row sized each
+         button to its own label and left whatever was over at the end;
+         thirds mean the columns line up down the card as well as across it.
+
+         Clear Trail Line rides in the second row. It is the one control
+         here that is not about this track - it clears the line drawn on the
+         map - so it takes the last cell, furthest from Resume. */
+      '<div class="trk-acts">' +
       /* Resume takes the primary slot Export GPX held. Exporting reads a
          track; resuming changes what the app is doing, and the one that
          changes something should be the one that looks like it does. */
       '<button class="btn xs primary" data-act="resume">Resume</button>' +
+      '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
-      '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button>' +
+      '<button class="btn xs ghost" data-act="clear">Clear Trail Line</button>' +
       "</div></div>";
   }).join("");
 }
@@ -8926,6 +8978,10 @@ stageEl.addEventListener("pointerdown", function (e) {
   e.preventDefault(); e.stopPropagation();
   const st = stageEl.getBoundingClientRect();
   drawStart = { cx: e.clientX, cy: e.clientY, x: e.clientX - st.left, y: e.clientY - st.top };
+  /* The rest of the drag is delivered here whatever the finger passes over
+     on its way - a marker, a popup, the edge of a panel - instead of the
+     stream stopping the moment it leaves the element it started on. */
+  try { stageEl.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
   const r = $("#drawRect");
   r.classList.remove("hidden");
   r.style.left = drawStart.x + "px"; r.style.top = drawStart.y + "px";
@@ -8952,11 +9008,24 @@ stageEl.addEventListener("pointerup", function (e) {
   const a = clientToLatLng(drawStart.cx, drawStart.cy);
   const b = clientToLatLng(e.clientX, e.clientY);
   const w = Math.abs(e.clientX - drawStart.cx), h = Math.abs(e.clientY - drawStart.cy);
+  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
   endDrawMode();
   suppressMapClickUntil = Date.now() + 500;
   if (w < 24 || h < 24) { toast("Box too small - try again", "warn"); return; }
   pendingBounds = L.latLngBounds(a, b);
   openAreaModal();
+}, true);
+
+/* A gesture the system takes away - a second finger landing, a notification
+   sheet pulled down, the call that comes while you are choosing an area -
+   has to put the box away rather than leave a half-drawn rectangle on the
+   map and drawStart set behind it. Draw mode itself is kept, so the finger
+   can simply start again. */
+stageEl.addEventListener("pointercancel", function (e) {
+  if (!drawMode || !drawStart) return;
+  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
+  drawStart = null;
+  $("#drawRect").classList.add("hidden");
 }, true);
 
 function openAreaModal() {
@@ -10420,7 +10489,11 @@ $("#btnRecPause").addEventListener("click", function () {
 });
 $("#btnRecStop").addEventListener("click", function () { Rec.stop(); });
 
-$("#btnClearTrail").addEventListener("click", async function () {
+/* Clear Trail Line sits on every saved track card, so this is a function
+   the delegated list handler calls rather than one button's listener. What
+   it clears is the same either way - the line drawn on the map, not the
+   card it was pressed from - and no saved track is touched by it. */
+async function clearTrailLine() {
   const msg = Rec.state !== "idle"
     ? "The line on the map will clear, and the points recorded so far in this track will be lost for good."
     : "The line on the map will clear. Saved tracks are not affected.";
@@ -10430,7 +10503,7 @@ $("#btnClearTrail").addEventListener("click", async function () {
   if (Rec.state !== "idle") { Rec.points = []; Rec.dist = 0; Rec.persist(); }
   renderTracks();
   toast("Trail line cleared", "warn");
-});
+}
 
 /* ---- POI controls ---- */
 function syncPoiSwitch() {
@@ -10690,12 +10763,9 @@ $("#btnPoiRestore").addEventListener("click", function () {
   renderPois();
   toast("Hidden POIs restored", "ok");
 });
-$("#btnAddWptMenu").addEventListener("click", function () {
-  closeDrawer();
-  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : viewCenterLatLng();
-  const st = stageEl.getBoundingClientRect();
-  setTimeout(function () { openWpForm(ll, st.left + st.width / 2, st.top + st.height / 2); }, 240);
-});
+/* Add At Map Centre is gone from the menu. The action bar's Waypoint button
+   does the same job from where the map already is, without the drawer
+   having to close itself first to show you what you were placing on. */
 
 /* ---- offline areas ---- */
 $("#btnNewArea").addEventListener("click", startDrawArea);
@@ -10729,6 +10799,8 @@ $("#trackList").addEventListener("click", async function (e) {
   else if (b.dataset.act === "resume") resumeTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "edit") openEditTrack(id);
+  /* The one action on the card that is not about the card's own track. */
+  else if (b.dataset.act === "clear") clearTrailLine();
   else if (b.dataset.act === "del") {
     if (!(await ask("This track will be deleted for good, and its GPX can no longer be exported."))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
