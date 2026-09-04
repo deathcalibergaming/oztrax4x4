@@ -1227,6 +1227,29 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:var(--t-note)}
 .pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:var(--t-note)}
 .pop-a{display:flex;gap:6px;margin-top:9px}
+/* Three actions share the row in equal parts, the way a card's do, so the
+   popup does not end in a stretch of empty panel. Fewer than three keep
+   their own width: the waypoint popup carries only Delete, and a lone
+   destructive control stretched across a card is the biggest thing on it,
+   which is the opposite of what The Elbow Room Rule is asking for.
+   Counted in the selector rather than set by a class, so a fourth button
+   added later does not need somebody to remember this.
+
+   They fill it in proportion rather than in equal thirds, which is the one
+   place this row parts company with the card it copies. A card sits in a
+   drawer of known width, so three 1fr columns have a definite width to split
+   and come out equal. A popup is sized to its own content, and fr units have
+   nothing to divide until something else has set the width - a grid of
+   thirds here just sizes each column to its own label, which is what the
+   flex line already does with less machinery. Tried; measured; reverted.
+
+   min-width:max-content is load-bearing, though. .btn carries min-width:0 so
+   a card's buttons may shrink, and a growing flex item keeps that floor - the
+   row squeezed to 46px around a short place name and cut NAVIGATE to NAVIGA.
+   Handing the button its own content back as the floor is what widens the
+   popup to hold all three: 178px on a short name, 194 at Large. */
+.pop-a .btn:first-child:nth-last-child(3),
+.pop-a .btn:first-child:nth-last-child(3) ~ .btn{flex:1 1 auto;min-width:max-content}
 /* a pile of pins collapsed into one: the count replaces the glyph */
 /* Fully opaque, unlike the single pin at .92. The count inside is text, and
    three percent of whatever the map happens to be showing was enough to
@@ -1434,7 +1457,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    enough map showing to place the panel, and the lower cap brings the
    larger phones in by 30px where 370 was simply wide. Landscape sets
    its own width below and is untouched. */
-#drawer,#poiPanel{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);z-index:950;background:var(--panel);
+#drawer,#poiPanel,#wptPanel{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);z-index:950;background:var(--panel);
   border-right:1px solid var(--line2);transform:translateX(-101%);
   /* A panel slid off the glass is still in the tab order and still in the
      accessibility tree - 32 controls in the drawer and 96 in the POI panel,
@@ -1445,14 +1468,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   visibility:hidden;
   transition:transform .24s cubic-bezier(.3,.7,.3,1),visibility 0s linear .24s;
   display:flex;flex-direction:column;box-shadow:8px 0 28px rgba(0,0,0,.5)}
-#drawer.open,#poiPanel.open{transform:translateX(0);visibility:visible;
+#drawer.open,#poiPanel.open,#wptPanel.open{transform:translateX(0);visibility:visible;
   transition:transform .24s cubic-bezier(.3,.7,.3,1),visibility 0s}
 /* The head carries the POI badge, since this panel has no summary row to
    wear it, and the list is free to run the full height - a 320px cap inside
    a panel of its own would only nest one scroller in another. */
-#poiHeadIcon{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;
+#poiHeadIcon,#wptHeadIcon{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;
   stroke-linecap:round;flex:0 0 auto}
-#poiHeadIcon .solid{fill:var(--rust);stroke:none}
+#poiHeadIcon .solid,#wptHeadIcon .solid{fill:var(--rust);stroke:none}
 /* ...and stops being a scroller at all, not merely an uncapped one. Left as
    overflow:auto it was still the container a thumb landed in, with nothing
    to scroll and overscroll-behavior:contain refusing to hand the drag up to
@@ -2044,7 +2067,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
   .pop-rows{max-height:38vh}
-  #drawer,#poiPanel{width:min(70vw,340px)}
+  #drawer,#poiPanel,#wptPanel{width:min(70vw,340px)}
   .dr-head{height:calc(42px + var(--safeT))}
   .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:var(--t-micro);line-height:1.4}
   summary{padding:12px 14px}
@@ -2101,8 +2124,8 @@ input[type=date],input[type=time]{color-scheme:dark}
      they are hidden, so it stays; only its duration goes, and visibility has
      to lose the matching delay or a closed panel would linger invisible-but-
      present for the length of a slide that no longer happens. */
-  #drawer,#poiPanel{transition:transform .01s linear,visibility 0s linear .01s}
-  #drawer.open,#poiPanel.open{transition:transform .01s linear,visibility 0s}
+  #drawer,#poiPanel,#wptPanel{transition:transform .01s linear,visibility 0s linear .01s}
+  #drawer.open,#poiPanel.open,#wptPanel.open{transition:transform .01s linear,visibility 0s}
   /* The sign shifting up to clear a panel is pure travel. */
   #speedSign{transition:none}
   /* The knob stops sliding; its colour still changes, which is the state. */
@@ -2450,6 +2473,30 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnPoiRestore">Restore Hidden</button>
         </div>
       </div>
+  </div>
+</aside>
+
+<!-- Nearby waypoints. The same sheet, scrim and back button as Nearby POIs,
+     because the two action-bar buttons beside each other should open the
+     same kind of thing: what is around you of that sort, nearest first. -->
+<aside id="wptPanel" aria-hidden="true">
+  <div class="dr-head">
+    <svg id="wptHeadIcon" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle class="solid" cx="12" cy="10" r="2.5"/></svg>
+    <h2 class="t">Nearby Waypoints <span class="cnt" id="cntNearWpts">0</span></h2>
+    <button id="btnCloseWpt" class="icon-btn" aria-label="Close nearby waypoints">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dr-body">
+    <div class="sec-body">
+      <div class="note" id="wptNearNote"></div>
+      <!-- .list and not .scrollarea: a capped scroller nested in the panel
+           body is the container a thumb lands in, and overscroll-behavior
+           refuses to hand the drag up - so a swipe starting on a card does
+           nothing while the same swipe beside it scrolls. The body is the
+           scroller here, as it is in Nearby POIs for the same reason. -->
+      <div id="wptNearList" class="list"></div>
+    </div>
   </div>
 </aside>
 
@@ -3181,13 +3228,28 @@ const S = Object.assign({
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
-  hillshade: false,    /* shaded relief under the map, off by default */
+  hillshade: true,     /* shaded relief under the map, on by default */
   textScale: 1         /* 1, 1.15 or 1.3 - drives --uiScale */
 }, loadLS(LS.settings, {}));
+
+/* Relief used to be off by default and is now on, and a saved setting beats a
+   default - which here would have meant nobody. Any phone that has opened the
+   app before has the whole settings object written already, because the map's
+   first zoomend saves it before a driver has touched anything, so every one of
+   them carries an hillshade:false that was never a decision.
+
+   So the new default is applied once, to everybody, and the fact that it has
+   been applied is recorded. A driver who turns relief back off keeps it off:
+   the flag is set by then, and this never runs again. */
+if (!S.shadeDefaultApplied) {
+  S.hillshade = true;
+  S.shadeDefaultApplied = true;
+}
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
+                        shadeDefaultApplied: S.shadeDefaultApplied,
                         textScale: S.textScale });
 }
 
@@ -3644,7 +3706,12 @@ map.on("zoomend", function () {
   renderPois();
   schedulePoi();
 });
-map.on("moveend", function () { if (!resyncing) schedulePoi(); });
+map.on("moveend", function () {
+  if (!resyncing) schedulePoi();
+  /* Dragging the map moves the anchor when you are not following it; the
+     animation loop covers the case where you are. */
+  if (wptPanelOpen()) renderNearbyWaypoints();
+});
 
 
 /* =====================================================================
@@ -3736,7 +3803,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0, nearTick = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -3796,6 +3863,17 @@ function frame(ts) {
        while you watch, so a stale line is worse than none */
     else if ($("#secSettings").open) { gpsTick = ts; syncAwakeButtons(); }
   }
+
+  /* Every distance and bearing on the nearby list was measured from where you
+     were. Following moves the vehicle under a CSS transform rather than by
+     moving the map, so moveend never fires while you drive and hanging this
+     off it left the list frozen at the distances it opened with. The loop is
+     the only thing that knows the vehicle has moved.
+
+     Once a second, not four times: these are hundreds of metres apart and a
+     number that reorders itself under a thumb reaching for it is worse than
+     one a second old. Cheap either way - waypoints are counted in tens. */
+  if (ts - nearTick > 1000 && wptPanelOpen()) { nearTick = ts; renderNearbyWaypoints(); }
 }
 requestAnimationFrame(frame);
 
@@ -4780,31 +4858,46 @@ function renderWaypoints() {
   $("#cntWpts").textContent = waypoints.length;
   const box = $("#wptList");
   if (!waypoints.length) { box.innerHTML = '<div class="empty">No waypoints saved.</div>'; return; }
-  box.innerHTML = waypoints.slice().sort((a, b) => b.ts - a.ts).map(function (w) {
-    const c = CATS[w.cat] || CATS.flag;
-    /* The same shape as a saved track: a name and a tag on top, then labelled
-       pairs in two columns. This card used to set its facts as one dim
-       9.5px run of dot-separated values while the track card beside it used
-       8.5 over 11.5, so two lists of the same kind of thing read as two
-       different lists.
+  box.innerHTML = waypoints.slice().sort((a, b) => b.ts - a.ts)
+    .map(function (w) { return waypointCardHtml(w, null); }).join("");
+}
 
-       Four pairs rather than five, because the grid fills two at a time and
-       an odd one leaves a hole in the last row. Splitting the timestamp the
-       way the track card already splits its own - a date and a clock, not one
-       long string - is what makes it four: at Large text "2026-09-04 11:04
-       am" wanted 129px of a 128px column and lost its meridiem to an
-       ellipsis. Latitude and longitude are two readings anyway.
+/* One card, two lists. The menu's Saved Waypoints shows every one of them
+   newest first; the action bar's Nearby Waypoints shows the ones around you
+   nearest first, and passes an anchor so each card can say how far.
 
-       The category goes up top as a tag, which is what difficulty does on a
-       track: both are a classification rather than a reading. Neutral, not
-       the category's colour - the dot beside it is already carrying that,
-       and the choice chip settled this same question the same way. */
-    const pairs = [
-      ["Date", toDateInput(w.ts)],
-      ["Time", fmtClock(w.ts)],
-      ["Latitude", w.lat.toFixed(4)],
-      ["Longitude", w.lng.toFixed(4)]
-    ];
+   The same shape as a saved track: a name and a tag on top, then labelled
+   pairs in two columns. This card used to set its facts as one dim 9.5px run
+   of dot-separated values while the track card beside it used 8.5 over 11.5,
+   so two lists of the same kind of thing read as two different lists.
+
+   Pairs come in twos, because the grid fills two at a time and an odd one
+   leaves a hole in the last row - four without an anchor, six with, which is
+   why distance brings a bearing along rather than arriving alone. Splitting
+   the timestamp the way the track card already splits its own - a date and a
+   clock, not one long string - is what makes the four: at Large text
+   "2026-09-04 11:04 am" wanted 129px of a 128px column and lost its meridiem
+   to an ellipsis. Latitude and longitude are two readings anyway.
+
+   The category goes up top as a tag, which is what difficulty does on a
+   track: both are a classification rather than a reading. Neutral, not the
+   category's colour - the dot beside it is already carrying that, and the
+   choice chip settled this same question the same way. */
+function waypointCardHtml(w, here) {
+  const c = CATS[w.cat] || CATS.flag;
+  const pairs = [];
+  if (here) {
+    /* A distance on its own says how far without saying where, which on a
+       track with no signal is half an answer. The pair is what the straight
+       line fallback gives a driver anyway. */
+    pairs.push(["Distance", fmtDist(haversine(here, w))]);
+    pairs.push(["Bearing", cardinal(bearing(here, w))]);
+  }
+  pairs.push(["Date", toDateInput(w.ts)]);
+  pairs.push(["Time", fmtClock(w.ts)]);
+  pairs.push(["Latitude", w.lat.toFixed(4)]);
+  pairs.push(["Longitude", w.lng.toFixed(4)]);
+  {
     return '<div class="card" data-id="' + w.id + '">' +
       '<div class="card-top"><div class="dotmark wpt" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
       '<div class="card-t">' + esc(w.name) + "</div>" +
@@ -4828,10 +4921,46 @@ function renderWaypoints() {
       '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button></div>' +
       '</div>';
-  }).join("");
+  }
 }
 
-function saveWaypoints() { saveLS(LS.wpts, waypoints); renderWaypoints(); }
+/* Nearby Waypoints, off the action bar. Anchored the same way the POI list
+   is - the vehicle while you are following it, the middle of what you can
+   see once you have dragged away - so the two panels never disagree about
+   where "here" is. Same radius as POIs, so "nearby" means one thing in this
+   app rather than two. */
+function renderNearbyWaypoints() {
+  const here = poiAnchor();
+  const near = waypoints
+    .map(function (w) { return { w: w, d: haversine(here, w) }; })
+    .filter(function (x) { return x.d <= CFG.POI_RADIUS; })
+    .sort(function (a, b) { return a.d - b.d; });
+  $("#cntNearWpts").textContent = near.length;
+  const note = $("#wptNearNote");
+  const box = $("#wptNearList");
+  if (!waypoints.length) {
+    note.textContent = "";
+    box.innerHTML = '<div class="empty">No waypoints saved. Tap the map to drop one.</div>';
+    return;
+  }
+  if (!near.length) {
+    note.textContent = "";
+    box.innerHTML = '<div class="empty">' + (waypoints.length === 1
+      ? "Your one waypoint is further than " + poiRadiusText() +
+        " away. The menu has it."
+      : "None of your " + waypoints.length + " waypoints are within " +
+        poiRadiusText() + ". The menu lists them all.") + "</div>";
+    return;
+  }
+  note.textContent = "Within " + poiRadiusText() + " of you, nearest first.";
+  box.innerHTML = near.map(function (x) { return waypointCardHtml(x.w, here); }).join("");
+}
+
+function saveWaypoints() {
+  saveLS(LS.wpts, waypoints);
+  renderWaypoints();
+  if (wptPanelOpen()) renderNearbyWaypoints();
+}
 
 function deleteWaypoint(id) {
   waypoints = waypoints.filter((w) => w.id !== id);
@@ -6747,7 +6876,17 @@ function poiPopupHtml(p, here) {
     ]) + "</div>" +
     Fuel.html(p) +
     '<div class="pop-a">' +
+    /* The same three the drawer's POI card carries, in the same order. Go To
+       was the one missing from the map, which is where you are when you want
+       it: it brings the pin to the middle of the screen rather than leaving
+       it under your thumb at the edge.
+
+       Hide rather than Delete, which is what the card says too. A POI is
+       OpenStreetMap's record and not the driver's, so there is nothing here
+       to delete - the app can only stop drawing it. A waypoint is the
+       driver's own, which is why that popup's button does say Delete. */
     '<button class="btn xs primary" onclick="navigateToPoi(\'' + p.id + '\')">Navigate</button>' +
+    '<button class="btn xs ghost" onclick="goToPoi(\'' + p.id + '\')">Go To</button>' +
     '<button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>';
 }
 
@@ -9079,6 +9218,17 @@ function navigateToPoi(id) {
 }
 window.navigateToPoi = navigateToPoi;
 
+/* The popup stays open, unlike Navigate's. Navigating replaces what you were
+   doing; centring the pin is you asking to see this card better, and closing
+   the card you were reading to do it would be answering a different
+   question. Leaflet keeps the popup on its marker through the pan. */
+function goToPoi(id) {
+  const p = pois.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  gotoLatLng(p.lat, p.lng);
+}
+window.goToPoi = goToPoi;
+
 /* =====================================================================
    Offline area download
    ===================================================================== */
@@ -10386,7 +10536,6 @@ const Wake = {
           Wake.note = "released by the system";
           renderGpsPanel();
           syncAwakeButtons();
-  syncHillshadeButtons();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -10430,6 +10579,7 @@ function closeDrawer() {
   $("#drawer").classList.remove("open");
   $("#drawer").setAttribute("aria-hidden", "true");
   closePoiPanel();
+  closeWptPanel();
   $("#scrim").classList.remove("show");
 }
 /* Nearby POIs is checked on the move, so it hangs off the action bar rather
@@ -10437,6 +10587,9 @@ function closeDrawer() {
 function openPoiPanel() {
   $("#drawer").classList.remove("open");
   $("#drawer").setAttribute("aria-hidden", "true");
+  /* Three sheets share one slot and one scrim, so opening any of them has to
+     shut the other two or they stack up in it. */
+  closeWptPanel();
   $("#poiPanel").classList.add("open");
   $("#poiPanel").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
@@ -10447,6 +10600,22 @@ function closePoiPanel() {
   $("#poiPanel").setAttribute("aria-hidden", "true");
 }
 function poiPanelOpen() { return $("#poiPanel").classList.contains("open"); }
+
+/* The same sheet as Nearby POIs, opened by the button beside it. */
+function openWptPanel() {
+  $("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+  closePoiPanel();
+  $("#wptPanel").classList.add("open");
+  $("#wptPanel").setAttribute("aria-hidden", "false");
+  $("#scrim").classList.add("show");
+  renderNearbyWaypoints();
+}
+function closeWptPanel() {
+  $("#wptPanel").classList.remove("open");
+  $("#wptPanel").setAttribute("aria-hidden", "true");
+}
+function wptPanelOpen() { return $("#wptPanel").classList.contains("open"); }
 $("#btnMenu").addEventListener("click", openDrawer);
 $("#btnCloseDrawer").addEventListener("click", closeDrawer);
 $("#btnPoi").addEventListener("click", function () {
@@ -10558,7 +10727,7 @@ function discloseToggle(det) {
   };
 }
 
-["#drawer", "#poiPanel"].forEach(function (sel) {
+["#drawer", "#poiPanel", "#wptPanel"].forEach(function (sel) {
   $(sel).addEventListener("click", function (e) {
     const sum = e.target.closest("summary");
     if (!sum || !this.contains(sum)) return;
@@ -10609,11 +10778,16 @@ $("#btnCenter").addEventListener("click", function () {
   toast("Following", "ok");
 });
 
+/* This used to open the new-waypoint form, which is the one thing on the map
+   that already has an obvious way in: tapping open ground drops a waypoint
+   where you tapped, which is better than dropping one at the centre because
+   you can aim it. So the button was a second door to a room you were already
+   standing in, and the list of what you have saved nearby - the thing you
+   actually want off a moving action bar - had no door at all. */
 $("#btnWpt").addEventListener("click", function () {
-  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : viewCenterLatLng();
-  const st = stageEl.getBoundingClientRect();
-  openWpForm(ll, st.left + st.width / 2, st.top + st.height / 2);
+  if (wptPanelOpen()) closeDrawer(); else openWptPanel();
 });
+$("#btnCloseWpt").addEventListener("click", closeDrawer);
 $("#wpSave").addEventListener("click", saveWpForm);
 $("#wpCancel").addEventListener("click", closeWpForm);
 $("#wpCancelX").addEventListener("click", closeWpForm);
@@ -10979,15 +11153,18 @@ $("#trackList").addEventListener("click", async function (e) {
   }
 });
 
-$("#wptList").addEventListener("click", function (e) {
-  const b = e.target.closest("button[data-act]");
-  if (!b) return;
-  const id = b.closest(".card").dataset.id;
-  const w = waypoints.find((x) => x.id === id);
-  if (!w) return;
-  if (b.dataset.act === "nav") navigateTo({ lat: w.lat, lng: w.lng, name: w.name });
-  else if (b.dataset.act === "go") gotoLatLng(w.lat, w.lng);
-  else if (b.dataset.act === "del") deleteWaypoint(id);
+/* One card means one handler, on both lists that draw it. */
+["#wptList", "#wptNearList"].forEach(function (sel) {
+  $(sel).addEventListener("click", function (e) {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const id = b.closest(".card").dataset.id;
+    const w = waypoints.find((x) => x.id === id);
+    if (!w) return;
+    if (b.dataset.act === "nav") navigateTo({ lat: w.lat, lng: w.lng, name: w.name });
+    else if (b.dataset.act === "go") gotoLatLng(w.lat, w.lng);
+    else if (b.dataset.act === "del") deleteWaypoint(id);
+  });
 });
 
 $("#poiList").addEventListener("click", function (e) {
@@ -11042,7 +11219,7 @@ function anyOverlayOpen() {
          !$("#areaModal").classList.contains("hidden") ||
          drawMode ||
          $("#drawer").classList.contains("open") ||
-         poiPanelOpen();
+         poiPanelOpen() || wptPanelOpen();
 }
 
 /* Shuts the topmost thing, in the order they stack. */
@@ -11164,6 +11341,12 @@ document.addEventListener("keydown", function (e) {
   syncPoiSwitch();
   syncAwakeButtons();
   syncUnitButtons();
+  /* Relief's pair was the one segmented control here that nothing lit at
+     boot. Its only sync ran from setHillshade, which the app calls at start
+     only when relief is on - so with it off, neither On nor Off wore the
+     fill and the row read as a setting with no value. Off was the default
+     until this build, which is to say it was every install. */
+  syncHillshadeButtons();
   /* before anything measures the bars, since it can change their height */
   applyTextScale();
   syncTextButtons();
