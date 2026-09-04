@@ -1694,7 +1694,14 @@ details.sub > .sec-body{padding:12px 0 0}
    which the average was a matter of counting along. Two columns of
    labelled pairs instead, and the readings at full strength: the other
    lists dim a single word the card title already explains, but here the
-   numbers are the content. */
+   numbers are the content.
+
+   Saved waypoints use it too. They carry four readings rather than seven,
+   but they are the same kind of card in the same drawer, and setting one
+   list's facts at 9.5 and the other's at 8.5-over-11.5 made two lists out of
+   what is one idea. The POI and downloaded-area cards keep .card-m: what
+   they carry is one incidental phrase - a category and a distance - and not
+   a set of readings. */
 .trk-m{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:8px}
 .trk-m > div{min-width:0;display:flex;flex-direction:column;gap:1px}
 .trk-m b{font-size:var(--t-micro);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
@@ -1722,6 +1729,11 @@ details.sub > .sec-body{padding:12px 0 0}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
 .tag.medium{background:rgba(232,185,35,.16);color:var(--warn);border:1px solid rgba(232,185,35,.35)}
 .tag.hard{background:rgba(207,83,61,.2);color:var(--danger2);border:1px solid rgba(207,83,61,.4)}
+/* A waypoint's category, on the same shelf a track's difficulty sits on.
+   Neutral rather than the category's own colour: the dot to the left of the
+   name is already that colour, and the choice chip settled the same question
+   the same way - the icon carries the hue, the label carries the word. */
+.tag.cat{background:rgba(216,203,170,.12);color:var(--dim);border:1px solid var(--line2)}
 .dotmark{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;
   flex:0 0 auto}
 .dotmark svg{width:14px;height:14px;stroke:#14181B;fill:none;stroke-width:2;
@@ -4738,11 +4750,36 @@ function renderWaypoints() {
   if (!waypoints.length) { box.innerHTML = '<div class="empty">No waypoints saved.</div>'; return; }
   box.innerHTML = waypoints.slice().sort((a, b) => b.ts - a.ts).map(function (w) {
     const c = CATS[w.cat] || CATS.flag;
+    /* The same shape as a saved track: a name and a tag on top, then labelled
+       pairs in two columns. This card used to set its facts as one dim
+       9.5px run of dot-separated values while the track card beside it used
+       8.5 over 11.5, so two lists of the same kind of thing read as two
+       different lists.
+
+       Four pairs rather than five, because the grid fills two at a time and
+       an odd one leaves a hole in the last row. Splitting the timestamp the
+       way the track card already splits its own - a date and a clock, not one
+       long string - is what makes it four: at Large text "2026-09-04 11:04
+       am" wanted 129px of a 128px column and lost its meridiem to an
+       ellipsis. Latitude and longitude are two readings anyway.
+
+       The category goes up top as a tag, which is what difficulty does on a
+       track: both are a classification rather than a reading. Neutral, not
+       the category's colour - the dot beside it is already carrying that,
+       and the choice chip settled this same question the same way. */
+    const pairs = [
+      ["Date", toDateInput(w.ts)],
+      ["Time", fmtClock(w.ts)],
+      ["Latitude", w.lat.toFixed(4)],
+      ["Longitude", w.lng.toFixed(4)]
+    ];
     return '<div class="card" data-id="' + w.id + '">' +
       '<div class="card-top"><div class="dotmark wpt" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
-      '<div style="flex:1;min-width:0"><div class="card-t">' + esc(w.name) + "</div>" +
-      '<div class="card-m"><span>' + c.label.toUpperCase() + "</span><span>" + w.lat.toFixed(4) + ", " +
-      w.lng.toFixed(4) + "</span><span>" + fmtDate(w.ts) + "</span></div></div></div>" +
+      '<div class="card-t">' + esc(w.name) + "</div>" +
+      '<span class="tag cat">' + esc(c.label) + "</span></div>" +
+      '<div class="trk-m">' +
+        pairs.map(function (p) { return "<div><b>" + p[0] + "</b><span>" + p[1] + "</span></div>"; }).join("") +
+      "</div>" +
       (w.note ? '<div class="card-n">' + esc(w.note) + "</div>" : "") +
       '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
       '<button class="btn xs ghost" data-act="go">Go To</button>' +
