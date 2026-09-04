@@ -1557,7 +1557,16 @@ details.sub{border-bottom:none;margin-top:10px}
 /* Bleeds out through the body's 12px padding so the bar reaches both
    panel edges, the way the Nearby POIs heading above it does. Without
    that it sits on the body colour and reads as text rather than a
-   heading, which is what it looked like before. */
+   heading, which is what it looked like before.
+
+   The bleed is also why details.sub measures a scrollWidth 12px wider
+   than its clientWidth - 302 against 290 in a 375px portrait - at every
+   text size, open or shut, and on the deployed build too. That is the
+   summary reaching the panel edge where it is meant to, not content
+   escaping the box: only the right half of the bleed counts toward
+   scrollWidth, the panels themselves come back scrollWidth ==
+   clientWidth, and nothing paints past them. The chips underneath are
+   already on minmax(0,1fr) with .row wrapping, so they hold at 1.15. */
 details.sub > summary{background:var(--head);margin:0 -12px;padding:12px 14px;
   border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 details.sub > .sec-body{padding:12px 0 0}
