@@ -4760,11 +4760,15 @@ function renderWaypoints() {
     m.bindPopup(
       /* The same fact table a POI card carries. This popup used to say its
          category and position in one dim run and then drop the date in a
-         second grey line with nothing to say what the date was of. */
+         second grey line with nothing to say what the date was of.
+
+         No category row, for the reason a POI card has none: the pin is drawn
+         in the category's colour with its glyph in the middle, and the title
+         here is set in the same colour's ink. Saying it a third time in words
+         is the card repeating itself. */
       '<div class="pop-t" style="color:' + inkOf(c.color) + '">' + esc(w.name) + "</div>" +
       (w.note ? '<div class="pop-n">' + esc(w.note) + "</div>" : "") +
       '<div class="pop-facts">' + factRows([
-        ["Category", c.label],
         ["Position", w.lat.toFixed(5) + ", " + w.lng.toFixed(5)],
         ["Saved", fmtDate(w.ts)]
       ]) + "</div>" +
@@ -6713,15 +6717,6 @@ const Fuel = {
   }
 };
 
-/* Which of the three sources this record came from, worth saying because
-   they know different things: the map extract carries every tag, the search
-   index only the headline ones, and the fuel scheme a servo and its prices
-   and nothing else at all. Named the same way the price block below signs
-   itself, so the card does not appear to cite two sources for one pin. */
-function poiSource(p) {
-  return p.site ? "SAFPIS" : p.thin ? "INDEX" : "OSM";
-}
-
 /* Label on the left, value on the right, one row each. The block is the fuel
    price table generalised, because that card was the only one in the app
    whose facts could be read down a column while every other popup ran the
@@ -6738,12 +6733,17 @@ function poiPopupHtml(p, here) {
     (p.sub ? '<div class="pop-sub">' + esc(p.sub) + "</div>" : "") +
     (p.addr ? '<div class="pop-ad">' + esc(p.addr) + "</div>" : "") +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
+    /* Distance and nothing else. The category is already on the card twice
+       over - the pin you tapped is drawn in it and carries its glyph, and the
+       title above is set in its ink - and the source was a word about how the
+       record was gathered rather than about the place: OSM against INDEX is
+       not a difference a driver at the wheel can do anything with. Where
+       provenance does change a decision it is still said, on the one block
+       where it does: the prices sign themselves SAFPIS and give their age. */
     '<div class="pop-facts">' + factRows([
-      ["Category", m.label],
       /* "away" went with the dot-separated line it used to sit in. A row
          called Distance does not need its value to say it is one. */
-      ["Distance", fmtDist(haversine(here, p))],
-      ["Source", poiSource(p)]
+      ["Distance", fmtDist(haversine(here, p))]
     ]) + "</div>" +
     Fuel.html(p) +
     '<div class="pop-a">' +
