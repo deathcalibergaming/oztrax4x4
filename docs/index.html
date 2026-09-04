@@ -7809,6 +7809,19 @@ const Addr = {
      dropped before any address is looked at. */
   scan: function (tile, t, out, cap) {
     if (!tile || !tile.a) return;
+    /* An address answers a house number, and without one it is not an
+       answer at all. Every address carries its suburb, so "Hawker" matched
+       all 416 of them in the pack for that one town: the two places
+       actually called Hawker came first and the rest was a wall of house
+       numbers to scroll past. A street name alone is the same shape of
+       mistake one level down.
+
+       The gate lives here rather than at either caller so that the list
+       under the box and the list behind Search cannot disagree about what
+       an address search is. What the query is naming without a number is a
+       street or a suburb, and the geocoder answers those with the street
+       or the suburb - which is the answer. */
+    if (!t.num) return;
     const sMask = [], tMask = [];
     let anyS = 0, anyT = 0;
     for (let i = 0; i < tile.s.length; i++) { sMask[i] = this.mask(tile.s[i], t.words); anyS |= sMask[i]; }
@@ -7817,7 +7830,7 @@ const Addr = {
     for (let i = 0; i < tile.a.length && out.length < cap; i++) {
       const rec = tile.a[i];
       if (((sMask[rec[2]] | 0) | (tMask[rec[3]] | 0)) !== t.all) continue;
-      if (t.num && String(rec[5]).toLowerCase() !== t.num) continue;
+      if (String(rec[5]).toLowerCase() !== t.num) continue;
       out.push(this.row(tile, rec));
     }
   },
@@ -8940,9 +8953,19 @@ async function suggestPlaces(q) {
   const cc = geoCountry ? geoCountry.cc.toUpperCase() : "";
   const seen = {};
   const cand = [];
+  /* The same rule the packs and the committed search follow: a street
+     address answers a house number. Photon knows the addresses in a town
+     as well as the packs do, so gating one and not the other would have
+     left the list under the box still filling with house numbers for a
+     query that named only the town. */
+  const sugTerms = Addr.terms(q);
+  const sugWantsNumber = !!(sugTerms && sugTerms.num);
   rows.forEach(function (ft) {
     const p = ft.properties || {}, g = ft.geometry || {};
     if (!g.coordinates) return;
+    /* No name at all is Photon's shape for a bare address - a house number
+       and a street, nothing else. */
+    if (!sugWantsNumber && !p.name) return;
     /* A street address has no name at all in Photon - it is a house number
        and a street, and nothing else. Requiring a name threw every one of
        them away, which is why addresses could be searched but never
@@ -9047,10 +9070,30 @@ async function geoSearch(q) {
      Wider than the type-ahead, which only walks the bubble the vehicle is
      in. This reads every pack stored, so an area pulled down for Port
      Augusta answers from four hundred kilometres away. */
-  const mine = await Addr.searchStored(q);
+  /* A street address answers a house number. Without one it is not an
+     answer at all: an address record carries its suburb, so "Hawker"
+     matched every address in Hawker and the town you asked for arrived
+     with 416 house numbers stacked behind it - measured, on the pack for
+     one small town. The two places actually named Hawker were results
+     one and two, and everything after them was noise you had to scroll
+     past to reach the Close button.
+
+     So the packs are only asked once a number has been typed. "Hawker"
+     answers with the town; "103 Wilpena Road" answers with the house.
+     This also saves reading every stored tile for a query that was never
+     going to want one. */
+  const parsed = Addr.terms(q);
+  /* Not "numbered": the sort further down already declares one of those in
+     the try block below, and a const there puts every earlier mention of
+     the name in this function inside its dead zone. Reusing it threw a
+     ReferenceError from the middle of the pipeline, which the catch turned
+     into "no connection for a wider search" - a network message for a
+     scoping mistake, on a build with the network working. */
+  const hasHouseNo = !!(parsed && parsed.num);
+  const mine = hasHouseNo ? await Addr.searchStored(q) : [];
   const localCards = mine.map(function (r) {
     return { id: r.id, name: r.name, where: r.where, kind: "address",
-             area: false, atype: "address", rank: 30, imp: 1,
+             area: false, atype: "address", rank: 30, imp: 1, named: false,
              lat: r.lat, lng: r.lng, stored: true,
              /* so a named place at the same address claims it, the way the
                 suggestion list already reconciles the two */
@@ -9171,6 +9214,18 @@ async function geoSearch(q) {
         lat: parseFloat(r.lat), lng: parseFloat(r.lon)
       };
     }).filter((r) => isFinite(r.lat) && isFinite(r.lng));
+    /* The same rule for the geocoder's answers as for the packs: a bare
+       house number is not what "Hawker" asked for. Only the bare ones -
+       a building carrying a name of its own, the Mortlock Wing, is a place
+       you can search for by that name and keeps answering to it. Dropped
+       only while something else survives, so a query that turns up nothing
+       but addresses still shows them rather than nothing. */
+    if (!hasHouseNo) {
+      const notBare = geoResults.filter(function (r) {
+        return r.named !== false || r.kind !== "address";
+      });
+      if (notBare.length) geoResults = notBare;
+    }
     /* Folded in before the collapsing, so a street the geocoder also knows
        is reconciled by the same rules that reconcile two of its own rows
        rather than appearing twice under slightly different words. */
