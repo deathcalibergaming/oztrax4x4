@@ -2648,7 +2648,8 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="hint">Tiles are downloaded from z12 up to the selected level and stored in this device's browser cache.</div>
         <div class="kv"><span>Tiles to fetch</span><b id="amCount" class="bignum">0</b></div>
         <div class="kv"><span>Approx. size</span><b id="amSize">--</b></div>
-        <div class="kv"><span>Cap</span><b id="amCap">2500</b></div>
+        <div class="kv"><span>Free space</span><b id="amFree">--</b></div>
+        <div id="amWarn" class="note bad-note hidden"></div>
       </div>
       <div id="amProgress" class="hidden">
         <div class="prog"><i id="amBar"></i></div>
@@ -2822,7 +2823,21 @@ const CFG = {
      wider than the 22 px a pin is drawn at, so there is a gap rather than
      a shared edge. */
   POI_FAN_PX: 28,
-  DL_MIN_Z: 12, DL_CAP: 2500, DL_CONC: 6, TILE_BYTES: 22000,
+  DL_MIN_Z: 12, DL_CONC: 6, TILE_BYTES: 22000,
+  /* An area download is limited by the device and nothing else. There used
+     to be a flat cap of 2500 tiles here, which is about 55 MB - a number
+     picked to be safe on the smallest phone, and so the wrong number on
+     every other one. It refused a week's worth of country on a device with
+     room for fifty of them, and the dialog could not say why: the count
+     went red, the button went grey, and the only message was written into
+     a line that is hidden until the download starts. What a download is
+     actually competing for is space, so space is what is checked.
+
+     The reserve is what is left behind afterwards. Filling the origin to
+     its quota would take the app's own storage down with it - a track
+     being recorded has nowhere to write its next point, and the recording
+     is the one thing here that cannot be fetched again. */
+  DL_RESERVE: 64 * 1048576,
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
@@ -9246,16 +9261,48 @@ function lat2tile(lat, z) {
   const r = rad(clamp(lat, -85.05112878, 85.05112878));
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
 }
-function tileListFor(bounds, maxZ) {
-  const out = [];
+/* The tiles a box covers, handed out one at a time rather than returned as
+   an array. An area is bounded by the device's free space now rather than
+   by a flat count, so a box can legitimately run to hundreds of thousands
+   of tiles - and listing them first spends tens of megabytes describing a
+   download before a byte of it has been fetched, on the phone that had the
+   least room to begin with. The download and the delete both pull from
+   here, so they cover exactly the same ground.
+
+   Relief is yielded beside the tile it shades rather than in a pass of its
+   own, so a download that is stopped part way leaves finished ground
+   behind instead of imagery still waiting to be shaded. */
+function* tileSeq(bounds, maxZ, withShade) {
   for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
     const x0 = lon2tile(bounds.getWest(), z), x1 = lon2tile(bounds.getEast(), z);
     const y0 = lat2tile(bounds.getNorth(), z), y1 = lat2tile(bounds.getSouth(), z);
+    /* Relief only to zoom 13, because that is as deep as the data goes -
+       past it every square on earth returns the same placeholder, so
+       fetching them would spend the connection on a picture of the words
+       "map data not yet available". That ceiling is also why shading is
+       cheap: its share does not grow as the detail level does. */
+    const shade = withShade && z <= CFG.SHADE_MAX_Z;
     for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
-      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
-        out.push({ z: z, x: x, y: y });
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        yield { z: z, x: x, y: y };
+        if (shade) yield { z: z, x: x, y: y, hs: true };
+      }
   }
-  return out;
+}
+
+/* The same number, reached by multiplying instead of counting. The dialog
+   asks for it again on every change of the detail level, and z18 over a
+   week's worth of country is half a million tiles: a rounding error to
+   multiply out, and a visible stall to walk. */
+function tileCountFor(bounds, maxZ, withShade) {
+  let n = 0;
+  for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
+    const x0 = lon2tile(bounds.getWest(), z), x1 = lon2tile(bounds.getEast(), z);
+    const y0 = lat2tile(bounds.getNorth(), z), y1 = lat2tile(bounds.getSouth(), z);
+    const box = (Math.abs(x1 - x0) + 1) * (Math.abs(y1 - y0) + 1);
+    n += box + (withShade && z <= CFG.SHADE_MAX_Z ? box : 0);
+  }
+  return n;
 }
 function tileURL(t) {
   const url = t.hs ? CFG.HILLSHADE_URL : CFG.TILE_URL;
@@ -9264,21 +9311,6 @@ function tileURL(t) {
 /* Matches the prefix the live layer caches under, so a tile downloaded for
    an area is the same tile the map finds later. */
 function tileKey(t) { return (t.hs ? "hs:" : "") + t.z + "/" + t.x + "/" + t.y; }
-
-/* The relief an area needs. Only to zoom 13, because that is as deep as the
-   data goes - past it every square on earth returns the same placeholder,
-   so downloading them would spend bandwidth on a picture of the words "map
-   data not yet available". That cap is also why this is cheap: the count
-   does not grow as the detail level does. */
-function shadeTilesFor(list) {
-  if (!S.hillshade) return [];
-  const out = [];
-  for (let i = 0; i < list.length; i++) {
-    const t = list[i];
-    if (t.z <= CFG.SHADE_MAX_Z) out.push({ z: t.z, x: t.x, y: t.y, hs: true });
-  }
-  return out;
-}
 
 let drawMode = false, drawStart = null, pendingBounds = null, dlAbort = false;
 let suppressMapClickUntil = 0;   /* a finished box-drag must not also drop a waypoint */
@@ -9365,35 +9397,90 @@ function openAreaModal() {
   $("#amCancel").textContent = "Cancel";
   $("#amTitle").textContent = "Download Area";
   $("#amName").value = "Area " + fmtDate(Date.now()).slice(0, 10);
-  $("#amCap").textContent = CFG.DL_CAP;
+  $("#amFree").textContent = "--";
+  $("#amWarn").classList.add("hidden");
   updateAreaEstimate();
 }
 function closeAreaModal() { $("#areaModal").classList.add("hidden"); pendingBounds = null; }
 
-function updateAreaEstimate() {
+/* How much this device will still let the app keep.
+
+   There is no API for free disk, and there should not be - a page cannot be
+   told how full someone's phone is. What it can ask for is its own quota
+   and its own usage, and the difference between them is the honest answer
+   to the only question being asked here: will this download fit. Browsers
+   derive that quota from the disk and shrink it as the disk fills, so it
+   tracks free space rather than standing still.
+
+   A browser that will not say returns null, which is not a refusal to
+   download - it is a refusal to guess. The write itself still tells the
+   truth when the space runs out, and the download listens for that. */
+async function freeSpace() {
+  if (!navigator.storage || !navigator.storage.estimate) return null;
+  try {
+    const est = await navigator.storage.estimate();
+    if (!est || !isFinite(est.quota)) return null;
+    return Math.max(0, est.quota - (est.usage || 0));
+  } catch (e) { return null; }
+}
+
+/* The only thing that can stop a download now, so it is worth telling apart
+   from a tile that simply failed to arrive. Firefox and older WebKit each
+   have their own name for it. */
+function isOutOfSpace(e) {
+  if (!e) return false;
+  return e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    e.code === 22 || e.code === 1014;
+}
+
+let amEstSeq = 0;
+async function updateAreaEstimate() {
   if (!pendingBounds) return;
+  const seq = ++amEstSeq;
   const z = parseInt($("#amZoom").value, 10);
-  const base = tileListFor(pendingBounds, z);
-  /* counted and capped on the whole download, not just the map half: with
-     relief switched on it really is more tiles and more bytes */
-  const n = base.length + shadeTilesFor(base).length;
-  const el = $("#amCount");
-  el.textContent = n;
-  el.classList.toggle("over", n > CFG.DL_CAP);
-  $("#amSize").textContent = fmtBytes(n * CFG.TILE_BYTES);
-  $("#amGo").disabled = n === 0 || n > CFG.DL_CAP;
-  $("#amStatus").textContent = n > CFG.DL_CAP ? "Over cap - lower the detail level" : "Downloading...";
+  /* Counted on the whole download, not just the map half: with relief
+     switched on it really is more tiles and more bytes. */
+  const n = tileCountFor(pendingBounds, z, S.hillshade);
+  const bytes = n * CFG.TILE_BYTES;
+  $("#amCount").textContent = n;
+  $("#amSize").textContent = fmtBytes(bytes);
+
+  const free = await freeSpace();
+  /* The detail level can have been changed again while that was in flight,
+     and the answer to the old question must not overwrite the new one. */
+  if (seq !== amEstSeq) return;
+  const short = free !== null && bytes + CFG.DL_RESERVE > free;
+  $("#amFree").textContent = free === null ? "Unknown" : fmtBytes(free);
+  $("#amCount").classList.toggle("over", short);
+  $("#amGo").disabled = n === 0 || short;
+  $("#amWarn").classList.toggle("hidden", !short);
+  if (short)
+    $("#amWarn").textContent =
+      "Not enough free space. This area needs " + fmtBytes(bytes) + " and there is " +
+      fmtBytes(free) + " free. Lower the detail level, draw a smaller box, or delete " +
+      "an area you have finished with.";
 }
 
 async function runAreaDownload() {
   const z = parseInt($("#amZoom").value, 10);
   const name = ($("#amName").value || "").trim() || "Area";
   const bounds = pendingBounds;
-  const base = tileListFor(bounds, z);
-  const list = base.concat(shadeTilesFor(base));
-  if (!list.length || list.length > CFG.DL_CAP) return;
+  const total = tileCountFor(bounds, z, S.hillshade);
+  if (!total) return;
+
+  /* Asked again here rather than trusting the dialog. The estimate was
+     taken when the box was drawn, and a camera roll, another tab or a
+     previous area can have spent the difference between then and the tap
+     on Download. */
+  const free = await freeSpace();
+  if (free !== null && total * CFG.TILE_BYTES + CFG.DL_RESERVE > free) {
+    updateAreaEstimate();
+    toast("Not enough free space for this area", "err");
+    return;
+  }
 
   dlAbort = false;
+  let outOfSpace = false;
   $("#amSetup").classList.add("hidden");
   $("#amProgress").classList.remove("hidden");
   $("#amGo").classList.add("hidden");
@@ -9401,7 +9488,6 @@ async function runAreaDownload() {
   $("#amTitle").textContent = "Downloading";
 
   let done = 0, fetched = 0, cached = 0, failed = 0;
-  const total = list.length;
   function tally() {
     const pct = Math.round(done / total * 100);
     $("#amBar").style.width = pct + "%";
@@ -9410,10 +9496,15 @@ async function runAreaDownload() {
   }
   tally();
 
-  let idx = 0;
+  /* Six workers taking turns from one sequence. Pulling rather than
+     indexing an array is what lets the box be any size: at no point does
+     the whole download exist anywhere but as the four numbers a tile is. */
+  const seq = tileSeq(bounds, z, S.hillshade);
   async function worker() {
-    while (idx < list.length && !dlAbort) {
-      const t = list[idx++];
+    while (!dlAbort) {
+      const step = seq.next();
+      if (step.done) break;
+      const t = step.value;
       const key = tileKey(t);
       try {
         const hit = await DB.get("tiles", key);
@@ -9425,7 +9516,16 @@ async function runAreaDownload() {
           await DB.put("tiles", blob, key);
           fetched++;
         }
-      } catch (e) { failed++; }
+      } catch (e) {
+        /* A tile that will not arrive is a gap in the map. A tile that will
+           not fit is the end of the download, and every one after it would
+           fail the same way - so stop here and say so, rather than counting
+           a hundred thousand failures and calling the area saved. The
+           estimate is a good one, not a guarantee: tiles average 22 KB and
+           some ground is busier than that. */
+        if (isOutOfSpace(e)) { outOfSpace = true; dlAbort = true; }
+        else failed++;
+      }
       done++;
       if (done % 4 === 0 || done === total) tally();
     }
@@ -9476,17 +9576,33 @@ async function runAreaDownload() {
   }
 
 
-  if (!dlAbort) {
+  /* An area that filled the device is still saved, under a name that says
+     what it is. The tiles are on the phone either way; without a record the
+     only thing that can reach them is Clear All Tiles, and a device with no
+     room left is exactly where you want to delete one area rather than all
+     of them. The record covers the whole box it was asked for, which claims
+     more ground than arrived - deleteArea already tolerates a key that was
+     never written, and the alternative is a record that under-claims and
+     strands the rest. */
+  if (!dlAbort || outOfSpace) {
     const area = {
-      id: uid(), name: name, maxZoom: z, tiles: total, addr: addrTiles,
+      id: uid(), name: outOfSpace ? name + " (partial)" : name,
+      /* What a partial area holds is what was written, not what was
+         attempted: the five or so workers with a tile in flight when the
+         first refusal landed all fail too, and counting them would put a
+         size on the card that is not on the disk. */
+      maxZoom: z, tiles: outOfSpace ? fetched + cached : total, addr: addrTiles,
       route: routeTiles, ts: Date.now(),
       bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]
     };
     try { await DB.put("areas", area); } catch (e) { /* ignore */ }
     await renderAreas();
-    toast("Area saved: " + fetched + " new, " + cached + " already cached" +
-          (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : "") +
-          (routeTiles ? ", " + routeTiles + " road pack" + (routeTiles > 1 ? "s" : "") : ""), "ok");
+    if (outOfSpace)
+      toast("Ran out of free space - " + fetched + " of " + total + " tiles saved", "err");
+    else
+      toast("Area saved: " + fetched + " new, " + cached + " already cached" +
+            (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : "") +
+            (routeTiles ? ", " + routeTiles + " road pack" + (routeTiles > 1 ? "s" : "") : ""), "ok");
   } else {
     toast("Download stopped", "warn");
   }
@@ -9517,18 +9633,13 @@ async function deleteArea(id) {
   const a = await DB.get("areas", id);
   if (!a) return;
   const b = L.latLngBounds(a.bounds[0], a.bounds[1]);
-  const list = tileListFor(b, a.maxZoom);
-  for (let i = 0; i < list.length; i++) {
-    const t = list[i];
+  /* Shade tiles asked for unconditionally, whatever the setting says now.
+     An area downloaded with relief on and deleted with it off would
+     otherwise leave its shade tiles behind for good, and deleting a key
+     that was never there costs nothing - which is also what makes a
+     partial area safe to delete. */
+  for (const t of tileSeq(b, a.maxZoom, true)) {
     try { await DB.del("tiles", tileKey(t)); } catch (e) { /* ignore */ }
-    /* Always try the relief too, whatever the setting says now. An area
-       downloaded with shading on and deleted with it off would otherwise
-       leave its shade tiles behind for good; deleting a key that was never
-       there costs nothing. */
-    if (t.z <= CFG.SHADE_MAX_Z) {
-      try { await DB.del("tiles", tileKey({ z: t.z, x: t.x, y: t.y, hs: true })); }
-      catch (e) { /* ignore */ }
-    }
   }
   await DB.del("areas", id);
   await renderAreas();
