@@ -1227,6 +1227,29 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:var(--t-note)}
 .pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:var(--t-note)}
 .pop-a{display:flex;gap:6px;margin-top:9px}
+/* Three actions share the row in equal parts, the way a card's do, so the
+   popup does not end in a stretch of empty panel. Fewer than three keep
+   their own width: the waypoint popup carries only Delete, and a lone
+   destructive control stretched across a card is the biggest thing on it,
+   which is the opposite of what The Elbow Room Rule is asking for.
+   Counted in the selector rather than set by a class, so a fourth button
+   added later does not need somebody to remember this.
+
+   They fill it in proportion rather than in equal thirds, which is the one
+   place this row parts company with the card it copies. A card sits in a
+   drawer of known width, so three 1fr columns have a definite width to split
+   and come out equal. A popup is sized to its own content, and fr units have
+   nothing to divide until something else has set the width - a grid of
+   thirds here just sizes each column to its own label, which is what the
+   flex line already does with less machinery. Tried; measured; reverted.
+
+   min-width:max-content is load-bearing, though. .btn carries min-width:0 so
+   a card's buttons may shrink, and a growing flex item keeps that floor - the
+   row squeezed to 46px around a short place name and cut NAVIGATE to NAVIGA.
+   Handing the button its own content back as the floor is what widens the
+   popup to hold all three: 178px on a short name, 194 at Large. */
+.pop-a .btn:first-child:nth-last-child(3),
+.pop-a .btn:first-child:nth-last-child(3) ~ .btn{flex:1 1 auto;min-width:max-content}
 /* a pile of pins collapsed into one: the count replaces the glyph */
 /* Fully opaque, unlike the single pin at .92. The count inside is text, and
    three percent of whatever the map happens to be showing was enough to
@@ -6747,7 +6770,17 @@ function poiPopupHtml(p, here) {
     ]) + "</div>" +
     Fuel.html(p) +
     '<div class="pop-a">' +
+    /* The same three the drawer's POI card carries, in the same order. Go To
+       was the one missing from the map, which is where you are when you want
+       it: it brings the pin to the middle of the screen rather than leaving
+       it under your thumb at the edge.
+
+       Hide rather than Delete, which is what the card says too. A POI is
+       OpenStreetMap's record and not the driver's, so there is nothing here
+       to delete - the app can only stop drawing it. A waypoint is the
+       driver's own, which is why that popup's button does say Delete. */
     '<button class="btn xs primary" onclick="navigateToPoi(\'' + p.id + '\')">Navigate</button>' +
+    '<button class="btn xs ghost" onclick="goToPoi(\'' + p.id + '\')">Go To</button>' +
     '<button class="btn xs ghost" onclick="hidePoi(\'' + p.id + '\')">Hide</button></div>';
 }
 
@@ -9078,6 +9111,17 @@ function navigateToPoi(id) {
   navigateTo({ lat: p.lat, lng: p.lng, name: p.name });
 }
 window.navigateToPoi = navigateToPoi;
+
+/* The popup stays open, unlike Navigate's. Navigating replaces what you were
+   doing; centring the pin is you asking to see this card better, and closing
+   the card you were reading to do it would be answering a different
+   question. Leaflet keeps the popup on its marker through the pan. */
+function goToPoi(id) {
+  const p = pois.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  gotoLatLng(p.lat, p.lng);
+}
+window.goToPoi = goToPoi;
 
 /* =====================================================================
    Offline area download
