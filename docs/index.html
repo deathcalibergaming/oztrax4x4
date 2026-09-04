@@ -3204,13 +3204,28 @@ const S = Object.assign({
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
-  hillshade: false,    /* shaded relief under the map, off by default */
+  hillshade: true,     /* shaded relief under the map, on by default */
   textScale: 1         /* 1, 1.15 or 1.3 - drives --uiScale */
 }, loadLS(LS.settings, {}));
+
+/* Relief used to be off by default and is now on, and a saved setting beats a
+   default - which here would have meant nobody. Any phone that has opened the
+   app before has the whole settings object written already, because the map's
+   first zoomend saves it before a driver has touched anything, so every one of
+   them carries an hillshade:false that was never a decision.
+
+   So the new default is applied once, to everybody, and the fact that it has
+   been applied is recorded. A driver who turns relief back off keeps it off:
+   the flag is set by then, and this never runs again. */
+if (!S.shadeDefaultApplied) {
+  S.hillshade = true;
+  S.shadeDefaultApplied = true;
+}
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
+                        shadeDefaultApplied: S.shadeDefaultApplied,
                         textScale: S.textScale });
 }
 
@@ -10430,7 +10445,6 @@ const Wake = {
           Wake.note = "released by the system";
           renderGpsPanel();
           syncAwakeButtons();
-  syncHillshadeButtons();
         });
       } catch (e) {
         this.note = "refused: " + (e.message || e.name);
@@ -11208,6 +11222,12 @@ document.addEventListener("keydown", function (e) {
   syncPoiSwitch();
   syncAwakeButtons();
   syncUnitButtons();
+  /* Relief's pair was the one segmented control here that nothing lit at
+     boot. Its only sync ran from setHillshade, which the app calls at start
+     only when relief is on - so with it off, neither On nor Off wore the
+     fill and the row read as a setting with no value. Off was the default
+     until this build, which is to say it was every install. */
+  syncHillshadeButtons();
   /* before anything measures the bars, since it can change their height */
   applyTextScale();
   syncTextButtons();
