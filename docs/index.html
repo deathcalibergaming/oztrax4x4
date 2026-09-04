@@ -2815,7 +2815,22 @@ const CFG = {
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
-  MIN_Z: 3, MAX_Z: 18,
+  /* The map stops one zoom above the last one Esri draws, so the worst
+     enlargement anyone ever looks at is 2x rather than 4x. z18 was reachable
+     and was a quarter of the detail stretched over the same screen: not a
+     closer look at the ground, just a bigger picture of the same tile.
+
+     There is a fix for the sharpness and it is the wrong trade. Esri does
+     have real cartography at z17 in most places - sixteen of the eighteen
+     inland places probed - so the map could ask for it and be genuinely
+     sharp there, falling back to the enlarged tile in the two that come
+     back empty. But the same ground costs four times the tiles per zoom
+     step: the Flinders box measured 408 MB at z16 and 1.56 GB at z17. An
+     app that exists to work with no signal cannot put its detail behind
+     having one, and nobody is downloading 1.56 GB for half a degree of
+     country. So the cartography ceiling stays where every place has it,
+     and the map stops one step past it. */
+  MIN_Z: 3, MAX_Z: 17,
   /* The deepest zoom Esri actually draws the topo map at. It answers past
      this too, but with one of two empty tiles: a blank white square, or the
      grey one with "Map data not yet available" printed across it - the same
@@ -9341,9 +9356,9 @@ function* tileSeq(bounds, maxZ, withShade) {
 }
 
 /* The same number, reached by multiplying instead of counting. The dialog
-   asks for it again on every change of the detail level, and z18 over a
-   week's worth of country is half a million tiles: a rounding error to
-   multiply out, and a visible stall to walk. */
+   asks for it again on every change of the detail level, and z16 over a
+   week's worth of country is a hundred thousand tiles and more: a rounding
+   error to multiply out, and a visible stall to walk. */
 function tileCountFor(bounds, maxZ, withShade) {
   let n = 0;
   for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
