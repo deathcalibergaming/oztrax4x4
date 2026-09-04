@@ -2491,8 +2491,8 @@ input[type=date],input[type=time]{color-scheme:dark}
 <aside id="wptPanel" aria-hidden="true">
   <div class="dr-head">
     <svg id="wptHeadIcon" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle class="solid" cx="12" cy="10" r="2.5"/></svg>
-    <h2 class="t">Nearby Waypoints <span class="cnt" id="cntNearWpts">0</span></h2>
-    <button id="btnCloseWpt" class="icon-btn" aria-label="Close nearby waypoints">
+    <h2 class="t">Waypoints <span class="cnt" id="cntNearWpts">0</span></h2>
+    <button id="btnCloseWpt" class="icon-btn" aria-label="Close waypoints">
       <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
@@ -3828,6 +3828,7 @@ const Compass = {
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
 let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0, nearTick = 0;
+let nearAnchor = null;   /* where the waypoint list was last drawn from */
 function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
@@ -3897,7 +3898,15 @@ function frame(ts) {
      Once a second, not four times: these are hundreds of metres apart and a
      number that reorders itself under a thumb reaching for it is worse than
      one a second old. Cheap either way - waypoints are counted in tens. */
-  if (ts - nearTick > 1000 && wptPanelOpen()) { nearTick = ts; renderNearbyWaypoints(); }
+  /* Only when the figures on the cards would actually differ. The panel
+     lists every waypoint that has been saved, not the handful inside the
+     radius, so this is a rebuild of the whole list - cheap while driving
+     and worth having, pure waste while parked at the camp it is listing.
+     Five metres is under the smallest distance a card can show. */
+  if (ts - nearTick > 1000 && wptPanelOpen()) {
+    nearTick = ts;
+    if (!nearAnchor || haversine(nearAnchor, poiAnchor()) > 5) renderNearbyWaypoints();
+  }
 }
 requestAnimationFrame(frame);
 
@@ -4953,31 +4962,45 @@ function waypointCardHtml(w, here) {
    see once you have dragged away - so the two panels never disagree about
    where "here" is. Same radius as POIs, so "nearby" means one thing in this
    app rather than two. */
+/* Every waypoint that has been saved, nearest first.
+
+   The radius groups this list; it does not filter it. It used to filter,
+   which made the button useless in the case it was built for: four
+   waypoints saved along a trip and one of them within 5 km showed one
+   card, and a camp 40 km up the road - the next one you are driving to -
+   was not on the list at all. Worse, standing anywhere but on top of your
+   own marks, the panel had nothing in it but a sentence telling you to go
+   and open the menu instead, which is the thing this button exists to save
+   you doing.
+
+   So the near ones come first under their own note, the rest follow under
+   a heading that says what they are, and nothing a person saved is ever
+   hidden from the list of the things they saved. */
 function renderNearbyWaypoints() {
   const here = poiAnchor();
-  const near = waypoints
+  nearAnchor = here;   /* every path in, so the frame loop stays in step */
+  const all = waypoints
     .map(function (w) { return { w: w, d: haversine(here, w) }; })
-    .filter(function (x) { return x.d <= CFG.POI_RADIUS; })
     .sort(function (a, b) { return a.d - b.d; });
-  $("#cntNearWpts").textContent = near.length;
+  const near = all.filter(function (x) { return x.d <= CFG.POI_RADIUS; });
+  const far = all.filter(function (x) { return x.d > CFG.POI_RADIUS; });
+  $("#cntNearWpts").textContent = all.length;
   const note = $("#wptNearNote");
   const box = $("#wptNearList");
-  if (!waypoints.length) {
+  if (!all.length) {
     note.textContent = "";
     box.innerHTML = '<div class="empty">No waypoints saved. Tap the map to drop one.</div>';
     return;
   }
-  if (!near.length) {
-    note.textContent = "";
-    box.innerHTML = '<div class="empty">' + (waypoints.length === 1
-      ? "Your one waypoint is further than " + poiRadiusText() +
-        " away. The menu has it."
-      : "None of your " + waypoints.length + " waypoints are within " +
-        poiRadiusText() + ". The menu lists them all.") + "</div>";
-    return;
-  }
-  note.textContent = "Within " + poiRadiusText() + " of you, nearest first.";
-  box.innerHTML = near.map(function (x) { return waypointCardHtml(x.w, here); }).join("");
+  const card = function (x) { return waypointCardHtml(x.w, here); };
+  note.textContent = near.length
+    ? near.length + (near.length === 1 ? " is" : " are") + " within " +
+      poiRadiusText() + " of you. Nearest first."
+    : "Nearest first. Nothing saved within " + poiRadiusText() + " of you.";
+  box.innerHTML = near.map(card).join("") +
+    (far.length && near.length
+      ? '<div class="sublabel">Further away</div>' + far.map(card).join("")
+      : far.map(card).join(""));
 }
 
 function saveWaypoints() {
