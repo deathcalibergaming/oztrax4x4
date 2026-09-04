@@ -1606,19 +1606,36 @@ details.sub > .sec-body{padding:12px 0 0}
    width, labels starting at the same point down each column and the counts
    ending at the same one. It costs a row of height, which the list below
    gets back as soon as you scroll. */
-/* Prices are a table of two columns pretending not to be one: the grade on
-   the left in the interface face, the number on the right in the mono face
-   the stats use, so a column of them lines up on the decimal point and can
-   be read down at a glance rather than across. No dollar sign and no unit -
-   a fuel price in this country is cents a litre and has been all along,
-   and the roadside board does not print them either. */
-.fuelp{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
-.fuelp > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
-.fuelp > div > span{font-size:var(--t-note);color:var(--sand);opacity:.85;overflow:hidden;
+/* The fact table a card carries: a hairline, then a label on the left and
+   its value on the right at the card's reading size, and an optional caption
+   under them saying where the block came from.
+
+   This started as the fuel price block and was for a long time the only card
+   in the app that laid its facts out as a table. Every other popup ran them
+   together as one dim dot-separated line - CATEGORY - OSM - 98 m away - which
+   has to be parsed rather than read, and which put the thing you opened the
+   card for in the same grey as the things you did not. Prices were a table of
+   two columns pretending not to be one: the grade on the left, the number on
+   the right, so a column of them lines up on the decimal point and reads down
+   at a glance rather than across. That is the right shape for any card's
+   facts, so it is the shared one now, and .prices is what is left of the
+   difference.
+
+   No dollar sign and no unit on a price - a fuel price in this country is
+   cents a litre and has been all along, and the roadside board does not
+   print them either. */
+.pop-facts{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
+.pop-facts > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
+.pop-facts > div > span{font-size:var(--t-note);color:var(--sand);opacity:.85;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.fuelp > div > b{font-variant-numeric:tabular-nums;font-size:var(--t-body);color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
-.fuelp > i{display:block;margin-top:3px;font-style:normal;
+.pop-facts > div > b{font-variant-numeric:tabular-nums;font-size:var(--t-body);color:var(--sand);
+  letter-spacing:-.02em;flex:0 0 auto;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop-facts > i{display:block;margin-top:3px;font-style:normal;
   font-size:var(--t-micro);letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
+/* A price is the one value on a card that is the reason the card was opened,
+   so it keeps the colour the fuel pin and the fuel chip already wear while
+   every other value stays sand. */
+.pop-facts.prices > div > b{color:#E8B923}
 /* minmax(0,...) rather than a bare 1fr: a grid track will not shrink below
    the widest thing in it, so one long label pushes the whole column past the
    drawer and takes a horizontal scrollbar with it. */
@@ -4741,10 +4758,20 @@ function renderWaypoints() {
     const c = CATS[w.cat] || CATS.flag;
     const m = L.marker([w.lat, w.lng], { icon: pinIcon(c.color, w.cat, false), keyboard: false });
     m.bindPopup(
+      /* The same fact table a POI card carries. This popup used to say its
+         category and position in one dim run and then drop the date in a
+         second grey line with nothing to say what the date was of.
+
+         No category row, for the reason a POI card has none: the pin is drawn
+         in the category's colour with its glyph in the middle, and the title
+         here is set in the same colour's ink. Saying it a third time in words
+         is the card repeating itself. */
       '<div class="pop-t" style="color:' + inkOf(c.color) + '">' + esc(w.name) + "</div>" +
-      '<div class="pop-m">' + c.label.toUpperCase() + " &middot; " + w.lat.toFixed(5) + ", " + w.lng.toFixed(5) + "</div>" +
       (w.note ? '<div class="pop-n">' + esc(w.note) + "</div>" : "") +
-      '<div class="pop-m" style="margin-top:6px">' + fmtDate(w.ts) + "</div>" +
+      '<div class="pop-facts">' + factRows([
+        ["Position", w.lat.toFixed(5) + ", " + w.lng.toFixed(5)],
+        ["Saved", fmtDate(w.ts)]
+      ]) + "</div>" +
       '<div class="pop-a"><button class="btn xs ghost" onclick="deleteWaypoint(\'' + w.id + '\')">Delete</button></div>',
       popo
     );
@@ -6685,28 +6712,39 @@ const Fuel = {
       return '<div><span>' + esc(r.name) + "</span><b>" + Fuel.fmt(r.c) + "</b></div>";
     }).join("");
     const when = this.age(got.site.t);
-    return '<div class="fuelp">' + rows +
+    return '<div class="pop-facts prices">' + rows +
       (when ? '<i>SAFPIS &middot; set ' + when + "</i>" : "") + "</div>";
   }
 };
 
-/* Which of the three sources this record came from, worth saying because
-   they know different things: the map extract carries every tag, the search
-   index only the headline ones, and the fuel scheme a servo and its prices
-   and nothing else at all. Named the same way the price block below signs
-   itself, so the card does not appear to cite two sources for one pin. */
-function poiSource(p) {
-  return p.site ? "SAFPIS" : p.thin ? "INDEX" : "OSM";
+/* Label on the left, value on the right, one row each. The block is the fuel
+   price table generalised, because that card was the only one in the app
+   whose facts could be read down a column while every other popup ran the
+   same three facts together as one dim line. */
+function factRows(pairs) {
+  return pairs.map(function (p) {
+    return "<div><span>" + esc(p[0]) + "</span><b>" + esc(p[1]) + "</b></div>";
+  }).join("");
 }
 
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
   return '<div class="pop-t" style="color:' + inkOf(m.color) + '">' + esc(p.name) + "</div>" +
     (p.sub ? '<div class="pop-sub">' + esc(p.sub) + "</div>" : "") +
-    '<div class="pop-m">' + m.label.toUpperCase() + " &middot; " +
-    poiSource(p) + " &middot; " + fmtDist(haversine(here, p)) + " away</div>" +
     (p.addr ? '<div class="pop-ad">' + esc(p.addr) + "</div>" : "") +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
+    /* Distance and nothing else. The category is already on the card twice
+       over - the pin you tapped is drawn in it and carries its glyph, and the
+       title above is set in its ink - and the source was a word about how the
+       record was gathered rather than about the place: OSM against INDEX is
+       not a difference a driver at the wheel can do anything with. Where
+       provenance does change a decision it is still said, on the one block
+       where it does: the prices sign themselves SAFPIS and give their age. */
+    '<div class="pop-facts">' + factRows([
+      /* "away" went with the dot-separated line it used to sit in. A row
+         called Distance does not need its value to say it is one. */
+      ["Distance", fmtDist(haversine(here, p))]
+    ]) + "</div>" +
     Fuel.html(p) +
     '<div class="pop-a">' +
     '<button class="btn xs primary" onclick="navigateToPoi(\'' + p.id + '\')">Navigate</button>' +
