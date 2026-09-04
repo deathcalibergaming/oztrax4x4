@@ -7196,7 +7196,14 @@ function clusterIcon(group) {
   const c = Legible.ground(POI_META[best].color);
   return L.divIcon({
     className: "pin poi cluster",
-    iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
+    /* The POI pin's box, not the waypoint teardrop's. A cluster wears
+       .pin.poi, so its badge is 22px like every other POI badge - but the
+       box was declared at 26, the teardrop's size, and a 22px badge laid
+       into a 26px box sits at the top-left of it. The circle and the count
+       inside it were drawn 2px up and 2px left of the spot the marker was
+       anchored to, which is what read as the number sitting off-centre.
+       Same three numbers the shared pin builder uses for a POI. */
+    iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12],
     html: '<div class="upright"><div class="badge" style="background:' + c + '">' +
           '<span class="cnum">' + group.length + "</span></div></div>"
   });
