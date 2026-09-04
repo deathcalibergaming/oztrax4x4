@@ -1897,6 +1897,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
 #askModal{z-index:1050;background:rgba(6,8,7,.45)}
 .askmsg{font-size:var(--t-body);line-height:1.45;color:var(--sand)}
+#nmForm{display:contents}
 .fld2{display:flex;gap:8px}
 .fld2 .fld{flex:1;min-width:0}
 input[type=date],input[type=time]{color-scheme:dark}
@@ -2623,7 +2624,17 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="modal-body">
       <div class="fld">
         <label for="nmQuery">Search for a place</label>
-        <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
+        <!-- The input sits in a form so that Android's search key has
+             something to submit. enterkeyhint only draws the key; whether
+             pressing it produces a usable event is up to the keyboard, and
+             Gboard composes latin text, which swallows the keydown - it
+             arrives as keyCode 229 with key "Unidentified", never "Enter".
+             Implicit submission is not routed through the IME, so it lands
+             whatever the keyboard is doing. display:contents keeps the form
+             out of the layout. -->
+        <form id="nmForm" autocomplete="off">
+          <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
+        </form>
         <div id="nmSuggest" class="hidden"></div>
       </div>
       <div class="row">
@@ -9333,8 +9344,30 @@ function renderNavList() {
   box.innerHTML = geoResults.map(geoCardHtml).join("");
 }
 
+/* Committing the search puts the keyboard away. It has done its job, and on
+   a phone it covers the answers - the results land underneath it, and the
+   Search button you just pressed is the only thing you can still see. The
+   field is not disabled, so tapping back into it brings the keyboard
+   straight back for a second try.
+
+   The same keypress can arrive by more than one route: Chrome fires both
+   keydown Enter and the type="search" input's own search event, so a
+   desktop Enter would otherwise put two identical requests on the wire.
+   geoSearch has no in-flight guard of its own, so the same query inside
+   the same moment is treated as the one press it is. A deliberate retry
+   comes later than this and still goes through. */
+let lastNavSearch = "", lastNavSearchAt = 0;
 function navModalSearch() {
   const q = $("#nmQuery").value;
+  const now = Date.now();
+  if (q === lastNavSearch && now - lastNavSearchAt < 700) return;
+  lastNavSearch = q;
+  lastNavSearchAt = now;
+  /* Only a query that will actually run puts the keyboard away. Too short
+     to search is a correction rather than a commit, and closing the
+     keyboard to say "type at least three characters" would make the fix
+     cost a tap back into the field. */
+  if (q.trim().length >= 3) { clearSuggest(); $("#nmQuery").blur(); }
   geoSearch(q);
 }
 function hidePoi(id) {
@@ -11134,9 +11167,21 @@ $("#nmSuggest").addEventListener("click", function (e) {
 $("#nmQuery").addEventListener("blur", function () {
   setTimeout(clearSuggest, 160);
 });
-$("#nmQuery").addEventListener("keydown", function (e) {
-  if (e.key === "Enter") { e.preventDefault(); navModalSearch(); }
+/* Three ways in, because one is not reliable on a phone. The form submit is
+   the one Android's search key actually reaches. keydown is the desktop
+   path, and takes keyCode 13 as well as key "Enter" so an IME that reports
+   only the old property still counts. The search event is what a
+   type="search" input fires on Enter in Chrome, and costs nothing to
+   listen for. Whichever arrives first wins - navModalSearch drops the
+   duplicates. */
+$("#nmForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  navModalSearch();
 });
+$("#nmQuery").addEventListener("keydown", function (e) {
+  if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); navModalSearch(); }
+});
+$("#nmQuery").addEventListener("search", function () { navModalSearch(); });
 $("#btnPoiOsm").addEventListener("click", function () { reloadPois(); });
 $("#poiOfferChip").addEventListener("click", function () { reloadPois(); });
 /* Have the worker replace the cached page before reloading, so the reload
