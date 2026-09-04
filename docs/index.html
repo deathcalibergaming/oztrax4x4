@@ -1431,8 +1431,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:var(--head)}
 .dr-head .t{flex:1;font-size:var(--f13);font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.dr-foot{flex:0 0 auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
+/* The attribution scrolls with the menu rather than standing at the bottom
+   of it. Pinned, it held the height of three lines of small print out of a
+   panel that is mostly list - and on a landscape phone, where there is
+   already almost no height, it was taking a fifth of the drawer to say
+   something nobody reads twice. It is the last thing in the body now, which
+   is also where it belongs in reading order: the notice at the end of the
+   document, not a footer bolted to the glass. */
+.dr-foot{padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
   font-size:var(--f9);color:var(--dim);line-height:1.5}
+/* A section's own action, as opposed to a card's: same size and same right
+   edge as the buttons in the cards above it, so the section ends on the
+   alignment it kept all the way down. */
+.sec-acts{justify-content:flex-end;padding-right:10px}
 details{border-bottom:1px solid var(--line)}
 summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:var(--f115);
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
@@ -1730,7 +1741,22 @@ input[type=date],input[type=time]{color-scheme:dark}
   border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--f11);line-height:1.4;color:var(--sand)}
 #drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--f10);display:block;margin-bottom:3px;text-transform:uppercase}
 #drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
-#stage.drawing{cursor:crosshair}
+/* Drawing the box needs the finger's whole gesture, and by default it does
+   not get it. #stage and Leaflet's own container both declare
+   touch-action:pan-x pan-y, which tells the browser a one-finger drag is a
+   pan it should handle itself - so it takes the gesture over, fires
+   pointercancel, and the box stops growing the moment the finger moves.
+   With a mouse none of that applies, which is why this worked at a desk and
+   not in a vehicle.
+
+   Turning dragging off in Leaflet does not help: that stops Leaflet panning
+   the map, not the browser claiming the touch. Only touch-action does that.
+   The descendants need it too, because the value that counts is the one on
+   the element the finger lands on, and the finger lands on a tile inside the
+   container, not on the stage. Scoped to .drawing, so the map pans normally
+   the rest of the time. */
+#stage.drawing{cursor:crosshair;touch-action:none}
+#stage.drawing *{touch-action:none}
 
 /* ---------- toast ---------- */
 /* Sits just under the stats row at the top of the map, where it is read
@@ -2123,8 +2149,14 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="trackList" class="list"></div>
-        <div class="row">
-          <button class="btn sm ghost" id="btnClearTrail">Clear Trail Line</button>
+        <!-- Sized and aligned as a card action rather than a full-width
+             slab, so the section ends on the same right edge its cards do
+             instead of one bar the width of the drawer. It stays a single
+             section-level control and is deliberately not repeated inside
+             each card: it clears the line currently drawn on the map, which
+             is one thing, not one thing per saved track. -->
+        <div class="card-acts sec-acts">
+          <button class="btn xs ghost" id="btnClearTrail">Clear Trail Line</button>
         </div>
       </div>
     </details>
@@ -2136,9 +2168,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="wptList" class="list"></div>
-        <div class="row">
-          <button class="btn sm ghost" id="btnAddWptMenu">Add At Map Centre</button>
-        </div>
       </div>
     </details>
 
@@ -2247,13 +2276,13 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
     </details>
 
-  </div>
-  <div class="dr-foot">
-    TrailTracker &middot; offline 4x4 trail log<br>
-    Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
-    Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
-    Australia, licensed under the Open G-NAF end user licence agreement.
-    Not verified for mail delivery.
+    <div class="dr-foot">
+      TrailTracker &middot; offline 4x4 trail log<br>
+      Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
+      Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
+      Australia, licensed under the Open G-NAF end user licence agreement.
+      Not verified for mail delivery.
+    </div>
   </div>
 </aside>
 
@@ -4417,6 +4446,16 @@ async function renderTracks() {
           return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
         }).join("") +
       "</div>" +
+      /* Five buttons will not sit on one line in a 340px drawer, and left to
+         wrap they came out four-and-one: Delete alone on the second row,
+         pushed to the far right by its own margin, with a hand's width of
+         nothing beside it. The break is placed rather than left to the
+         wrap, so the second row is a pair with one at each end instead of
+         an orphan - and Delete still holds an end of a row to itself,
+         which is the rule it was being given that margin for.
+
+         Three then two, because the three widest labels are in the first
+         group; the pair below stays on one line down to a 320px phone. */
       '<div class="card-acts">' +
       /* Resume takes the primary slot Export GPX held. Exporting reads a
          track; resuming changes what the app is doing, and the one that
@@ -4424,6 +4463,8 @@ async function renderTracks() {
       '<button class="btn xs primary" data-act="resume">Resume</button>' +
       '<button class="btn xs ghost" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
+      "</div>" +
+      '<div class="card-acts">' +
       '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button>' +
       "</div></div>";
@@ -8926,6 +8967,10 @@ stageEl.addEventListener("pointerdown", function (e) {
   e.preventDefault(); e.stopPropagation();
   const st = stageEl.getBoundingClientRect();
   drawStart = { cx: e.clientX, cy: e.clientY, x: e.clientX - st.left, y: e.clientY - st.top };
+  /* The rest of the drag is delivered here whatever the finger passes over
+     on its way - a marker, a popup, the edge of a panel - instead of the
+     stream stopping the moment it leaves the element it started on. */
+  try { stageEl.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
   const r = $("#drawRect");
   r.classList.remove("hidden");
   r.style.left = drawStart.x + "px"; r.style.top = drawStart.y + "px";
@@ -8952,11 +8997,24 @@ stageEl.addEventListener("pointerup", function (e) {
   const a = clientToLatLng(drawStart.cx, drawStart.cy);
   const b = clientToLatLng(e.clientX, e.clientY);
   const w = Math.abs(e.clientX - drawStart.cx), h = Math.abs(e.clientY - drawStart.cy);
+  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
   endDrawMode();
   suppressMapClickUntil = Date.now() + 500;
   if (w < 24 || h < 24) { toast("Box too small - try again", "warn"); return; }
   pendingBounds = L.latLngBounds(a, b);
   openAreaModal();
+}, true);
+
+/* A gesture the system takes away - a second finger landing, a notification
+   sheet pulled down, the call that comes while you are choosing an area -
+   has to put the box away rather than leave a half-drawn rectangle on the
+   map and drawStart set behind it. Draw mode itself is kept, so the finger
+   can simply start again. */
+stageEl.addEventListener("pointercancel", function (e) {
+  if (!drawMode || !drawStart) return;
+  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
+  drawStart = null;
+  $("#drawRect").classList.add("hidden");
 }, true);
 
 function openAreaModal() {
@@ -10690,12 +10748,9 @@ $("#btnPoiRestore").addEventListener("click", function () {
   renderPois();
   toast("Hidden POIs restored", "ok");
 });
-$("#btnAddWptMenu").addEventListener("click", function () {
-  closeDrawer();
-  const ll = view.has && S.follow ? L.latLng(view.cur.lat, view.cur.lng) : viewCenterLatLng();
-  const st = stageEl.getBoundingClientRect();
-  setTimeout(function () { openWpForm(ll, st.left + st.width / 2, st.top + st.height / 2); }, 240);
-});
+/* Add At Map Centre is gone from the menu. The action bar's Waypoint button
+   does the same job from where the map already is, without the drawer
+   having to close itself first to show you what you were placing on. */
 
 /* ---- offline areas ---- */
 $("#btnNewArea").addEventListener("click", startDrawArea);
