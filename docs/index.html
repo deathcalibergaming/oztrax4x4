@@ -818,12 +818,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --t-read-tight:calc(13px * var(--uiScale));   /* an instrument value with the bar on its end */
   --t-note:calc(11.5px * var(--uiScale));       /* a secondary or explanatory line */
   --t-label:calc(11.5px * var(--uiScale));      /* a control label; a section summary */
-  --t-read-sm:calc(11.5px * var(--uiScale));    /* a figure on a card or a pin */
+  --t-read-sm:calc(11.5px * var(--uiScale));    /* a figure on a card or a pin, in tabular interface digits */
   --t-label-sm:calc(10px * var(--uiScale));     /* a small control label: btn.sm, a field caption */
-  --t-meta:calc(9.5px * var(--uiScale));        /* a monospaced value line; the quietest prose */
+  --t-meta:calc(9.5px * var(--uiScale));        /* a value line: coordinates, counts, prices, statuses */
   --t-label-xs:calc(9px * var(--uiScale));      /* the tightest button label: btn.xs */
   --t-micro:calc(8.5px * var(--uiScale));       /* a label or unit read while moving */
   --t-micro-tight:calc(7px * var(--uiScale));   /* the same with the bar on its end */
+  /* Two rules use this: the stat bar's readings and the navigation panel's
+     figures. It is not the app's face for numbers - the interface face is,
+     with tabular figures - it is the face for a number that is redrawn while
+     you are looking at it, where the column has to stay where it is. Reach
+     for --ui and font-variant-numeric before you reach for this. */
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --topH:calc(50px * var(--uiScale));
@@ -914,7 +919,6 @@ button:focus-visible,summary:focus-visible{outline:2px solid var(--rust2);outlin
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 .hidden{display:none !important}
-.mono{font-family:var(--mono)}
 
 /* ---------- shell ---------- */
 #app{position:fixed;inset:0;display:flex;flex-direction:column}
@@ -973,7 +977,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Android's own shape, so it is recognised before it is read: the number on
    the left, the cell on the right, filling from the flat end. White until a
    fifth is left, and then the colour of the warning it has become. */
-#battPill{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.04em;
+#battPill{font-variant-numeric:tabular-nums;font-size:var(--t-meta);letter-spacing:.04em;
   color:var(--hud);white-space:nowrap}
 #battPill svg{width:24px;height:12px;flex:0 0 auto}
 #battPill .shell{fill:none;stroke:var(--dim);stroke-width:1.2}
@@ -1039,6 +1043,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    pushes the unit through the floor of the bar. */
 .stat .lbl{display:block;font-size:var(--t-micro);line-height:1.15;letter-spacing:.14em;
   color:var(--hud);text-transform:uppercase}
+/* One of the two places left in the app that is monospaced, the other being
+   the navigation panel's figures. The face is here to hold a column still
+   while the number inside it changes four times a second - a speed going
+   99 -> 100 must not shove the heading beside it - and that is a job only
+   the gauges have. Everywhere else a value needs digits of one width, not a
+   face of one width, and tabular figures in the interface face do it
+   without a second typeface in the room. */
 .stat b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;line-height:1.05;color:var(--hud);
   white-space:nowrap}
 .stat b em{font-style:normal;color:var(--hud);letter-spacing:.04em;margin-right:5px}
@@ -1076,7 +1087,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    Attribution is still shown; it is shown properly, one tap away. */
 #zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
-  font-family:var(--mono);font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
+  font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
@@ -1155,7 +1166,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    colour instead of inheriting one nobody chose for it. */
 .mapchip{display:flex;align-items:center;gap:6px;
   background:rgba(20,24,27,.92);border:1px solid var(--line2);border-radius:20px;
-  padding:6px 9px 6px 11px;font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.1em;color:var(--dim);
+  padding:6px 9px 6px 11px;font-variant-numeric:tabular-nums;font-size:var(--t-meta);letter-spacing:.1em;color:var(--dim);
   text-transform:uppercase}
 .mapchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mapchip svg{width:13px;height:13px;stroke:currentColor;fill:none;
@@ -1212,7 +1223,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    uppercased, so the two lines read as a sign rather than as one heading
    that ran on. */
 .pop-sub{font-weight:600;font-size:var(--t-note);color:var(--sand);opacity:.9;margin:-1px 0 4px}
-.pop-m{font-family:var(--mono);font-size:var(--t-meta);color:var(--dim);letter-spacing:.05em}
+.pop-m{font-variant-numeric:tabular-nums;font-size:var(--t-meta);color:var(--dim);letter-spacing:.05em}
 .pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:var(--t-note)}
 .pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:var(--t-note)}
 .pop-a{display:flex;gap:6px;margin-top:9px}
@@ -1222,7 +1233,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    drag the lifted fills from 4.6 back down to 4.4 over dark ground - a
    contrast that depends on the terrain is not a contrast you can rely on. */
 .pin.poi.cluster .badge{border-style:solid;opacity:1;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
-.pin.poi.cluster .cnum{font-family:var(--mono);font-size:var(--t-read-sm);font-weight:700;color:#14181B;
+.pin.poi.cluster .cnum{font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);font-weight:700;color:#14181B;
   letter-spacing:0;line-height:1}
 /* the list a cluster popup shows: one tappable row per place underneath */
 .pop-rows{margin-top:7px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
@@ -1233,7 +1244,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-row:active{background:rgba(216,203,170,.12)}
 .pop-row-t{flex:1;min-width:0;display:block;font-size:var(--t-body);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
-.pop-row-t i{display:block;font-family:var(--mono);font-size:var(--t-meta);font-style:normal;color:var(--dim);
+.pop-row-t i{display:block;font-variant-numeric:tabular-nums;font-size:var(--t-meta);font-style:normal;color:var(--dim);
   letter-spacing:.06em;margin-top:1px}
 .dotmark.sm{width:18px;height:18px;border-radius:3px}
 .dotmark.sm svg{width:11px;height:11px}
@@ -1363,10 +1374,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-figs > div{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;
   border-right:1px solid var(--line)}
 .np-figs > div:last-child{border-right:none}
+/* The second gauge, and the second monospaced thing. Same reason as the stat
+   bar: these three count down while you drive at them. */
 .np-figs b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--sand);line-height:1.05;
   white-space:nowrap}
 .np-figs i{font-size:var(--t-micro);font-style:normal;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
-.np-note{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.05em;color:var(--warn);
+.np-note{font-size:var(--t-meta);letter-spacing:.05em;color:var(--warn);
   margin-top:6px;text-align:center}
 .np-note:empty{display:none}
 #recPanel{z-index:500;
@@ -1378,7 +1391,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 @keyframes blink{0%,45%{opacity:1}55%,100%{opacity:.15}}
 .rp-name{flex:1;min-width:0;font-size:var(--t-body);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rp-state{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.14em;color:var(--danger2)}
+.rp-state{font-size:var(--t-meta);letter-spacing:.14em;color:var(--danger2)}
 .rp-state.pause{color:var(--warn)}
 .rp-btns{display:flex;gap:6px}
 
@@ -1388,7 +1401,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    size and wrong for the family, because a control label is never a value.
    Nine of them - METRIC, IMPERIAL, NORMAL, LARGE and the On/Off pairs - sat
    inside a monospaced settings label and came out monospaced, beside ALL ON
-   and ALL OFF two rows down which did not. */
+   and ALL OFF two rows down which did not. The two rules that still carry a
+   readout face are gauges, and no button is a gauge. */
 .btn{flex:1;min-width:0;padding:11px 12px;min-height:var(--tap);border-radius:6px;border:1px solid var(--line2);background:var(--panel2);
   font-family:var(--ui);font-size:var(--t-label);font-weight:700;letter-spacing:.12em;
   text-transform:uppercase;text-align:center;
@@ -1504,7 +1518,7 @@ summary .chev{width:9px;height:9px;border-right:1.6px solid var(--dim);border-bo
 details[open] summary .chev{transform:rotate(45deg)}
 summary svg{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;stroke-linecap:round;
   stroke-linejoin:round;flex:0 0 auto}
-.cnt{font-family:var(--mono);font-size:var(--t-meta);background:rgba(216,203,170,.12);color:var(--dim);
+.cnt{font-variant-numeric:tabular-nums;font-size:var(--t-meta);background:rgba(216,203,170,.12);color:var(--dim);
   padding:2px 6px;border-radius:10px;letter-spacing:.06em;font-weight:400}
 .sec-body{padding:0 12px 14px}
 /* A section body used to appear and disappear on the spot, which was the
@@ -1546,33 +1560,36 @@ details.sub > .sec-body{padding:12px 0 0}
    section they act on. */
 .kbulk{margin-bottom:7px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
-.diag{font-family:var(--mono);font-size:var(--t-meta);line-height:1.7;color:var(--dim);margin-top:9px}
+.diag{font-variant-numeric:tabular-nums;font-size:var(--t-meta);line-height:1.7;color:var(--dim);margin-top:9px}
 .diag:empty{display:none}
 .diag div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:2px 0}
 .diag b{font-weight:600}
 .diag .ok{color:var(--green)}
 .diag .bad{color:var(--danger2)}
 .diag .warn{color:var(--warn)}
-/* A status line: what the app currently knows, in the face it prints values
-   in. "No home set", "696 sites, updated 2026-09-04", a Wake Lock refusal.
-   It is not the class for a sentence - see .note, which this one had quietly
-   become the drawer's substitute for. */
-.poi-status{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.05em;
+/* A status line: what the app currently knows, and its text changes. "No home
+   set", "696 sites, updated 2026-09-04", a Wake Lock refusal. Meta and lightly
+   tracked, with tabular figures so a count that updates does not shuffle the
+   line. It used to be told from a note by its face; now that both are in the
+   interface face, the size and the tracking carry it - a status is the quieter
+   of the two, because it is the app talking about itself. */
+.poi-status{font-variant-numeric:tabular-nums;font-size:var(--t-meta);letter-spacing:.05em;
   line-height:1.5;color:var(--dim);padding:7px 2px 3px}
-/* A sentence explaining a control, under the control. Sans, because this is
-   prose and monospace here is a rule this system already wrote down and then
-   broke six times in one drawer: the GPS note is two full sentences and was
-   set in the face reserved for readings. */
+/* A sentence explaining a control, under the control. Written once and never
+   changing, which is the whole difference from the class above. Note size,
+   untracked, and the more readable of the two on purpose: this is the text a
+   stranger needs, and the drawer once set six of these - including two full
+   sentences about what the location API can report - in the readout face. */
 .note{font-size:var(--t-note);line-height:1.45;color:var(--dim);padding:7px 2px 3px}
 /* The GPS note has been asking for this class since it was written and never
    had a rule to land on, so an app that could not use your location said so
    in the same grey as an app explaining how the accuracy radius works. Alert
    Red Lit is what this system already calls a diagnostic that failed. */
 .note.bad-note{color:var(--danger2)}
-/* Names the row's setting. Also prose-adjacent, also had no business being
-   monospaced - and it was the parent the toggle buttons inherited that face
-   from. Small Label instead: quieter than the section summary above it by
-   1.5px and by colour, still plainly a label. */
+/* Names the row's setting. It used to be monospaced, and it was the parent
+   the toggle buttons inherited that face from. Small Label instead: quieter
+   than the section summary above it by 1.5px and by colour, still plainly a
+   label. */
 .sublabel{display:flex;align-items:center;gap:6px;font-family:var(--ui);font-size:var(--t-label-sm);
   font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:10px 2px 6px}
 .sublabel .btn{margin-left:auto}
@@ -1594,8 +1611,8 @@ details.sub > .sec-body{padding:12px 0 0}
 .fuelp > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
 .fuelp > div > span{font-size:var(--t-note);color:var(--sand);opacity:.85;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.fuelp > div > b{font-family:var(--mono);font-size:var(--t-body);color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
-.fuelp > i{display:block;margin-top:3px;font-family:var(--mono);font-style:normal;
+.fuelp > div > b{font-variant-numeric:tabular-nums;font-size:var(--t-body);color:#E8B923;letter-spacing:-.02em;flex:0 0 auto}
+.fuelp > i{display:block;margin-top:3px;font-style:normal;
   font-size:var(--t-micro);letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
 /* minmax(0,...) rather than a bare 1fr: a grid track will not shrink below
    the widest thing in it, so one long label pushes the whole column past the
@@ -1635,7 +1652,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .kchip .dotmark{width:20px;height:20px}
 .kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.kchip i{font-family:var(--mono);font-style:normal;font-size:var(--t-meta);flex:0 0 auto}
+.kchip i{font-variant-numeric:tabular-nums;font-style:normal;font-size:var(--t-meta);flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
 /* The type-ahead list, tucked under the search box. Buttons rather than
@@ -1654,9 +1671,9 @@ details.sub > .sec-body{padding:12px 0 0}
 .sug .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .sug .n{font-size:var(--t-body);font-weight:600;color:var(--sand);line-height:1.25;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sug .w{font-family:var(--mono);font-size:var(--t-meta);color:var(--dim);letter-spacing:.04em;
+.sug .w{font-size:var(--t-meta);color:var(--dim);letter-spacing:.04em;
   text-transform:uppercase}
-.sug .d{flex:0 0 auto;font-family:var(--mono);font-size:var(--t-meta);font-weight:700;
+.sug .d{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--t-meta);font-weight:700;
   color:var(--dim);letter-spacing:.04em;padding-top:2px;white-space:nowrap}
 /* The one italic in the app, and it was carrying a job the system already has
    a face for: "No tracks recorded yet." is a sentence explaining an empty
@@ -1670,7 +1687,7 @@ details.sub > .sec-body{padding:12px 0 0}
    long one cannot push the card wider than the list. */
 .card-sub{font-size:var(--t-note);font-weight:500;color:rgba(216,203,170,.88);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-m{font-family:var(--mono);font-size:var(--t-meta);color:var(--dim);letter-spacing:.06em;margin-top:3px;
+.card-m{font-variant-numeric:tabular-nums;font-size:var(--t-meta);color:var(--dim);letter-spacing:.06em;margin-top:3px;
   display:flex;flex-wrap:wrap;gap:3px 10px}
 /* A saved track carries seven readings. Run together as one dim line they
    had to be decoded rather than read - which number was the distance and
@@ -1682,7 +1699,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .trk-m > div{min-width:0;display:flex;flex-direction:column;gap:1px}
 .trk-m b{font-size:var(--t-micro);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dim)}
-.trk-m span{font-family:var(--mono);font-size:var(--t-read-sm);color:var(--sand);
+.trk-m span{font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);color:var(--sand);
   letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-n{font-size:var(--t-note);color:var(--dim);margin-top:5px;line-height:1.45;word-break:break-word}
 /* The street address, above the attribute line and a shade brighter than it:
@@ -1700,7 +1717,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .card-acts .btn.dangerb{margin-left:auto}
 .card-acts .btn[data-act="del"] + .btn,
 .card-acts .btn.dangerb + .btn{margin-left:0}
-.tag{font-family:var(--mono);font-size:var(--t-micro);letter-spacing:.1em;padding:2px 6px;border-radius:3px;
+.tag{font-size:var(--t-micro);letter-spacing:.1em;padding:2px 6px;border-radius:3px;
   text-transform:uppercase;font-weight:700;flex:0 0 auto}
 .tag.easy{background:rgba(143,185,62,.18);color:var(--green);border:1px solid rgba(143,185,62,.35)}
 .tag.medium{background:rgba(232,185,35,.16);color:var(--warn);border:1px solid rgba(232,185,35,.35)}
@@ -1772,10 +1789,10 @@ details.sub > .sec-body{padding:12px 0 0}
    Android its own wheel for each part. */
 .timepick{display:flex;align-items:center;gap:4px}
 .timepick select{flex:1 1 auto;min-width:0;background:#0F1311;color:var(--sand);
-  border:1px solid var(--line2);border-radius:6px;padding:9px 6px;font-family:var(--mono);
+  border:1px solid var(--line2);border-radius:6px;padding:9px 6px;font-variant-numeric:tabular-nums;
   font-size:var(--t-body);-webkit-appearance:none;appearance:none;text-align:center}
 .timepick .tp-ap{flex:0 0 auto;width:62px}
-.timepick b{color:var(--dim);font-family:var(--mono);flex:0 0 auto}
+.timepick b{color:var(--dim);flex:0 0 auto}
 .fld label,.fld .fld-cap{display:block;font-size:var(--t-label-sm);letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
 .seg{display:flex;gap:0;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
 .seg button{flex:1;padding:9px 4px;font-size:var(--t-label-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;
@@ -1806,11 +1823,11 @@ details.sub > .sec-body{padding:12px 0 0}
 input[type=date],input[type=time]{color-scheme:dark}
 .modal-body{min-height:0}
 .hint{font-size:var(--t-note);color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
-.bignum{font-family:var(--mono);font-size:var(--t-display);color:var(--sand);letter-spacing:.02em}
+.bignum{font-variant-numeric:tabular-nums;font-size:var(--t-display);color:var(--sand);letter-spacing:.02em}
 .bignum.over{color:var(--danger2)}
 .prog{height:7px;border-radius:4px;background:#0F1311;border:1px solid var(--line);overflow:hidden;margin:10px 0 7px}
 .prog i{display:block;height:100%;width:0;background:var(--rust);transition:width .18s}
-.kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:var(--t-meta);color:var(--dim);
+.kv{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:var(--t-meta);color:var(--dim);
   letter-spacing:.06em;padding:3px 0}
 .kv b{color:var(--sand);font-weight:600}
 
@@ -2425,7 +2442,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     </div>
     <div class="fld" style="margin-bottom:0">
       <span class="fld-cap" id="wpCoordCap">Position</span>
-      <div class="pop-m mono" id="wpCoord" role="group" aria-labelledby="wpCoordCap">--</div>
+      <div class="pop-m" id="wpCoord" role="group" aria-labelledby="wpCoordCap">--</div>
     </div>
   </div>
   <div class="modal-foot">

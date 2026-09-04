@@ -64,13 +64,15 @@ typography:
     fontWeight: 600
     lineHeight: 1.05
   readout-sm:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "11.5px"
+    fontVariantNumeric: "tabular-nums"
   meta:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "9.5px"
     lineHeight: 1.5
     letterSpacing: "0.05em"
+    fontVariantNumeric: "tabular-nums"
   micro:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "8.5px"
@@ -174,9 +176,11 @@ components:
 **Creative North Star: "The Instrument Cluster"**
 
 TrailTracker is fitted to a vehicle, not added to a website. The two bars
-that frame the map are gauges: labelled, unit-suffixed, monospaced, and read
-at a glance by someone whose eyes belong on the track. The map between them
-is the windscreen. Everything else — panels, popups, pins — is an object
+that frame the map are an instrument face: labelled, unit-suffixed, and read
+at a glance by someone whose eyes belong on the track. The readings in the
+upper bar are the one place the app spends a second typeface, because a
+number redrawn four times a second has to stay in its column. The map between
+them is the windscreen. Everything else — panels, popups, pins — is an object
 resting on that view, never a page the map happens to be printed on.
 
 The materials are warm and analogue rather than machined and cold. The ground
@@ -199,7 +203,8 @@ shadow everywhere).
 **Key Characteristics:**
 
 - Warm dark ground with sand text; never grey-on-grey
-- Monospaced readouts for anything numeric and glanceable
+- One interface face throughout, with tabular figures wherever numbers stack;
+  monospace is kept for the two gauges alone
 - Tight radii (4–10px) and hairline borders, with exactly two components
   closing into a true pill (the status pill, the map chips) and nothing
   blobby beyond them
@@ -356,22 +361,25 @@ not need a hand-picked text variant and must not be given one.
 
 **UI Font:** system sans (`-apple-system, BlinkMacSystemFont, Segoe UI,
 Roboto, Helvetica Neue, Arial, sans-serif`)
-**Readout Font:** system mono (`ui-monospace, SFMono-Regular, Menlo,
-Consolas, Liberation Mono, monospace`)
+**Gauge Font:** system mono (`ui-monospace, SFMono-Regular, Menlo,
+Consolas, Liberation Mono, monospace`) — two rules, and no others.
 
 **Character:** No webfont is loaded, and that is deliberate — the app is one
 file that must open with no network. The personality comes from treatment
-rather than typeface: wide uppercase tracking on every label, and monospace
-reserved strictly for values that change.
+rather than typeface: wide uppercase tracking on every label, tabular figures
+wherever numbers stack, and a second face only where a column has to hold
+still while the number inside it is being redrawn.
 
 ### Hierarchy
 
 Ten sizes, sixteen names. Every `font-size` in `docs/index.html` is one of
 these tokens, and every token says what it is for — see The Named Step Rule.
 
-- **Display** (`--t-display`, mono, 600, 26px): the single large figure in a
-  dialog — a tile count, a total. Sand, not white.
-- **Zoom** (`--t-zoom`, mono, 20px): the map's `+` and `−` glyphs. Marks
+- **Display** (`--t-display`, 26px, tabular figures): the single large figure
+  in a dialog — a tile count, a total. Sand, not white. Tabular rather than
+  monospaced: it climbs during a download and must not jitter, which digits of
+  one width fix without a second typeface.
+- **Zoom** (`--t-zoom`, 20px): the map's `+` and `−` glyphs. Marks
   rather than words, which is why they carry no label; see The Instrument
   Label Rule.
 - **Readout** (`--t-read`, mono, 600, 17px, line-height 1.05): an instrument
@@ -396,18 +404,20 @@ these tokens, and every token says what it is for — see The Named Step Rule.
   control label reached at a stop, and section summaries. Same size as Note
   and told apart by weight and case, which is the system's usual division of
   labour.
-- **Readout small** (`--t-read-sm`, mono, 11.5px): a figure that is not in
-  the instrument bar — a track card's distance and duration, the count inside
-  a cluster pin.
+- **Readout small** (`--t-read-sm`, 11.5px, tabular figures): a figure that is
+  not in the instrument bar — a track card's distance and duration, the count
+  inside a cluster pin. In the interface face: it is read at a stop and does
+  not change while you look at it, so it needs digits of one width rather than
+  a face of one width.
 - **Label small / extra small** (`--t-label-sm` 10px, `--t-label-xs` 9px):
   the two button sizes, plus field captions and settings row labels at the
   first of them. Not new roles — the same Label at the two touch sizes
   `--tap-sm` allows.
-- **Meta** (`--t-meta`, mono, 9.5px, line-height 1.5): a value line —
-  coordinates, counts, timestamps, prices, a status the app is reporting. Also
-  the quietest prose in the app, the attribution notice, which is sans at this
-  size because it is the one place where the size is the point and the face is
-  not.
+- **Meta** (`--t-meta`, 9.5px, line-height 1.5, letter-spacing .05em, tabular
+  figures): a value line — coordinates, counts, timestamps, prices, a status
+  the app is reporting — and the quietest prose in the app, the attribution
+  notice. Lightly tracked, which is what marks it as the app talking about
+  itself rather than to you.
 - **Micro** (`--t-micro`, 8.5px, letter-spacing .14em, uppercase): a label or
   a unit read while the vehicle is moving — the stat bar's labels and units,
   the action bar's button labels. One size, because they are one reading.
@@ -427,20 +437,32 @@ that says what it is for cannot be picked that way. Where two jobs genuinely
 want the same size they take a name each and share a value, so one can move
 later without dragging the other with it.
 
-**The Monospace Rule.** Monospace is for values that change: readings,
-prices, coordinates, counts, timestamps. Prose is never monospaced, and a
-number that never moves is not a readout.
+**The Monospace Rule.** The app has one face. Monospace is spent on two
+rules — the stat bar's readings and the navigation panel's figures — and
+nowhere else.
+
+That is a narrower rule than it used to be, and the reasoning is what
+narrowed it. Monospace was doing two jobs at once: holding a column still,
+and marking something as a value. Only the first job needs a second typeface,
+and only the gauges need the first job — a speed going 99 to 100 four times a
+second must not shove the heading beside it. Everywhere else the number is
+redrawn when you open a panel, not while you are reading it, so what it needs
+is digits of one width, not a face of one width. `font-variant-numeric:
+tabular-nums` gives exactly that in the interface face, and the second job —
+saying "this is a value" — was always being done better by size, tracking and
+colour anyway.
+
+So: **wherever numbers stack, line up, or update, use tabular figures.** Card
+meta, key/value rows, prices, counts, coordinates, timestamps, the battery
+pill, the download tally. Reach for `--mono` only if you are building a third
+gauge.
 
 The rule is about the face, so it holds for inherited faces too. `button`
 inherits its family, which is right for a size and wrong for a family: nine
 settings toggles once sat inside a monospaced row label and came out
 monospaced, beside two buttons on the next row that did not. `.btn` states
-`--ui` rather than inheriting it, so a control label cannot pick up a value
-face from whatever it happens to sit in. And a class that started life as a
-status line does not become the prose class by being handy — `.poi-status`
-is the app reporting what it knows, `.note` is a sentence explaining a
-control, and the drawer had six sentences in the first before it had the
-second.
+`--ui` rather than inheriting it, so a control label cannot pick up a face
+from whatever it happens to sit in, and no button is a gauge.
 
 **The Shouting Labels Rule.** Every control label is uppercase with tracking
 of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label
@@ -693,20 +715,24 @@ already carries that colour and the chip does not need to repeat it.
 ### Notes and Statuses
 
 Two small text blocks sit under controls and look similar until you read
-them, so they are separate classes and the difference is the face.
+them, so they are separate classes.
 
 **A note** (`.note`) is a sentence explaining a control, written once and
 never changing: "A sleeping phone stops a recording. Turn off to leave the
-app open while parked." Sans at Note, leading 1.45, muted sand.
+app open while parked." Note size, untracked, leading 1.45, muted sand. The
+more readable of the two on purpose — this is the text a stranger needs.
 
 **A status** (`.poi-status`) is the app reporting what it currently knows,
 and its text changes: "No home set", "696 South Australian sites, updated
-2026-09-04", a Wake Lock refusal. Mono at Meta, leading 1.5, muted sand.
+2026-09-04", a Wake Lock refusal. Meta size, lightly tracked, leading 1.5,
+muted sand, tabular figures so an updating count does not shuffle the line.
 
-The choice is not about length or position — it is The Monospace Rule. If the
-line would read the same tomorrow it is a note; if the app is telling you a
-value, it is a status. A note that has gone wrong — the location warning on
-an insecure origin — takes Alert Red Lit and stays a note.
+The two were once told apart by their face, and are now told apart by size
+and tracking — a status is the quieter, because it is the app talking about
+itself rather than to you. The test has not changed: if the line would read
+the same tomorrow it is a note; if the app is telling you a value, it is a
+status. A note that has gone wrong — the location warning on an insecure
+origin — takes Alert Red Lit and stays a note.
 
 ### Inputs
 
@@ -722,9 +748,11 @@ an insecure origin — takes Alert Red Lit and stays a note.
 
 ### Instrument Gauge
 
-The signature component. A column carrying an uppercase micro label, a
-monospaced value in Instrument White, and a unit beneath it, separated from
-its neighbour by a hairline that stops short of the panel's bevel. Columns
+The signature component, and one of the two places in the app that keeps the
+monospaced face — the navigation panel's figures being the other. A column
+carrying an uppercase micro label, a monospaced value in Instrument White,
+and a unit beneath it, separated from its neighbour by a hairline that stops
+short of the panel's bevel. Columns
 are sized to their content rather than split equally, because a three-letter
 cardinal and a five-character clock do not need the same room.
 
@@ -740,8 +768,7 @@ size to keep the ring clear.
 
 Panel fill, hairline-strong border, 6px radius, popup shadow. An uppercase
 title in the category's colour lifted to ink, an optional second line for a
-place that has one, then a monospaced meta line of category, source and
-distance.
+place that has one, then a Meta line of category, source and distance.
 
 ### Dialogs
 
@@ -825,8 +852,9 @@ Same information, no movement.
 - **Do** give a destructive control its own end of a row. Size does not fix
   adjacency; a bigger Delete beside a bigger Go To is the same mistake at a
   larger scale.
-- **Do** reserve monospace for values that change, and say the unit in
-  uppercase beside it (`KM/H`).
+- **Do** give numbers tabular figures wherever they stack, line up or update,
+  and say the unit in uppercase beside them (`KM/H`). Monospace is for the two
+  gauges and nothing else.
 - **Do** size type from a scale token, never a literal px. A literal is the
   exception and has to say why it is one.
 - **Do** pick that token by the job — `--t-title` for a heading, `--t-note`
@@ -860,10 +888,11 @@ Same information, no movement.
   `min-width: 0`. A flex item will not shrink below its longest word, so a
   row that fits at one text size hangs off the edge at a larger one.
 - **Don't** let a control take its face from whatever it sits inside. `button`
-  inherits its family, so a label dropped into a monospaced row comes out
-  monospaced; state the face on the control.
-- **Don't** set a sentence in the readout face because the class was already
-  there. `.poi-status` reports a value; `.note` explains a control.
+  inherits its family, so a label dropped into a row that set one comes out
+  wearing it; state the face on the control.
+- **Don't** reach for `--mono` to say "this is a value". Size, tracking and
+  colour already say it; the face is for holding a gauge column still, which
+  is a job only the stat bar and the navigation figures have.
 - **Don't** use colour as the only difference between a label and its value;
   size and weight already do that job, and colour is needed for classifying.
 - **Don't** add a category colour outside the 24-entry scale.

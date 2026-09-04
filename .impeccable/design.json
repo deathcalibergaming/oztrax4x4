@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-04T01:13:29.177Z",
+  "generatedAt": "2026-09-04T01:26:53.847Z",
   "title": "Design System: TrailTracker",
   "extensions": {
     "colorMeta": {
@@ -274,7 +274,7 @@
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "The single large figure in a dialog — a tile count, a total. Sand, not white."
+        "purpose": "The single large figure in a dialog — a tile count, a total. Sand, not white. Tabular figures rather than a monospaced face: it climbs during a download and must not jitter."
       },
       "title": {
         "displayName": "Title",
@@ -302,15 +302,15 @@
       },
       "readout": {
         "displayName": "Readout",
-        "purpose": "An instrument value read while moving — speed, heading, altitude, distance, time, and the navigation panel's figures — in Instrument White. Compressed to 13px where the bars stand on end."
+        "purpose": "An instrument value read while moving — speed, heading, altitude, distance, time, and the navigation panel's remaining/travel/arrive figures — in Instrument White. One of only two roles that keeps the monospaced face. Compressed to 13px where the bars stand on end."
       },
       "readout-sm": {
         "displayName": "Readout small",
-        "purpose": "A figure that is not in the instrument bar — a track card's distance and duration, the count inside a cluster pin."
+        "purpose": "A figure that is not in the instrument bar — a track card's distance and duration, the count inside a cluster pin. In the interface face with tabular figures: it is read at a stop and does not change while you look at it."
       },
       "meta": {
         "displayName": "Meta",
-        "purpose": "A value line: coordinates, counts, timestamps, prices, a status the app is reporting. Also the attribution notice, in sans at the same size."
+        "purpose": "A value line: coordinates, counts, timestamps, prices, a status the app is reporting — and the quietest prose in the app, the attribution notice. Lightly tracked, which is what marks it as the app talking about itself rather than to you."
       },
       "micro": {
         "displayName": "Micro",
@@ -462,7 +462,7 @@
       "name": "Instrument Gauge",
       "kind": "custom",
       "refersTo": "gauge",
-      "description": "The signature component. An uppercase micro label, a monospaced value in Instrument White, a unit beneath. Columns are sized to their content, because a three-letter cardinal and a five-character clock do not need the same room.",
+      "description": "The signature component, and one of the two places in the app that keeps the monospaced face — the navigation panel's figures being the other. An uppercase micro label, a monospaced value in Instrument White, a unit beneath. Columns are sized to their content, because a three-letter cardinal and a five-character clock do not need the same room.",
       "html": "<div class=\"ds-statsbar\"><div class=\"ds-stat\" role=\"group\" aria-label=\"Speed\"><span class=\"ds-lbl\">Speed</span><b>88</b><i>km/h</i></div><div class=\"ds-stat\" role=\"group\" aria-label=\"Heading\"><span class=\"ds-lbl\">Heading</span><b><em>WSW</em>241</b><i>deg</i></div><div class=\"ds-stat\" role=\"group\" aria-label=\"Distance\"><span class=\"ds-lbl\">Dist</span><b>142.60</b><i>km</i></div></div>",
       "css": ".ds-statsbar{display:flex;height:56px;background:linear-gradient(180deg,#111513 0,#111513 calc(100% - 3px),#1B221D calc(100% - 3px),#333D36 100%);box-shadow:0 1px 0 rgba(0,0,0,.65),0 6px 12px -6px rgba(0,0,0,.55);max-width:360px}\n.ds-stat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 2px;border-right:1px solid rgba(216,203,170,.22);border-image:linear-gradient(180deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}\n.ds-stat:last-child{border-right:none}\n.ds-lbl{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:8.5px;letter-spacing:.14em;color:#FFFFFF;text-transform:uppercase}\n.ds-stat b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:17px;font-weight:600;line-height:1.05;color:#FFFFFF;white-space:nowrap}\n.ds-stat b em{font-style:normal;color:#FFFFFF;letter-spacing:.04em;margin-right:5px}\n.ds-stat i{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:8px;font-style:normal;letter-spacing:.12em;color:#FFFFFF;text-transform:uppercase}"
     },
@@ -494,7 +494,7 @@
       "name": "Note",
       "kind": "text",
       "refersTo": "typography.note",
-      "description": "A sentence explaining a control, sitting under it. Written once and never changing, which is what separates it from a status line — see The Monospace Rule. Sans at Note, leading 1.45, muted sand. A note that has gone wrong, such as the location warning on an insecure origin, takes Alert Red Lit and stays a note.",
+      "description": "A sentence explaining a control, sitting under it. Written once and never changing, which is the whole difference from a status line. Note size, untracked, leading 1.45, muted sand — the more readable of the two on purpose, because this is the text a stranger needs. A note that has gone wrong, such as the location warning on an insecure origin, takes Alert Red Lit and stays a note.",
       "html": "<div class=\"note\">A sleeping phone stops a recording. Turn off to leave the app open while parked.</div>",
       "css": ".note{font-size:var(--t-note);line-height:1.45;color:var(--dim);padding:7px 2px 3px}\n.note.bad-note{color:var(--danger2)}"
     },
@@ -502,17 +502,17 @@
       "name": "Status Line",
       "kind": "text",
       "refersTo": "typography.meta",
-      "description": "The app reporting what it currently knows, in the face it prints values in: \"No home set\", \"696 South Australian sites, updated 2026-09-04\", a Wake Lock refusal. Its text changes, which is why it is monospaced and a note is not.",
+      "description": "The app reporting what it currently knows, and its text changes: \"No home set\", \"696 South Australian sites, updated 2026-09-04\", a Wake Lock refusal. Meta size, lightly tracked, with tabular figures so an updating count does not shuffle the line. It used to be told from a note by its face; now that both are in the interface face, size and tracking carry it — a status is the quieter of the two, because it is the app talking about itself rather than to you.",
       "html": "<div class=\"poi-status\">696 South Australian sites, updated 2026-09-04</div>",
-      "css": ".poi-status{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.05em;\n  line-height:1.5;color:var(--dim);padding:7px 2px 3px}"
+      "css": ".poi-status{font-variant-numeric:tabular-nums;font-size:var(--t-meta);letter-spacing:.05em;\n  line-height:1.5;color:var(--dim);padding:7px 2px 3px}"
     }
   ],
   "narrative": {
     "northStar": "The Instrument Cluster",
-    "overview": "TrailTracker is fitted to a vehicle, not added to a website. The two bars\nthat frame the map are gauges: labelled, unit-suffixed, monospaced, and read\nat a glance by someone whose eyes belong on the track. The map between them\nis the windscreen. Everything else — panels, popups, pins — is an object\nresting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground\nis a near-black with green in it, not a neutral grey; the text is a warm sand\nrather than white; the accent is a burnt orange that belongs to oxide and\nochre. Panel faces carry a shallow bevel and a hairline along their edge, so\na surface reads as a face with an edge rather than a rectangle with a fill.\nThe result should feel like well-kept equipment — a logbook, a marked map, a\ndash that has been in the sun — not like software with a dark theme switched\non.\n\nRestraint is the operating principle. Controls are precise and quiet so the\nmap and the readings lead; colour is used to classify, not to decorate; and\nthe interface says plainly when it does not know something rather than\nmaintaining a confident surface. Confirmed anti-references: consumer nav apps\n(rounded white cards, blue accents, floating pill search bars) and generic\ndark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient\nshadow everywhere).",
+    "overview": "TrailTracker is fitted to a vehicle, not added to a website. The two bars\nthat frame the map are an instrument face: labelled, unit-suffixed, and read\nat a glance by someone whose eyes belong on the track. The readings in the\nupper bar are the one place the app spends a second typeface, because a\nnumber redrawn four times a second has to stay in its column. The map between\nthem is the windscreen. Everything else — panels, popups, pins — is an object\nresting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground\nis a near-black with green in it, not a neutral grey; the text is a warm sand\nrather than white; the accent is a burnt orange that belongs to oxide and\nochre. Panel faces carry a shallow bevel and a hairline along their edge, so\na surface reads as a face with an edge rather than a rectangle with a fill.\nThe result should feel like well-kept equipment — a logbook, a marked map, a\ndash that has been in the sun — not like software with a dark theme switched\non.\n\nRestraint is the operating principle. Controls are precise and quiet so the\nmap and the readings lead; colour is used to classify, not to decorate; and\nthe interface says plainly when it does not know something rather than\nmaintaining a confident surface. Confirmed anti-references: consumer nav apps\n(rounded white cards, blue accents, floating pill search bars) and generic\ndark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient\nshadow everywhere).",
     "keyCharacteristics": [
       "Warm dark ground with sand text; never grey-on-grey",
-      "Monospaced readouts for anything numeric and glanceable",
+      "One interface face throughout, with tabular figures wherever numbers stack; monospace is kept for the two gauges alone",
       "Tight radii (4–10px) and hairline borders, with exactly two components closing into a true pill (the status pill, the map chips) and nothing blobby beyond them",
       "Every overlay sits above the map with a real, dark shadow",
       "Colour classifies; size and weight carry hierarchy",
@@ -551,7 +551,7 @@
       },
       {
         "name": "The Monospace Rule",
-        "body": "Monospace is for values that change: readings, prices, coordinates, counts, timestamps. Prose is never monospaced, and a number that never moves is not a readout.\n\nThe rule is about the face, so it holds for inherited faces too. `button` inherits its family, which is right for a size and wrong for a family: nine settings toggles once sat inside a monospaced row label and came out monospaced, beside two buttons on the next row that did not. `.btn` states --ui rather than inheriting it, so a control label cannot pick up a value face from whatever it happens to sit in. And a class that started life as a status line does not become the prose class by being handy — `.poi-status` is the app reporting what it knows, `.note` is a sentence explaining a control, and the drawer had six sentences in the first before it had the second.",
+        "body": "The app has one face. Monospace is spent on two rules — the stat bar's readings and the navigation panel's figures — and nowhere else.\n\nThat is a narrower rule than it used to be, and the reasoning is what narrowed it. Monospace was doing two jobs at once: holding a column still, and marking something as a value. Only the first job needs a second typeface, and only the gauges need the first job — a speed going 99 to 100 four times a second must not shove the heading beside it. Everywhere else the number is redrawn when you open a panel, not while you are reading it, so what it needs is digits of one width, not a face of one width. `font-variant-numeric: tabular-nums` gives exactly that in the interface face, and the second job — saying \"this is a value\" — was always being done better by size, tracking and colour anyway.\n\nSo: wherever numbers stack, line up, or update, use tabular figures. Card meta, key/value rows, prices, counts, coordinates, timestamps, the battery pill, the download tally. Reach for --mono only if you are building a third gauge.\n\nThe rule is about the face, so it holds for inherited faces too. `button` inherits its family, which is right for a size and wrong for a family: nine settings toggles once sat inside a monospaced row label and came out monospaced, beside two buttons on the next row that did not. `.btn` states --ui rather than inheriting it, so a control label cannot pick up a face from whatever it happens to sit in, and no button is a gauge.",
         "section": "typography"
       },
       {
@@ -617,7 +617,7 @@
       "**Do** set control labels in uppercase with at least .09em tracking, and",
       "**Do** size a control from `--tap` or `--tap-sm` rather than a number, and",
       "**Do** give a destructive control its own end of a row. Size does not fix",
-      "**Do** reserve monospace for values that change, and say the unit in",
+      "**Do** give numbers tabular figures wherever they stack, line up or update,\n  and say the unit in uppercase beside them (`KM/H`). Monospace is for the two\n  gauges and nothing else.",
       "**Do** size type from a scale token, never a literal px. A literal is the\n  exception and has to say why it is one.",
       "**Do** pick that token by the job — `--t-title` for a heading, `--t-note`\n  for a sentence under a control — and add a name rather than a value if the\n  job is genuinely new. A step named for its number invites the next one\n  half a pixel away.",
       "**Do** lift a mark colour rather than substitute one when it has to carry",
@@ -628,8 +628,8 @@
       "**Don't** reach for rounded white cards, blue accents, floating pill search",
       "**Don't** introduce purple gradients, glassmorphism, large radii or soft",
       "**Don't** dim text with element `opacity` stacked on an already",
-      "**Don't** let a control take its face from whatever it sits inside. `button`\n  inherits its family, so a label dropped into a monospaced row comes out\n  monospaced; state the face on the control.",
-      "**Don't** set a sentence in the readout face because the class was already\n  there. `.poi-status` reports a value; `.note` explains a control.",
+      "**Don't** let a control take its face from whatever it sits inside. `button`\n  inherits its family, so a label dropped into a row that set one comes out\n  wearing it; state the face on the control.",
+      "**Don't** reach for `--mono` to say \"this is a value\". Size, tracking and\n  colour already say it; the face is for holding a gauge column still, which\n  is a job only the stat bar and the navigation figures have.",
       "**Don't** use colour as the only difference between a label and its value;",
       "**Don't** add a category colour outside the 24-entry scale.",
       "**Don't** put Burnt Orange on more than one control in a view.",
