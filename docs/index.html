@@ -1875,9 +1875,22 @@ details.sub > .sec-body{padding:12px 0 0}
 .catgrid button.on{border-color:var(--sand);color:var(--sand);background:#1E2420}
 
 /* ---------- modal ---------- */
-.modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
+/* Android lays the keyboard over the page rather than under it: the layout
+   viewport keeps its full height, only the visual viewport shrinks, and a
+   box centred with inset:0 is centred behind the keys. The navigation
+   search put its Close button and its whole result list down there.
+
+   --vv-top and --vv-bottom are the bands the keyboard and any panning have
+   taken. Padding the scrim out of them centres the box in what is left
+   while the scrim itself still covers the screen; both are 0 when there is
+   no keyboard, which is every desktop and every phone until an input takes
+   focus, so nothing moves until something needs to. */
+.modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:16px;
+  padding-top:calc(16px + var(--vv-top,0px));
+  padding-bottom:calc(16px + var(--vv-bottom,0px));
   background:rgba(6,8,7,.7)}
-.modal-box{width:min(360px,100%);max-height:calc(100vh - 32px);background:var(--panel);border:1px solid var(--line2);
+.modal-box{width:min(360px,100%);max-height:calc(var(--vv-h,100vh) - 32px);background:var(--panel);border:1px solid var(--line2);
   border-radius:10px;box-shadow:0 16px 42px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
 .modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:8px}
 .modal-body{padding:14px;overflow-y:auto}
@@ -3960,6 +3973,41 @@ window.addEventListener("resize", function () {
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", function () { if (wpFormOpen) reclampFloat(); });
 }
+
+/* What the on-screen keyboard has taken, published to CSS.
+
+   Android's keyboard covers the page instead of shortening it - the layout
+   viewport, and so 100vh and inset:0, keep the full height of the screen
+   while only the visual viewport shrinks. A dialog centred against that
+   full height is centred behind the keys: the navigation search put its
+   Close button and its entire result list under them, with no way to reach
+   either. The browser pans the page to keep the focused field in sight,
+   which is offsetTop, and that has to come off the top for the same reason.
+
+   Both are zero until a keyboard opens, so this changes nothing anywhere
+   else. Kept in sync on scroll as well as resize because the pan and the
+   shrink are two separate events, and the pan arrives second. */
+function syncViewportInsets() {
+  const r = document.documentElement.style;
+  const vv = window.visualViewport;
+  if (!vv) {
+    r.setProperty("--vv-top", "0px");
+    r.setProperty("--vv-bottom", "0px");
+    r.setProperty("--vv-h", window.innerHeight + "px");
+    return;
+  }
+  const top = Math.max(0, Math.round(vv.offsetTop));
+  const bottom = Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
+  r.setProperty("--vv-top", top + "px");
+  r.setProperty("--vv-bottom", bottom + "px");
+  r.setProperty("--vv-h", Math.round(vv.height) + "px");
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncViewportInsets);
+  window.visualViewport.addEventListener("scroll", syncViewportInsets);
+}
+window.addEventListener("orientationchange", syncViewportInsets);
+syncViewportInsets();
 
 /* =====================================================================
    Position pipeline (real GPS and simulator share this entry point)
