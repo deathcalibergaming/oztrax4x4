@@ -1430,20 +1430,36 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .dr-head{flex:0 0 auto;height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);display:flex;align-items:center;
   gap:8px;padding-left:14px;padding-right:6px;border-bottom:1px solid var(--line);background:var(--head)}
 .dr-head .t{flex:1;font-size:var(--f13);font-weight:700;letter-spacing:.18em;text-transform:uppercase}
-.dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-/* The attribution scrolls with the menu rather than standing at the bottom
-   of it. Pinned, it held the height of three lines of small print out of a
-   panel that is mostly list - and on a landscape phone, where there is
-   already almost no height, it was taking a fifth of the drawer to say
-   something nobody reads twice. It is the last thing in the body now, which
-   is also where it belongs in reading order: the notice at the end of the
-   document, not a footer bolted to the glass. */
-.dr-foot{padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
+/* A column so the attribution can be held to the bottom by an auto margin
+   rather than by being taken out of the scroll. The children are pinned to
+   their own heights: a flex item may be shrunk below its content, and a
+   long section inside a short drawer would otherwise be squeezed rather
+   than scrolled to. */
+.dr-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column}
+.dr-body > *{flex:0 0 auto}
+/* Sits on the bottom edge of the menu whenever the sections above it do not
+   fill the height, and travels up out of sight with them when they do. The
+   auto margin is what does it, and it does it inside the scroller - so the
+   notice is always at the foot of the menu without ever being bolted to the
+   glass, which is what used to cost a landscape drawer a fifth of its
+   height to say something nobody reads twice. */
+.dr-foot{margin-top:auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
   font-size:var(--f9);color:var(--dim);line-height:1.5}
-/* A section's own action, as opposed to a card's: same size and same right
-   edge as the buttons in the cards above it, so the section ends on the
-   alignment it kept all the way down. */
-.sec-acts{justify-content:flex-end;padding-right:10px}
+/* A saved track carries six controls, which is two too many for a row and
+   an awkward number for a wrap. They go on a grid of thirds instead: every
+   button the same width, every row full to both edges, and the columns
+   lining up down the card as well as across it. minmax(0,1fr) rather than
+   1fr because a grid column will not shrink below its content otherwise,
+   and Export GPX is wider than a third of a 320px phone - given the floor
+   it wraps to two lines and the row grows, which is the one behaviour here
+   that degrades rather than overflows.
+
+   Not .card-acts: that is a flex row whose Delete carries margin-left:auto
+   to hold the end of it, and an auto margin inside a grid cell would push
+   the button off its own column. Waypoint and area cards keep it. */
+.trk-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}
+.trk-acts .btn{min-width:0}
 details{border-bottom:1px solid var(--line)}
 summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:var(--f115);
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
@@ -2149,15 +2165,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="trackList" class="list"></div>
-        <!-- Sized and aligned as a card action rather than a full-width
-             slab, so the section ends on the same right edge its cards do
-             instead of one bar the width of the drawer. It stays a single
-             section-level control and is deliberately not repeated inside
-             each card: it clears the line currently drawn on the map, which
-             is one thing, not one thing per saved track. -->
-        <div class="card-acts sec-acts">
-          <button class="btn xs ghost" id="btnClearTrail">Clear Trail Line</button>
-        </div>
       </div>
     </details>
 
@@ -4446,27 +4453,24 @@ async function renderTracks() {
           return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
         }).join("") +
       "</div>" +
-      /* Five buttons will not sit on one line in a 340px drawer, and left to
-         wrap they came out four-and-one: Delete alone on the second row,
-         pushed to the far right by its own margin, with a hand's width of
-         nothing beside it. The break is placed rather than left to the
-         wrap, so the second row is a pair with one at each end instead of
-         an orphan - and Delete still holds an end of a row to itself,
-         which is the rule it was being given that margin for.
+      /* Two rows of three, on a grid rather than a wrap, so every button is
+         a third of the card and no row ends in a gap. A flex row sized each
+         button to its own label and left whatever was over at the end;
+         thirds mean the columns line up down the card as well as across it.
 
-         Three then two, because the three widest labels are in the first
-         group; the pair below stays on one line down to a 320px phone. */
-      '<div class="card-acts">' +
+         Clear Trail Line rides in the second row. It is the one control
+         here that is not about this track - it clears the line drawn on the
+         map - so it takes the last cell, furthest from Resume. */
+      '<div class="trk-acts">' +
       /* Resume takes the primary slot Export GPX held. Exporting reads a
          track; resuming changes what the app is doing, and the one that
          changes something should be the one that looks like it does. */
       '<button class="btn xs primary" data-act="resume">Resume</button>' +
+      '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
-      "</div>" +
-      '<div class="card-acts">' +
-      '<button class="btn xs ghost" data-act="edit">Edit</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button>' +
+      '<button class="btn xs ghost" data-act="clear">Clear Trail Line</button>' +
       "</div></div>";
   }).join("");
 }
@@ -10478,7 +10482,11 @@ $("#btnRecPause").addEventListener("click", function () {
 });
 $("#btnRecStop").addEventListener("click", function () { Rec.stop(); });
 
-$("#btnClearTrail").addEventListener("click", async function () {
+/* Clear Trail Line sits on every saved track card, so this is a function
+   the delegated list handler calls rather than one button's listener. What
+   it clears is the same either way - the line drawn on the map, not the
+   card it was pressed from - and no saved track is touched by it. */
+async function clearTrailLine() {
   const msg = Rec.state !== "idle"
     ? "The line on the map will clear, and the points recorded so far in this track will be lost for good."
     : "The line on the map will clear. Saved tracks are not affected.";
@@ -10488,7 +10496,7 @@ $("#btnClearTrail").addEventListener("click", async function () {
   if (Rec.state !== "idle") { Rec.points = []; Rec.dist = 0; Rec.persist(); }
   renderTracks();
   toast("Trail line cleared", "warn");
-});
+}
 
 /* ---- POI controls ---- */
 function syncPoiSwitch() {
@@ -10784,6 +10792,8 @@ $("#trackList").addEventListener("click", async function (e) {
   else if (b.dataset.act === "resume") resumeTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "edit") openEditTrack(id);
+  /* The one action on the card that is not about the card's own track. */
+  else if (b.dataset.act === "clear") clearTrailLine();
   else if (b.dataset.act === "del") {
     if (!(await ask("This track will be deleted for good, and its GPX can no longer be exported."))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
