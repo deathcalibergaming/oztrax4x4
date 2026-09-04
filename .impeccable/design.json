@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-03T15:03:58.161Z",
+  "generatedAt": "2026-09-04T01:13:29.177Z",
   "title": "Design System: TrailTracker",
   "extensions": {
     "colorMeta": {
@@ -274,27 +274,47 @@
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "A single large figure in a panel — a distance, a count, a total. Sand, not white."
+        "purpose": "The single large figure in a dialog — a tile count, a total. Sand, not white."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Panel and drawer headings. The widest tracking in the system."
+        "purpose": "The name of the box you are looking at — drawer, POI panel, dialog, floating form. One treatment, and the widest tracking in the system."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Popup and card prose."
+        "purpose": "Prose read at a stop, and the name of a thing — a card title, a search result, a popup's place name. Also the app's inherited default."
+      },
+      "note": {
+        "displayName": "Note",
+        "purpose": "A secondary or explanatory line — a card's subtitle or note, the sentence under a settings control, a hint in a dialog, a filter chip's label."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Every button and section summary. Controls never use sentence case."
+        "purpose": "A control label reached at a stop, and section summaries. Same size as Note, told apart by weight and case."
+      },
+      "label-sm": {
+        "displayName": "Label small",
+        "purpose": "A button at --tap-sm, a field caption, a settings row label. The same Label at a smaller touch size, not a new role."
+      },
+      "label-xs": {
+        "displayName": "Label extra small",
+        "purpose": "The tightest button label. Every button in the app is this or Label small; the base .btn is the shape they are cut from."
       },
       "readout": {
         "displayName": "Readout",
-        "purpose": "The instrument values — speed, heading, altitude, distance, time — in Instrument White."
+        "purpose": "An instrument value read while moving — speed, heading, altitude, distance, time, and the navigation panel's figures — in Instrument White. Compressed to 13px where the bars stand on end."
+      },
+      "readout-sm": {
+        "displayName": "Readout small",
+        "purpose": "A figure that is not in the instrument bar — a track card's distance and duration, the count inside a cluster pin."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "A value line: coordinates, counts, timestamps, prices, a status the app is reporting. Also the attribution notice, in sans at the same size."
       },
       "micro": {
         "displayName": "Micro",
-        "purpose": "Gauge labels; units drop to 8px. KM/H, never km/h."
+        "purpose": "A label or a unit read while the vehicle is moving — the stat bar's labels and units, the action bar's button labels, at one size across both. Compressed to 7px where the bars stand on end."
       }
     },
     "shadows": [
@@ -469,6 +489,22 @@
       "description": "Something the map knows about. A 22px circle with a dashed border. The silhouette carries the distinction before any colour or icon does.",
       "html": "<div class=\"ds-pinwrap\"><div class=\"ds-pin-poi\"><svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"#14181B\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21h18M6 21V8l6-5 6 5v13\"/></svg></div></div>",
       "css": ".ds-pin-poi{width:22px;height:22px;border-radius:50%;border:1.5px dashed #0D100F;opacity:.92;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.55);background:#6E8C4B}\n.ds-pin-poi svg{display:block}"
+    },
+    {
+      "name": "Note",
+      "kind": "text",
+      "refersTo": "typography.note",
+      "description": "A sentence explaining a control, sitting under it. Written once and never changing, which is what separates it from a status line — see The Monospace Rule. Sans at Note, leading 1.45, muted sand. A note that has gone wrong, such as the location warning on an insecure origin, takes Alert Red Lit and stays a note.",
+      "html": "<div class=\"note\">A sleeping phone stops a recording. Turn off to leave the app open while parked.</div>",
+      "css": ".note{font-size:var(--t-note);line-height:1.45;color:var(--dim);padding:7px 2px 3px}\n.note.bad-note{color:var(--danger2)}"
+    },
+    {
+      "name": "Status Line",
+      "kind": "text",
+      "refersTo": "typography.meta",
+      "description": "The app reporting what it currently knows, in the face it prints values in: \"No home set\", \"696 South Australian sites, updated 2026-09-04\", a Wake Lock refusal. Its text changes, which is why it is monospaced and a note is not.",
+      "html": "<div class=\"poi-status\">696 South Australian sites, updated 2026-09-04</div>",
+      "css": ".poi-status{font-family:var(--mono);font-size:var(--t-meta);letter-spacing:.05em;\n  line-height:1.5;color:var(--dim);padding:7px 2px 3px}"
     }
   ],
   "narrative": {
@@ -509,19 +545,29 @@
         "section": "colors"
       },
       {
+        "name": "The Named Step Rule",
+        "section": "typography",
+        "body": "A type token is named for the job, never for the number. The ramp used to be twenty steps called --f8 through --f26, and naming a step after its value is what let the system come apart: --f12 and --f125 look equally reasonable when you are adding a panel header, so four panel headers ended up at four sizes half a pixel apart, prose appeared at six sizes, and the two rows read at 80km/h disagreed about how big a label is. A difference nobody can see is not hierarchy — it is drift, and a step that says what it is for cannot be picked that way. Where two jobs genuinely want the same size they take a name each and share a value, so one can move later without dragging the other with it."
+      },
+      {
         "name": "The Monospace Rule",
-        "body": "Monospace is for values that change: readings, prices, coordinates, counts, timestamps. Prose is never monospaced, and a number that never moves is not a readout.",
+        "body": "Monospace is for values that change: readings, prices, coordinates, counts, timestamps. Prose is never monospaced, and a number that never moves is not a readout.\n\nThe rule is about the face, so it holds for inherited faces too. `button` inherits its family, which is right for a size and wrong for a family: nine settings toggles once sat inside a monospaced row label and came out monospaced, beside two buttons on the next row that did not. `.btn` states --ui rather than inheriting it, so a control label cannot pick up a value face from whatever it happens to sit in. And a class that started life as a status line does not become the prose class by being handy — `.poi-status` is the app reporting what it knows, `.note` is a sentence explaining a control, and the drawer had six sentences in the first before it had the second.",
         "section": "typography"
       },
       {
         "name": "The Shouting Labels Rule",
-        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.",
+        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.\n\nWhat a control is called is a label. What a control is about is content, and content keeps its own case: a POI filter chip says \"Free camp\", not \"FREE CAMP\", because that is the name of a kind of place and it is the same name on the pin and in the popup.",
         "section": "typography"
       },
       {
         "name": "The Instrument Label Rule",
-        "body": "There are two button-label sizes, chosen by scene rather than by any property of the button itself — the same split --tap and --tap-sm already make for touch targets. Micro is for a control read while the vehicle is moving: the stat bar, the action bar. Label is for a control reached at a stop: the drawer, dialogs, panels. The same button never needs to ask which one it is, because it never leaves its scene.",
+        "body": "There are two button-label scenes, chosen by where the control is used rather than by any property of the button itself — the same split --tap and --tap-sm already make for touch targets. Micro is for a control read while the vehicle is moving: the stat bar, the action bar, at one size across both, in both orientations. Label is for a control reached at a stop: the drawer, dialogs, panels. The same button never needs to ask which one it is, because it never leaves its scene.",
         "section": "typography"
+      },
+      {
+        "name": "The Leading Rule",
+        "section": "typography",
+        "body": "Sand on near-black wants a little more air between lines than dark ink on white does, so prose leads at 1.4 on body and 1.45 on the note-sized roles, and the smallest prose in the app — the attribution — gets 1.5. The instrument bars and the action rail pin their own 1.15: a gauge is not a paragraph, the cell is 56px, and leading the three lines in it like prose pushes the unit through the floor of the bar."
       },
       {
         "name": "The One Screen Rule",
@@ -572,6 +618,8 @@
       "**Do** size a control from `--tap` or `--tap-sm` rather than a number, and",
       "**Do** give a destructive control its own end of a row. Size does not fix",
       "**Do** reserve monospace for values that change, and say the unit in",
+      "**Do** size type from a scale token, never a literal px. A literal is the\n  exception and has to say why it is one.",
+      "**Do** pick that token by the job — `--t-title` for a heading, `--t-note`\n  for a sentence under a control — and add a name rather than a value if the\n  job is genuinely new. A step named for its number invites the next one\n  half a pixel away.",
       "**Do** lift a mark colour rather than substitute one when it has to carry",
       "**Do** theme the surfaces the browser would otherwise paint for itself —",
       "**Do** state absence plainly in the interface — an unmapped road, a stale"
@@ -580,6 +628,8 @@
       "**Don't** reach for rounded white cards, blue accents, floating pill search",
       "**Don't** introduce purple gradients, glassmorphism, large radii or soft",
       "**Don't** dim text with element `opacity` stacked on an already",
+      "**Don't** let a control take its face from whatever it sits inside. `button`\n  inherits its family, so a label dropped into a monospaced row comes out\n  monospaced; state the face on the control.",
+      "**Don't** set a sentence in the readout face because the class was already\n  there. `.poi-status` reports a value; `.note` explains a control.",
       "**Don't** use colour as the only difference between a label and its value;",
       "**Don't** add a category colour outside the 24-entry scale.",
       "**Don't** put Burnt Orange on more than one control in a view.",

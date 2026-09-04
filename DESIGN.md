@@ -39,16 +39,38 @@ typography:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "13px"
     lineHeight: 1.4
+  note:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "11.5px"
+    lineHeight: 1.45
   label:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "11.5px"
     fontWeight: 700
     letterSpacing: "0.12em"
+  label-sm:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "10px"
+    fontWeight: 700
+    letterSpacing: "0.12em"
+  label-xs:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "9px"
+    fontWeight: 700
+    letterSpacing: "0.09em"
   readout:
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
     fontSize: "17px"
     fontWeight: 600
     lineHeight: 1.05
+  readout-sm:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    fontSize: "11.5px"
+  meta:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    fontSize: "9.5px"
+    lineHeight: 1.5
+    letterSpacing: "0.05em"
   micro:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "8.5px"
@@ -344,40 +366,105 @@ reserved strictly for values that change.
 
 ### Hierarchy
 
-- **Display** (26px, letter-spacing .02em): a single large figure in a panel
-  — a distance, a count, a total. Sand, not white.
-- **Title** (700, 13px, letter-spacing .18em, uppercase): panel and drawer
-  headings. The widest tracking in the system.
-- **Body** (13px, line-height 1.4): popup and card prose.
-- **Label** (700, 11.5px, letter-spacing .12em, uppercase): a button reached
-  at a stop — drawer, dialog and panel buttons — and section summaries.
-  Controls never use sentence case.
-- **Readout** (mono, 600, 17px, line-height 1.05): the instrument values —
-  speed, heading, altitude, distance, time — in Instrument White.
-- **Micro** (8.5px, letter-spacing .14em, uppercase): a control read at
-  speed rather than reached at a stop — the stat bar's own labels and the
-  action bar's button labels, the same size for the same reason. The zoom
-  column reads at speed too but currently carries no text at all, label or
-  otherwise; see The Instrument Label Rule. Units drop to 8px. `KM/H`, never
-  `km/h`.
+Ten sizes, sixteen names. Every `font-size` in `docs/index.html` is one of
+these tokens, and every token says what it is for — see The Named Step Rule.
+
+- **Display** (`--t-display`, mono, 600, 26px): the single large figure in a
+  dialog — a tile count, a total. Sand, not white.
+- **Zoom** (`--t-zoom`, mono, 20px): the map's `+` and `−` glyphs. Marks
+  rather than words, which is why they carry no label; see The Instrument
+  Label Rule.
+- **Readout** (`--t-read`, mono, 600, 17px, line-height 1.05): an instrument
+  value read while moving — speed, heading, altitude, distance, time, and the
+  navigation panel's remaining/travel/arrive figures — in Instrument White.
+  Compressed to 13px (`--t-read-tight`) where the bars stand on end.
+- **Field** (`--t-field`, 16px): text being typed into. A step of its own, and
+  the only one above Body; see the comment on the rule for why 16.
+- **Brand** (`--t-brand`, 700, 14px, letter-spacing .16em, uppercase): the
+  wordmark, and nothing else.
+- **Title** (`--t-title`, 700, 13px, letter-spacing .18em, uppercase): the
+  name of the box you are looking at — the drawer, the POI panel, a dialog,
+  a floating form. One treatment, and the widest tracking in the system.
+- **Body** (`--t-body`, 13px, line-height 1.4): prose read at a stop, and the
+  name of a thing — a card title, a search result, a popup's place name, the
+  destination in the navigation panel. Also the app's inherited default, so
+  text that names no step lands here.
+- **Note** (`--t-note`, 11.5px, line-height 1.45): a secondary or explanatory
+  line — a card's subtitle or note, the sentence under a settings control, a
+  hint in a dialog, a filter chip's label.
+- **Label** (`--t-label`, 700, 11.5px, letter-spacing .12em, uppercase): a
+  control label reached at a stop, and section summaries. Same size as Note
+  and told apart by weight and case, which is the system's usual division of
+  labour.
+- **Readout small** (`--t-read-sm`, mono, 11.5px): a figure that is not in
+  the instrument bar — a track card's distance and duration, the count inside
+  a cluster pin.
+- **Label small / extra small** (`--t-label-sm` 10px, `--t-label-xs` 9px):
+  the two button sizes, plus field captions and settings row labels at the
+  first of them. Not new roles — the same Label at the two touch sizes
+  `--tap-sm` allows.
+- **Meta** (`--t-meta`, mono, 9.5px, line-height 1.5): a value line —
+  coordinates, counts, timestamps, prices, a status the app is reporting. Also
+  the quietest prose in the app, the attribution notice, which is sans at this
+  size because it is the one place where the size is the point and the face is
+  not.
+- **Micro** (`--t-micro`, 8.5px, letter-spacing .14em, uppercase): a label or
+  a unit read while the vehicle is moving — the stat bar's labels and units,
+  the action bar's button labels. One size, because they are one reading.
+  `KM/H`, never `km/h`. Compressed to 7px (`--t-micro-tight`) where the bars
+  stand on end.
 
 ### Named Rules
+
+**The Named Step Rule.** A type token is named for the job, never for the
+number. The ramp used to be twenty steps called `--f8` through `--f26`, and
+naming a step after its value is what let the system come apart: `--f12` and
+`--f125` look equally reasonable when you are adding a panel header, so four
+panel headers ended up at four sizes half a pixel apart, prose appeared at
+six sizes, and the two rows read at 80km/h disagreed about how big a label
+is. A difference nobody can see is not hierarchy — it is drift, and a step
+that says what it is for cannot be picked that way. Where two jobs genuinely
+want the same size they take a name each and share a value, so one can move
+later without dragging the other with it.
 
 **The Monospace Rule.** Monospace is for values that change: readings,
 prices, coordinates, counts, timestamps. Prose is never monospaced, and a
 number that never moves is not a readout.
 
+The rule is about the face, so it holds for inherited faces too. `button`
+inherits its family, which is right for a size and wrong for a family: nine
+settings toggles once sat inside a monospaced row label and came out
+monospaced, beside two buttons on the next row that did not. `.btn` states
+`--ui` rather than inheriting it, so a control label cannot pick up a value
+face from whatever it happens to sit in. And a class that started life as a
+status line does not become the prose class by being handy — `.poi-status`
+is the app reporting what it knows, `.note` is a sentence explaining a
+control, and the drawer had six sentences in the first before it had the
+second.
+
 **The Shouting Labels Rule.** Every control label is uppercase with tracking
 of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label
 tracks further than a 13px heading.
 
-**The Instrument Label Rule.** There are two button-label sizes, chosen by
-scene rather than by any property of the button itself — the same split
-`--tap` and `--tap-sm` already make for touch targets. Micro is for a
-control read while the vehicle is moving: the stat bar, the action bar. Label
-is for a control reached at a stop: the drawer, dialogs, panels. The same
-button never needs to ask which one it is, because it never leaves its
-scene.
+What a control is *called* is a label. What a control is *about* is content,
+and content keeps its own case: a POI filter chip says "Free camp", not
+"FREE CAMP", because that is the name of a kind of place and it is the same
+name on the pin and in the popup.
+
+**The Instrument Label Rule.** There are two button-label scenes, chosen by
+where the control is used rather than by any property of the button itself —
+the same split `--tap` and `--tap-sm` already make for touch targets. Micro
+is for a control read while the vehicle is moving: the stat bar, the action
+bar, at one size across both, in both orientations. Label is for a control
+reached at a stop: the drawer, dialogs, panels. The same button never needs
+to ask which one it is, because it never leaves its scene.
+
+**The Leading Rule.** Sand on near-black wants a little more air between
+lines than dark ink on white does, so prose leads at 1.4 on `body` and 1.45
+on the note-sized roles, and the smallest prose in the app — the attribution
+— gets 1.5. The instrument bars and the action rail pin their own 1.15: a
+gauge is not a paragraph, the cell is 56px, and leading the three lines in it
+like prose pushes the unit through the floor of the bar.
 
 ## Layout
 
@@ -437,11 +524,11 @@ promoted wrappers — so a pinch re-rasterises two full-screen layers while a
 finger is moving. Map zoom is the + and − buttons, 44px and one-handed,
 which a driver can reach without putting two fingers on the glass.
 
-Every `font-size` in the file derives from `--uiScale` — twenty tokens named
-for the pixel value they start at, because the ramp has twenty steps and
-inventing six roles to hold them would be renaming the design rather than
-describing it. The two bar heights and the landscape rail scale with the
-type, or a larger label would be clipped by a height that did not move.
+Every `font-size` in the file derives from `--uiScale` — sixteen tokens over
+ten values, each named for the job it does rather than the number it starts
+at; see The Named Step Rule. The two bar heights and the landscape rail scale
+with the type, or a larger label would be clipped by a height that did not
+move.
 
 Three things deliberately sit outside it. The tap sizes, because 44px is a
 thumb and not a letter. The map, which has its own zoom. And the speed sign,
@@ -557,9 +644,14 @@ cursor in a moving vehicle.
   shipped rule does it with an id, and adding `.primary` to the markup
   instead is the way this was broken once already
 - **Press:** `filter: brightness(1.25)` — the lamp behind the switch
-- **Sizes:** `sm` (8px 10px, 10px type) and `xs` (6px 9px, 9px type). Both
-  carry a 36px floor on touch and shed it for a mouse; `xs`
-  does not stretch
+- **Sizes:** `sm` (8px 10px, Label small) and `xs` (6px 9px, Label extra
+  small). Both carry a 36px floor on touch and shed it for a mouse; `xs`
+  does not stretch. Every button in the app is one or the other — the base
+  `.btn` at 44px and Label is the shape they are cut from, not a size
+  anything ships at, and a new button picks a scene rather than inheriting
+  the base
+- **Face:** stated, not inherited. `button { font-family: inherit }` is right
+  for a size and wrong for a family; see The Monospace Rule
 - **Disabled:** 40% opacity and pointer-events off
 
 ### Chips
@@ -597,6 +689,24 @@ already carries that colour and the chip does not need to repeat it.
 - **Padding:** 10px, with an 8px gap between the mark and the text column
 - **Overflow:** titles and subtitles clip with an ellipsis on one line so a
   long name cannot widen the list
+
+### Notes and Statuses
+
+Two small text blocks sit under controls and look similar until you read
+them, so they are separate classes and the difference is the face.
+
+**A note** (`.note`) is a sentence explaining a control, written once and
+never changing: "A sleeping phone stops a recording. Turn off to leave the
+app open while parked." Sans at Note, leading 1.45, muted sand.
+
+**A status** (`.poi-status`) is the app reporting what it currently knows,
+and its text changes: "No home set", "696 South Australian sites, updated
+2026-09-04", a Wake Lock refusal. Mono at Meta, leading 1.5, muted sand.
+
+The choice is not about length or position — it is The Monospace Rule. If the
+line would read the same tomorrow it is a note; if the app is telling you a
+value, it is a status. A note that has gone wrong — the location warning on
+an insecure origin — takes Alert Red Lit and stays a note.
 
 ### Inputs
 
@@ -719,6 +829,10 @@ Same information, no movement.
   uppercase beside it (`KM/H`).
 - **Do** size type from a scale token, never a literal px. A literal is the
   exception and has to say why it is one.
+- **Do** pick that token by the job — `--t-title` for a heading, `--t-note`
+  for a sentence under a control — and add a name rather than a value if the
+  job is genuinely new. A step named for its number invites the next one
+  half a pixel away.
 - **Do** lift a mark colour rather than substitute one when it has to carry
   a word, and leave the mark itself alone.
 - **Do** theme the surfaces the browser would otherwise paint for itself —
@@ -745,6 +859,11 @@ Same information, no movement.
 - **Don't** put a row of controls in a flex line without `flex-wrap` and
   `min-width: 0`. A flex item will not shrink below its longest word, so a
   row that fits at one text size hangs off the edge at a larger one.
+- **Don't** let a control take its face from whatever it sits inside. `button`
+  inherits its family, so a label dropped into a monospaced row comes out
+  monospaced; state the face on the control.
+- **Don't** set a sentence in the readout face because the class was already
+  there. `.poi-status` reports a value; `.note` explains a control.
 - **Don't** use colour as the only difference between a label and its value;
   size and weight already do that job, and colour is needed for classifying.
 - **Don't** add a category colour outside the 24-entry scale.
