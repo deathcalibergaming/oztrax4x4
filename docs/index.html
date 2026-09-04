@@ -2640,12 +2640,15 @@ input[type=date],input[type=time]{color-scheme:dark}
             <option value="13">z13 &mdash; Region overview</option>
             <option value="14">z14 &mdash; Main tracks</option>
             <option value="15">z15 &mdash; Side tracks</option>
-            <option value="16" selected>z16 &mdash; Recommended</option>
-            <option value="17">z17 &mdash; High detail</option>
-            <option value="18">z18 &mdash; Maximum detail</option>
+            <!-- Stops at z16 because the basemap does. z17 and z18 were
+                 offered here and fetched an empty square per tile in the
+                 places that have no cartography that deep - paid for in
+                 bytes and in space, and never drawn, since the map does
+                 not ask past z16 either. -->
+            <option value="16" selected>z16 &mdash; Maximum detail</option>
           </select>
         </div>
-        <div class="hint">Tiles are downloaded from z12 up to the selected level and stored in this device's browser cache.</div>
+        <div class="hint">Tiles are downloaded from z12 up to the selected level and stored in this device's browser cache. The map still zooms closer than z16; past there it enlarges the z16 map rather than fetching tiles Esri does not draw.</div>
         <div class="kv"><span>Tiles to fetch</span><b id="amCount" class="bignum">0</b></div>
         <div class="kv"><span>Approx. size</span><b id="amSize">--</b></div>
         <div class="kv"><span>Free space</span><b id="amFree">--</b></div>
@@ -2812,7 +2815,25 @@ const CFG = {
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
-  MIN_Z: 3, MAX_Z: 18,     /* Esri serves real topo to 19, checked tile by tile */
+  MIN_Z: 3, MAX_Z: 18,
+  /* The deepest zoom Esri actually draws the topo map at. It answers past
+     this too, but with one of two empty tiles: a blank white square, or the
+     grey one with "Map data not yet available" printed across it - the same
+     placeholder the relief runs out into at z14.
+
+     Where it runs out depends on where you are, which is why this is a
+     floor rather than a guess. Probed tile by tile over eighteen inland
+     places from Adelaide to Mt Dare: every one of them draws to z16. Past
+     that it starts going: Blinman is blank at z17, and Arkaroola - a place
+     people drive to precisely to look at the ground - prints "Map data not
+     yet available" at z18.
+
+     The map still zooms to MAX_Z. maxNativeZoom stops asking past this and
+     stretches the last real tile, so the deep zooms show a coarse map
+     instead of no map, and the things you are actually zooming in on - the
+     GPS dot, the trail behind you, waypoints and pins - are drawn by this
+     app and stay sharp all the way down. */
+  TOPO_MAX_Z: 16,
   /* The zoom at and above which POIs stop grouping. Its own number rather
      than MAX_Z: raising the ceiling should not quietly put the grouping
      back at the zoom where it was asked to stop. */
@@ -3461,7 +3482,13 @@ const shade = new OfflineTileLayer(CFG.HILLSHADE_URL, {
    not sharper, and harder to read at arm's length in a moving vehicle.
    The trick suits aerial imagery, where detail carries no scale. */
 const tiles = new OfflineTileLayer(CFG.TILE_URL, {
-  maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z,
+  /* Same reasoning as the relief above, one layer down: past TOPO_MAX_Z
+     Esri answers with a blank square or the "Map data not yet available"
+     placeholder, depending on where you are. Stretching the last real tile
+     gives a coarse map rather than an empty one, and everything worth
+     zooming in for - the dot, the trail, waypoints, pins - is drawn over
+     the top by this app and stays sharp. */
+  maxZoom: CFG.MAX_Z, minZoom: CFG.MIN_Z, maxNativeZoom: CFG.TOPO_MAX_Z,
   keepBuffer: 3, updateWhenIdle: false, updateWhenZooming: false, crossOrigin: true
 });
 tiles.addTo(map);
