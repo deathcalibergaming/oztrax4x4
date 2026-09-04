@@ -721,10 +721,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --green:#8FB93E;
   --warn:#E8B923;
   /* The same lift for the same reason, and this one was failing twice over.
-     Near-black on the Clear Tile Cache button was 3.6:1 - the most
-     destructive control in the app wearing the least readable label - and
-     the red was 2.7:1 as a bare mark, under the floor for the recording dot
-     and the critical battery glyph, which are only ever a shape. */
+     Near-black on it came out at 3.6:1 where it was used as a fill - it was
+     on Clear Tile Cache at the time, since gone to ghost - and the red was
+     2.7:1 as a bare mark, under the floor for the recording dot and the
+     critical battery glyph, which are only ever a shape. Stop And Save
+     still wears the fill, so both halves of that still have to hold. */
   --danger:#CF533D;
   /* Burnt orange and alert red are the right colours at the wrong height to
      be read. As a fill behind near black text they are fine; as ink on a
@@ -2278,7 +2279,13 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="row" style="margin-top:11px">
           <button class="btn sm ghost" id="btnDiag">Test Connection</button>
           <button class="btn sm ghost" id="btnClearPoi">Clear POI Cache</button>
-          <button class="btn sm dangerb" id="btnClearTiles">Clear Tile Cache</button>
+          <!-- Ghost like everything either side of it. A filled red button
+               was the only one of its kind in the whole menu - Test
+               Connection and Clear POI Cache sit in the same row, Delete on
+               a track card is ghost too - so the fill was not marking this
+               out as destructive, it was marking it out as the odd one. The
+               confirm in front of it is what guards it now. -->
+          <button class="btn sm ghost" id="btnClearTiles">Clear Tile Cache</button>
         </div>
       </div>
     </details>
