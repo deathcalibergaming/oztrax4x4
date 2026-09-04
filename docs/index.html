@@ -1506,7 +1506,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
    Not .card-acts: that is a flex row whose Delete carries margin-left:auto
    to hold the end of it, and an auto margin inside a grid cell would push
-   the button off its own column. Waypoint and area cards keep it. */
+   the button off its own column.
+
+   Saved waypoints use this too, so the two lists in the drawer size their
+   buttons the same way. POI and downloaded-area cards keep .card-acts: they
+   carry two and four buttons rather than three, which thirds do not divide,
+   and their Delete has nothing to be the last of. */
 .trk-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}
 .trk-acts .btn{min-width:0}
 details{border-bottom:1px solid var(--line)}
@@ -2051,7 +2056,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    no functionality behind the query - only spacing. */
 @media (pointer: fine) {
   :root{--tap:34px;--tap-sm:28px}
-  .card-acts{gap:5px}
+  .card-acts,.trk-acts{gap:5px}
   .btn.xs{padding:6px 9px;min-width:auto}
   .sw::before{inset:-4px}
   /* A mouse can aim, so Delete goes back in the row rather than holding the
@@ -4781,7 +4786,18 @@ function renderWaypoints() {
         pairs.map(function (p) { return "<div><b>" + p[0] + "</b><span>" + p[1] + "</span></div>"; }).join("") +
       "</div>" +
       (w.note ? '<div class="card-n">' + esc(w.note) + "</div>" : "") +
-      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+      /* Thirds, like a saved track's, rather than the flex row this card used
+         to carry: three buttons sized to their own labels left Go To at 54px
+         beside Navigate at 84 and a ragged end to the row.
+
+         It costs Delete the auto margin .card-acts gives it, which is The
+         Elbow Room Rule and not nothing. What is left is position: Delete is
+         the last of three, so it still holds its own end of the row, and the
+         gap either side of it is the 8px every other button gets rather than
+         whatever slack was over. A saved track already makes this trade with
+         Delete in the middle of its second row, so the two cards are now
+         wrong or right together instead of one of each. */
+      '<div class="trk-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
       '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="del">Delete</button></div>' +
       '</div>';
