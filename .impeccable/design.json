@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-08T17:56:28.004Z",
+  "generatedAt": "2026-09-08T22:30:42.570Z",
   "title": "Design System: OzTrax Recon",
   "extensions": {
     "colorMeta": {
@@ -394,6 +394,21 @@
         "name": "splash-enter",
         "value": ".6s ease-out on the artwork only, from the first frame",
         "purpose": "The artwork fades up while the ground stays opaque. Android hands over from a native splash carrying the same mark at about twice the size; a fade makes that a dissolve rather than a cut, and reads correctly from any frame the viewer happens to join at."
+      },
+      {
+        "name": "splash-dial",
+        "value": "ring and arc both from north; arc 4.10s linear at 1.15s, closed at 5.25s",
+        "purpose": "One circle with one origin. An SVG circle starts at three o’clock, so an unrotated face draws from the east while the rotated arc fills from the top - two strokes sharing a radius and nothing else. The arc closes 150ms before the artwork leaves, so the completion is seen rather than cut on."
+      },
+      {
+        "name": "splash-graduations",
+        "value": "cardinals .7s, the twelve between them .84s",
+        "purpose": "Two beats 140ms apart. N/E/S/W is what a bearing is read against; the rest is resolution. Sixteen strokes in one flash spends that difference for nothing."
+      },
+      {
+        "name": "splash-hold",
+        "value": "3.8s ease-in-out at 1.6s, one pass, 0 → -1.6° → +1.6° → 0",
+        "purpose": "The needle keeping the heading it settled on. Opens and closes on rotate(0) because the later of two animations on one element owns the property, so a drift starting at -1.6deg threw the spring off its bearing in the frame after it landed. One pass, ending as the artwork leaves."
       }
     ],
     "breakpoints": [
@@ -678,6 +693,11 @@
       {
         "name": "The Fresh Name Rule",
         "body": "An animation restated at a new duration keeps the elapsed time of the one already running, so shortening it can throw an element straight to its last keyframe. Give the interrupting variant its own `@keyframes` name. Found twice on the same splash — first on the ground, then again on the artwork — where a tap meant to fade over 250ms cut in a single frame instead.",
+        "section": "components"
+      },
+      {
+        "name": "The Handover Frame Rule",
+        "body": "Where two animations share an element and a property, the later one owns that property while it runs — so its first keyframe has to be where the earlier one landed. The needle’s spring was sampled to twenty-six keyframes to settle exactly on its heading, and the drift that followed opened at 1.6 degrees off it: measured, the needle read rotate(0) at 1.55s and 1.6 degrees to the left at 1.60s. A settle is only as good as the frame after it. The same rule ends the drift on the heading rather than wherever the loop happened to be, and runs it once instead of infinitely, because a loop on something about to be removed goes on running underneath it.",
         "section": "components"
       },
       {

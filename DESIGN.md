@@ -865,15 +865,29 @@ under it, because the ring is both — a dial filling is a thing that is
 filling. That is the whole idea, and everything else on the screen is
 arranged to let it read.
 
+**The dial has one origin, and the arrival gets a beat.** A circle in SVG
+starts at three o’clock, so left alone the face drew itself from the east and
+the progress then filled from the top: two strokes on one circle beginning in
+two different places, which reads as two marks that happen to share a radius.
+Both start at north now, so the arc retraces the path the face drew, and north
+is where a bearing ring starts anyway. The graduations land in two beats for
+the same reason — the four cardinals are what a bearing is read against and
+the twelve between them are resolution, so putting all sixteen on screen in
+one flash spends the difference for nothing. And the arc finishes at 5.25
+rather than 5.40, because the moment the circle closes is what the screen has
+been building towards; closing it in the same frame the screen begins to leave
+is an instrument being switched off rather than one completing.
+
 | | |
 |---:|---|
 | 0.00 | artwork begins fading up on an already-opaque ground |
-| 0.25 | ring draws |
+| 0.25 | ring draws, from north |
 | 0.60 | artwork fully in |
-| 0.70 | ticks |
+| 0.70 / 0.84 | the four cardinals, then the twelve between them |
 | 0.80 | arrow rises, springs onto heading, settles by 1.55 |
-| 1.15 | arc begins closing |
+| 1.15 | arc begins closing, from the point the ring drew from |
 | 1.40 / 1.80 | wordmark, then tagline |
+| 5.25 | the circle closes, and is held closed |
 | 5.40 | artwork leaves |
 | 5.68 | ground begins fading |
 | 6.00 | gone |
@@ -950,6 +964,16 @@ element straight to its last keyframe. Give the interrupting variant its own
 `@keyframes` name. Found twice on the same splash — first on the ground,
 then again on the artwork — where a tap meant to fade over 250ms cut in a
 single frame instead.
+
+**The Handover Frame Rule.** Where two animations share an element and a
+property, the later one owns that property while it runs — so its first
+keyframe has to be where the earlier one landed. The needle’s spring was
+sampled to twenty-six keyframes to settle exactly on its heading, and the
+drift that followed opened at 1.6 degrees off it: measured, the needle read
+rotate(0) at 1.55s and 1.6 degrees to the left at 1.60s. A settle is only as
+good as the frame after it. The same rule ends the drift on the heading rather
+than wherever the loop happened to be, and runs it once instead of infinitely,
+because a loop on something about to be removed goes on running underneath it.
 
 **The Ring Instead Of A Pulse Rule.** Where an animation is the only thing
 distinguishing two states, reduced motion has to replace it, not remove it.
