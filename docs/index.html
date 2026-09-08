@@ -28,6 +28,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>OzTrax Recon</title>
+<!-- The manifest, stated rather than attached by script.
+
+     installManifest() below has always pointed a link here at this same
+     file when the page is served, and Chrome finds it because Chrome runs
+     the script. A packager that reads the HTML without executing it does
+     not, and reports the app as having no manifest at all - which is a
+     confusing way to lose half an hour when the only fix is one tag.
+
+     It stays declared here for the served case, and the script now only
+     rewrites it for the one case a real file cannot answer: opened as a
+     file off a USB stick, where there is no manifest.webmanifest sitting
+     next to the page and an inline copy has to stand in. -->
+<link rel="manifest" href="manifest.webmanifest">
 <!-- ===================================================================
      Leaflet 1.9.4 stylesheet, embedded.
 
@@ -3367,16 +3380,20 @@ function toast(msg, kind) {
   };
   /* Served over http(s) there are real files sitting next to this page, and
      Chrome will only offer to install an app whose manifest and icons it can
-     actually fetch - a blob manifest with data: icons fails that test. Opened
-     straight off the phone as a file there are no neighbouring files, so the
-     inline copy stands in and the page stays genuinely self contained. */
+     actually fetch - a blob manifest with data: icons fails that test. That
+     case is now answered by the static link in the head, which needs no
+     script and so cannot be missed by a packager that does not run one.
+
+     Opened straight off the phone as a file there are no neighbouring files,
+     so that link points at nothing and the inline copy stands in. Rewritten
+     rather than appended: two manifest links would leave which one wins up
+     to the browser. */
   const served = location.protocol === "http:" || location.protocol === "https:";
-  const l = document.createElement("link");
-  l.rel = "manifest";
-  l.href = served
-    ? new URL("manifest.webmanifest", location.href).href
-    : URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
-  document.head.appendChild(l);
+  if (!served) {
+    const l = document.querySelector('link[rel="manifest"]') ||
+              document.head.appendChild(Object.assign(document.createElement("link"), { rel: "manifest" }));
+    l.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+  }
   const fav = document.createElement("link");
   fav.rel = "icon"; fav.type = "image/svg+xml"; fav.href = iconURL;
   document.head.appendChild(fav);
