@@ -1,4 +1,4 @@
-/* TrailTracker service worker.
+/* OzTrax Recon service worker.
    The point of this app is working where there is no signal, so the shell -
    the page itself and the mapping library - is cached on first visit and
    served from cache afterwards. Map tiles and POI data are deliberately not
@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v136";
+const CACHE = "trailtracker-v137";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -118,7 +118,7 @@ self.addEventListener("fetch", function (e) {
       const r = await netP;
       if (r && r.ok) return r.clone();
       return new Response(
-        "<h1>TrailTracker</h1><p>Not cached yet - open this page once with a connection.</p>",
+        "<h1>OzTrax Recon</h1><p>Not cached yet - open this page once with a connection.</p>",
         { headers: { "Content-Type": "text/html" }, status: 503 });
     })());
     return;

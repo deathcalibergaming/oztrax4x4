@@ -27,7 +27,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>TrailTracker</title>
+<title>OzTrax Recon</title>
 <!-- ===================================================================
      Leaflet 1.9.4 stylesheet, embedded.
 
@@ -927,7 +927,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:6px;
   background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
-.brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:1px;letter-spacing:.16em;
+.brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:.32em;letter-spacing:.16em;
   font-size:var(--t-brand);font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
 .brand .b2{color:var(--rust2)}
@@ -2128,6 +2128,154 @@ input[type=date],input[type=time]{color-scheme:dark}
   .card-acts .btn.dangerb{margin-left:0}
 }
 
+/* ---------- splash ----------
+   The instrument acquiring a heading.
+
+   The mark is the arrow already drawn at your position on the map, put
+   inside a bearing ring - the same silhouette, the same burnt orange, so
+   the thing on the icon is the thing on the windscreen rather than a
+   picture of one. It replaces a ridge line with a summit dot, which was a
+   walking mark on a driving product.
+
+   One authored idea carries the whole eight seconds: the ring is the
+   progress. It draws itself, the arrow rises and settles into it, and then
+   the orange arc closes around the dial until the circle is complete and
+   the splash lifts. Nothing is a spinner sitting next to a logo, because
+   the logo is the spinner.
+
+   Sized in vmin and fixed px rather than in --uiScale: this paints before
+   any script has run, and the Text Size setting arrives with the script.
+   Reading it here would size the mark, then resize it a moment later. */
+/* The exit leaves in two beats, and they do not overlap by much.
+
+   Fading the whole thing at once was a dissolve, not a transition: for
+   six hundred milliseconds the dark ground and the map were both half
+   there, so the wordmark ghosted across Hawker and the top bar showed
+   through the splash from behind it. Nothing was ever one thing.
+
+   So the artwork goes first and quickly, and only then does the ground
+   fade - which means the last third of a second is a plain dark screen
+   dissolving into the map, with nothing on it to ghost. The screen fades
+   into the map, rather than the logo dissolving over it. */
+#splash{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:0;background:var(--ink);
+  animation:sp-ground .38s ease-in 7.62s forwards}
+/* A separate keyframe name from the timed exit, not the same one at a
+   shorter duration. Restating an animation that is already running keeps
+   its elapsed time, so a tap two seconds in found the .25s skip long
+   finished and cut the splash out in a single frame - a hard clip where a
+   quick fade was drawn. A different name is a different animation, and
+   starts from zero however late the tap comes. */
+#splash.go{animation:sp-skip .28s ease-in forwards}
+/* Its own name for the same reason #splash.go has one: reusing sp-leave
+   inherited the elapsed time of the copy already waiting on its 7.4s
+   delay, so a tap threw the artwork straight to the last keyframe and it
+   vanished in a frame instead of leaving. Caught by measuring the stage's
+   opacity 60ms into a 200ms animation and finding it already at zero. */
+#splash.go .sp-stage{animation:sp-leave-fast .2s cubic-bezier(.55,0,.85,.4) forwards}
+#splash.gone{display:none}
+@keyframes sp-ground{to{opacity:0;visibility:hidden}}
+@keyframes sp-skip{to{opacity:0;visibility:hidden}}
+
+/* Everything drawn, held apart from the ground it is drawn on so the two
+   can leave separately. It dips a hair before it goes - the wind-up a
+   spring takes before it releases - then accelerates away from the
+   viewer. Out, not away: it leaves through the screen the map arrives
+   on. */
+.sp-stage{display:flex;flex-direction:column;align-items:center;
+  animation:sp-leave .26s cubic-bezier(.55,0,.85,.4) 7.4s forwards}
+@keyframes sp-leave{
+  0%{opacity:1;transform:scale(1) translateY(0)}
+  22%{opacity:1;transform:scale(.982) translateY(3px)}
+  100%{opacity:0;transform:scale(1.12) translateY(-18px)}}
+/* The skip has no time for the wind-up; it just goes. */
+@keyframes sp-leave-fast{
+  from{opacity:1;transform:scale(1) translateY(0)}
+  to{opacity:0;transform:scale(1.09) translateY(-14px)}}
+
+.sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block}
+/* The dial face. Drawn once, then held: it is the ground the arc runs on. */
+.sp-ring{fill:none;stroke:rgba(216,203,170,.18);stroke-width:1.5;
+  stroke-dasharray:289.03;stroke-dashoffset:289.03;
+  animation:sp-draw .9s cubic-bezier(.16,1,.3,1) forwards}
+.sp-ticks{fill:none;stroke:var(--dim);stroke-width:1.5;stroke-linecap:round;
+  opacity:0;animation:sp-fade .5s ease-out .45s forwards}
+.sp-ticks.maj{stroke-width:2;stroke:var(--sand)}
+/* The eight seconds, drawn. Linear, because it is time and not an arrival. */
+.sp-arc{fill:none;stroke:var(--rust2);stroke-width:3;stroke-linecap:round;
+  stroke-dasharray:289.03;stroke-dashoffset:289.03;
+  transform:rotate(-90deg);transform-origin:64px 64px;
+  animation:sp-draw 6.5s linear .9s forwards}
+/* Rises, turns onto its heading, then holds it with the small corrections a
+   compass makes on a road that is not smooth. */
+.sp-arrow{fill:var(--rust);transform-origin:64px 64px;opacity:0;
+  animation:sp-arrive .75s linear .55s forwards,
+            sp-hold 4.2s ease-in-out 1.35s infinite}
+@keyframes sp-draw{to{stroke-dashoffset:0}}
+@keyframes sp-fade{to{opacity:1}}
+/* A real spring, not a bezier standing in for one: a damped harmonic
+   oscillator at mass 1, stiffness 170, damping 16, sampled to keyframes
+   and played linear so the curve in the numbers is the curve on screen.
+   It overshoots its heading by 8.7% and settles at 0.51s, which is what a
+   needle does and what no cubic-bezier can do - a bezier cannot cross its
+   own end value, so it can ease towards a heading but never swing past it
+   and come back.
+
+   Generated rather than hand-written, and long because a spring has no
+   closed form in CSS. Baked in as plain keyframes so the physics costs
+   nothing at runtime and the file stays one file. */
+@keyframes sp-arrive{
+  0%{opacity:0;transform:rotate(-28deg) scale(.72)}
+  4%{opacity:.156;transform:rotate(-26.186deg) scale(.738)}
+  8%{opacity:.521;transform:rotate(-21.921deg) scale(.781)}
+  12%{opacity:.973;transform:rotate(-16.653deg) scale(.833)}
+  16%{opacity:1;transform:rotate(-11.395deg) scale(.886)}
+  20%{opacity:1;transform:rotate(-6.774deg) scale(.932)}
+  24%{opacity:1;transform:rotate(-3.102deg) scale(.969)}
+  28%{opacity:1;transform:rotate(-.458deg) scale(.995)}
+  32%{opacity:1;transform:rotate(1.234deg) scale(1.012)}
+  36%{opacity:1;transform:rotate(2.132deg) scale(1.021)}
+  40%{opacity:1;transform:rotate(2.432deg) scale(1.024)}
+  44%{opacity:1;transform:rotate(2.326deg) scale(1.023)}
+  48%{opacity:1;transform:rotate(1.981deg) scale(1.02)}
+  52%{opacity:1;transform:rotate(1.53deg) scale(1.015)}
+  56%{opacity:1;transform:rotate(1.068deg) scale(1.011)}
+  60%{opacity:1;transform:rotate(.653deg) scale(1.007)}
+  64%{opacity:1;transform:rotate(.318deg) scale(1.003)}
+  68%{opacity:1;transform:rotate(.073deg) scale(1.001)}
+  72%{opacity:1;transform:rotate(-.088deg) scale(.999)}
+  76%{opacity:1;transform:rotate(-.176deg) scale(.998)}
+  80%{opacity:1;transform:rotate(-.21deg) scale(.998)}
+  84%{opacity:1;transform:rotate(-.206deg) scale(.998)}
+  88%{opacity:1;transform:rotate(-.179deg) scale(.998)}
+  92%{opacity:1;transform:rotate(-.14deg) scale(.999)}
+  96%{opacity:1;transform:rotate(-.1deg) scale(.999)}
+  100%{opacity:1;transform:rotate(0deg) scale(1)}}
+@keyframes sp-hold{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+
+.sp-word{margin-top:clamp(20px,5vmin,30px);display:flex;align-items:baseline;gap:.34em;
+  font-size:clamp(21px,5.8vmin,28px);font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;opacity:0;
+  animation:sp-rise .7s cubic-bezier(.16,1,.3,1) 1.15s forwards}
+.sp-word .b1{color:var(--sand)}
+.sp-word .b2{color:var(--rust2)}
+/* Not uppercased, though every label in the app is. The Shouting Labels
+   Rule draws the line at what a control is called against what it is
+   about, and this is neither - it is a sentence, and the one piece of
+   writing in the product that is addressed to a person rather than
+   naming a thing. Left in its own case, because shouting it would make
+   the only sentence here look like a button - and barely tracked, because
+   the wide tracking that suits a short uppercase label is what makes a
+   mixed-case sentence read as mannered. The wordmark above it carries the
+   tracking for both. Its two sizes are the ramp's Note and Body, since a
+   sentence is what Body is for. */
+.sp-tag{margin-top:clamp(10px,2.4vmin,14px);font-size:clamp(11.5px,2.8vmin,13px);
+  font-weight:400;letter-spacing:.03em;color:var(--dim);
+  text-align:center;padding:0 24px;opacity:0;
+  animation:sp-rise .7s cubic-bezier(.16,1,.3,1) 1.55s forwards}
+@keyframes sp-rise{from{opacity:0;transform:translateY(9px)}
+  to{opacity:1;transform:translateY(0)}}
+
 /* ---------- reduced motion ----------
    Not a kill switch. What goes is spatial movement - the sliding, the
    travelling, the pulsing. What stays is every transition that carries
@@ -2168,17 +2316,93 @@ input[type=date],input[type=time]{color-scheme:dark}
      just does not take a fifth of a second about it. */
   #btnMenu svg path{transition:none}
   #btnMenu:active svg path{transform:none}
+  /* The splash keeps its eight seconds and loses its travel. What goes is
+     the turning, the rising and the drift - movement that was character.
+     What stays is the arc closing around the dial, because that is not
+     decoration: it is the only thing on the screen saying how much of the
+     wait is left, and removing it would leave a still picture with no way
+     to tell whether the app had stopped. */
+  /* The two beats stay. Artwork first, then the ground, because that is
+     what stops the wordmark ghosting across the map rather than a piece
+     of character - a dissolve is no easier to read for being still. What
+     goes is the travel: the stage fades where it used to lift away. */
+  #splash{animation:sp-fade-out .38s ease-out 7.62s forwards}
+  #splash.go{animation:sp-skip-flat .2s ease-out forwards}
+  @keyframes sp-fade-out{to{opacity:0;visibility:hidden}}
+  @keyframes sp-skip-flat{to{opacity:0;visibility:hidden}}
+  .sp-stage{animation:sp-leave-flat .22s ease-in 7.4s forwards}
+  #splash.go .sp-stage{animation:sp-leave-flat-fast .16s ease-in forwards}
+  @keyframes sp-leave-flat{to{opacity:0}}
+  @keyframes sp-leave-flat-fast{to{opacity:0}}
+  .sp-ring{stroke-dashoffset:0;animation:none}
+  .sp-ticks{animation:sp-fade .4s ease-out .2s forwards}
+  .sp-arrow{animation:sp-fade .5s ease-out .4s forwards}
+  .sp-word{animation:sp-fade .5s ease-out .8s forwards}
+  .sp-tag{animation:sp-fade .5s ease-out 1.1s forwards}
 }
 </style>
 </head>
 <body>
+
+<!-- The splash. First thing in the body so it paints with the stylesheet,
+     before the map library further down the file has been parsed - the app
+     boots underneath it rather than after it.
+
+     aria-hidden because it is a held moment, not content: a screen reader
+     goes straight to the app it is covering rather than being made to wait
+     out an animation. The tap-to-skip is for the eyes that are being made
+     to wait. -->
+<div id="splash" aria-hidden="true">
+ <div class="sp-stage">
+  <svg class="sp-mark" viewBox="0 0 128 128">
+    <circle class="sp-ring" cx="64" cy="64" r="46"/>
+    <path class="sp-ticks maj" d="M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64"/>
+    <path class="sp-ticks" d="M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35"/>
+    <circle class="sp-arc" cx="64" cy="64" r="46"/>
+    <path class="sp-arrow" d="M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z"/>
+  </svg>
+  <div class="sp-word"><span class="b1">OzTrax</span><span class="b2">Recon</span></div>
+  <div class="sp-tag">Explore The Roads Least Travelled</div>
+ </div>
+</div>
+<script>
+/* Inline and immediate, rather than waiting for the app's own script at the
+   bottom of the file: a tap two seconds in must be answered then, not once
+   seven hundred kilobytes of map library has finished parsing.
+
+   The CSS owns the dismissal, so the splash still clears on time if this
+   never runs. All this adds is the skip and taking the node out of the tree
+   afterwards, so eight seconds of finished animation cannot sit on top of
+   the map swallowing the first press of a button. */
+(function () {
+  var el = document.getElementById("splash");
+  if (!el) return;
+  var done = false;
+  function clear() {
+    if (done) return;
+    done = true;
+    el.classList.add("gone");
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }
+  el.addEventListener("pointerdown", function () { el.classList.add("go"); }, { once: true });
+  el.addEventListener("animationend", function (e) {
+    if (e.target === el) clear();
+  });
+  /* The belt to the animation's braces: a tab backgrounded during the splash
+     can have its animations throttled or never fire animationend at all, and
+     coming back to a phone holding a dead splash over the map is worse than
+     any timing being a fraction out. */
+  setTimeout(clear, 8600);
+})();
+</script>
+
 <div id="app">
 
   <header id="topbar">
     <button id="btnMenu" class="icon-btn" aria-label="Open menu">
       <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
     </button>
-    <div class="brand"><span class="b1">TRAIL</span><span class="b2">TRACKER</span></div>
+    <div class="brand"><span class="b1">OZTRAX</span><span class="b2">RECON</span></div>
     <div id="statusPill">
       <div id="gpsPill" title="No GPS fix" aria-label="No GPS fix">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2449,7 +2673,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     </details>
 
     <div class="dr-foot">
-      TrailTracker &middot; offline 4x4 trail log<br>
+      OzTrax Recon &middot; offline 4x4 trail log<br>
       Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
       Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
       Australia, licensed under the Open G-NAF end user licence agreement.
@@ -2731,7 +2955,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 //# sourceMappingURL=leaflet.js.map</script>
 <script>
 /* =====================================================================
-   TrailTracker - single file offline 4x4 trail tracker
+   OzTrax Recon - single file offline 4x4 trail tracker
    ===================================================================== */
 "use strict";
 
@@ -3119,14 +3343,20 @@ function toast(msg, kind) {
    ===================================================================== */
 (function installManifest() {
   const icon =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
-    '<rect width="512" height="512" rx="96" fill="#14181B"/>' +
-    '<path d="M64 372 L176 176 L262 300 L318 214 L448 372 Z" fill="none" stroke="#CC5A2E" stroke-width="26" stroke-linejoin="round"/>' +
-    '<circle cx="176" cy="176" r="30" fill="#8FB93E"/>' +
-    '<path d="M96 424h320" stroke="#D8CBAA" stroke-width="20" stroke-linecap="round"/></svg>';
+    /* The same mark the splash draws and the PNGs carry: the heading arrow
+       inside a bearing ring. Kept at the splash's 128 grid and scaled by the
+       viewBox rather than restated at 512, so the two cannot drift apart.
+       The ring is 92 of 128 across, which sits inside the 80% circle a
+       maskable icon may be cropped to. */
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">' +
+    '<rect width="128" height="128" rx="24" fill="#14181B"/>' +
+    '<circle cx="64" cy="64" r="46" fill="none" stroke="#D8CBAA" stroke-opacity=".28" stroke-width="1.5"/>' +
+    '<path d="M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64" fill="none" stroke="#D8CBAA" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35" fill="none" stroke="#D8CBAA" stroke-opacity=".72" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<path d="M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z" fill="#CC5A2E"/></svg>';
   const iconURL = "data:image/svg+xml;base64," + btoa(icon);
   const manifest = {
-    name: "TrailTracker", short_name: "TrailTracker",
+    name: "OzTrax Recon", short_name: "OzTrax Recon",
     description: "Offline 4x4 trail tracking, waypoints and GPX logging.",
     start_url: ".", scope: ".", display: "fullscreen", orientation: "any",
     background_color: "#14181B", theme_color: "#14181B",
@@ -4688,7 +4918,7 @@ function buildGPX(track) {
   });
   const L1 = [];
   L1.push('<?xml version="1.0" encoding="UTF-8"?>');
-  L1.push('<gpx version="1.1" creator="TrailTracker" xmlns="http://www.topografix.com/GPX/1/1" ' +
+  L1.push('<gpx version="1.1" creator="OzTrax Recon" xmlns="http://www.topografix.com/GPX/1/1" ' +
           'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
           'xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">');
   L1.push("  <metadata>");

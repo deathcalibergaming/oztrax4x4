@@ -1,6 +1,6 @@
 {
-  "name": "TrailTracker",
-  "short_name": "TrailTracker",
+  "name": "OzTrax Recon",
+  "short_name": "OzTrax Recon",
   "description": "Offline 4x4 trail tracking, waypoints and GPX logging.",
   "start_url": "./",
   "scope": "./",

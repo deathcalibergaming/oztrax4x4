@@ -1,4 +1,4 @@
-# OzTrax 4x4 — TrailTracker
+# OzTrax Recon
 
 Offline 4x4 trail tracking for remote Australian touring: GPS trail logging
 with GPX export, named waypoints, offline map tiles, OpenStreetMap POIs with

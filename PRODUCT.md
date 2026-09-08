@@ -105,14 +105,24 @@ stated direction; no date is set.
 
 ## Brand Commitments
 
-- **TrailTracker is the product name** (confirmed). It is what the manifest,
-  the interface and the installed app already say, and it is the name every
-  surface addressing a user uses — including the Play listing. **OzTrax 4x4**
-  is the repository and project name and stays that way. The split is
-  deliberate, not an open question.
-- Existing assets: `docs/icon-192.png`, `docs/icon-512.png`.
-- No voice, tone, tagline or identity system has been confirmed. Future work
-  must not treat the current interface as an approved brand.
+- **OzTrax Recon is the product name** (confirmed 2026-09-08, replacing
+  TrailTracker). It is what the manifest, the interface and the installed app
+  say, and it is the name every surface addressing a user uses — including the
+  Play listing. **OzTrax 4x4** is the repository and project name and stays
+  that way. The split is deliberate, not an open question.
+- The rename deliberately stops short of the storage keys. The IndexedDB
+  database is still `trailtracker`, and the two cache buckets are still
+  `trailtracker-v*` and `trailtracker-state`. They hold every recorded trail
+  and waypoint on every installed copy, and renaming them would orphan that
+  data on update rather than migrate it. They are internal identifiers no user
+  ever sees; leave them alone.
+- Existing assets: `docs/icon-192.png`, `docs/icon-512.png`. Both carry a mark
+  the rename did not touch — the orange ridge line, the green summit dot, the
+  sand rule beneath them — so neither needs reissuing.
+- **Explore The Roads Least Travelled** is the tagline (confirmed 2026-09-08),
+  carried over from the splash it was written for. Beyond it and the wordmark,
+  no voice, tone or identity system has been confirmed. Future work must not
+  treat the current interface as an approved brand.
 
 ## Evidence on Hand
 
