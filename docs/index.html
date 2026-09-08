@@ -2244,23 +2244,54 @@ input[type=date],input[type=time]{color-scheme:dark}
    a cut. Cuts between two compositions are what every app does at this
    moment, and a cut cannot be mistimed. */
 .sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block}
-/* The dial face. Drawn once, then held: it is the ground the arc runs on. */
+/* The dial face. Drawn once, then held: it is the ground the arc runs on.
+
+   It starts at north, like the arc that closes over it later. A circle in
+   SVG begins at three o’clock, so without the rotation the face drew itself
+   from the east and the progress then filled from the top - two strokes on
+   one circle starting in two different places, which reads as two unrelated
+   marks rather than one instrument. Rotated, the arc retraces the path the
+   face drew, from the point it drew it from, and north is where a bearing
+   ring starts. */
 .sp-ring{fill:none;stroke:rgba(216,203,170,.18);stroke-width:1.5;
   stroke-dasharray:289.03;stroke-dashoffset:289.03;
+  transform:rotate(-90deg);transform-origin:64px 64px;
   animation:sp-draw .9s cubic-bezier(.16,1,.3,1) .25s forwards}
+/* The graduations arrive in two beats 140ms apart: the four cardinals, then
+   the twelve between them. They are not the same information - N/E/S/W is
+   what a bearing is read against, and the rest is resolution - so landing
+   all sixteen in one flash spends that difference for nothing. Two beats is
+   the dial resolving, which is what the whole six seconds is about. */
 .sp-ticks{fill:none;stroke:var(--dim);stroke-width:1.5;stroke-linecap:round;
-  opacity:0;animation:sp-fade .5s ease-out .7s forwards}
-.sp-ticks.maj{stroke-width:2;stroke:var(--sand)}
-/* The six seconds, drawn. Linear, because it is time and not an arrival. */
+  opacity:0;animation:sp-fade .5s ease-out .84s forwards}
+.sp-ticks.maj{stroke-width:2;stroke:var(--sand);animation-delay:.7s}
+/* The wait, drawn. Linear, because it is time and not an arrival.
+
+   It closes at 5.25 rather than at 5.40, which buys the completed circle a
+   beat of its own before the artwork leaves. The arc is the progress, so the
+   moment it closes is the one thing the screen has been building towards;
+   finishing it in the same frame the screen starts leaving spends the
+   arrival on nothing. A tenth of a second of closed circle is the whole
+   difference between an instrument completing and one being switched off. */
 .sp-arc{fill:none;stroke:var(--rust2);stroke-width:3;stroke-linecap:round;
   stroke-dasharray:289.03;stroke-dashoffset:289.03;
   transform:rotate(-90deg);transform-origin:64px 64px;
-  animation:sp-draw 4.25s linear 1.15s forwards}
+  animation:sp-draw 4.10s linear 1.15s forwards}
 /* Rises, turns onto its heading, then holds it with the small corrections a
-   compass makes on a road that is not smooth. */
+   compass makes on a road that is not smooth.
+
+   The hold begins and ends on the heading rather than 1.6 degrees off it.
+   Two animations on one element mean the later one owns the property while
+   it runs, so a hold whose first keyframe was -1.6deg threw the needle off
+   its bearing in a single frame: at 1.55s the spring had landed exactly on
+   rotate(0), and at 1.60s it was 1.6 degrees to the left. Twenty-six
+   keyframes of settle, undone by the frame after them.
+
+   One pass rather than infinite, ending as the artwork leaves. A loop on
+   something about to be removed goes on running underneath it. */
 .sp-arrow{fill:var(--rust);transform-origin:64px 64px;opacity:0;
   animation:sp-arrive .75s linear .8s forwards,
-            sp-hold 4.2s ease-in-out 1.6s infinite}
+            sp-hold 3.8s ease-in-out 1.6s forwards}
 @keyframes sp-draw{to{stroke-dashoffset:0}}
 @keyframes sp-fade{to{opacity:1}}
 /* A real spring, not a bezier standing in for one: a damped harmonic
@@ -2301,7 +2332,8 @@ input[type=date],input[type=time]{color-scheme:dark}
   92%{opacity:1;transform:rotate(-.14deg) scale(.999)}
   96%{opacity:1;transform:rotate(-.1deg) scale(.999)}
   100%{opacity:1;transform:rotate(0deg) scale(1)}}
-@keyframes sp-hold{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+@keyframes sp-hold{0%,100%{transform:rotate(0deg)}
+  25%{transform:rotate(-1.6deg)}75%{transform:rotate(1.6deg)}}
 
 .sp-word{margin-top:clamp(20px,5vmin,30px);display:flex;align-items:baseline;gap:.34em;
   font-size:clamp(21px,5.8vmin,28px);font-weight:700;letter-spacing:.18em;
@@ -2389,7 +2421,11 @@ input[type=date],input[type=time]{color-scheme:dark}
   @keyframes sp-leave-flat{to{opacity:0}}
   @keyframes sp-leave-flat-fast{to{opacity:0}}
   .sp-ring{stroke-dashoffset:0;animation:none}
-  .sp-ticks{animation:sp-fade .4s ease-out .45s forwards}
+  /* One beat, not two. The stagger is opacity rather than travel, so it
+     would survive the rule - but reduced motion asks for fewer animations,
+     not the same number spread wider. Both selectors, because .sp-ticks.maj
+     outranks .sp-ticks and would otherwise keep its staggered delay. */
+  .sp-ticks,.sp-ticks.maj{animation:sp-fade .4s ease-out .45s forwards}
   .sp-arrow{animation:sp-fade .5s ease-out .65s forwards}
   .sp-word{animation:sp-fade .5s ease-out 1.05s forwards}
   .sp-tag{animation:sp-fade .5s ease-out 1.35s forwards}
