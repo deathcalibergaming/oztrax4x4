@@ -27,7 +27,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>TrailTracker</title>
+<title>OzTrax Recon</title>
 <!-- ===================================================================
      Leaflet 1.9.4 stylesheet, embedded.
 
@@ -927,7 +927,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:6px;
   background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
-.brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:1px;letter-spacing:.16em;
+.brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:.32em;letter-spacing:.16em;
   font-size:var(--t-brand);font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
 .brand .b2{color:var(--rust2)}
@@ -2178,7 +2178,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     <button id="btnMenu" class="icon-btn" aria-label="Open menu">
       <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
     </button>
-    <div class="brand"><span class="b1">TRAIL</span><span class="b2">TRACKER</span></div>
+    <div class="brand"><span class="b1">OZTRAX</span><span class="b2">RECON</span></div>
     <div id="statusPill">
       <div id="gpsPill" title="No GPS fix" aria-label="No GPS fix">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2449,7 +2449,7 @@ input[type=date],input[type=time]{color-scheme:dark}
     </details>
 
     <div class="dr-foot">
-      TrailTracker &middot; offline 4x4 trail log<br>
+      OzTrax Recon &middot; offline 4x4 trail log<br>
       Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
       Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
       Australia, licensed under the Open G-NAF end user licence agreement.
@@ -2731,7 +2731,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 //# sourceMappingURL=leaflet.js.map</script>
 <script>
 /* =====================================================================
-   TrailTracker - single file offline 4x4 trail tracker
+   OzTrax Recon - single file offline 4x4 trail tracker
    ===================================================================== */
 "use strict";
 
@@ -3126,7 +3126,7 @@ function toast(msg, kind) {
     '<path d="M96 424h320" stroke="#D8CBAA" stroke-width="20" stroke-linecap="round"/></svg>';
   const iconURL = "data:image/svg+xml;base64," + btoa(icon);
   const manifest = {
-    name: "TrailTracker", short_name: "TrailTracker",
+    name: "OzTrax Recon", short_name: "OzTrax Recon",
     description: "Offline 4x4 trail tracking, waypoints and GPX logging.",
     start_url: ".", scope: ".", display: "fullscreen", orientation: "any",
     background_color: "#14181B", theme_color: "#14181B",
@@ -4688,7 +4688,7 @@ function buildGPX(track) {
   });
   const L1 = [];
   L1.push('<?xml version="1.0" encoding="UTF-8"?>');
-  L1.push('<gpx version="1.1" creator="TrailTracker" xmlns="http://www.topografix.com/GPX/1/1" ' +
+  L1.push('<gpx version="1.1" creator="OzTrax Recon" xmlns="http://www.topografix.com/GPX/1/1" ' +
           'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
           'xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">');
   L1.push("  <metadata>");
