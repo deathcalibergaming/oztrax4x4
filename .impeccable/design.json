@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-08T23:22:18.460Z",
+  "generatedAt": "2026-09-08T23:36:00.306Z",
   "title": "Design System: OzTrax Recon",
   "extensions": {
     "colorMeta": {
@@ -414,6 +414,16 @@
         "name": "splash-settle",
         "value": ".8s cubic-bezier(.16,1,.3,1) at 1.4s, half the text block",
         "purpose": "The composition sitting where its visible content is centred. The wordmark and tagline hold their space from the first frame, so the mark starts low by half that block and rises out of it as the wordmark arrives. On its own element, never in the stage’s animation list, because a tap replaces that list and would snap the artwork up mid-move."
+      },
+      {
+        "name": "splash-field",
+        "value": "contours at 6%, one 400px tile drifting 22s linear, infinite",
+        "purpose": "Country moving under the instrument. A piece of the topographic map the product actually draws, tiled by <use> and translated by exactly one tile height so the loop closes with no seam. Transform only, and it leaves with the artwork rather than the ground."
+      },
+      {
+        "name": "splash-glow",
+        "value": "radial burnt orange at .2, opacity .45 to 1 over 7s ease-in-out, infinite",
+        "purpose": "An instrument panel lit from inside. Opacity only - no filter, no blur - because this runs while the map library is still parsing."
       }
     ],
     "breakpoints": [

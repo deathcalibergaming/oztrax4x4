@@ -865,6 +865,23 @@ under it, because the ring is both — a dial filling is a thing that is
 filling. That is the whole idea, and everything else on the screen is
 arranged to let it read.
 
+**The ground is country, moving.** Contour lines are what this product is made
+of — the map it draws is a topographic one — so the surface the splash waits on
+is a piece of that map at six per cent, drifting the way land drifts past a
+vehicle, with a warm oxide light breathing over it: an instrument panel lit from
+inside rather than a gradient sweeping a marketing page. It is texture, not
+information; the dial is still the only thing on screen reporting anything.
+
+Both are transform and opacity only — no filter, no blur, no canvas — because
+this runs while the app is still parsing a map library, and a background that
+costs main-thread time to look calm is not calm. Measured while the splash
+animates: median frame 5.6ms, worst 6.9ms, nothing over 32ms.
+
+And it leaves in the first beat, with the artwork, never with the ground.
+Texture still on screen while the ground dissolves is the ghosting The Two
+Beats Rule exists to stop, and contour lines over a real map are worse than a
+wordmark over one, because they look like map.
+
 **The composition sits where its visible content is centred.** The wordmark
 and the tagline hold their space from the first frame, because they fade in
 rather than appear — so the mark spent the first 1.4 seconds sitting half a
@@ -897,7 +914,7 @@ is an instrument being switched off rather than one completing.
 
 | | |
 |---:|---|
-| 0.00 | artwork begins fading up on an already-opaque ground |
+| 0.00 | ground texture and artwork begin fading up on an already-opaque ground |
 | 0.25 | ring draws, from north |
 | 0.60 | artwork fully in |
 | 0.70 / 0.84 | the four cardinals, then the twelve between them |
@@ -982,6 +999,14 @@ element straight to its last keyframe. Give the interrupting variant its own
 `@keyframes` name. Found twice on the same splash — first on the ground,
 then again on the artwork — where a tap meant to fade over 250ms cut in a
 single frame instead.
+
+A fresh name is necessary and not sufficient. Where the interrupting rule
+replaces a whole animation list, an implicit first keyframe reads the
+underlying value and finds what the element *declares*, not what the replaced
+list was holding. Found a third time, on the splash’s background: declared
+`opacity:0`, held at 1 by its entrance, and animated 0 to 0 by a skip that did
+not state its own `from` — measured at 0.00 sixty milliseconds into a fade the
+artwork beside it was running at 0.97. State the `from`.
 
 **The Handover Frame Rule.** Where two animations share an element and a
 property, the later one owns that property while it runs — so its first
