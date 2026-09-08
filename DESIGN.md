@@ -849,6 +849,17 @@ actually saw was a logo sitting there too big. An animation whose first
 frame the viewer is not guaranteed to see cannot be the thing that
 explains a size change.
 
+**The artwork fades up; the ground does not.** Android's splash carries
+the app icon at about 300dp, twice the size of the mark here, and cutting
+between them put a large logo on screen and then swapped it for a small
+one. Fading in makes it a dissolve — the big mark leaves with the screen
+it belongs to and this one arrives on its own, so the two are never both
+on screen to be compared. The ground stays opaque from the first frame,
+because it is what hides the map, and it is the same near-black the
+native splash used, which is what makes the seam invisible. This is the
+one entrance in the system that is designed for a frame the viewer might
+join at any point: a fade reads correctly from anywhere inside it.
+
 **The arc is the progress.** There is no spinner beside the mark, and no bar
 under it, because the ring is both — a dial filling is a thing that is
 filling. That is the whole idea, and everything else on the screen is
@@ -856,11 +867,13 @@ arranged to let it read.
 
 | | |
 |---:|---|
-| 0.00 | ring draws |
-| 0.45 | ticks |
-| 0.55 | arrow rises, springs onto heading, settles by 1.30 |
-| 0.90 | arc begins closing |
-| 1.15 / 1.55 | wordmark, then tagline |
+| 0.00 | artwork begins fading up on an already-opaque ground |
+| 0.25 | ring draws |
+| 0.60 | artwork fully in |
+| 0.70 | ticks |
+| 0.80 | arrow rises, springs onto heading, settles by 1.55 |
+| 1.15 | arc begins closing |
+| 1.40 / 1.80 | wordmark, then tagline |
 | 5.40 | artwork leaves |
 | 5.68 | ground begins fading |
 | 6.00 | gone |
