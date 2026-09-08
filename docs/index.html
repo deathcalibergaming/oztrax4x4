@@ -2150,7 +2150,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    picture of one. It replaces a ridge line with a summit dot, which was a
    walking mark on a driving product.
 
-   One authored idea carries the whole eight seconds: the ring is the
+   One authored idea carries the whole six seconds: the ring is the
    progress. It draws itself, the arrow rises and settles into it, and then
    the orange arc closes around the dial until the circle is complete and
    the splash lifts. Nothing is a spinner sitting next to a logo, because
@@ -2172,7 +2172,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    into the map, rather than the logo dissolving over it. */
 #splash{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:0;background:var(--ink);
-  animation:sp-ground .38s ease-in 7.62s forwards}
+  animation:sp-ground .38s ease-in 5.62s forwards}
 /* A separate keyframe name from the timed exit, not the same one at a
    shorter duration. Restating an animation that is already running keeps
    its elapsed time, so a tap two seconds in found the .25s skip long
@@ -2181,7 +2181,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    starts from zero however late the tap comes. */
 #splash.go{animation:sp-skip .28s ease-in forwards}
 /* Its own name for the same reason #splash.go has one: reusing sp-leave
-   inherited the elapsed time of the copy already waiting on its 7.4s
+   inherited the elapsed time of the copy already waiting on its 5.4s
    delay, so a tap threw the artwork straight to the last keyframe and it
    vanished in a frame instead of leaving. Caught by measuring the stage's
    opacity 60ms into a 200ms animation and finding it already at zero. */
@@ -2196,7 +2196,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    viewer. Out, not away: it leaves through the screen the map arrives
    on. */
 .sp-stage{display:flex;flex-direction:column;align-items:center;
-  animation:sp-leave .26s cubic-bezier(.55,0,.85,.4) 7.4s forwards}
+  animation:sp-leave .26s cubic-bezier(.55,0,.85,.4) 5.4s forwards}
 @keyframes sp-leave{
   0%{opacity:1;transform:scale(1) translateY(0)}
   22%{opacity:1;transform:scale(.982) translateY(3px)}
@@ -2208,39 +2208,26 @@ input[type=date],input[type=time]{color-scheme:dark}
 
 /* It opens at the size the screen before it was showing.
 
-   Android puts its own splash in front of the web content, and in a TWA
-   that is the manifest icon on the background colour at roughly 300dp -
-   about eighty per cent of a phone's width, against the 158px this mark
-   rests at. Two splashes at half the scale of each other, back to back,
-   is what "a really large logo" was: the native one is not a bug, it is
-   just first, and the size it hands over at is the size we have to catch.
+   The mark is simply its own size, and there was a scale-in here that
+   tried to catch the native splash's ~300dp by opening at 1.85x and
+   settling. It came out as a logo that sits there huge, which is the one
+   thing it was added to prevent, and the reason is that its start is not
+   ours to choose.
 
-   So the mark arrives at 1.85x and settles, which turns the jump into the
-   logo coming to rest. The ring draws around it while it settles. Same
-   spring as the needle at a higher damping, because this one is catching
-   something rather than swinging onto a heading - it dips two per cent
-   under and comes back, where a visible bounce here would read as a
-   second animation rather than the end of the first. */
-.sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block;
-  transform-origin:50% 50%;animation:sp-settle .85s linear forwards}
-@keyframes sp-settle{
-  0%{transform:scale(1.85)}
-  5%{transform:scale(1.752)}
-  10%{transform:scale(1.559)}
-  15%{transform:scale(1.363)}
-  20%{transform:scale(1.207)}
-  25%{transform:scale(1.098)}
-  30%{transform:scale(1.032)}
-  35%{transform:scale(.997)}
-  40%{transform:scale(.983)}
-  45%{transform:scale(.98)}
-  50%{transform:scale(.983)}
-  55%{transform:scale(.988)}
-  60%{transform:scale(.992)}
-  65%{transform:scale(.996)}
-  70%{transform:scale(.998)}
-  75%{transform:scale(.999)}
-  100%{transform:scale(1)}}
+   The page begins animating when the WebView renders it. Android reveals
+   that WebView when it is ready to, which is after its own splash has had
+   its time - so the settle can be half over, fully over, or barely begun
+   at the moment anybody first sees the screen. An animation whose first
+   frame the viewer is not guaranteed to see cannot be the thing that
+   explains a size change; played late it is a logo shrinking for no
+   reason, and caught early it is a logo that is simply too big. Running
+   it at 60fps would not have helped, because the problem was never the
+   frame rate - it was which frame arrives first.
+
+   So the mark holds one size, and the handover from the native splash is
+   a cut. Cuts between two compositions are what every app does at this
+   moment, and a cut cannot be mistimed. */
+.sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block}
 /* The dial face. Drawn once, then held: it is the ground the arc runs on. */
 .sp-ring{fill:none;stroke:rgba(216,203,170,.18);stroke-width:1.5;
   stroke-dasharray:289.03;stroke-dashoffset:289.03;
@@ -2248,11 +2235,11 @@ input[type=date],input[type=time]{color-scheme:dark}
 .sp-ticks{fill:none;stroke:var(--dim);stroke-width:1.5;stroke-linecap:round;
   opacity:0;animation:sp-fade .5s ease-out .45s forwards}
 .sp-ticks.maj{stroke-width:2;stroke:var(--sand)}
-/* The eight seconds, drawn. Linear, because it is time and not an arrival. */
+/* The six seconds, drawn. Linear, because it is time and not an arrival. */
 .sp-arc{fill:none;stroke:var(--rust2);stroke-width:3;stroke-linecap:round;
   stroke-dasharray:289.03;stroke-dashoffset:289.03;
   transform:rotate(-90deg);transform-origin:64px 64px;
-  animation:sp-draw 6.5s linear .9s forwards}
+  animation:sp-draw 4.5s linear .9s forwards}
 /* Rises, turns onto its heading, then holds it with the small corrections a
    compass makes on a road that is not smooth. */
 .sp-arrow{fill:var(--rust);transform-origin:64px 64px;opacity:0;
@@ -2363,7 +2350,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      just does not take a fifth of a second about it. */
   #btnMenu svg path{transition:none}
   #btnMenu:active svg path{transform:none}
-  /* The splash keeps its eight seconds and loses its travel. What goes is
+  /* The splash keeps its six seconds and loses its travel. What goes is
      the turning, the rising and the drift - movement that was character.
      What stays is the arc closing around the dial, because that is not
      decoration: it is the only thing on the screen saying how much of the
@@ -2373,19 +2360,14 @@ input[type=date],input[type=time]{color-scheme:dark}
      what stops the wordmark ghosting across the map rather than a piece
      of character - a dissolve is no easier to read for being still. What
      goes is the travel: the stage fades where it used to lift away. */
-  #splash{animation:sp-fade-out .38s ease-out 7.62s forwards}
+  #splash{animation:sp-fade-out .38s ease-out 5.62s forwards}
   #splash.go{animation:sp-skip-flat .2s ease-out forwards}
   @keyframes sp-fade-out{to{opacity:0;visibility:hidden}}
   @keyframes sp-skip-flat{to{opacity:0;visibility:hidden}}
-  .sp-stage{animation:sp-leave-flat .22s ease-in 7.4s forwards}
+  .sp-stage{animation:sp-leave-flat .22s ease-in 5.4s forwards}
   #splash.go .sp-stage{animation:sp-leave-flat-fast .16s ease-in forwards}
   @keyframes sp-leave-flat{to{opacity:0}}
   @keyframes sp-leave-flat-fast{to{opacity:0}}
-  /* The mark is simply the size it is. The settle exists to catch the
-     native splash's scale, and catching it by travelling is the part that
-     goes; arriving at rest is still a correct handover, just an abrupt
-     one. */
-  .sp-mark{animation:none;transform:none}
   .sp-ring{stroke-dashoffset:0;animation:none}
   .sp-ticks{animation:sp-fade .4s ease-out .2s forwards}
   .sp-arrow{animation:sp-fade .5s ease-out .4s forwards}
@@ -2424,7 +2406,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 
    The CSS owns the dismissal, so the splash still clears on time if this
    never runs. All this adds is the skip and taking the node out of the tree
-   afterwards, so eight seconds of finished animation cannot sit on top of
+   afterwards, so six seconds of finished animation cannot sit on top of
    the map swallowing the first press of a button. */
 (function () {
   var el = document.getElementById("splash");
@@ -2444,7 +2426,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      can have its animations throttled or never fire animationend at all, and
      coming back to a phone holding a dead splash over the map is worse than
      any timing being a fraction out. */
-  setTimeout(clear, 8600);
+  setTimeout(clear, 6600);
 })();
 </script>
 

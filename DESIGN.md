@@ -834,11 +834,20 @@ starts from something already on screen rather than beside it.
 
 ### Splash
 
-The one authored moment, and the only place this system springs. Eight
+The one authored moment, and the only place this system springs. Six
 seconds on a near-black ground: the bearing ring draws itself, the arrow
 rises and springs onto its heading, the wordmark and tagline arrive under
 it, and a Burnt Orange Lit arc closes around the ring until the circle is
 complete and the screen leaves.
+
+**The mark holds one size.** A scale-in that opened at the native splash's
+scale and settled into place was tried and removed. The page starts
+animating when the WebView renders it, and Android reveals that WebView
+when it is ready to — so the settle could be half over, fully over, or
+barely begun at the moment anybody first saw the screen, and what people
+actually saw was a logo sitting there too big. An animation whose first
+frame the viewer is not guaranteed to see cannot be the thing that
+explains a size change.
 
 **The arc is the progress.** There is no spinner beside the mark, and no bar
 under it, because the ring is both — a dial filling is a thing that is
@@ -852,9 +861,9 @@ arranged to let it read.
 | 0.55 | arrow rises, springs onto heading, settles by 1.30 |
 | 0.90 | arc begins closing |
 | 1.15 / 1.55 | wordmark, then tagline |
-| 7.40 | artwork leaves |
-| 7.68 | ground begins fading |
-| 8.00 | gone |
+| 5.40 | artwork leaves |
+| 5.68 | ground begins fading |
+| 6.00 | gone |
 
 Sized in `vmin` and fixed px rather than in `--uiScale`, which is the one
 place in this system that is right: the splash paints before any script has
@@ -899,10 +908,19 @@ nothing that runs while the vehicle is moving may be.
 
 **The One Performance Rule.** The interface may perform exactly once, at the
 door, and never again. The splash is authored: a ring draws, a needle
-springs onto its heading, an arc closes over eight seconds. Everything after
+springs onto its heading, an arc closes over six seconds. Everything after
 it acknowledges, explains or reports, and nothing after it entertains. The
 test is not how loud the motion is but when it runs — if a driver could be
 moving while it plays, it is not allowed to be a performance.
+
+**The Unwitnessed First Frame Rule.** An animation whose first frame the
+viewer is not guaranteed to see cannot be the thing that explains a change.
+Anything running while the app is still being revealed — the splash under a
+native one, a panel behind a system sheet — may be joined half way through,
+so it has to read correctly from any frame, or not move at all. A scale-in
+that was meant to catch the native splash's size and settle was seen only
+as a logo sitting there too big; the frame rate was never the problem, it
+was which frame arrived first.
 
 **The Two Beats Rule.** A full-screen overlay leaves in two beats, not one.
 Fading the whole thing at once puts the artwork and what is behind it on
