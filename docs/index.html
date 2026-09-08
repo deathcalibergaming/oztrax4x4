@@ -3414,21 +3414,27 @@ function toast(msg, kind) {
     '<path d="M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35" fill="none" stroke="#D8CBAA" stroke-opacity=".72" stroke-width="1.5" stroke-linecap="round"/>' +
     '<path d="M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z" fill="#CC5A2E"/></svg>';
   const iconURL = "data:image/svg+xml;base64," + btoa(icon);
-  /* standalone, not fullscreen. PWABuilder reads this field, and fullscreen
-     is what makes it write DISPLAY_MODE = "immersive" into the Android
-     package - the one non-default in the whole generated manifest, and the
-     best candidate for why the TWA splash never reaches Chrome. Without that
-     handoff Chrome comes up bare, and the Custom Tab toolbar - close button,
-     address bar and all - sits on screen for half a second while the asset
-     links verify.
+  /* fullscreen, which is what makes PWABuilder write DISPLAY_MODE = "immersive"
+     into the Android package. Immersive is what hides the status bar and the
+     navigation buttons, and a map wants the whole screen.
 
-     It was never buying anything either. A launch recording shows the status
-     bar and the nav bar drawn in every single frame, so fullscreen was asking
-     for a mode the installed app was not in. */
+     Briefly standalone, on the theory that immersive was why the TWA splash never
+     reaches Chrome and its toolbar shows during launch. It is not. The two
+     packages carry byte-identical splash configuration - SPLASH_IMAGE_DRAWABLE,
+     the background colour, the fade duration, a FILE_PROVIDER_AUTHORITY matching
+     the provider it names, and a paths file declaring twa_splash/ - and Chrome
+     still drew its loading bar with immersive gone. What actually cleared the
+     address bar was Chrome caching the asset-link verification after a launch or
+     two, which happens on its own.
+
+     Do not read system-bar state off a screen recording. The recorder composites
+     the status bar into the capture whether the app is showing it or not, which is
+     how this got switched away on the strength of frames showing bars in an app
+     that was hiding them. */
   const manifest = {
     name: "OzTrax Recon", short_name: "OzTrax Recon",
     description: "Offline 4x4 trail tracking, waypoints and GPX logging.",
-    start_url: ".", scope: ".", display: "standalone", orientation: "any",
+    start_url: ".", scope: ".", display: "fullscreen", orientation: "any",
     background_color: "#14181B", theme_color: "#14181B",
     icons: [
       { src: iconURL, sizes: "512x512", type: "image/svg+xml", purpose: "any" },
