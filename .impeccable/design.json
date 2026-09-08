@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-08T22:30:42.570Z",
+  "generatedAt": "2026-09-08T23:22:18.460Z",
   "title": "Design System: OzTrax Recon",
   "extensions": {
     "colorMeta": {
@@ -409,6 +409,11 @@
         "name": "splash-hold",
         "value": "3.8s ease-in-out at 1.6s, one pass, 0 → -1.6° → +1.6° → 0",
         "purpose": "The needle keeping the heading it settled on. Opens and closes on rotate(0) because the later of two animations on one element owns the property, so a drift starting at -1.6deg threw the spring off its bearing in the frame after it landed. One pass, ending as the artwork leaves."
+      },
+      {
+        "name": "splash-settle",
+        "value": ".8s cubic-bezier(.16,1,.3,1) at 1.4s, half the text block",
+        "purpose": "The composition sitting where its visible content is centred. The wordmark and tagline hold their space from the first frame, so the mark starts low by half that block and rises out of it as the wordmark arrives. On its own element, never in the stage’s animation list, because a tap replaces that list and would snap the artwork up mid-move."
       }
     ],
     "breakpoints": [

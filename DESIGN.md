@@ -865,6 +865,23 @@ under it, because the ring is both — a dial filling is a thing that is
 filling. That is the whole idea, and everything else on the screen is
 arranged to let it read.
 
+**The composition sits where its visible content is centred.** The wordmark
+and the tagline hold their space from the first frame, because they fade in
+rather than appear — so the mark spent the first 1.4 seconds sitting half a
+text block above the middle of the screen with nothing under it, which reads
+as a mark placed wrong rather than a composition still assembling. The set now
+starts low by exactly that half block and rises out of it as the wordmark
+arrives. The offset is stated in CSS from the same clamps the elements use, so
+it holds at every width: 37.75 / 38.28 / 50.70px at vmin 320 / 375 / 986,
+checked against the page.
+
+It is allowed to move at all because every frame of it is a correct picture:
+the mark alone is centred, the mark with the wordmark coming up under it is in
+between, all three are centred. That is the test The Unwitnessed First Frame
+Rule sets, and a rise passes it where a scale-in did not. It also improves the
+handover, because Android’s splash has its icon dead centre and now so does the
+first frame of this one.
+
 **The dial has one origin, and the arrival gets a beat.** A circle in SVG
 starts at three o’clock, so left alone the face drew itself from the east and
 the progress then filled from the top: two strokes on one circle beginning in
@@ -887,6 +904,7 @@ is an instrument being switched off rather than one completing.
 | 0.80 | arrow rises, springs onto heading, settles by 1.55 |
 | 1.15 | arc begins closing, from the point the ring drew from |
 | 1.40 / 1.80 | wordmark, then tagline |
+| 1.40 → 2.20 | the set rises out of the space the wordmark arrives in |
 | 5.25 | the circle closes, and is held closed |
 | 5.40 | artwork leaves |
 | 5.68 | ground begins fading |
