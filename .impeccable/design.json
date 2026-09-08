@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-04T01:26:53.847Z",
-  "title": "Design System: TrailTracker",
+  "generatedAt": "2026-09-08T13:19:43.563Z",
+  "title": "Design System: OzTrax Recon",
   "extensions": {
     "colorMeta": {
       "near-black": {
@@ -369,6 +369,26 @@
         "name": "scrim",
         "value": "opacity .22s ease",
         "purpose": "The scrim behind the drawer."
+      },
+      {
+        "name": "splash-spring",
+        "value": "mass 1, stiffness 170, damping 16 (8.7% overshoot, settles 0.51s)",
+        "purpose": "The needle springing onto its heading. Sampled to keyframes and played linear so the curve in the numbers is the curve on screen. The only spring in the system - a bezier cannot cross its own end value, so it can ease onto a heading but never swing past it and come back."
+      },
+      {
+        "name": "splash-total",
+        "value": "8s",
+        "purpose": "The whole splash, door to map. The arc closes at 7.40s and the ground has finished fading at 8.00s."
+      },
+      {
+        "name": "splash-exit",
+        "value": "artwork .26s cubic-bezier(.55,0,.85,.4) at 7.40s, then ground .38s ease-in at 7.62s",
+        "purpose": "Two beats, never one. Content leaves first so the last stretch is a plain surface dissolving into the map with nothing on it to ghost."
+      },
+      {
+        "name": "splash-skip",
+        "value": ".25s",
+        "purpose": "A tap dismisses. Its keyframes carry their own names, or the interrupted animation's elapsed time throws the element to its last frame."
       }
     ],
     "breakpoints": [
@@ -505,11 +525,27 @@
       "description": "The app reporting what it currently knows, and its text changes: \"No home set\", \"696 South Australian sites, updated 2026-09-04\", a Wake Lock refusal. Meta size, lightly tracked, with tabular figures so an updating count does not shuffle the line. It used to be told from a note by its face; now that both are in the interface face, size and tracking carry it — a status is the quieter of the two, because it is the app talking about itself rather than to you.",
       "html": "<div class=\"poi-status\">696 South Australian sites, updated 2026-09-04</div>",
       "css": ".poi-status{font-variant-numeric:tabular-nums;font-size:var(--t-meta);letter-spacing:.05em;\n  line-height:1.5;color:var(--dim);padding:7px 2px 3px}"
+    },
+    {
+      "name": "The Mark",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "A heading arrow inside a bearing ring. Not a drawing of the product - a part of it, lifted: the arrow path is the one the map already draws at your position. One 128 grid serves the splash, both PNG icons and the inline manifest fallback, with the ring at 72% of the box so it survives a maskable crop.",
+      "html": "<svg class=\"ds-mark\" viewBox=\"0 0 128 128\" width=\"128\" height=\"128\"><rect width=\"128\" height=\"128\" rx=\"24\" fill=\"#14181B\"/><circle cx=\"64\" cy=\"64\" r=\"46\" fill=\"none\" stroke=\"#D8CBAA\" stroke-opacity=\".28\" stroke-width=\"1.5\"/><path d=\"M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64\" fill=\"none\" stroke=\"#D8CBAA\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35\" fill=\"none\" stroke=\"#D8CBAA\" stroke-opacity=\".72\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><path d=\"M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z\" fill=\"#CC5A2E\"/></svg>",
+      "css": ".ds-mark{display:block;width:128px;height:128px}"
+    },
+    {
+      "name": "Splash",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "The one authored moment in the system, and the only place it springs. The bearing ring draws, the arrow springs onto its heading, and a Burnt Orange Lit arc closes around the ring over eight seconds. The arc is the progress - there is no spinner beside the mark and no bar under it, because the ring is both.",
+      "html": "<div class=\"ds-splash\"><svg class=\"ds-splash-mark\" viewBox=\"0 0 128 128\"><circle class=\"ds-splash-ring\" cx=\"64\" cy=\"64\" r=\"46\"/><path class=\"ds-splash-ticks\" d=\"M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64\"/><circle class=\"ds-splash-arc\" cx=\"64\" cy=\"64\" r=\"46\"/><path class=\"ds-splash-arrow\" d=\"M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z\"/></svg><div class=\"ds-splash-word\"><span>OzTrax</span><b>Recon</b></div><div class=\"ds-splash-tag\">Explore The Roads Least Travelled</div></div>",
+      "css": ".ds-splash{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#14181B;padding:40px 24px;border-radius:10px}.ds-splash-mark{width:150px;height:150px;display:block}.ds-splash-ring{fill:none;stroke:rgba(216,203,170,.18);stroke-width:1.5}.ds-splash-ticks{fill:none;stroke:#D8CBAA;stroke-width:2;stroke-linecap:round}.ds-splash-arc{fill:none;stroke:#DC8767;stroke-width:3;stroke-linecap:round;stroke-dasharray:289.03;stroke-dashoffset:72;transform:rotate(-90deg);transform-origin:64px 64px;animation:ds-splash-draw 6.5s linear infinite}@keyframes ds-splash-draw{from{stroke-dashoffset:289.03}to{stroke-dashoffset:0}}.ds-splash-arrow{fill:#CC5A2E;transform-origin:64px 64px}.ds-splash-word{margin-top:22px;display:flex;align-items:baseline;gap:.34em;font-size:21px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#D8CBAA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.ds-splash-word b{color:#DC8767;font-weight:700}.ds-splash-tag{margin-top:11px;font-size:12px;letter-spacing:.03em;color:rgba(216,203,170,.72);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}"
     }
   ],
   "narrative": {
     "northStar": "The Instrument Cluster",
-    "overview": "TrailTracker is fitted to a vehicle, not added to a website. The two bars\nthat frame the map are an instrument face: labelled, unit-suffixed, and read\nat a glance by someone whose eyes belong on the track. The readings in the\nupper bar are the one place the app spends a second typeface, because a\nnumber redrawn four times a second has to stay in its column. The map between\nthem is the windscreen. Everything else — panels, popups, pins — is an object\nresting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground\nis a near-black with green in it, not a neutral grey; the text is a warm sand\nrather than white; the accent is a burnt orange that belongs to oxide and\nochre. Panel faces carry a shallow bevel and a hairline along their edge, so\na surface reads as a face with an edge rather than a rectangle with a fill.\nThe result should feel like well-kept equipment — a logbook, a marked map, a\ndash that has been in the sun — not like software with a dark theme switched\non.\n\nRestraint is the operating principle. Controls are precise and quiet so the\nmap and the readings lead; colour is used to classify, not to decorate; and\nthe interface says plainly when it does not know something rather than\nmaintaining a confident surface. Confirmed anti-references: consumer nav apps\n(rounded white cards, blue accents, floating pill search bars) and generic\ndark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient\nshadow everywhere).",
+    "overview": "OzTrax Recon is fitted to a vehicle, not added to a website. The two bars\nthat frame the map are an instrument face: labelled, unit-suffixed, and read\nat a glance by someone whose eyes belong on the track. The readings in the\nupper bar are the one place the app spends a second typeface, because a\nnumber redrawn four times a second has to stay in its column. The map between\nthem is the windscreen. Everything else — panels, popups, pins — is an object\nresting on that view, never a page the map happens to be printed on.\n\nThe materials are warm and analogue rather than machined and cold. The ground\nis a near-black with green in it, not a neutral grey; the text is a warm sand\nrather than white; the accent is a burnt orange that belongs to oxide and\nochre. Panel faces carry a shallow bevel and a hairline along their edge, so\na surface reads as a face with an edge rather than a rectangle with a fill.\nThe result should feel like well-kept equipment — a logbook, a marked map, a\ndash that has been in the sun — not like software with a dark theme switched\non.\n\nRestraint is the operating principle. Controls are precise and quiet so the\nmap and the readings lead; colour is used to classify, not to decorate; and\nthe interface says plainly when it does not know something rather than\nmaintaining a confident surface. Confirmed anti-references: consumer nav apps\n(rounded white cards, blue accents, floating pill search bars) and generic\ndark-mode SaaS (purple gradients, glassmorphism, large radii, soft ambient\nshadow everywhere).",
     "keyCharacteristics": [
       "Warm dark ground with sand text; never grey-on-grey",
       "One interface face throughout, with tabular figures wherever numbers stack; monospace is kept for the two gauges alone",
@@ -521,7 +557,7 @@
     "rules": [
       {
         "name": "The Full Sun Rule",
-        "body": "The two instrument bars use Instrument White (`#FFFFFF`), not sand, and their labels and units use it too. Even Warm Sand at full strength is a warm off-white, and a reading taken at 80 km/h through sunglasses cannot afford the difference. Size and weight separate a label from its number, so nothing is lost by taking colour out of that job. Any new element read at speed inherits this rule. The rule runs the whole ramp, not just the bars. Everything below them is read at a stop rather than at speed, but it is read in the same light, so every text colour in the system clears 4.5:1 against the surface it is set on and every control border clears 3:1. Nothing is exempt for being small, secondary, or a caption; small type is the type that needs it most.",
+        "body": "The two instrument bars use Instrument White (`#FFFFFF`), not sand, and their labels and units use it too. Even Warm Sand at full strength is a warm off-white, and a reading taken at 80 km/h through sunglasses cannot afford the difference. Size and weight separate a label from its number, so nothing is lost by taking colour out of that job. Any new element read at speed inherits this rule.",
         "section": "colors"
       },
       {
@@ -536,7 +572,7 @@
       },
       {
         "name": "The Ink On Fill Rule",
-        "body": "A solid accent fill needs a word to sit on it somewhere — Save, Go, Pause, Delete — and neither the fill colour nor its lit twin can carry that word: the lit twin exists precisely so the accent can be read as a small mark or a line of text on a dark ground, not so it can read as ink on top of its own, brighter self. So the ink goes the other way instead: near-black, tinted a few degrees toward the fill under it, never plain black. Burnt Orange takes #12100E, Signal Green #12160B, Caution Yellow #171204, Alert Red #170B08 — four different blacks, each one degree warmer or cooler than the last, so a button face and its label never fight for which of them is actually the colour.",
+        "body": "A solid accent fill needs a word to sit on it somewhere — Save, Go, Pause, Delete — and neither the fill colour nor its lit twin can carry that word: the lit twin exists precisely so the accent can be read as a small mark or a line of text on a dark ground, not so it can read as ink on top of its own, brighter self. So the ink goes the other way instead: near-black, tinted a few degrees toward the fill under it, never plain black. Burnt Orange takes `#12100E`, Signal Green `#12160B`, Caution Yellow `#171204`, Alert Red `#170B08` — four different blacks, each one degree warmer or cooler than the last, so a button face and its label never fight for which of them is actually the colour.",
         "section": "colors"
       },
       {
@@ -546,28 +582,28 @@
       },
       {
         "name": "The Named Step Rule",
-        "section": "typography",
-        "body": "A type token is named for the job, never for the number. The ramp used to be twenty steps called --f8 through --f26, and naming a step after its value is what let the system come apart: --f12 and --f125 look equally reasonable when you are adding a panel header, so four panel headers ended up at four sizes half a pixel apart, prose appeared at six sizes, and the two rows read at 80km/h disagreed about how big a label is. A difference nobody can see is not hierarchy — it is drift, and a step that says what it is for cannot be picked that way. Where two jobs genuinely want the same size they take a name each and share a value, so one can move later without dragging the other with it."
+        "body": "A type token is named for the job, never for the number. The ramp used to be twenty steps called `--f8` through `--f26`, and naming a step after its value is what let the system come apart: `--f12` and `--f125` look equally reasonable when you are adding a panel header, so four panel headers ended up at four sizes half a pixel apart, prose appeared at six sizes, and the two rows read at 80km/h disagreed about how big a label is. A difference nobody can see is not hierarchy — it is drift, and a step that says what it is for cannot be picked that way. Where two jobs genuinely want the same size they take a name each and share a value, so one can move later without dragging the other with it.",
+        "section": "typography"
       },
       {
         "name": "The Monospace Rule",
-        "body": "The app has one face. Monospace is spent on two rules — the stat bar's readings and the navigation panel's figures — and nowhere else.\n\nThat is a narrower rule than it used to be, and the reasoning is what narrowed it. Monospace was doing two jobs at once: holding a column still, and marking something as a value. Only the first job needs a second typeface, and only the gauges need the first job — a speed going 99 to 100 four times a second must not shove the heading beside it. Everywhere else the number is redrawn when you open a panel, not while you are reading it, so what it needs is digits of one width, not a face of one width. `font-variant-numeric: tabular-nums` gives exactly that in the interface face, and the second job — saying \"this is a value\" — was always being done better by size, tracking and colour anyway.\n\nSo: wherever numbers stack, line up, or update, use tabular figures. Card meta, key/value rows, prices, counts, coordinates, timestamps, the battery pill, the download tally. Reach for --mono only if you are building a third gauge.\n\nThe rule is about the face, so it holds for inherited faces too. `button` inherits its family, which is right for a size and wrong for a family: nine settings toggles once sat inside a monospaced row label and came out monospaced, beside two buttons on the next row that did not. `.btn` states --ui rather than inheriting it, so a control label cannot pick up a face from whatever it happens to sit in, and no button is a gauge.",
+        "body": "The app has one face. Monospace is spent on two rules — the stat bar's readings and the navigation panel's figures — and nowhere else.",
         "section": "typography"
       },
       {
         "name": "The Shouting Labels Rule",
-        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.\n\nWhat a control is called is a label. What a control is about is content, and content keeps its own case: a POI filter chip says \"Free camp\", not \"FREE CAMP\", because that is the name of a kind of place and it is the same name on the pin and in the popup.",
+        "body": "Every control label is uppercase with tracking of at least .09em. Tracking widens as type shrinks, so an 8.5px gauge label tracks further than a 13px heading.",
         "section": "typography"
       },
       {
         "name": "The Instrument Label Rule",
-        "body": "There are two button-label scenes, chosen by where the control is used rather than by any property of the button itself — the same split --tap and --tap-sm already make for touch targets. Micro is for a control read while the vehicle is moving: the stat bar, the action bar, at one size across both, in both orientations. Label is for a control reached at a stop: the drawer, dialogs, panels. The same button never needs to ask which one it is, because it never leaves its scene.",
+        "body": "There are two button-label scenes, chosen by where the control is used rather than by any property of the button itself — the same split `--tap` and `--tap-sm` already make for touch targets. Micro is for a control read while the vehicle is moving: the stat bar, the action bar, at one size across both, in both orientations. Label is for a control reached at a stop: the drawer, dialogs, panels. The same button never needs to ask which one it is, because it never leaves its scene.",
         "section": "typography"
       },
       {
         "name": "The Leading Rule",
-        "section": "typography",
-        "body": "Sand on near-black wants a little more air between lines than dark ink on white does, so prose leads at 1.4 on body and 1.45 on the note-sized roles, and the smallest prose in the app — the attribution — gets 1.5. The instrument bars and the action rail pin their own 1.15: a gauge is not a paragraph, the cell is 56px, and leading the three lines in it like prose pushes the unit through the floor of the bar."
+        "body": "Sand on near-black wants a little more air between lines than dark ink on white does, so prose leads at 1.4 on `body` and 1.45 on the note-sized roles, and the smallest prose in the app — the attribution — gets 1.5. The instrument bars and the action rail pin their own 1.15: a gauge is not a paragraph, the cell is 56px, and leading the three lines in it like prose pushes the unit through the floor of the bar.",
+        "section": "typography"
       },
       {
         "name": "The One Screen Rule",
@@ -585,8 +621,13 @@
         "section": "layout"
       },
       {
+        "name": "The Frozen Layer Rule",
+        "body": "Pinch does nothing anywhere in this app, and has to do nothing. Browser page zoom is off and Leaflet's `touchZoom` is off, for one reason with two faces. The shell is `position: fixed` across the viewport with two full-screen `will-change: transform` layers under the map, so a pinch magnifies a frozen layer rather than reflowing anything — and forces both promoted layers to re-rasterise mid-gesture, which flashes and drops to the stage's near-black on real hardware. Making type bigger here is the app's own job, and Settings carries it: Text Size, at 1 or 1.15.",
+        "section": "layout"
+      },
+      {
         "name": "The Two Hands Rule",
-        "body": "Every control is sized from `--tap` (44px) or `--tap-sm` (36px), never from a number, and the choice between them is the scene rather than the screen: `--tap` for what is pressed while the vehicle is moving — the map controls, the action rail, the navigation panel, a popup's buttons — and `--tap-sm` for what is pressed at a stop, which is the drawer, the settings and the cards. A control that will not read right at 44px keeps its shape and grows an invisible target instead; the switch is 48×28 with a 64×44 hit area. Coarse is the base, because the vehicle is the base. `(pointer: fine)` hands the density back for the desk, where the trip gets planned and where a pointer lands exactly where it is put. Never key this off viewport width: a phone held in landscape is still a thumb, and a touchscreen laptop is still a mouse.",
+        "body": "Every control is sized from `--tap` (44px) or `--tap-sm` (36px), never from a number, and the choice between them is the scene rather than the screen: `--tap` for what is pressed while the vehicle is moving — the map controls, the action rail, the navigation panel, a popup's buttons — and `--tap-sm` for what is pressed at a stop, which is the drawer, the settings and the cards. A control that will not read right at 44px keeps its shape and grows an invisible target instead; the switch is 48×28 with a 64×44 hit area.",
         "section": "layout"
       },
       {
@@ -597,7 +638,7 @@
       {
         "name": "The Above The Map Rule",
         "body": "Anything drawn over the map casts a shadow from this vocabulary. Anything inside a panel does not — it uses the surface ramp and the bevel instead.",
-        "section": "elevation & depth"
+        "section": "elevation-depth"
       },
       {
         "name": "The Mine Versus Mapped Rule",
@@ -608,34 +649,64 @@
         "name": "The Tight Corner Rule",
         "body": "No radius exceeds 10px on a surface that stays a rectangle at that radius. Large radii read as a consumer app and are out of character with the instrument face. The status pill and the map chips are not an exception to this — a capsule whose radius has closed into a stadium is a different shape, not a rectangle wearing a bigger number, and this rule has no opinion on it. It has an opinion on the next control that is tempted to round a card or a panel past 10px and call itself a pill to get there.",
         "section": "shapes"
+      },
+      {
+        "name": "The Borrowed Glyph Rule",
+        "body": "The mark is the app's own arrow, and if the arrow on the map changes the mark changes with it. Any future identity work starts from something already on screen rather than beside it.",
+        "section": "components"
+      },
+      {
+        "name": "The One Performance Rule",
+        "body": "The interface may perform exactly once, at the door, and never again. The splash is authored: a ring draws, a needle springs onto its heading, an arc closes over eight seconds. Everything after it acknowledges, explains or reports, and nothing after it entertains. The test is not how loud the motion is but when it runs — if a driver could be moving while it plays, it is not allowed to be a performance.",
+        "section": "components"
+      },
+      {
+        "name": "The Two Beats Rule",
+        "body": "A full-screen overlay leaves in two beats, not one. Fading the whole thing at once puts the artwork and what is behind it on screen together at half strength each, which is a dissolve: the splash's wordmark ghosted across a town and the top bar showed through from behind. The content goes first and quickly, then the ground fades on its own, so the last stretch is one plain surface dissolving into another with nothing on it to ghost. This survives reduced motion, because the ghosting is a legibility fault rather than a piece of character.",
+        "section": "components"
+      },
+      {
+        "name": "The Fresh Name Rule",
+        "body": "An animation restated at a new duration keeps the elapsed time of the one already running, so shortening it can throw an element straight to its last keyframe. Give the interrupting variant its own `@keyframes` name. Found twice on the same splash — first on the ground, then again on the artwork — where a tap meant to fade over 250ms cut in a single frame instead.",
+        "section": "components"
+      },
+      {
+        "name": "The Ring Instead Of A Pulse Rule",
+        "body": "Where an animation is the only thing distinguishing two states, reduced motion has to replace it, not remove it. The recording dot pulses when live and sits still when paused; stop the pulse and the two differ by colour alone, which this system forbids everywhere else. Under reduced motion the live dot wears a ring instead. Same information, no movement.",
+        "section": "components"
       }
     ],
     "dos": [
-      "**Do** use Instrument White (`#FFFFFF`) for anything read at speed —",
-      "**Do** give every map overlay a shadow from the vocabulary, and give panel",
-      "**Do** keep radii between 3px and 10px, and draw structure with one-pixel",
-      "**Do** set control labels in uppercase with at least .09em tracking, and",
-      "**Do** size a control from `--tap` or `--tap-sm` rather than a number, and",
-      "**Do** give a destructive control its own end of a row. Size does not fix",
-      "**Do** give numbers tabular figures wherever they stack, line up or update,\n  and say the unit in uppercase beside them (`KM/H`). Monospace is for the two\n  gauges and nothing else.",
-      "**Do** size type from a scale token, never a literal px. A literal is the\n  exception and has to say why it is one.",
-      "**Do** pick that token by the job — `--t-title` for a heading, `--t-note`\n  for a sentence under a control — and add a name rather than a value if the\n  job is genuinely new. A step named for its number invites the next one\n  half a pixel away.",
-      "**Do** lift a mark colour rather than substitute one when it has to carry",
-      "**Do** theme the surfaces the browser would otherwise paint for itself —",
-      "**Do** state absence plainly in the interface — an unmapped road, a stale"
+      "**Do** use Instrument White (`#FFFFFF`) for anything read at speed — values, their labels and their units — and keep every other text colour above 4.5:1 and every control border above 3:1, because the rest of the interface is read in the same light.",
+      "**Do** give every map overlay a shadow from the vocabulary, and give panel internals none.",
+      "**Do** keep radii between 3px and 10px, and draw structure with one-pixel sand transparencies rather than filled dividers.",
+      "**Do** set control labels in uppercase with at least .09em tracking, and widen the tracking as the type shrinks.",
+      "**Do** size a control from `--tap` or `--tap-sm` rather than a number, and pick between them by asking whether it gets pressed while the vehicle is moving.",
+      "**Do** give a destructive control its own end of a row. Size does not fix adjacency; a bigger Delete beside a bigger Go To is the same mistake at a larger scale.",
+      "**Do** give numbers tabular figures wherever they stack, line up or update, and say the unit in uppercase beside them (`KM/H`). Monospace is for the two gauges and nothing else.",
+      "**Do** size type from a scale token, never a literal px. A literal is the exception and has to say why it is one.",
+      "**Do** pick that token by the job — `--t-title` for a heading, `--t-note` for a sentence under a control — and add a name rather than a value if the job is genuinely new. A step named for its number invites the next one half a pixel away.",
+      "**Do** lift a mark colour rather than substitute one when it has to carry a word, and leave the mark itself alone.",
+      "**Do** theme the surfaces the browser would otherwise paint for itself — the selection, the caret, the scrollbar, the focus ring. A system-blue selection belongs to no palette here.",
+      "**Do** give a message that appears and disappears a live region, so what the interface says out loud matches what it shows. The toast is `role=\"status\"`, or `role=\"alert\"` when it is carrying an error.",
+      "**Do** state absence plainly in the interface — an unmapped road, a stale price, a straight-line fallback. A confident surface over missing data is a defect here, not a polish win."
     ],
     "donts": [
-      "**Don't** reach for rounded white cards, blue accents, floating pill search",
-      "**Don't** introduce purple gradients, glassmorphism, large radii or soft",
-      "**Don't** dim text with element `opacity` stacked on an already",
-      "**Don't** let a control take its face from whatever it sits inside. `button`\n  inherits its family, so a label dropped into a row that set one comes out\n  wearing it; state the face on the control.",
-      "**Don't** reach for `--mono` to say \"this is a value\". Size, tracking and\n  colour already say it; the face is for holding a gauge column still, which\n  is a job only the stat bar and the navigation figures have.",
-      "**Don't** use colour as the only difference between a label and its value;",
+      "**Don't** animate anything that could be on screen while the vehicle is moving. The splash is the one performance this system gets, and it gets it because it is over before the map is being read.",
+      "**Don't** put a spinner, a bar or a percentage next to a mark that is already filling. If something on screen is drawing itself to completion, that is the progress indicator; a second one says the first was decoration.",
+      "**Don't** cross-fade a full-screen overlay in one beat. Take the content off first, then the ground, or both surfaces sit on screen at half strength and the result is a dissolve rather than a transition.",
+      "**Don't** reach for rounded white cards, blue accents, floating pill search bars or friendly illustration. That is the phone's built-in map, and it is a confirmed anti-reference.",
+      "**Don't** introduce purple gradients, glassmorphism, large radii or soft ambient shadow. That is dark-mode SaaS, and it is the other confirmed anti-reference.",
+      "**Don't** dim text with element `opacity` stacked on an already transparent colour. The two multiply, and the result is not visible in either value.",
+      "**Don't** put a row of controls in a flex line without `flex-wrap` and `min-width: 0`. A flex item will not shrink below its longest word, so a row that fits at one text size hangs off the edge at a larger one.",
+      "**Don't** let a control take its face from whatever it sits inside. `button` inherits its family, so a label dropped into a row that set one comes out wearing it; state the face on the control.",
+      "**Don't** reach for `--mono` to say \"this is a value\". Size, tracking and colour already say it; the face is for holding a gauge column still, which is a job only the stat bar and the navigation figures have.",
+      "**Don't** use colour as the only difference between a label and its value; size and weight already do that job, and colour is needed for classifying.",
       "**Don't** add a category colour outside the 24-entry scale.",
       "**Don't** put Burnt Orange on more than one control in a view.",
       "**Don't** make the application scroll; put overflow inside a panel.",
-      "**Don't** load a webfont, a script, a stylesheet or anything else from the",
-      "**Don't** give a POI pin a solid outline or a waypoint pin a dashed one —"
+      "**Don't** load a webfont, a script, a stylesheet or anything else from the network into the shell. The map library is embedded in the file for this reason; the file has to open, render and be legible with no connection and no server, from a copy on a stick.",
+      "**Don't** give a POI pin a solid outline or a waypoint pin a dashed one — the silhouettes mean different things."
     ]
   }
 }

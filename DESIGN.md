@@ -1,5 +1,5 @@
 ---
-name: TrailTracker
+name: OzTrax Recon
 description: A warm, analogue instrument cluster for driving remote Australia offline.
 colors:
   near-black: "#14181B"
@@ -169,13 +169,13 @@ components:
     padding: "10px 12px"
 ---
 
-# Design System: TrailTracker
+# Design System: OzTrax Recon
 
 ## Overview
 
 **Creative North Star: "The Instrument Cluster"**
 
-TrailTracker is fitted to a vehicle, not added to a website. The two bars
+OzTrax Recon is fitted to a vehicle, not added to a website. The two bars
 that frame the map are an instrument face: labelled, unit-suffixed, and read
 at a glance by someone whose eyes belong on the track. The readings in the
 upper bar are the one place the app spends a second typeface, because a
@@ -808,22 +808,117 @@ Any new rule inherits this for free by using a size token; there is nothing
 to remember. A literal `font-size` in px is now the exception and should
 carry a comment saying why it does not scale.
 
+### The Mark
+
+A heading arrow inside a bearing ring, in Burnt Orange on the app's own
+ground. It is not a drawing of the product; it is a part of it, lifted. The
+arrow path is the one the map already draws at your position, and the ring
+around it is the dial that arrow would sit in. What the icon shows is what
+the windscreen shows.
+
+Drawn on a 128 grid so one geometry serves the splash, both PNG icons and
+the inline manifest fallback, and none of them can drift from the others.
+The ring is 92 across of that 128 — 72% — which keeps it inside the 80%
+circle a maskable Android icon may be cropped to. Sixteen ticks at 22.5°,
+the four cardinals longer and at full Warm Sand, the twelve between them
+shorter and at Muted Sand, all ending just inside the ring so the dial reads
+as graduated rather than hatched.
+
+It replaced a ridge line with a green summit dot. That mark was legible and
+well made and belonged to a different product: it was a walking mark on
+something you drive.
+
+**The Borrowed Glyph Rule.** The mark is the app's own arrow, and if the
+arrow on the map changes the mark changes with it. Any future identity work
+starts from something already on screen rather than beside it.
+
+### Splash
+
+The one authored moment, and the only place this system springs. Eight
+seconds on a near-black ground: the bearing ring draws itself, the arrow
+rises and springs onto its heading, the wordmark and tagline arrive under
+it, and a Burnt Orange Lit arc closes around the ring until the circle is
+complete and the screen leaves.
+
+**The arc is the progress.** There is no spinner beside the mark, and no bar
+under it, because the ring is both — a dial filling is a thing that is
+filling. That is the whole idea, and everything else on the screen is
+arranged to let it read.
+
+| | |
+|---:|---|
+| 0.00 | ring draws |
+| 0.45 | ticks |
+| 0.55 | arrow rises, springs onto heading, settles by 1.30 |
+| 0.90 | arc begins closing |
+| 1.15 / 1.55 | wordmark, then tagline |
+| 7.40 | artwork leaves |
+| 7.68 | ground begins fading |
+| 8.00 | gone |
+
+Sized in `vmin` and fixed px rather than in `--uiScale`, which is the one
+place in this system that is right: the splash paints before any script has
+run, and the Text Size setting arrives with the script. Reading it here
+would size the mark and then resize it a moment later.
+
+A tap dismisses it in 250ms. The CSS owns the timed dismissal so it still
+clears if the script never runs, and a timer covers a tab backgrounded
+mid-splash and throttled — coming back to a phone holding a dead splash over
+the map is worse than any timing being a fraction out. It carries
+`aria-hidden`, so a screen reader goes to the app rather than waiting out an
+animation.
+
 ### Motion
 
-There is no focal moment and there should not be one. An instrument cluster
-does not perform. Motion here does exactly three jobs: a panel slides so you
-know where it came from, a control changes colour so you know it took the
-press, and the recording dot pulses so you know the track is still running.
+Motion inside the app does exactly three jobs and performs none of them: a
+panel slides so you know where it came from, a control changes colour so you
+know it took the press, and the recording dot pulses so you know the track is
+still running. An instrument cluster does not put on a show for the person
+driving it.
+
+There is one focal moment, and it is at the door. The splash performs — a
+ring drawing itself, a needle springing onto a heading — because it is over
+before the map is being read, and because a product a stranger has just paid
+for is allowed to say what it is once. That exception is bounded by when it
+happens, not by how restrained it is: the splash may be authored, and
+nothing that runs while the vehicle is moving may be.
 
 - **Panels and drawers:** 0.24s on `cubic-bezier(.3,.7,.3,1)`
 - **Controls:** 0.12s on background and border; the press itself is
   `filter: brightness(1.25)` with no transition, because feedback that
   arrives late reads as latency
+- **The splash, and only the splash:** a damped spring at mass 1, stiffness
+  170, damping 16, sampled to keyframes and played `linear` so the curve in
+  the numbers is the curve on screen. It overshoots 8.7% and settles at
+  0.51s. Nothing else in the app springs.
 - **Reduced motion:** spatial movement goes, feedback stays. Panels appear
   rather than travel, the sign stops sliding, the switch knob stops moving
   but still changes colour. This is not a blanket `0.01ms` kill — a driver
   tapping controls that give nothing back is a worse interface, not a
   gentler one.
+
+**The One Performance Rule.** The interface may perform exactly once, at the
+door, and never again. The splash is authored: a ring draws, a needle
+springs onto its heading, an arc closes over eight seconds. Everything after
+it acknowledges, explains or reports, and nothing after it entertains. The
+test is not how loud the motion is but when it runs — if a driver could be
+moving while it plays, it is not allowed to be a performance.
+
+**The Two Beats Rule.** A full-screen overlay leaves in two beats, not one.
+Fading the whole thing at once puts the artwork and what is behind it on
+screen together at half strength each, which is a dissolve: the splash's
+wordmark ghosted across a town and the top bar showed through from behind.
+The content goes first and quickly, then the ground fades on its own, so the
+last stretch is one plain surface dissolving into another with nothing on it
+to ghost. This survives reduced motion, because the ghosting is a legibility
+fault rather than a piece of character.
+
+**The Fresh Name Rule.** An animation restated at a new duration keeps the
+elapsed time of the one already running, so shortening it can throw an
+element straight to its last keyframe. Give the interrupting variant its own
+`@keyframes` name. Found twice on the same splash — first on the ground,
+then again on the artwork — where a tap meant to fade over 250ms cut in a
+single frame instead.
 
 **The Ring Instead Of A Pulse Rule.** Where an animation is the only thing
 distinguishing two states, reduced motion has to replace it, not remove it.
@@ -875,6 +970,15 @@ Same information, no movement.
 
 ### Don't:
 
+- **Don't** animate anything that could be on screen while the vehicle is
+  moving. The splash is the one performance this system gets, and it gets it
+  because it is over before the map is being read.
+- **Don't** put a spinner, a bar or a percentage next to a mark that is
+  already filling. If something on screen is drawing itself to completion,
+  that is the progress indicator; a second one says the first was decoration.
+- **Don't** cross-fade a full-screen overlay in one beat. Take the content
+  off first, then the ground, or both surfaces sit on screen at half
+  strength and the result is a dissolve rather than a transition.
 - **Don't** reach for rounded white cards, blue accents, floating pill search
   bars or friendly illustration. That is the phone's built-in map, and it is
   a confirmed anti-reference.
