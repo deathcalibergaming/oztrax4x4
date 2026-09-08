@@ -2206,7 +2206,41 @@ input[type=date],input[type=time]{color-scheme:dark}
   from{opacity:1;transform:scale(1) translateY(0)}
   to{opacity:0;transform:scale(1.09) translateY(-14px)}}
 
-.sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block}
+/* It opens at the size the screen before it was showing.
+
+   Android puts its own splash in front of the web content, and in a TWA
+   that is the manifest icon on the background colour at roughly 300dp -
+   about eighty per cent of a phone's width, against the 158px this mark
+   rests at. Two splashes at half the scale of each other, back to back,
+   is what "a really large logo" was: the native one is not a bug, it is
+   just first, and the size it hands over at is the size we have to catch.
+
+   So the mark arrives at 1.85x and settles, which turns the jump into the
+   logo coming to rest. The ring draws around it while it settles. Same
+   spring as the needle at a higher damping, because this one is catching
+   something rather than swinging onto a heading - it dips two per cent
+   under and comes back, where a visible bounce here would read as a
+   second animation rather than the end of the first. */
+.sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block;
+  transform-origin:50% 50%;animation:sp-settle .85s linear forwards}
+@keyframes sp-settle{
+  0%{transform:scale(1.85)}
+  5%{transform:scale(1.752)}
+  10%{transform:scale(1.559)}
+  15%{transform:scale(1.363)}
+  20%{transform:scale(1.207)}
+  25%{transform:scale(1.098)}
+  30%{transform:scale(1.032)}
+  35%{transform:scale(.997)}
+  40%{transform:scale(.983)}
+  45%{transform:scale(.98)}
+  50%{transform:scale(.983)}
+  55%{transform:scale(.988)}
+  60%{transform:scale(.992)}
+  65%{transform:scale(.996)}
+  70%{transform:scale(.998)}
+  75%{transform:scale(.999)}
+  100%{transform:scale(1)}}
 /* The dial face. Drawn once, then held: it is the ground the arc runs on. */
 .sp-ring{fill:none;stroke:rgba(216,203,170,.18);stroke-width:1.5;
   stroke-dasharray:289.03;stroke-dashoffset:289.03;
@@ -2347,6 +2381,11 @@ input[type=date],input[type=time]{color-scheme:dark}
   #splash.go .sp-stage{animation:sp-leave-flat-fast .16s ease-in forwards}
   @keyframes sp-leave-flat{to{opacity:0}}
   @keyframes sp-leave-flat-fast{to{opacity:0}}
+  /* The mark is simply the size it is. The settle exists to catch the
+     native splash's scale, and catching it by travelling is the part that
+     goes; arriving at rest is still a correct handover, just an abrupt
+     one. */
+  .sp-mark{animation:none;transform:none}
   .sp-ring{stroke-dashoffset:0;animation:none}
   .sp-ticks{animation:sp-fade .4s ease-out .2s forwards}
   .sp-arrow{animation:sp-fade .5s ease-out .4s forwards}
