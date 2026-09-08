@@ -3400,8 +3400,13 @@ function toast(msg, kind) {
        viewBox rather than restated at 512, so the two cannot drift apart.
        The ring is 92 of 128 across, which sits inside the 80% circle a
        maskable icon may be cropped to. */
+    /* Full bleed, no corner radius. Android masks an icon itself, and the
+       same artwork is what the TWA shows as its splash on this very
+       colour - so a rounded tile leaves the corners to be filled with
+       something, and whatever that something is will not be the ground it
+       is sitting on. Square, and it disappears into it. */
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">' +
-    '<rect width="128" height="128" rx="24" fill="#14181B"/>' +
+    '<rect width="128" height="128" fill="#14181B"/>' +
     '<circle cx="64" cy="64" r="46" fill="none" stroke="#D8CBAA" stroke-opacity=".28" stroke-width="1.5"/>' +
     '<path d="M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64" fill="none" stroke="#D8CBAA" stroke-width="2" stroke-linecap="round"/>' +
     '<path d="M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35" fill="none" stroke="#D8CBAA" stroke-opacity=".72" stroke-width="1.5" stroke-linecap="round"/>' +
