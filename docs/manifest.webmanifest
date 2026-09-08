@@ -4,7 +4,7 @@
   "description": "Offline 4x4 trail tracking, waypoints and GPX logging.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "any",
   "background_color": "#14181B",
   "theme_color": "#14181B",
