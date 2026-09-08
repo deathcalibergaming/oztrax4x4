@@ -2146,19 +2146,52 @@ input[type=date],input[type=time]{color-scheme:dark}
    Sized in vmin and fixed px rather than in --uiScale: this paints before
    any script has run, and the Text Size setting arrives with the script.
    Reading it here would size the mark, then resize it a moment later. */
+/* The exit leaves in two beats, and they do not overlap by much.
+
+   Fading the whole thing at once was a dissolve, not a transition: for
+   six hundred milliseconds the dark ground and the map were both half
+   there, so the wordmark ghosted across Hawker and the top bar showed
+   through the splash from behind it. Nothing was ever one thing.
+
+   So the artwork goes first and quickly, and only then does the ground
+   fade - which means the last third of a second is a plain dark screen
+   dissolving into the map, with nothing on it to ghost. The screen fades
+   into the map, rather than the logo dissolving over it. */
 #splash{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:0;background:var(--ink);
-  animation:sp-out .6s cubic-bezier(.4,0,1,1) 7.4s forwards}
+  animation:sp-ground .38s ease-in 7.62s forwards}
 /* A separate keyframe name from the timed exit, not the same one at a
    shorter duration. Restating an animation that is already running keeps
    its elapsed time, so a tap two seconds in found the .25s skip long
    finished and cut the splash out in a single frame - a hard clip where a
    quick fade was drawn. A different name is a different animation, and
    starts from zero however late the tap comes. */
-#splash.go{animation:sp-skip .25s cubic-bezier(.4,0,1,1) forwards}
+#splash.go{animation:sp-skip .28s ease-in forwards}
+/* Its own name for the same reason #splash.go has one: reusing sp-leave
+   inherited the elapsed time of the copy already waiting on its 7.4s
+   delay, so a tap threw the artwork straight to the last keyframe and it
+   vanished in a frame instead of leaving. Caught by measuring the stage's
+   opacity 60ms into a 200ms animation and finding it already at zero. */
+#splash.go .sp-stage{animation:sp-leave-fast .2s cubic-bezier(.55,0,.85,.4) forwards}
 #splash.gone{display:none}
-@keyframes sp-out{to{opacity:0;transform:scale(1.06);visibility:hidden}}
-@keyframes sp-skip{to{opacity:0;transform:scale(1.04);visibility:hidden}}
+@keyframes sp-ground{to{opacity:0;visibility:hidden}}
+@keyframes sp-skip{to{opacity:0;visibility:hidden}}
+
+/* Everything drawn, held apart from the ground it is drawn on so the two
+   can leave separately. It dips a hair before it goes - the wind-up a
+   spring takes before it releases - then accelerates away from the
+   viewer. Out, not away: it leaves through the screen the map arrives
+   on. */
+.sp-stage{display:flex;flex-direction:column;align-items:center;
+  animation:sp-leave .26s cubic-bezier(.55,0,.85,.4) 7.4s forwards}
+@keyframes sp-leave{
+  0%{opacity:1;transform:scale(1) translateY(0)}
+  22%{opacity:1;transform:scale(.982) translateY(3px)}
+  100%{opacity:0;transform:scale(1.12) translateY(-18px)}}
+/* The skip has no time for the wind-up; it just goes. */
+@keyframes sp-leave-fast{
+  from{opacity:1;transform:scale(1) translateY(0)}
+  to{opacity:0;transform:scale(1.09) translateY(-14px)}}
 
 .sp-mark{width:clamp(150px,42vmin,210px);height:clamp(150px,42vmin,210px);display:block}
 /* The dial face. Drawn once, then held: it is the ground the arc runs on. */
@@ -2176,12 +2209,48 @@ input[type=date],input[type=time]{color-scheme:dark}
 /* Rises, turns onto its heading, then holds it with the small corrections a
    compass makes on a road that is not smooth. */
 .sp-arrow{fill:var(--rust);transform-origin:64px 64px;opacity:0;
-  animation:sp-arrive .8s cubic-bezier(.16,1,.3,1) .55s forwards,
+  animation:sp-arrive .75s linear .55s forwards,
             sp-hold 4.2s ease-in-out 1.35s infinite}
 @keyframes sp-draw{to{stroke-dashoffset:0}}
 @keyframes sp-fade{to{opacity:1}}
-@keyframes sp-arrive{from{opacity:0;transform:rotate(-28deg) scale(.72)}
-  to{opacity:1;transform:rotate(0deg) scale(1)}}
+/* A real spring, not a bezier standing in for one: a damped harmonic
+   oscillator at mass 1, stiffness 170, damping 16, sampled to keyframes
+   and played linear so the curve in the numbers is the curve on screen.
+   It overshoots its heading by 8.7% and settles at 0.51s, which is what a
+   needle does and what no cubic-bezier can do - a bezier cannot cross its
+   own end value, so it can ease towards a heading but never swing past it
+   and come back.
+
+   Generated rather than hand-written, and long because a spring has no
+   closed form in CSS. Baked in as plain keyframes so the physics costs
+   nothing at runtime and the file stays one file. */
+@keyframes sp-arrive{
+  0%{opacity:0;transform:rotate(-28deg) scale(.72)}
+  4%{opacity:.156;transform:rotate(-26.186deg) scale(.738)}
+  8%{opacity:.521;transform:rotate(-21.921deg) scale(.781)}
+  12%{opacity:.973;transform:rotate(-16.653deg) scale(.833)}
+  16%{opacity:1;transform:rotate(-11.395deg) scale(.886)}
+  20%{opacity:1;transform:rotate(-6.774deg) scale(.932)}
+  24%{opacity:1;transform:rotate(-3.102deg) scale(.969)}
+  28%{opacity:1;transform:rotate(-.458deg) scale(.995)}
+  32%{opacity:1;transform:rotate(1.234deg) scale(1.012)}
+  36%{opacity:1;transform:rotate(2.132deg) scale(1.021)}
+  40%{opacity:1;transform:rotate(2.432deg) scale(1.024)}
+  44%{opacity:1;transform:rotate(2.326deg) scale(1.023)}
+  48%{opacity:1;transform:rotate(1.981deg) scale(1.02)}
+  52%{opacity:1;transform:rotate(1.53deg) scale(1.015)}
+  56%{opacity:1;transform:rotate(1.068deg) scale(1.011)}
+  60%{opacity:1;transform:rotate(.653deg) scale(1.007)}
+  64%{opacity:1;transform:rotate(.318deg) scale(1.003)}
+  68%{opacity:1;transform:rotate(.073deg) scale(1.001)}
+  72%{opacity:1;transform:rotate(-.088deg) scale(.999)}
+  76%{opacity:1;transform:rotate(-.176deg) scale(.998)}
+  80%{opacity:1;transform:rotate(-.21deg) scale(.998)}
+  84%{opacity:1;transform:rotate(-.206deg) scale(.998)}
+  88%{opacity:1;transform:rotate(-.179deg) scale(.998)}
+  92%{opacity:1;transform:rotate(-.14deg) scale(.999)}
+  96%{opacity:1;transform:rotate(-.1deg) scale(.999)}
+  100%{opacity:1;transform:rotate(0deg) scale(1)}}
 @keyframes sp-hold{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
 
 .sp-word{margin-top:clamp(20px,5vmin,30px);display:flex;align-items:baseline;gap:.34em;
@@ -2253,10 +2322,18 @@ input[type=date],input[type=time]{color-scheme:dark}
      decoration: it is the only thing on the screen saying how much of the
      wait is left, and removing it would leave a still picture with no way
      to tell whether the app had stopped. */
-  #splash{animation:sp-fade-out .3s ease-out 7.7s forwards}
+  /* The two beats stay. Artwork first, then the ground, because that is
+     what stops the wordmark ghosting across the map rather than a piece
+     of character - a dissolve is no easier to read for being still. What
+     goes is the travel: the stage fades where it used to lift away. */
+  #splash{animation:sp-fade-out .38s ease-out 7.62s forwards}
   #splash.go{animation:sp-skip-flat .2s ease-out forwards}
   @keyframes sp-fade-out{to{opacity:0;visibility:hidden}}
   @keyframes sp-skip-flat{to{opacity:0;visibility:hidden}}
+  .sp-stage{animation:sp-leave-flat .22s ease-in 7.4s forwards}
+  #splash.go .sp-stage{animation:sp-leave-flat-fast .16s ease-in forwards}
+  @keyframes sp-leave-flat{to{opacity:0}}
+  @keyframes sp-leave-flat-fast{to{opacity:0}}
   .sp-ring{stroke-dashoffset:0;animation:none}
   .sp-ticks{animation:sp-fade .4s ease-out .2s forwards}
   .sp-arrow{animation:sp-fade .5s ease-out .4s forwards}
@@ -2276,6 +2353,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      out an animation. The tap-to-skip is for the eyes that are being made
      to wait. -->
 <div id="splash" aria-hidden="true">
+ <div class="sp-stage">
   <svg class="sp-mark" viewBox="0 0 128 128">
     <circle class="sp-ring" cx="64" cy="64" r="46"/>
     <path class="sp-ticks maj" d="M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64"/>
@@ -2285,6 +2363,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   </svg>
   <div class="sp-word"><span class="b1">OzTrax</span><span class="b2">Recon</span></div>
   <div class="sp-tag">Explore The Roads Least Travelled</div>
+ </div>
 </div>
 <script>
 /* Inline and immediate, rather than waiting for the app's own script at the
