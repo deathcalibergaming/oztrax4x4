@@ -2219,10 +2219,51 @@ input[type=date],input[type=time]{color-scheme:dark}
    opaque from the first frame or the map underneath shows through while
    the artwork is still arriving, and the ground being the same near-black
    the native splash used is what makes the handover invisible. */
-.sp-stage{display:flex;flex-direction:column;align-items:center;opacity:0;
+.sp-stage{position:relative;z-index:1;
+  display:flex;flex-direction:column;align-items:center;opacity:0;
   animation:sp-enter .6s ease-out forwards,
             sp-leave .26s cubic-bezier(.55,0,.85,.4) 5.4s forwards}
 @keyframes sp-enter{to{opacity:1}}
+/* Country, moving. Contour lines are what this product is made of - the map it
+   draws is a topographic one - so the ground the splash waits on is a piece of
+   that map at six per cent, drifting the way land drifts past a vehicle. Over
+   it, a warm oxide light that breathes: an instrument panel lit from inside,
+   not a gradient sweeping a marketing page.
+
+   Both are transform and opacity only. Nothing here filters, blurs or paints
+   to a canvas, because this runs while the app is still parsing a map library
+   and a background that costs main-thread time to look calm is not calm. The
+   drift is one composited layer moving in a straight line and the light is one
+   opacity; the compositor carries both without the page noticing.
+
+   They leave with the artwork, in the first beat, not with the ground. Texture
+   still on screen while the ground dissolves is exactly the ghosting The Two
+   Beats Rule exists to stop - contour lines over a real map are worse than a
+   wordmark over one, because they look like map. */
+.sp-back{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0;
+  animation:sp-enter .6s ease-out forwards,
+            sp-back-leave .26s cubic-bezier(.55,0,.85,.4) 5.4s forwards}
+@keyframes sp-back-leave{to{opacity:0}}
+/* Its own name, per The Fresh Name Rule - and its own "from", which the rule
+   does not cover on its own. A tap replaces this element’s whole animation
+   list, sp-enter included, so an implicit first keyframe reads the underlying
+   value and finds the opacity:0 declared above rather than the 1 sp-enter was
+   holding. It animated zero to zero and the country went out in a single frame
+   while the artwork was still fading. Measured: back 0.00 at 61ms against a
+   stage still at 0.97. State the from. */
+#splash.go .sp-back{animation:sp-back-skip .2s cubic-bezier(.55,0,.85,.4) forwards}
+@keyframes sp-back-skip{from{opacity:1}to{opacity:0}}
+.sp-field{position:absolute;inset:0;width:100%;height:100%;opacity:.06;
+  fill:none;stroke:var(--sand);stroke-width:1;stroke-linecap:round}
+/* One tile height, so the loop closes on itself with no seam to see. */
+.sp-drift{animation:sp-drift 22s linear infinite}
+@keyframes sp-drift{to{transform:translateY(-400px)}}
+.sp-glow{position:absolute;left:50%;top:50%;border-radius:50%;
+  width:min(150vmin,900px);height:min(150vmin,900px);transform:translate(-50%,-50%);
+  background:radial-gradient(closest-side,rgba(204,90,46,.2),rgba(204,90,46,0) 72%);
+  animation:sp-breathe 7s ease-in-out infinite}
+@keyframes sp-breathe{0%,100%{opacity:.45}50%{opacity:1}}
+
 /* The composition sits where its visible content is centred, which is not one
    place for six seconds.
 
@@ -2458,6 +2499,18 @@ input[type=date],input[type=time]{color-scheme:dark}
   #splash.go .sp-stage{animation:sp-leave-flat-fast .16s ease-in forwards}
   @keyframes sp-leave-flat{to{opacity:0}}
   @keyframes sp-leave-flat-fast{to{opacity:0}}
+  /* The country stops moving and the light stops breathing. Both stay on
+     screen, because they are the surface the splash sits on rather than
+     anything that has to be watched to be understood - taking them away would
+     change the composition, and stillness is what was asked for, not less of
+     it. */
+  .sp-drift{animation:none}
+  .sp-glow{animation:none;opacity:.6}
+  .sp-back{animation:sp-enter .5s ease-out forwards,
+                     sp-back-flat .22s ease-in 5.4s forwards}
+  #splash.go .sp-back{animation:sp-back-flat-fast .16s ease-in forwards}
+  @keyframes sp-back-flat{to{opacity:0}}
+  @keyframes sp-back-flat-fast{from{opacity:1}to{opacity:0}}
   /* The set does not travel. What is lost is the first 1.4 seconds looking
      right, which is a smaller price than a screen that moves for someone who
      asked it not to - and the group is centred, which is the composition the
@@ -2486,6 +2539,22 @@ input[type=date],input[type=time]{color-scheme:dark}
      out an animation. The tap-to-skip is for the eyes that are being made
      to wait. -->
 <div id="splash" aria-hidden="true">
+ <div class="sp-back">
+  <svg class="sp-field" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice">
+   <defs><g id="sp-tile">
+     <path d="M0 22C102 13 204 13 300 22C396 31 498 31 600 22"/>
+     <path d="M0 77.8C107.7 64.1 215.4 64.1 316.7 77.8C407.4 91.5 503.7 91.5 600 77.8"/>
+     <path d="M0 125.1C110.7 110.3 221.4 110.3 325.6 125.1C413.4 139.9 506.7 139.9 600 125.1"/>
+     <path d="M0 167.9C109.6 156.3 219.2 156.3 322.4 167.9C411.2 179.5 505.6 179.5 600 167.9"/>
+     <path d="M0 216.7C105 210.4 209.9 210.4 308.7 216.7C401.9 223 501 223 600 216.7"/>
+     <path d="M0 273.3C98.9 270.2 197.8 270.2 290.9 273.3C389.8 276.4 494.9 276.4 600 273.3"/>
+     <path d="M0 328C94.3 323.6 188.6 323.6 277.3 328C380.6 332.4 490.3 332.4 600 328"/>
+     <path d="M0 373.9C93.3 364.8 186.7 364.8 274.5 373.9C378.7 383 489.3 383 600 373.9"/>
+   </g></defs>
+   <g class="sp-drift"><use href="#sp-tile" y="0"/><use href="#sp-tile" y="400"/><use href="#sp-tile" y="800"/></g>
+  </svg>
+  <div class="sp-glow"></div>
+ </div>
  <div class="sp-stage">
   <div class="sp-set">
    <svg class="sp-mark" viewBox="0 0 128 128">
