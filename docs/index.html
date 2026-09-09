@@ -6755,10 +6755,15 @@ function schedulePoi() {
    primary extract hands poiKind every tag in the box regardless. A tag
    missing here costs coverage in a dense town, not correctness. */
 const OVERPASS_TAGS = [
+  /* No amenity=parking. It was 78% of everything this query brought back in
+     a city - 3,511 car parks against 967 of everything else - for a category
+     nobody opens this app to find. The extract still returns them inside its
+     own radius and poiKind still files them, so the Parking chip is
+     unchanged; this is about what we go and ask a server for. */
   ["amenity", ["fuel", "drinking_water", "water_point", "toilets",
                "sanitary_dump_station", "shower", "hospital", "pharmacy",
                "doctors", "clinic", "telephone", "post_office", "bbq",
-               "parking", "shelter", "ranger_station"]],
+               "shelter", "ranger_station"]],
   ["man_made", ["water_tap", "water_well", "water_tank", "watering_place"]],
   ["natural", ["spring"]],
   ["tourism", ["wilderness_hut", "alpine_hut", "camp_site", "caravan_site",
@@ -8993,17 +8998,52 @@ const Pack = {
       const held = await DB.get("poipack", "index");
       if (held) this.manifest = held;
     } catch (e) { /* idb unavailable - the network copy still works */ }
-    if (!this.manifest) {
-      try {
-        const r = await fetch(CFG.POI_PACK_URL + "index.json");
-        if (!r.ok) throw new Error("http " + r.status);
-        this.manifest = await r.json();
-        try { await DB.put("poipack", this.manifest, "index"); } catch (e) { /* ignore */ }
-      } catch (e) {
-        this.manifest = null;
-      }
+    /* Fired, not waited on. A stored manifest already answers the question,
+       and out here there may be nothing on the other end to ask. */
+    if (this.manifest) { this.freshen(); return this.manifest; }
+    try {
+      const r = await fetch(CFG.POI_PACK_URL + "index.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      this.manifest = await r.json();
+      this.checked = true;
+      try { await DB.put("poipack", this.manifest, "index"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      this.manifest = null;
     }
     return this.manifest;
+  },
+
+  /* Whether the pack on the server is still the pack on the phone.
+
+     It was not being asked. A stored manifest was read once and believed
+     forever, so a phone that had loaded the pack would have kept that cut
+     of it for good - which for something rebuilt every month is a pack
+     that updates once, on the day it is first opened, and never again.
+
+     Only the manifest is refetched here, which is three kilobytes. The
+     tiles look after themselves: each one remembers which cut it came from
+     and refreshes the next time it is wanted. Nothing is deleted, because
+     deleting is what would put a hole in an offline area - a driver who
+     caught one bar in town, had their tiles thrown away for being old, and
+     drove back out of range would have the wrong kind of empty map. */
+  freshen: async function () {
+    if (this.checked) return;
+    this.checked = true;
+    try {
+      const r = await fetch(CFG.POI_PACK_URL + "index.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const fresh = await r.json();
+      if (!fresh || !fresh.tiles) return;
+      /* cut, not source. source is the Geofabrik checksum and names the
+         extract this was built from; cut names what came out of it, so it
+         also moves when the build changes which tags it carries. */
+      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
+      this.manifest = fresh;
+      this.span = null;
+      this.mem.clear();
+      this.tried.clear();
+      try { await DB.put("poipack", fresh, "index"); } catch (e) { /* ignore */ }
+    } catch (e) { /* no signal: what is held is what there is */ }
   },
 
   exists: function (x, y) {
@@ -9057,8 +9097,16 @@ const Pack = {
     return out;
   },
 
-  /* Storage first, then the network. A tile never changes until the pack
-     is rebuilt, so a stored one is never refetched to check.
+  /* Storage first, then the network, and the stored copy is trusted only
+     while it came from the cut the manifest is describing. Each tile
+     carries the source stamp it was written under, so a rebuilt pack
+     refreshes tile by tile as the driver reaches them rather than in one
+     purge that could leave nothing behind.
+
+     A tile that is out of date and cannot be refetched is still returned.
+     Last month's fuel stations beat an empty map by a very long way, and
+     the alternative - dropping it because it is old - would empty the map
+     precisely where there is no signal to fill it again.
 
      keep says whether it also stays in memory. An offline area passes
      false: it is filling storage for later and has no business turning
@@ -9067,17 +9115,21 @@ const Pack = {
     const k = this.key(x, y);
     if (this.mem.has(k)) return this.mem.get(k);
     if (this.tried.has(k)) return null;
-    let tile = null;
-    try { tile = await DB.get("poipack", k); } catch (e) { /* fall through */ }
+    const cut = (this.manifest && this.manifest.cut) || "";
+    let tile = null, held = null;
+    try { held = await DB.get("poipack", k); } catch (e) { /* fall through */ }
+    if (held && held.__cut === cut) tile = held;
     if (!tile) {
       try {
         const r = await fetch(CFG.POI_PACK_URL + k + ".json");
         if (!r.ok) throw new Error("http " + r.status);
         tile = await r.json();
+        tile.__cut = cut;
         try { await DB.put("poipack", tile, k); } catch (e) { /* ignore */ }
       } catch (e) {
-        this.tried.add(k);
-        return null;
+        /* stale beats nothing */
+        if (held) tile = held;
+        else { this.tried.add(k); return null; }
       }
     }
     if (keep !== false) {

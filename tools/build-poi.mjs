@@ -46,6 +46,7 @@
 
    Usage: node tools/build-poi.mjs [--force] [--pbf path] */
 
+import { createHash } from "node:crypto";
 import { writeFile, readFile, mkdir, rm, stat } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { inflate } from "node:zlib";
@@ -75,9 +76,18 @@ const STATES = ["SA"];
    a year for a build that breaks when somebody reformats a line.
    --------------------------------------------------------------------- */
 const WANT = {
+  /* amenity=parking is deliberately absent. It was 3,511 of the 4,478 POIs
+     within 5 km of Torrensville - 78% of the pack, in the part of the state
+     where the pack is biggest - and a car park is not what anyone opens this
+     app for. Dropping it takes about a third off the download for the whole
+     state and rather more than that off a city tile.
+
+     poiKind still knows what a car park is, and the live map extract still
+     returns them inside its own radius, so the Parking category has not gone
+     anywhere - it is simply not something we now ask a source for. */
   amenity: new Set(["fuel", "drinking_water", "water_point", "toilets",
     "sanitary_dump_station", "shower", "hospital", "pharmacy", "doctors",
-    "clinic", "telephone", "post_office", "bbq", "parking", "shelter",
+    "clinic", "telephone", "post_office", "bbq", "shelter",
     "ranger_station"]),
   man_made: new Set(["water_tap", "water_well", "water_tank", "watering_place"]),
   natural: new Set(["spring"]),
@@ -117,6 +127,22 @@ const KEEP = new Set([
   /* where it is */
   "addr:housenumber", "addr:street", "addr:city", "addr:suburb", "addr:postcode"
 ]);
+
+/* What decides the contents of a tile, in one short string: the extract it
+   was cut from, the tags that were selected out of it, and the tags kept on
+   what qualified. The phone compares this to know whether the pack it is
+   holding is still the pack being served.
+
+   The Geofabrik checksum alone will not do that job. It identifies the
+   input, not the output - drop amenity=parking from the list above and the
+   pack loses two thirds of its rows while the checksum sits unchanged, and
+   every phone that already had the old one would go on believing it. */
+function cutStamp(source) {
+  const shape = JSON.stringify(Object.keys(WANT).sort().map(function (k) {
+    return [k, [...WANT[k]].sort()];
+  })) + "|" + [...KEEP].sort().join(",");
+  return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
+}
 
 function wanted(tags) {
   for (const k in WANT) {
@@ -336,7 +362,7 @@ async function sourceStamp() {
 
 async function builtStamp() {
   try {
-    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).source || null;
+    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).cut || null;
   } catch {
     return null;
   }
@@ -354,10 +380,12 @@ async function main() {
   const local = pbfArg >= 0 ? process.argv[pbfArg + 1] : null;
 
   const stamp = local ? "local:" + local : await sourceStamp();
+  const cut = cutStamp(stamp);
   console.log(`extract: ${stamp}`);
+  console.log(`cut:     ${cut}`);
   const have = await builtStamp();
-  if (have === stamp && !force) {
-    console.log("already built from this extract - nothing to do");
+  if (have === cut && !force) {
+    console.log("already built from this extract and this tag list - nothing to do");
     return;
   }
 
@@ -476,6 +504,7 @@ async function main() {
 
   await writeFile(join(OUT, "index.json"), JSON.stringify({
     source: stamp,
+    cut: cut,
     built: new Date().toISOString().slice(0, 10),
     z: Z,
     states: STATES,
