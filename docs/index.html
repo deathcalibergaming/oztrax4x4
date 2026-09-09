@@ -2001,8 +2001,16 @@ details.sub > .sec-body{padding:12px 0 0}
 #wpForm .float-body > .fld-note{display:contents}
 #wpForm .fld-note > label{flex:0 0 auto}
 /* The textarea keeps the gap the dissolved wrapper used to carry, so the
-   rule under it lands where the eye expects rather than against the box. */
-#wpForm .fld-note textarea{margin-bottom:5px}
+   rule under it lands where the eye expects rather than against the box.
+
+   The name field wants the same five, and for the same reason the chips do:
+   the gap above a rule was set when every section here ended in a line of
+   text, which brings its own descender space. Three of the four sections
+   now end in a hard edge instead - a button, an input, a textarea - and a
+   hairline laid flat against one of those reads as the box being underlined
+   rather than the section being closed. Five is what the other two already
+   had, so this is the last one brought into line rather than a new gap. */
+#wpForm .fld-note textarea,#wpForm #wpName{margin-bottom:5px}
 
 /* The boxes come off the two text fields, and this is what actually makes
    the card match the POI cards rather than merely having lines in it.
