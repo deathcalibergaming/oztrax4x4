@@ -865,22 +865,39 @@ under it, because the ring is both — a dial filling is a thing that is
 filling. That is the whole idea, and everything else on the screen is
 arranged to let it read.
 
-**The ground is country, moving.** Contour lines are what this product is made
-of — the map it draws is a topographic one — so the surface the splash waits on
-is a piece of that map at six per cent, drifting the way land drifts past a
-vehicle, with a warm oxide light breathing over it: an instrument panel lit from
-inside rather than a gradient sweeping a marketing page. It is texture, not
-information; the dial is still the only thing on screen reporting anything.
+**The ground carries embers.** Twenty-six oxide motes drift up through the dark
+and lean slightly as they go — what a fire throws off at a camp at the end of a
+day’s driving, which is nearer to what this product is for than the contour
+wash and lit instrument panel that were here first. Peaks run 0.21 to 0.60,
+crossings take fourteen to twenty-five seconds, and over the splash’s six a mote
+covers a quarter to two fifths of the screen. It is texture, not information;
+the dial is still the only thing on screen reporting anything.
 
-Both are transform and opacity only — no filter, no blur, no canvas — because
-this runs while the app is still parsing a map library, and a background that
-costs main-thread time to look calm is not calm. Measured while the splash
-animates: median frame 5.6ms, worst 6.9ms, nothing over 32ms.
+**Every mote starts part way through its own flight.** A crossing outlasts the
+splash by a factor of three, so starting them at the bottom would open on an
+empty screen and never fill it. Each carries a negative delay, which puts the
+field in the air on the first frame — and satisfies The Unwitnessed First Frame
+Rule for free, because a field already in motion reads correctly whenever you
+join it. It is also what makes reduced motion one line: a paused animation
+renders at its negative offset, so the motes simply stop where they were.
 
-And it leaves in the first beat, with the artwork, never with the ground.
-Texture still on screen while the ground dissolves is the ghosting The Two
-Beats Rule exists to stop, and contour lines over a real map are worse than a
-wordmark over one, because they look like map.
+Transform and opacity only — no filter, no blur, no canvas — because this runs
+while the app is still parsing a map library, and a background that costs
+main-thread time to look calm is not calm. Measured while the splash animates:
+median frame 5.6ms, worst 7.1ms, nothing over 32ms across 361 frames, with all
+twenty-six animating.
+
+They leave in the first beat, with the artwork, never with the ground — the
+ghosting The Two Beats Rule exists to stop.
+
+**The motes are a halo, and that is a decision, not an oversight.** Each is a
+radial that is solid to 22% and gone by 70%, so the lit part is roughly a third
+of the box and the rest is falloff. The detector counts that as `radial-halo`,
+and counts the motes as `pulsing-dot` besides; both are correct readings of the
+rules, and both are accepted here. A chromatic halo is banned as *decoration
+behind an interface* — these are the subject, on the one screen this system is
+allowed to perform on, and a hard-edged dot reads as a bullet rather than an
+ember. The project baseline is 67 findings, not 65, and those two are why.
 
 **The composition sits where its visible content is centred.** The wordmark
 and the tagline hold their space from the first frame, because they fade in
@@ -914,7 +931,7 @@ is an instrument being switched off rather than one completing.
 
 | | |
 |---:|---|
-| 0.00 | ground texture and artwork begin fading up on an already-opaque ground |
+| 0.00 | motes and artwork begin fading up on an already-opaque ground |
 | 0.25 | ring draws, from north |
 | 0.60 | artwork fully in |
 | 0.70 / 0.84 | the four cardinals, then the twelve between them |

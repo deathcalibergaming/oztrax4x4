@@ -2224,11 +2224,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   animation:sp-enter .6s ease-out forwards,
             sp-leave .26s cubic-bezier(.55,0,.85,.4) 5.4s forwards}
 @keyframes sp-enter{to{opacity:1}}
-/* Country, moving. Contour lines are what this product is made of - the map it
-   draws is a topographic one - so the ground the splash waits on is a piece of
-   that map at six per cent, drifting the way land drifts past a vehicle. Over
-   it, a warm oxide light that breathes: an instrument panel lit from inside,
-   not a gradient sweeping a marketing page.
+/* Embers. Twenty-six oxide motes drifting up through the dark, which is what a
+   fire throws off at a camp at the end of a day’s driving - the one warm thing
+   in a lot of empty country, and closer to what this product is for than the
+   contour wash and lit panel that were here before.
 
    Both are transform and opacity only. Nothing here filters, blurs or paints
    to a canvas, because this runs while the app is still parsing a map library
@@ -2253,16 +2252,34 @@ input[type=date],input[type=time]{color-scheme:dark}
    stage still at 0.97. State the from. */
 #splash.go .sp-back{animation:sp-back-skip .2s cubic-bezier(.55,0,.85,.4) forwards}
 @keyframes sp-back-skip{from{opacity:1}to{opacity:0}}
-.sp-field{position:absolute;inset:0;width:100%;height:100%;opacity:.06;
-  fill:none;stroke:var(--sand);stroke-width:1;stroke-linecap:round}
-/* One tile height, so the loop closes on itself with no seam to see. */
-.sp-drift{animation:sp-drift 22s linear infinite}
-@keyframes sp-drift{to{transform:translateY(-400px)}}
-.sp-glow{position:absolute;left:50%;top:50%;border-radius:50%;
-  width:min(150vmin,900px);height:min(150vmin,900px);transform:translate(-50%,-50%);
-  background:radial-gradient(closest-side,rgba(204,90,46,.2),rgba(204,90,46,0) 72%);
-  animation:sp-breathe 7s ease-in-out infinite}
-@keyframes sp-breathe{0%,100%{opacity:.45}50%{opacity:1}}
+.sp-motes{position:absolute;inset:0;overflow:hidden}
+/* Each mote carries its own size, opacity, speed, sideways drift and start
+   offset as custom properties, so twenty-six elements share one keyframe rule
+   rather than needing twenty-six. Generated from a seeded random, so the field
+   is identical every build and a diff of it means something.
+
+   The delay is negative. A mote takes fourteen to twenty-five seconds to cross,
+   and
+   the splash only lasts six - starting them all at the bottom would open on an
+   empty screen and never fill it. Started part way through, the field is
+   already in the air on the first frame, which is also what The Unwitnessed
+   First Frame Rule wants: it reads correctly whenever you join it.
+
+   Peaks run 0.21 to 0.6; they were a third dimmer and read as
+   too faint against the ground.
+
+   A soft radial rather than a box-shadow halo. The dot is the middle fifth of
+   its box and fades to nothing by 70%, so it has a soft edge without a glow,
+   which this system treats as decoration. */
+.sp-motes span{position:absolute;left:var(--x);bottom:-8vh;
+  width:var(--s);height:var(--s);border-radius:50%;opacity:0;
+  background:radial-gradient(circle,var(--rust) 0%,var(--rust) 22%,rgba(204,90,46,0) 70%);
+  animation:sp-mote var(--d) linear var(--t) infinite}
+@keyframes sp-mote{
+  0%{opacity:0;transform:translate3d(0,0,0)}
+  14%{opacity:var(--o)}
+  74%{opacity:var(--o)}
+  100%{opacity:0;transform:translate3d(var(--dx),-116vh,0)}}
 
 /* The composition sits where its visible content is centred, which is not one
    place for six seconds.
@@ -2504,8 +2521,11 @@ input[type=date],input[type=time]{color-scheme:dark}
      anything that has to be watched to be understood - taking them away would
      change the composition, and stillness is what was asked for, not less of
      it. */
-  .sp-drift{animation:none}
-  .sp-glow{animation:none;opacity:.6}
+  /* Paused rather than removed. Every mote carries a negative delay, so a
+     paused animation renders at that offset - which leaves the field spread
+     across the screen exactly as it would have been, simply not moving. The
+     warmth stays, the travel goes, and it costs one line. */
+  .sp-motes span{animation-play-state:paused}
   .sp-back{animation:sp-enter .5s ease-out forwards,
                      sp-back-flat .22s ease-in 5.4s forwards}
   #splash.go .sp-back{animation:sp-back-flat-fast .16s ease-in forwards}
@@ -2540,20 +2560,21 @@ input[type=date],input[type=time]{color-scheme:dark}
      to wait. -->
 <div id="splash" aria-hidden="true">
  <div class="sp-back">
-  <svg class="sp-field" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid slice">
-   <defs><g id="sp-tile">
-     <path d="M0 22C102 13 204 13 300 22C396 31 498 31 600 22"/>
-     <path d="M0 77.8C107.7 64.1 215.4 64.1 316.7 77.8C407.4 91.5 503.7 91.5 600 77.8"/>
-     <path d="M0 125.1C110.7 110.3 221.4 110.3 325.6 125.1C413.4 139.9 506.7 139.9 600 125.1"/>
-     <path d="M0 167.9C109.6 156.3 219.2 156.3 322.4 167.9C411.2 179.5 505.6 179.5 600 167.9"/>
-     <path d="M0 216.7C105 210.4 209.9 210.4 308.7 216.7C401.9 223 501 223 600 216.7"/>
-     <path d="M0 273.3C98.9 270.2 197.8 270.2 290.9 273.3C389.8 276.4 494.9 276.4 600 273.3"/>
-     <path d="M0 328C94.3 323.6 188.6 323.6 277.3 328C380.6 332.4 490.3 332.4 600 328"/>
-     <path d="M0 373.9C93.3 364.8 186.7 364.8 274.5 373.9C378.7 383 489.3 383 600 373.9"/>
-   </g></defs>
-   <g class="sp-drift"><use href="#sp-tile" y="0"/><use href="#sp-tile" y="400"/><use href="#sp-tile" y="800"/></g>
-  </svg>
-  <div class="sp-glow"></div>
+  <div class="sp-motes">
+   <span style="--x:28.9%;--s:13px;--o:0.49;--d:15.3s;--t:-6.8s;--dx:-26px"></span><span style="--x:2.2%;--s:20px;--o:0.55;--d:15.3s;--t:-4.1s;--dx:-6px"></span>
+   <span style="--x:48.3%;--s:19px;--o:0.52;--d:14.3s;--t:-9.1s;--dx:6px"></span><span style="--x:95.9%;--s:15px;--o:0.38;--d:15.8s;--t:-6.8s;--dx:-45px"></span>
+   <span style="--x:33.3%;--s:13px;--o:0.28;--d:16s;--t:-9.9s;--dx:-25px"></span><span style="--x:86.3%;--s:9px;--o:0.34;--d:24.2s;--t:-8.6s;--dx:-24px"></span>
+   <span style="--x:59.9%;--s:8px;--o:0.24;--d:16.5s;--t:-3s;--dx:31px"></span><span style="--x:51.2%;--s:8px;--o:0.22;--d:21.5s;--t:-18.6s;--dx:-2px"></span>
+   <span style="--x:46.4%;--s:11px;--o:0.21;--d:14.7s;--t:-8.3s;--dx:6px"></span><span style="--x:21.9%;--s:16px;--o:0.6;--d:14.1s;--t:-3s;--dx:11px"></span>
+   <span style="--x:31.6%;--s:11px;--o:0.36;--d:21.5s;--t:-6s;--dx:-25px"></span><span style="--x:67.7%;--s:15px;--o:0.43;--d:21.6s;--t:-12.6s;--dx:24px"></span>
+   <span style="--x:29.4%;--s:9px;--o:0.56;--d:21.9s;--t:-13.4s;--dx:40px"></span><span style="--x:44.9%;--s:14px;--o:0.41;--d:21.3s;--t:-15.5s;--dx:-31px"></span>
+   <span style="--x:94.9%;--s:12px;--o:0.53;--d:23.1s;--t:-15.3s;--dx:16px"></span><span style="--x:25.7%;--s:13px;--o:0.31;--d:25.3s;--t:-10.1s;--dx:-15px"></span>
+   <span style="--x:51.6%;--s:14px;--o:0.29;--d:22.8s;--t:-16.6s;--dx:-34px"></span><span style="--x:41.2%;--s:20px;--o:0.25;--d:17s;--t:-6s;--dx:-7px"></span>
+   <span style="--x:74.8%;--s:19px;--o:0.22;--d:20.3s;--t:-13.5s;--dx:29px"></span><span style="--x:88%;--s:9px;--o:0.59;--d:20.4s;--t:-10.4s;--dx:-43px"></span>
+   <span style="--x:54.9%;--s:10px;--o:0.46;--d:21.5s;--t:-2.4s;--dx:3px"></span><span style="--x:14.2%;--s:17px;--o:0.46;--d:23.9s;--t:-7.6s;--dx:-36px"></span>
+   <span style="--x:46.6%;--s:18px;--o:0.55;--d:24.8s;--t:-9.9s;--dx:7px"></span><span style="--x:93.7%;--s:12px;--o:0.5;--d:18.6s;--t:-2.8s;--dx:-1px"></span>
+   <span style="--x:63.6%;--s:16px;--o:0.24;--d:25s;--t:-4.7s;--dx:-38px"></span><span style="--x:19.4%;--s:18px;--o:0.56;--d:14.1s;--t:-8.1s;--dx:-10px"></span>
+  </div>
  </div>
  <div class="sp-stage">
   <div class="sp-set">
