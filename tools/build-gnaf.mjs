@@ -26,6 +26,7 @@
    Usage: node tools/build-gnaf.mjs */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { inflateRaw } from "node:zlib";
@@ -192,30 +193,80 @@ async function findArchive() {
   return { url: hit.url, name: hit.name, size: hit.size };
 }
 
+/* What decides the contents of a tile, in one short string: the release it
+   was cut from, and the choices this script makes about what to take out of
+   it - the datum, the states, the tables read, the grid and the precision
+   the coordinates are rounded to.
+
+   The release name alone will not do that job. It identifies the input, not
+   the output. Move to GDA94, or stop collapsing units onto their building,
+   and every tile in the state changes while the release string sits exactly
+   where it was - and every phone already holding the old tiles would go on
+   believing them, because the release is the only thing it had to compare.
+   The phone reads this field, not release, to decide whether what it is
+   holding is still what is being served.
+
+   COLLAPSE_UNITS is a constant rather than a flag because there is nothing
+   to switch: it is here so that the day somebody changes their mind about
+   it, the stamp moves with them. */
+const COLLAPSE_UNITS = true;
+
+function cutStamp(release) {
+  const shape = JSON.stringify([
+    WANT_DATUM, STATES, TABLES, Z, PRECISION, COLLAPSE_UNITS
+  ]);
+  return createHash("sha1").update(release + "|" + shape).digest("hex").slice(0, 12);
+}
+
 /* What is already on disk, so a run that finds the same release as last
    time can stop before it downloads anything. G-NAF is quarterly but the
    day it lands moves around, so the job is scheduled monthly and leans on
    this instead of trying to guess the date - eight of the twelve runs a
-   year cost one small request and nothing else. */
-async function builtRelease() {
+   year cost one small request and nothing else.
+
+   Compared on the cut rather than the release, so that changing what this
+   script does with a release is enough to make the next run rebuild. */
+async function builtCut() {
   try {
-    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).release || null;
+    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).cut || null;
   } catch {
     return null;
   }
 }
 
+/* Put the cut on a tree that was built before there was one, without
+   rebuilding it. The packs on disk came out of exactly this shape and
+   exactly the source recorded in their own manifest, so the stamp can be
+   worked out from what is already written there and added in place - and
+   the recorded source is the one to use, not whatever is upstream today,
+   because the tiles are from the extract that was current when they were
+   cut.
+
+   Worth doing rather than letting the next scheduled run sort it out: that
+   run would otherwise see a manifest with no cut, decide it had nothing to
+   compare, and rewrite ten thousand files that had not changed. */
+async function restamp() {
+  const path = join(OUT, "index.json");
+  const index = JSON.parse(await readFile(path, "utf8"));
+  index.cut = cutStamp(index.release);
+  await writeFile(path, JSON.stringify(index));
+  console.log(`stamped ${path} as ${index.cut}`);
+}
+
 async function main() {
+  if (process.argv.includes("--restamp")) return restamp();
   const force = process.argv.includes("--force");
   const archive = await findArchive();
+  const cut = cutStamp(archive.name);
   console.log(`release: ${archive.name}`);
+  console.log(`cut:     ${cut}`);
 
-  const have = await builtRelease();
-  if (have === archive.name && !force) {
-    console.log(`already built from this release - nothing to do`);
+  const have = await builtCut();
+  if (have === cut && !force) {
+    console.log(`already built from this release and this shape - nothing to do`);
     return;
   }
-  if (have) console.log(`replacing the pack built from ${have}`);
+  if (have) console.log(`replacing the pack cut as ${have}`);
   console.log(`archive: ${(archive.size / 1e9).toFixed(2)} GB`);
 
   const tail = await ranged(archive.url, archive.size - 65536, archive.size - 1);
@@ -381,6 +432,7 @@ async function main() {
     join(OUT, "index.json"),
     JSON.stringify({
       release: archive.name,
+      cut: cut,
       built: new Date().toISOString().slice(0, 10),
       z: Z,
       states: STATES,
