@@ -9365,6 +9365,7 @@ const Route = {
   fixed: 0,                /* edges belonging to the backbone, never dropped */
   busy: false,
   bbBusy: null,
+  stale: false,            /* a newer cut has landed and this graph is last month */
 
   key: function (x, y) { return CFG.ROUTE_Z + "/" + x + "/" + y; },
   nodeKey: function (la, lng) { return (la + NK_LAT) * NK_MUL + (lng + NK_LNG); },
@@ -9433,15 +9434,25 @@ const Route = {
          included, so all of it goes - edges, geometry, adjacency and bins
          together. Half a graph from each of two builds would be worse than
          either: the two cuts do not share node coordinates where a way was
-         resurveyed, and the join would silently come apart. */
-      this.edges.length = 0;
-      this.geoN = 0;
-      this.fixed = 0;
-      this.adj.clear();
-      this.bins.clear();
-      this.packs.clear();
-      this.tried.clear();
-      this.bbBusy = null;
+         resurveyed, and the join would silently come apart.
+
+         Not here, though, if ensure is part way through building one.
+         ensure begins by waiting on the manifest, which is what fires this,
+         so the two run together by design. Measured on the deployed build:
+         the backbone folded at 45ms, ensure moved on to the local tiles at
+         119ms, and this landed at 122ms - wiping the backbone out from
+         under fifteen tiles that then folded into an empty graph. What came
+         out was 47,555 edges of suburban streets with no arterial network
+         behind them and fixed at zero, which is a phone that cannot route
+         out of the city it is standing in. Once a month, on the first
+         launch after a rebuild, which is the launch least likely to be
+         somewhere with signal to try again.
+
+         So the wipe waits for the loader to finish and happens at the top
+         of the next one. A cycle spent on last month roads is a cycle on
+         roads that are at least whole. */
+      this.stale = true;
+      if (!this.busy) this.dropGraph();
       try { await DB.put("route", fresh, "index"); } catch (e) { /* ignore */ }
     } catch (e) { /* no signal: what is held is what there is */ }
   },
@@ -9595,10 +9606,28 @@ const Route = {
   /* Called as the vehicle moves, on the same trigger as the addresses and
      the POIs. Fire and forget - the backbone answers routes on its own and
      these only sharpen the ends. */
+  /* Everything folded out of a cut, dropped together. Its own function
+     because freshen and this happen at different moments: freshen is where
+     the graph is found to be out of date, this is where it is safe to act
+     on it. */
+  dropGraph: function () {
+    this.edges.length = 0;
+    this.geoN = 0;
+    this.fixed = 0;
+    this.adj.clear();
+    this.bins.clear();
+    this.packs.clear();
+    this.tried.clear();
+    this.bbBusy = null;
+    this.stale = false;
+  },
+
   ensure: async function (a) {
     if (this.busy) return;
     this.busy = true;
     try {
+      /* Before anything is folded, never during. */
+      if (this.stale) this.dropGraph();
       await this.loadManifest();
       if (!this.manifest) return;
       /* Waited on rather than started and left, so the backbone is always
