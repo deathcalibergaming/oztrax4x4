@@ -2078,7 +2078,19 @@ details.sub > .sec-body{padding:12px 0 0}
    buttons, so the pair were spending 25px separating one line from a row that
    is already fenced off by a rule. Seventeen still reads as the break between
    the card and its controls, against the five between rows. */
-#wpCoordRow{flex:0 0 auto;padding:5px 12px 4px;border-top:1px solid var(--line)}
+/* Ruled to the same span as the rules above it. The sections inside the body
+   take their line from the body's content box, which the body's own 12px of
+   side padding insets; these last two sit outside the body and were drawing
+   edge to edge, so the card had two lengths of rule in it and the eye read the
+   long ones as the card coming apart rather than as one more section break.
+
+   The inset is a margin and the side padding comes off, which leaves the text
+   exactly where it was and moves only the line. */
+#wpCoordRow{flex:0 0 auto;margin:0 12px;padding:5px 0 4px;border-top:1px solid var(--line)}
+/* Scoped to this card: every other modal foot in the app rules edge to edge
+   under a body that is not ruled at all, and so has nothing to line up with.
+   The 2px keeps the buttons on the 14px the foot has always used. */
+#wpForm .modal-foot{margin:0 12px;padding-left:2px;padding-right:2px}
 /* Read as a value, not as a caption. A POI card sets its facts in sand at
    body size against a dim label, and the one line on this card that is a
    fact rather than a field is the position - so it is set the same way. It
