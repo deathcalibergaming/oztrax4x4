@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-09T01:21:12.734Z",
+  "generatedAt": "2026-09-09T04:43:37.654Z",
   "title": "Design System: OzTrax Recon",
   "extensions": {
     "colorMeta": {
@@ -641,8 +641,18 @@
         "section": "layout"
       },
       {
+        "name": "The One Field Gives Rule",
+        "body": "Where a box can run short of height, name the one element that yields and let it take the whole squeeze. Everything else holds its size, the footer stays pinned, and scrolling is what happens once that element is spent rather than instead of it. Pick the element whose height is a guess rather than a measurement of what is in it, and write its floor as the box that holds one line, not as a pixel count — a pixel count reads as one row at the smallest text size and crops the line at the largest.",
+        "section": "layout"
+      },
+      {
         "name": "The Rail Follows Itself Rule",
         "body": "The bars' heights and widths are single custom properties, and everything that must clear them measures from those properties. Never hard-code a bar's size into another element's offset.",
+        "section": "layout"
+      },
+      {
+        "name": "The Unmeasured Inset Rule",
+        "body": "The band `visualViewport` reports is not the band you can see. The keyboard's autofill row is painted over the page and no API admits to it, so every box that centres in that band subtracts `--kb-res` twice — once from its height, once from its centring — and nothing sizes or places itself against `--vv-h` alone. It is one number in one place: raise it if a password manager ever draws a taller bar.",
         "section": "layout"
       },
       {

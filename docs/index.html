@@ -1922,10 +1922,14 @@ details.sub > .sec-body{padding:12px 0 0}
    nothing is re-clamped, so there is nothing to miss - when the keyboard
    opens the box re-centres in the band left above it, because the band is a
    custom property and the box is positioned from it. */
+/* --kb-res is the strip at the bottom of that band which the keyboard’s own
+   autofill bar covers and no API reports. Subtracting it from the height and
+   from the centring is the same edit twice: the box is centred in what is
+   left, and capped to it, so its footer cannot end up underneath. */
 .float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));
-  left:50%;top:calc(var(--vv-top,0px) + var(--vv-h,100vh) / 2);
+  left:50%;top:calc(var(--vv-top,0px) + (var(--vv-h,100vh) - var(--kb-res,0px)) / 2);
   transform:translate(-50%,-50%);
-  max-height:calc(var(--vv-h,100vh) - 24px);
+  max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 24px);
   background:var(--panel);
   border:1px solid var(--line2);border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.62);
   display:flex;flex-direction:column;overflow:hidden}
@@ -1938,6 +1942,26 @@ details.sub > .sec-body{padding:12px 0 0}
 .dr-head .t,.float-head .t,.modal-head .t{flex:1;font-size:var(--t-title);font-weight:700;
   letter-spacing:.18em;text-transform:uppercase}
 .float-body{padding:12px;overflow-y:auto;overscroll-behavior:contain;flex:1 1 auto}
+/* Short of room the body used to scroll as a block, which put the position
+   readout under the fold while a half-empty note box kept its two rows. So
+   the body is a column and the note is the one child allowed to give ground:
+   everything else holds its size, the note shrinks to a single row, and only
+   when that is spent does anything scroll. It is the right thing to spend -
+   the field is optional, it is the only one whose height is arbitrary rather
+   than set by what is in it, and it grows back the moment the keys go. */
+#wpForm .float-body{display:flex;flex-direction:column}
+#wpForm .float-body > .fld{flex:0 0 auto}
+#wpForm .float-body > .fld-note{flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
+/* The floor is one row, written as the box that holds one: eighteen of
+   padding, two of border and a line of whatever size the driver has set the
+   text to. A fixed pixel floor read as one row at the smallest of the three
+   and cropped the line at the largest. */
+#wpForm .fld-note textarea{flex:1 1 auto;min-height:calc(1.35em + 20px);resize:none}
+/* A label sits above a thing you fill in. This one names a thing you can only
+   read, so it sits beside it instead - the arrangement the card meta rows
+   already use, and it hands back a line of height in the bargain. */
+.fld-read{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.fld-read .fld-cap{margin-bottom:0}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
    native control renders in the browser's own locale, which showed 24 hour
@@ -1979,9 +2003,9 @@ details.sub > .sec-body{padding:12px 0 0}
 .modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
   padding:16px;
   padding-top:calc(16px + var(--vv-top,0px));
-  padding-bottom:calc(16px + var(--vv-bottom,0px));
+  padding-bottom:calc(16px + var(--vv-bottom,0px) + var(--kb-res,0px));
   background:rgba(6,8,7,.7)}
-.modal-box{width:min(360px,100%);max-height:calc(var(--vv-h,100vh) - 32px);background:var(--panel);border:1px solid var(--line2);
+.modal-box{width:min(360px,100%);max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 32px);background:var(--panel);border:1px solid var(--line2);
   border-radius:10px;box-shadow:0 16px 42px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
 .modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:8px}
 .modal-body{padding:14px;overflow-y:auto}
@@ -3102,11 +3126,11 @@ input[type=date],input[type=time]{color-scheme:dark}
       <span class="fld-cap" id="wpCatsCap">Category</span>
       <div class="catgrid" id="wpCats" role="radiogroup" aria-labelledby="wpCatsCap"></div>
     </div>
-    <div class="fld">
+    <div class="fld fld-note">
       <label for="wpNote">Note</label>
-      <textarea id="wpNote" rows="2" maxlength="240" placeholder="Optional Detail"></textarea>
+      <textarea id="wpNote" rows="2" maxlength="240" placeholder="Optional Detail" autocomplete="off"></textarea>
     </div>
-    <div class="fld" style="margin-bottom:0">
+    <div class="fld fld-read" style="margin-bottom:0">
       <span class="fld-cap" id="wpCoordCap">Position</span>
       <div class="pop-m" id="wpCoord" role="group" aria-labelledby="wpCoordCap">--</div>
     </div>
@@ -4597,6 +4621,25 @@ window.addEventListener("resize", function () {
    Both are zero until a keyboard opens, so this changes nothing anywhere
    else. Kept in sync on scroll as well as resize because the pan and the
    shrink are two separate events, and the pan arrives second. */
+/* Declared above the function that reads it, not below: a const is hoisted
+   into a dead zone rather than to undefined, so a call that drifts earlier
+   would throw rather than misbehave quietly. That has already cost this
+   project an afternoon once. */
+const vvLast = { top: -1, bottom: -1, h: -1 };
+/* The keyboard is measurable; what the keyboard carries is not. The autofill
+   row - Passwords, Payment methods, Addresses - is drawn over the page rather
+   than inside it, so visualViewport reports a band taller than the one you can
+   actually see, and a card centred and capped in that band has its Cancel and
+   Save behind those chips. Nothing here can measure it and nothing here can
+   refuse it: the row is offered against any focused field, not only ones
+   autofill has recognised, so autocomplete="off" does not remove it.
+
+   48dp is the bar’s own height, and a dp is a CSS pixel at this page’s scale.
+   It is held back only while a keyboard-sized inset exists, because that is
+   the only time the row can be there; the cost is half of it in position,
+   which is nothing set against losing the buttons. If a password manager ever
+   draws a taller one, this is the single number to raise. */
+const KB_RESERVE = 48;
 function syncViewportInsets() {
   const r = document.documentElement.style;
   const vv = window.visualViewport;
@@ -4608,10 +4651,54 @@ function syncViewportInsets() {
   }
   const top = Math.max(0, Math.round(vv.offsetTop));
   const bottom = Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
+  const h = Math.round(vv.height);
+  /* Writing a custom property on the root restyles the document, so a caller
+     running every frame has to be told when there is nothing to say. */
+  if (top === vvLast.top && bottom === vvLast.bottom && h === vvLast.h) return;
+  vvLast.top = top; vvLast.bottom = bottom; vvLast.h = h;
   r.setProperty("--vv-top", top + "px");
   r.setProperty("--vv-bottom", bottom + "px");
-  r.setProperty("--vv-h", Math.round(vv.height) + "px");
+  r.setProperty("--vv-h", h + "px");
+  r.setProperty("--kb-res", (window.innerHeight - h) > 160 ? KB_RESERVE + "px" : "0px");
 }
+
+/* The properties above are published from visualViewport’s own events, and
+   those are throttled. Measured on the phone while the keyboard opened: the
+   viewport went 772 -> 469 -> 453 in two steps and the properties trailed each
+   one by 100-170ms. For that long the card is still sized and placed for a
+   screen that is no longer there, which is precisely the window where its
+   buttons sit under the keys.
+
+   So while a field is focused the values are read every frame instead. One
+   frame of lag rather than a sixth of a second, the write is skipped when
+   nothing moved, and it stops as soon as nothing is focused - so nothing is
+   running while the vehicle is. */
+let vvRaf = 0;
+function trackViewport(on) {
+  if (on) {
+    if (vvRaf) return;
+    const step = function () { syncViewportInsets(); vvRaf = requestAnimationFrame(step); };
+    vvRaf = requestAnimationFrame(step);
+  } else if (vvRaf) {
+    cancelAnimationFrame(vvRaf);
+    vvRaf = 0;
+    syncViewportInsets();
+  }
+}
+function takesAKeyboard(el) {
+  return !!el && el.matches && el.matches("input:not([type=button]):not([type=checkbox]),textarea");
+}
+document.addEventListener("focusin", function (e) {
+  if (takesAKeyboard(e.target)) trackViewport(true);
+});
+document.addEventListener("focusout", function () {
+  /* The keyboard takes a moment to leave and the band grows back as it goes,
+     so keep sampling for a beat after the field is let go. Checked rather than
+     assumed, because focus often moves straight to another field. */
+  setTimeout(function () {
+    if (!takesAKeyboard(document.activeElement)) trackViewport(false);
+  }, 450);
+});
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", syncViewportInsets);
   window.visualViewport.addEventListener("scroll", syncViewportInsets);
