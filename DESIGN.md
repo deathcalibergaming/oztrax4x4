@@ -808,6 +808,58 @@ Any new rule inherits this for free by using a size token; there is nothing
 to remember. A literal `font-size` in px is now the exception and should
 carry a comment saying why it does not scale.
 
+### Favourites
+
+A star at the end of a card top and at the end of a map popup’s title, and a
+sheet on the action bar listing what has been starred. It is the third sheet in
+the slot Nearby POIs and Waypoints already share — same panel, same scrim, same
+back button — because it is the same kind of thing: a list of places, one card
+each. What differs is the ordering. Those two answer *what is around me*, so
+they sort by distance; this one is the driver’s own choosing, so it is newest
+kept first, the way saved waypoints and tracks are.
+
+**A favourite is a reference, not a copy.** It stores the kind and the id and
+nothing else that moves, and the card is drawn from the live record every time
+the list renders. That is the whole feature: keep a servo and its prices are
+whatever SAFPIS last said, not whatever they were the day you kept it. Verified
+by moving the price in the source data and re-rendering — 271.6 became 309.9 on
+the kept card, and the stored favourite contains no price at all.
+
+**A snapshot rides along, and it is not a contradiction.** POIs are loaded for
+the area you are in, so a servo kept in Hawker is simply not in memory when you
+are in Adelaide, and a favourites list that empties as you drive away from
+things is not a favourites list. The snapshot carries a name, a category and a
+position — enough to draw the card and navigate to it — and the card says
+plainly that the details are the ones from when it was kept. Hide goes with it,
+because there is nothing on the map to hide. When the area loads again the live
+record wins and the prices come back.
+
+A deleted waypoint is the other case, and it is different: there is no record
+coming back, so the favourite is dropped rather than left as a name that does
+nothing.
+
+**The star is filled, never merely recoloured**, and the bar button does not
+light up when the list is not empty. `.act.on` paints a control in Burnt
+Orange, and this system spends that on the one persistent mode the driver
+chose. Having kept something is a fact about a list, not a mode you are in.
+
+### Orientation
+
+North Up / Heading Up sits with the map controls, between Recentre and the
+simulated drive — not on the action bar. The bar is for what you are looking
+for: somewhere to go, what is around you, what you saved. Which way the map
+faces is a property of the map, and it belongs in the column that already
+holds zoom and recentre.
+
+The mode is still spelled out under the needle, because the needle points at
+true north in both states and the two would otherwise differ by colour alone.
+The label takes the **label-sm** step rather than micro: micro is for a word
+sitting above a big number, where the number is the reading and the word only
+names it, and here the word is half the reading. It is below the detector’s
+11px floor and stays there — the step above overflows the 34px button a fine
+pointer gets, and the label is reinforcement rather than the only signal, since
+the needle also fills Burnt Orange when heading-up is on.
+
 ### The Mark
 
 A heading arrow inside a bearing ring, in Burnt Orange on the app's own
@@ -897,7 +949,15 @@ and counts the motes as `pulsing-dot` besides; both are correct readings of the
 rules, and both are accepted here. A chromatic halo is banned as *decoration
 behind an interface* — these are the subject, on the one screen this system is
 allowed to perform on, and a hard-edged dot reads as a bullet rather than an
-ember. The project baseline is 67 findings, not 65, and those two are why.
+ember.
+
+**The project detector baseline is 69 findings.** Four of them are decisions
+rather than defects, recorded here so a later run does not read them as drift:
+`radial-halo` and `pulsing-dot` from the motes above; `undersized-ui-text` from
+the orientation label, for the reason given under Orientation; and a third
+`cramped-padding` on `dr-head`, which is the Favourites sheet wearing the same
+head as the two sheets beside it — the finding is the panel head’s own, and
+having three of them agree is the point rather than the problem.
 
 **The composition sits where its visible content is centred.** The wordmark
 and the tagline hold their space from the first frame, because they fade in

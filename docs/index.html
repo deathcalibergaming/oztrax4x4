@@ -947,6 +947,26 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .icon-btn{width:var(--tap);height:var(--tap);border-radius:6px;display:flex;align-items:center;justify-content:center;
   border:1px solid transparent;flex:0 0 auto;transition:background .12s,border-color .12s}
 .icon-btn:active{background:rgba(216,203,170,.16)}
+/* The star sits at the end of a card top and at the end of a popup title. It
+   keeps its own end of the row and never moves: the title truncates, the star
+   stays put, so a long name cannot push the control under a thumb that was
+   already going for it. Negative margins pull the 36px target back over the
+   card padding, so the target is full size without the row growing to suit
+   it - the same trade the switch makes at 48x28 in a 64x44 box. */
+.favstar{width:var(--tap-sm);height:var(--tap-sm);flex:0 0 auto;
+  margin:-7px -7px -7px 0;border-radius:6px;background:none;border:1px solid transparent;
+  display:flex;align-items:center;justify-content:center}
+.favstar svg{width:19px;height:19px;stroke:var(--dim);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+/* Filled, not just recoloured. An outline that changes hue is a difference
+   this system does not accept anywhere else, and least of all in sun. */
+.favstar.on svg{stroke:var(--rust);fill:var(--rust)}
+.favstar:active{background:rgba(216,203,170,.16)}
+.pop-head{display:flex;align-items:flex-start;gap:6px}
+.pop-head .pop-t{flex:1;min-width:0}
+/* A kept card whose area is not loaded says so where the prices would have
+   been, so the gap a fuel table used to fill is explained rather than blank. */
+.card-n.stale{color:var(--dim)}
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 /* The three lines are three paths rather than one, so they can take up the
    press in sequence. Held down, they draw two pixels toward the left edge -
@@ -1102,6 +1122,21 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
+/* One control in this stack says a word as well as drawing a glyph, because
+   its two states draw the same needle. Micro type at the stat bar’s size and
+   tracking, which is what the rest of the app reads at speed. The needle
+   shrinks to make room rather than the label being squeezed under it. */
+#zoomCtl #btnOrient{flex-direction:column;gap:1px;line-height:1}
+#zoomCtl #btnOrient svg{width:19px;height:19px;stroke:var(--sand);fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* Label-sm, not micro. Micro is the step for a word sitting above a big
+   number, where the number is the reading and the word only names it. Here the
+   word is half the reading - the needle points at true north in both states -
+   so it takes the step above, which is the one named for labels. It still fits
+   the 34px button a fine pointer gets. */
+#zoomCtl #btnOrient span{font-size:10px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim)}
+#zoomCtl #btnOrient.on span{color:var(--rust2)}
 /* The simulated drive sits under the zoom buttons and takes their size and
    styling from the rule above, so only the glyph and the running state need
    saying. A 20% amber wash was tried here once and read as too quiet to
@@ -1144,6 +1179,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #btnPoi .solid{fill:var(--sand);stroke:none}
 #btnOrient .solid{fill:var(--sand);stroke:none}
 #btnOrient.on .solid{fill:var(--rust)}
+/* Favourites does not light up when the list is not empty. .act.on paints a
+   button in Burnt Orange, and this system spends that on the one persistent
+   mode the driver actually chose - Heading Up, over in the map controls.
+   Having kept something is a fact about a list, not a mode you are in, and
+   The One Accent Rule allows exactly one orange control in a view. */
 /* Every floating label on the map lives in this one column. They used to be
    positioned independently and the follow badge landed on top of the POI
    chip on a phone-width screen; stacking them makes that impossible. */
@@ -1470,7 +1510,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    enough map showing to place the panel, and the lower cap brings the
    larger phones in by 30px where 370 was simply wide. Landscape sets
    its own width below and is untouched. */
-#drawer,#poiPanel,#wptPanel{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);z-index:950;background:var(--panel);
+#drawer,#poiPanel,#wptPanel,#favPanel{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);z-index:950;background:var(--panel);
   border-right:1px solid var(--line2);transform:translateX(-101%);
   /* A panel slid off the glass is still in the tab order and still in the
      accessibility tree - 32 controls in the drawer and 96 in the POI panel,
@@ -1481,14 +1521,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   visibility:hidden;
   transition:transform .24s cubic-bezier(.3,.7,.3,1),visibility 0s linear .24s;
   display:flex;flex-direction:column;box-shadow:8px 0 28px rgba(0,0,0,.5)}
-#drawer.open,#poiPanel.open,#wptPanel.open{transform:translateX(0);visibility:visible;
+#drawer.open,#poiPanel.open,#wptPanel.open,#favPanel.open{transform:translateX(0);visibility:visible;
   transition:transform .24s cubic-bezier(.3,.7,.3,1),visibility 0s}
 /* The head carries the POI badge, since this panel has no summary row to
    wear it, and the list is free to run the full height - a 320px cap inside
    a panel of its own would only nest one scroller in another. */
-#poiHeadIcon,#wptHeadIcon{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;
+#poiHeadIcon,#wptHeadIcon,#favHeadIcon{width:16px;height:16px;stroke:var(--rust);fill:none;stroke-width:1.8;
   stroke-linecap:round;flex:0 0 auto}
 #poiHeadIcon .solid,#wptHeadIcon .solid{fill:var(--rust);stroke:none}
+/* The star is a filled shape, not an outline with a filled core like the
+   other two, so it takes the accent as a fill and drops the stroke. */
+#favHeadIcon{fill:var(--rust);stroke:none}
 /* ...and stops being a scroller at all, not merely an uncapped one. Left as
    overflow:auto it was still the container a thumb landed in, with nothing
    to scroll and overscroll-behavior:contain refusing to hand the drag up to
@@ -2103,7 +2146,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
   .pop-rows{max-height:38vh}
-  #drawer,#poiPanel,#wptPanel{width:min(70vw,340px)}
+  #drawer,#poiPanel,#wptPanel,#favPanel{width:min(70vw,340px)}
   .dr-head{height:calc(42px + var(--safeT))}
   .dr-foot{padding:7px 14px calc(7px + var(--safeB));font-size:var(--t-micro);line-height:1.4}
   summary{padding:12px 14px}
@@ -2473,8 +2516,8 @@ input[type=date],input[type=time]{color-scheme:dark}
      they are hidden, so it stays; only its duration goes, and visibility has
      to lose the matching delay or a closed panel would linger invisible-but-
      present for the length of a slide that no longer happens. */
-  #drawer,#poiPanel,#wptPanel{transition:transform .01s linear,visibility 0s linear .01s}
-  #drawer.open,#poiPanel.open,#wptPanel.open{transition:transform .01s linear,visibility 0s}
+  #drawer,#poiPanel,#wptPanel,#favPanel{transition:transform .01s linear,visibility 0s linear .01s}
+  #drawer.open,#poiPanel.open,#wptPanel.open,#favPanel.open{transition:transform .01s linear,visibility 0s}
   /* The sign shifting up to clear a panel is pure travel. */
   #speedSign{transition:none}
   /* The knob stops sliding; its colour still changes, which is the state. */
@@ -2665,6 +2708,19 @@ input[type=date],input[type=time]{color-scheme:dark}
         <svg class="ch" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle class="solid" cx="12" cy="12" r="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
         <svg class="pz" viewBox="0 0 24 24"><rect x="8.2" y="5.5" width="3.1" height="13" rx="1.1"/><rect x="12.7" y="5.5" width="3.1" height="13" rx="1.1"/></svg>
       </button>
+      <!-- Orientation is a map control, so it sits with the map controls. It
+           was on the action bar, which is for places and things you keep;
+           this is which way the map faces, which belongs with zoom and
+           recentre. The mode is still spelled out under the needle - the
+           needle points at true north either way, so north-up and heading-up
+           would differ by colour alone, and this system does not allow that
+           anywhere. -->
+      <button id="btnOrient">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 4.4 17 14.2 12 20.4 7 14.2Z"/>
+          <path class="solid" d="M12 4.4 17 14.2H7Z"/>
+        </svg><span id="orientLabel">N Up</span>
+      </button>
       <button id="btnSim" aria-label="Simulated drive" title="Simulated drive">
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
       </button>
@@ -2740,14 +2796,12 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button class="act" id="btnWpt">
         <svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Waypoint</span>
       </button>
-      <!-- The needle keeps pointing at true north, so it doubles as a
-           compass; the mode is spelled out in the label rather than
-           squeezed into the glyph, which is what the other buttons do. -->
-      <button class="act" id="btnOrient">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 4.4 17 14.2 12 20.4 7 14.2Z"/>
-          <path class="solid" d="M12 4.4 17 14.2H7Z"/>
-        </svg><span id="orientLabel">N Up</span>
+      <!-- Where the orientation toggle used to be. The bar is for what you
+           are looking for - somewhere to go, what is around you, what you
+           saved - and a place you chose to keep belongs in that row rather
+           than in a menu two taps away. -->
+      <button class="act" id="btnFav" aria-label="Favourites">
+        <svg viewBox="0 0 24 24"><path d="M12 3.4 14.29 8.84 20.18 9.34 15.71 13.21 17.05 18.96 12 15.9 6.95 18.96 8.29 13.21 3.82 9.34 9.71 8.84Z"/></svg><span>Favourites</span>
       </button>
       <button class="act" id="btnRec">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
@@ -2968,6 +3022,27 @@ input[type=date],input[type=time]{color-scheme:dark}
            nothing while the same swipe beside it scrolls. The body is the
            scroller here, as it is in Nearby POIs for the same reason. -->
       <div id="wptNearList" class="list"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Favourites. The same sheet, scrim and back button as Nearby POIs and
+     Waypoints, because it is the same kind of thing: a list of places, one
+     card each. What differs is that this list is the driver’s own choosing
+     rather than whatever happens to be around them, so it is not ordered by
+     distance - newest kept first, the way saved waypoints and tracks are. -->
+<aside id="favPanel" aria-hidden="true">
+  <div class="dr-head">
+    <svg id="favHeadIcon" viewBox="0 0 24 24"><path d="M12 3.4 14.29 8.84 20.18 9.34 15.71 13.21 17.05 18.96 12 15.9 6.95 18.96 8.29 13.21 3.82 9.34 9.71 8.84Z"/></svg>
+    <h2 class="t">Favourites <span class="cnt" id="cntFavs">0</span></h2>
+    <button id="btnCloseFav" class="icon-btn" aria-label="Close favourites">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dr-body">
+    <div class="sec-body">
+      <div class="note" id="favNote"></div>
+      <div id="favList" class="list"></div>
     </div>
   </div>
 </aside>
@@ -3372,7 +3447,8 @@ const LS = {
   lastPos: "tt.lastPos",
   country: "tt.country",
   home: "tt.home",
-  fuelSel: "tt.fuelSel"
+  fuelSel: "tt.fuelSel",
+  favs: "tt.favs"
 };
 
 /* ---------- tiny helpers ---------- */
@@ -5427,6 +5503,41 @@ const ICONS = {
   /* trolley for a supermarket, so it is not mistaken for the general store */
   supermarket: '<path d="M2.5 4h2.7l2.6 10.4h9.3"/><path d="M6.3 6.8h14.2l-1.7 5.9H7.8"/><circle cx="9.4" cy="19.2" r="1.6"/><circle cx="17.4" cy="19.2" r="1.6"/>'
 };
+/* The star is the whole affordance, so it is drawn from one place: a card and
+   a map popup that disagreed about what "kept" looks like would be two
+   features. --tap-sm and not --tap, by the rule’s own test of the scene rather
+   than the screen - keeping a place is done at a stop while deciding where to
+   go next, not one-handed at eighty on corrugations. */
+const STAR_D = "M12 3.4 14.29 8.84 20.18 9.34 15.71 13.21 17.05 18.96 12 15.9 6.95 18.96 8.29 13.21 3.82 9.34 9.71 8.84Z";
+function favStar(kind, id, inline) {
+  const on = Fav.has(kind, id);
+  const say = on ? "Remove from favourites" : "Add to favourites";
+  return '<button type="button" class="favstar' + (on ? " on" : "") + '"' +
+    (inline ? ' onclick="favTap(&quot;' + kind + '&quot;,&quot;' + id + '&quot;,this)"'
+            : ' data-act="fav"') +
+    ' aria-pressed="' + (on ? "true" : "false") + '" aria-label="' + say + '" title="' + say + '">' +
+    '<svg viewBox="0 0 24 24"><path d="' + STAR_D + '"/></svg></button>';
+}
+/* A popup is static HTML that nothing re-renders, so the star it carries has
+   to update itself where it stands. The lists do not need this - saving
+   redraws them. */
+function favTap(kind, id, el) {
+  let snap = null;
+  if (kind === "poi") {
+    const p = pois.find(function (x) { return x.id === id; });
+    if (p) snap = Fav.snapPoi(p);
+  }
+  const on = Fav.toggle(kind, id, snap);
+  if (el) {
+    const say = on ? "Remove from favourites" : "Add to favourites";
+    el.classList.toggle("on", on);
+    el.setAttribute("aria-pressed", on ? "true" : "false");
+    el.setAttribute("aria-label", say);
+    el.title = say;
+  }
+  toast(on ? "Added to favourites" : "Removed from favourites", "ok");
+}
+
 function catIcon(kind, color) {
   return '<svg viewBox="0 0 24 24"' + (color ? ' style="color:' + color + '"' : "") + ">" +
          (ICONS[kind] || ICONS.flag) + "</svg>";
@@ -5441,6 +5552,69 @@ const CATS = {
   flag:     { label: "Flag",     color: "#C1552C" }
 };
 let waypoints = loadLS(LS.wpts, []);
+
+/* ---------- favourites ----------
+   A favourite is a reference, not a copy. It stores what kind of thing it is
+   and that thing’s id, and the card is drawn from the live record every time
+   the list renders - which is the whole point of the feature: keep a servo
+   and its prices are whatever SAFPIS last said, not whatever they were the
+   day you kept it. Copying the card would have frozen the one fact on it
+   that moves.
+
+   A snapshot rides along anyway, and it is not a contradiction. POIs are
+   loaded for the area you are in, so a servo kept in Hawker is simply not in
+   memory when you are in Adelaide - and a favourites list that empties as you
+   drive away from things is not a favourites list. The snapshot is enough to
+   draw a name, a category and a position, so the entry still says what it is
+   and can still be navigated to; the card says plainly that the details are
+   the ones from when it was kept. When the area is loaded again the live
+   record wins and the prices come back. */
+let favs = loadLS(LS.favs, []);
+const Fav = {
+  has: function (kind, id) {
+    return favs.some(function (f) { return f.k === kind && f.id === id; });
+  },
+  /* Newest first, like every other list of the driver’s own things. */
+  add: function (kind, id, snap) {
+    if (Fav.has(kind, id)) return;
+    favs.unshift({ k: kind, id: id, ts: Date.now(), snap: snap || null });
+    Fav.save();
+  },
+  remove: function (kind, id) {
+    favs = favs.filter(function (f) { return !(f.k === kind && f.id === id); });
+    Fav.save();
+  },
+  toggle: function (kind, id, snap) {
+    const was = Fav.has(kind, id);
+    if (was) Fav.remove(kind, id); else Fav.add(kind, id, snap);
+    return !was;
+  },
+  save: function () {
+    saveLS(LS.favs, favs);
+    /* The star is drawn in four places and every one of them is stale the
+       moment this changes, so redraw rather than trying to patch each. */
+    if (favPanelOpen()) renderFavs();
+    if (poiPanelOpen()) renderPois();
+    if (wptPanelOpen()) renderNearbyWaypoints();
+  },
+  /* What a POI is worth keeping if it later falls out of the loaded set. */
+  snapPoi: function (p) {
+    return { name: p.name, kind: p.kind, lat: p.lat, lng: p.lng,
+             sub: p.sub || "", addr: p.addr || "", info: p.info || "" };
+  },
+  /* The live record if it is in memory, the snapshot if it is not, and a flag
+     saying which - the card has to be able to say so. */
+  resolve: function (f) {
+    if (f.k === "wpt") {
+      const w = waypoints.find(function (x) { return x.id === f.id; });
+      return w ? { live: true, w: w } : null;   /* a deleted waypoint is gone */
+    }
+    const p = pois.find(function (x) { return x.id === f.id; });
+    if (p) return { live: true, p: p };
+    if (!f.snap) return null;
+    return { live: false, p: Object.assign({ id: f.id }, f.snap) };
+  }
+};
 
 function pinIcon(color, kind, isPoi) {
   return L.divIcon({
@@ -5524,7 +5698,7 @@ function waypointCardHtml(w, here) {
     return '<div class="card" data-id="' + w.id + '">' +
       '<div class="card-top"><div class="dotmark wpt" style="background:' + c.color + '">' + catIcon(w.cat) + "</div>" +
       '<div class="card-t">' + esc(w.name) + "</div>" +
-      '<span class="tag cat">' + esc(c.label) + "</span></div>" +
+      '<span class="tag cat">' + esc(c.label) + "</span>" + favStar("wpt", w.id) + "</div>" +
       '<div class="trk-m">' +
         pairs.map(function (p) { return "<div><b>" + p[0] + "</b><span>" + p[1] + "</span></div>"; }).join("") +
       "</div>" +
@@ -5545,6 +5719,42 @@ function waypointCardHtml(w, here) {
       '<button class="btn xs ghost" data-act="del">Delete</button></div>' +
       '</div>';
   }
+}
+
+/* Favourites, drawn from whatever the live records say now.
+
+   Nothing here is stored as a card. Each entry is resolved at render time, so
+   a kept servo picks up whatever SAFPIS last sent and a renamed waypoint shows
+   its new name. Where the record is not in memory - the POIs for that area are
+   not loaded - the snapshot stands in and the card says so, because a list
+   that emptied as you drove away from things would not be a favourites list.
+
+   A deleted waypoint is different from an unloaded POI: there is no record to
+   come back, so the favourite goes with it rather than sitting here as a name
+   that does nothing. */
+function renderFavs() {
+  const here = (view.has ? view.cur : poiAnchor());
+  const box = $("#favList"), note = $("#favNote");
+  const gone = [];
+  let stale = 0;
+  const html = favs.map(function (f) {
+    const r = Fav.resolve(f);
+    if (!r) { gone.push(f); return ""; }
+    if (r.w) return waypointCardHtml(r.w, here);
+    if (!r.live) stale++;
+    return poiCardHtml(r.p, here, r.live);
+  }).join("");
+  if (gone.length) {
+    favs = favs.filter(function (f) { return gone.indexOf(f) === -1; });
+    saveLS(LS.favs, favs);
+  }
+  $("#cntFavs").textContent = favs.length;
+  note.textContent = stale
+    ? stale + (stale === 1 ? " favourite is" : " favourites are") +
+      " outside the loaded map area, so the details shown are the ones from when you kept them."
+    : "";
+  box.innerHTML = html ||
+    '<div class="empty">Nothing kept yet. Tap the star on any POI or waypoint to keep it here.</div>';
 }
 
 /* Nearby Waypoints, off the action bar. Anchored the same way the POI list
@@ -7495,7 +7705,8 @@ function factRows(pairs) {
 
 function poiPopupHtml(p, here) {
   const m = POI_META[p.kind];
-  return '<div class="pop-t" style="color:' + inkOf(m.color) + '">' + esc(p.name) + "</div>" +
+  return '<div class="pop-head"><div class="pop-t" style="color:' + inkOf(m.color) + '">' +
+    esc(p.name) + "</div>" + favStar("poi", p.id, true) + "</div>" +
     (p.sub ? '<div class="pop-sub">' + esc(p.sub) + "</div>" : "") +
     (p.addr ? '<div class="pop-ad">' + esc(p.addr) + "</div>" : "") +
     (p.info ? '<div class="pop-n">' + esc(p.info) + "</div>" : "") +
@@ -7818,21 +8029,37 @@ function renderPois() {
     return;
   }
   box.innerHTML = hits.slice(0, 120).map(function (p) {
-    const m = POI_META[p.kind];
-    return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
-      '<div class="card-top"><div class="dotmark poi" style="background:' + m.color + '">' +
-      catIcon(poiIcon(p.kind)) + "</div>" +
-      '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
-      (p.sub ? '<div class="card-sub">' + esc(p.sub) + "</div>" : "") +
-      '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
-      fmtDist(haversine(here, p)) + " away</span></div></div></div>" +
-      (p.addr ? '<div class="card-ad">' + esc(p.addr) + "</div>" : "") +
-      (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
-      Fuel.html(p) +
-      '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
-      '<button class="btn xs ghost" data-act="go">Go To</button>' +
-      '<button class="btn xs ghost" data-act="hide">Hide</button></div></div>';
+    return poiCardHtml(p, here, true);
   }).join("");
+}
+
+/* One card, two lists - the arrangement waypoints already have. Nearby POIs
+   draws it and so does Favourites, and that is what keeps a kept servo’s
+   prices honest: the block comes from Fuel.html against the live record at
+   render time, so it says whatever SAFPIS last said rather than whatever was
+   true on the day it was starred.
+
+   `live` false means the record is not in memory, because the area it belongs
+   to is not loaded. Then the card is drawn from the snapshot and says so, and
+   Hide goes: there is nothing on the map to hide. */
+function poiCardHtml(p, here, live) {
+  const m = POI_META[p.kind] || POI_META.parking;
+  return '<div class="card" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
+    '<div class="card-top"><div class="dotmark poi" style="background:' + m.color + '">' +
+    catIcon(poiIcon(p.kind)) + "</div>" +
+    '<div style="flex:1;min-width:0"><div class="card-t">' + esc(p.name) + "</div>" +
+    (p.sub ? '<div class="card-sub">' + esc(p.sub) + "</div>" : "") +
+    '<div class="card-m"><span>' + m.label.toUpperCase() + "</span><span>" +
+    (here ? fmtDist(haversine(here, p)) + " away" : "") + "</span></div></div>" +
+    favStar("poi", p.id) + "</div>" +
+    (p.addr ? '<div class="card-ad">' + esc(p.addr) + "</div>" : "") +
+    (p.info ? '<div class="card-n">' + esc(p.info) + "</div>" : "") +
+    (live ? Fuel.html(p)
+          : '<div class="card-n stale">Kept details. This area is not loaded, so anything that moves - prices, hours - is not being updated.</div>') +
+    '<div class="card-acts"><button class="btn xs primary" data-act="nav">Navigate</button>' +
+    '<button class="btn xs ghost" data-act="go">Go To</button>' +
+    (live ? '<button class="btn xs ghost" data-act="hide">Hide</button>' : "") +
+    "</div></div>";
 }
 
 /* One chip per category that is actually present in the loaded set, with
@@ -11427,6 +11654,7 @@ function closeDrawer() {
   $("#drawer").setAttribute("aria-hidden", "true");
   closePoiPanel();
   closeWptPanel();
+  closeFavPanel();
   $("#scrim").classList.remove("show");
 }
 /* Nearby POIs is checked on the move, so it hangs off the action bar rather
@@ -11437,6 +11665,7 @@ function openPoiPanel() {
   /* Three sheets share one slot and one scrim, so opening any of them has to
      shut the other two or they stack up in it. */
   closeWptPanel();
+  closeFavPanel();
   $("#poiPanel").classList.add("open");
   $("#poiPanel").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
@@ -11453,6 +11682,7 @@ function openWptPanel() {
   $("#drawer").classList.remove("open");
   $("#drawer").setAttribute("aria-hidden", "true");
   closePoiPanel();
+  closeFavPanel();
   $("#wptPanel").classList.add("open");
   $("#wptPanel").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
@@ -11463,12 +11693,33 @@ function closeWptPanel() {
   $("#wptPanel").setAttribute("aria-hidden", "true");
 }
 function wptPanelOpen() { return $("#wptPanel").classList.contains("open"); }
+
+/* The third sheet in the same slot. */
+function openFavPanel() {
+  $("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+  closePoiPanel();
+  closeWptPanel();
+  $("#favPanel").classList.add("open");
+  $("#favPanel").setAttribute("aria-hidden", "false");
+  $("#scrim").classList.add("show");
+  renderFavs();
+}
+function closeFavPanel() {
+  $("#favPanel").classList.remove("open");
+  $("#favPanel").setAttribute("aria-hidden", "true");
+}
+function favPanelOpen() { return $("#favPanel").classList.contains("open"); }
 $("#btnMenu").addEventListener("click", openDrawer);
 $("#btnCloseDrawer").addEventListener("click", closeDrawer);
 $("#btnPoi").addEventListener("click", function () {
   if (poiPanelOpen()) closeDrawer(); else openPoiPanel();
 });
 $("#btnClosePoi").addEventListener("click", closeDrawer);
+$("#btnFav").addEventListener("click", function () {
+  if (favPanelOpen()) closeDrawer(); else openFavPanel();
+});
+$("#btnCloseFav").addEventListener("click", closeDrawer);
 $("#scrim").addEventListener("click", closeDrawer);
 
 /* ---- opening and shutting a section ----
@@ -11574,7 +11825,7 @@ function discloseToggle(det) {
   };
 }
 
-["#drawer", "#poiPanel", "#wptPanel"].forEach(function (sel) {
+["#drawer", "#poiPanel", "#wptPanel", "#favPanel"].forEach(function (sel) {
   $(sel).addEventListener("click", function (e) {
     const sum = e.target.closest("summary");
     if (!sum || !this.contains(sum)) return;
@@ -12020,7 +12271,8 @@ $("#trackList").addEventListener("click", async function (e) {
     const id = b.closest(".card").dataset.id;
     const w = waypoints.find((x) => x.id === id);
     if (!w) return;
-    if (b.dataset.act === "nav") navigateTo({ lat: w.lat, lng: w.lng, name: w.name });
+    if (b.dataset.act === "fav") favTap("wpt", id, null);
+    else if (b.dataset.act === "nav") navigateTo({ lat: w.lat, lng: w.lng, name: w.name });
     else if (b.dataset.act === "go") gotoLatLng(w.lat, w.lng);
     else if (b.dataset.act === "del") deleteWaypoint(id);
   });
@@ -12037,6 +12289,26 @@ $("#poiList").addEventListener("click", function (e) {
   }
   else if (b.dataset.act === "go") gotoLatLng(plat, plng);
   else if (b.dataset.act === "hide") hidePoi(card.dataset.id);
+  else if (b.dataset.act === "fav") favTap("poi", card.dataset.id, null);
+});
+
+/* Favourites draws both kinds of card, so the handler has to work out which
+   it was handed. The id decides it: a waypoint id is in the waypoint list and
+   a POI id is not. */
+$("#favList").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const card = b.closest(".card");
+  const id = card.dataset.id;
+  const w = waypoints.find(function (x) { return x.id === id; });
+  if (b.dataset.act === "fav") { favTap(w ? "wpt" : "poi", id, null); return; }
+  const lat = w ? w.lat : parseFloat(card.dataset.lat);
+  const lng = w ? w.lng : parseFloat(card.dataset.lng);
+  const t = card.querySelector(".card-t");
+  if (b.dataset.act === "nav") navigateTo({ lat: lat, lng: lng, name: w ? w.name : (t ? t.textContent : "Favourite") });
+  else if (b.dataset.act === "go") gotoLatLng(lat, lng);
+  else if (b.dataset.act === "hide") hidePoi(id);
+  else if (b.dataset.act === "del") deleteWaypoint(id);
 });
 
 $("#areaList").addEventListener("click", async function (e) {
