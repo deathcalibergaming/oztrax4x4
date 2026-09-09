@@ -3405,6 +3405,15 @@ const CFG = {
   PHOTON: "https://photon.komoot.io/reverse",
   PHOTON_TIMEOUT: 12000,
   PHOTON_LIMIT: 50,
+  /* How far apart the twelve group requests go out, and the longest the
+     index gets to answer once the first one has gone. 1200 is a choice,
+     not a threshold - see photonSlot for why nobody here knows the
+     threshold and why finding it out would be the very thing being fixed.
+     It is also comfortably above the second that browsers clamp timers to
+     in a backgrounded tab, so the pacing survives the app being in the
+     background rather than quietly becoming one request a second. */
+  PHOTON_GAP: 1200,
+  PHOTON_BUDGET: 45000,
   /* Photon is the type-ahead geocoder; Nominatim forbids that traffic. */
   PHOTON_SEARCH: "https://photon.komoot.io/api",
   SUGGEST_MIN: 3,          /* characters before anything is asked for */
@@ -6693,6 +6702,9 @@ function schedulePoi() {
    Tags are sent in groups because the server caps each answer at fifty
    results; one group per cap stops a town full of car parks crowding out
    its only fuel station.
+
+   Twelve groups is twelve requests, and they go out one at a time now.
+   See photonSlot.
    --------------------------------------------------------------------- */
 const PHOTON_GROUPS = [
   ["amenity:fuel"],
@@ -6741,7 +6753,13 @@ async function photonGroup(a, tags) {
   const bail = setTimeout(function () { ctl.abort(); }, CFG.PHOTON_TIMEOUT);
   try {
     const r = await fetch(q, { signal: ctl.signal });
-    if (!r.ok) throw new Error("http " + r.status);
+    /* The status rides out on the error because the caller has to tell a
+       throttle from a refusal: one is worth asking again, the other is us.
+       The browser will usually not see it - a 503 from this server carries
+       no CORS header, so fetch rejects before the response is readable -
+       but a proxy or a self-hosted instance would, and the retry below
+       costs nothing on the days the status is absent. */
+    if (!r.ok) { const bad = new Error("http " + r.status); bad.status = r.status; throw bad; }
     const j = await r.json();
     return { features: j.features || [], bytes: JSON.stringify(j).length };
   } finally {
@@ -6749,24 +6767,122 @@ async function photonGroup(a, tags) {
   }
 }
 
-/* Returns {items,bytes,secs} or {error}. Groups run together: six small
-   requests in parallel cost about the same wall clock as one. */
+/* One request at a time, with a gap between them.
+
+   photon.komoot.io is somebody else's machine, given away free, and what
+   it publishes in place of a rate limit is a sentence: use it for your
+   project as long as you remain fair, extensive usage will be throttled.
+   A search here is twelve tag groups and it used to send all twelve at
+   once, which is not fair by any reading and was not working either.
+   Measured against the deployed app, six of the twelve came back 503, and
+   a 503 from this server carries no CORS header, so the browser reports it
+   as a blocked request rather than as a status. The groups that lost the
+   race included the hospitals and the chemists - the pair that were given
+   separate groups in the first place so neither could crowd the other out
+   of a fifty-result cap.
+
+   Nothing said so. Half a search looked exactly like a whole one: the
+   status line reported that the index had answered, and six categories
+   were simply not in the result. That is the failure this file names by
+   hand in the cache-version comment - a feature silently missing rather
+   than absent - arriving through the front door.
+
+   The gap is 1200ms because that is slow, not because anyone found the
+   line. Komoot publish no number - the policy is a sentence - and the only
+   way to find the real threshold is to keep knocking until the server says
+   stop, which is the behaviour this comment exists to remove. What was
+   measured is one round of twelve at once (six 503s, 6.5s) against the
+   same twelve one at a time (all twelve answered), and then, after that
+   one round of probing, four minutes of every request from this address
+   being refused outright. A limiter with that much memory is not one to
+   go looking for the edge of.
+
+   The clock is shared across searches rather than restarted for each one,
+   so panning twice in a row queues instead of bursting. Twelve paced
+   requests cost about 14.4s, and 15.6s in the measured run where one group
+   was throttled and asked again. That is the right trade for a standby: it
+   runs when the map extract could not, or to fill the edges of a town
+   dense enough to shrink the extract's box. Fifteen seconds with every
+   category in it beats six with half of them missing and nothing saying
+   which. */
+let photonNext = 0;
+function photonSlot(gaps) {
+  const now = Date.now();
+  const at = Math.max(now, photonNext);
+  photonNext = at + CFG.PHOTON_GAP * (gaps || 1);
+  return new Promise(function (r) { setTimeout(r, at - now); });
+}
+
+/* What a group would have brought back, in the words the category chips
+   use. Worked out from the tags rather than kept in a second list beside
+   them, so a group that gains a tag says so without being told twice. */
+function groupLabels(tags) {
+  const out = [];
+  tags.forEach(function (t) {
+    const i = t.indexOf(":");
+    const one = {};
+    one[t.slice(0, i)] = t.slice(i + 1);
+    const k = poiKind(one);
+    const m = k && POI_META[k];
+    if (m && out.indexOf(m.label) < 0) out.push(m.label);
+  });
+  return out;
+}
+
+/* Returns {items,bytes,secs,missed} or {error}, where missed names the
+   categories that were asked for and did not arrive. */
 async function photonPois(a) {
   const t0 = Date.now();
-  const results = await Promise.allSettled(PHOTON_GROUPS.map(function (g) {
-    return photonGroup(a, g);
-  }));
-  const ok = results.filter(function (r) { return r.status === "fulfilled"; });
+  /* Set when the first request actually goes out rather than here, because
+     the budget is meant to cap how long the index is given to answer and
+     not how long we spent waiting for a turn. A search that queued behind
+     another one would otherwise spend its whole allowance in the queue and
+     report eleven categories missing without having asked for any: with a
+     900ms budget behind a 2400ms queue it asked one group before the fix
+     and nine after it. */
+  let deadline = Infinity;
+  const ok = [], missed = [];
+  for (let i = 0; i < PHOTON_GROUPS.length; i++) {
+    const g = PHOTON_GROUPS[i];
+    let got = null, why = null;
+    if (Date.now() > deadline) {
+      /* Out of time rather than refused, and the rest are not asked for at
+         all: a standby that spends two minutes is not a standby, and the
+         driver is told what is missing either way. */
+      why = new Error("out of time");
+    } else {
+      await photonSlot();
+      if (deadline === Infinity) deadline = Date.now() + CFG.PHOTON_BUDGET;
+      try { got = await photonGroup(a, g); } catch (e) { why = e; }
+      /* 429 and 503 are the server saying "not now", which is the one
+         answer worth asking again - and the one time to wait longer than
+         usual first, since being told to slow down is a poor moment to
+         knock at the same rate. A 400 is us, and a timeout has already
+         spent twelve seconds proving the point. */
+      if (!got && why && (why.status === 429 || why.status === 503) &&
+          Date.now() < deadline) {
+        await photonSlot(2);
+        try { got = await photonGroup(a, g); why = null; } catch (e) { why = e; }
+      }
+    }
+    if (got) ok.push(got); else missed.push({ group: g, why: why });
+  }
   if (!ok.length) {
-    const why = results[0] && results[0].reason;
+    const why = missed[0] && missed[0].why;
     return { error: why && why.name === "AbortError"
       ? "search index timed out" : "could not reach the search index" };
   }
+  const lost = [];
+  missed.forEach(function (m) {
+    groupLabels(m.group).forEach(function (l) {
+      if (lost.indexOf(l) < 0) lost.push(l);
+    });
+  });
   const seen = {}, out = [];
   let bytes = 0;
   ok.forEach(function (r) {
-    bytes += r.value.bytes;
-    r.value.features.forEach(function (f) {
+    bytes += r.bytes;
+    r.features.forEach(function (f) {
       const p = f.properties || {}, g = f.geometry || {};
       if (!g.coordinates) return;
       const tags = {};
@@ -6792,7 +6908,16 @@ async function photonPois(a) {
   });
   return { items: out, bytes: bytes,
            secs: Math.round((Date.now() - t0) / 100) / 10,
-           partial: ok.length < PHOTON_GROUPS.length };
+           missed: lost };
+}
+
+/* A short list reads as a short list; a long one reads as a count, because
+   eleven category names in a status line is a wall rather than a warning. */
+function photonMissedNote(ph) {
+  const m = (ph && ph.missed) || [];
+  if (!m.length) return "";
+  return ", " + (m.length > 3 ? m.length + " categories" : m.join("/")) +
+         " did not answer";
 }
 
 /* Two sources, one list. Where both know a place the extract wins, because
@@ -6861,7 +6986,8 @@ async function fetchPois(force) {
           const before = items.length;
           items = mergePois(items, ph.items);
           note = "full detail within " + (osm.radius / 1000) + " km, " +
-                 (items.length - before) + " more out to 5 km";
+                 (items.length - before) + " more out to 5 km" +
+                 photonMissedNote(ph);
         } else {
           note = "OpenStreetMap, full detail within " + (osm.radius / 1000) + " km only";
         }
@@ -6872,7 +6998,7 @@ async function fetchPois(force) {
       if (!ph.error) {
         items = ph.items;
         note = "search index, " + fmtBytes(ph.bytes) + ", " + ph.secs + "s" +
-               (ph.partial ? ", partial" : "") + " - no camp fees recorded";
+               photonMissedNote(ph) + " - no camp fees recorded";
       } else {
         note = osm.error + "; " + ph.error;
       }
