@@ -3575,19 +3575,26 @@ const CFG = {
   /* A safety valve, not a budget, and set from what the hard routes
      actually cost rather than from the size of the graph.
 
-     Measured on the national spine: Perth to Sydney, which is the longest
-     drive on the continent at 3,853 km, settles 231,093 nodes. Adelaide to
-     Brisbane settles 143,844. The straight-line heuristic keeps the search
-     in a corridor, so it never goes near the 620,000 nodes the spine holds -
-     which is why the old 300,000, set when the backbone was one state, would
-     have carried an interstate route anyway.
+     Measured on the national spine, with the admissible hope below: Sydney
+     to Broome settles 558,739 nodes, Perth to Cairns and Adelaide to
+     Brisbane about 340,000, Perth to Sydney 257,769. Sydney to Broome is
+     the worst because the straight line between them runs across the middle
+     of the continent, where there are no roads at all - the heuristic
+     believes in a shortcut through the Gibson Desert and the search has to
+     rule it out the long way. A* very nearly degenerates to Dijkstra on
+     that pair.
 
-     Six hundred thousand is two and a half times the worst measured drive.
-     Higher would only buy a slower answer to a question with no answer:
-     Darwin to Hobart has no route at any cap, because you cannot drive
-     across Bass Strait, and the cap is what decides how long it takes to
+     A million and a half is two and a half times the worst of those. It was
+     600,000 while hope divided by a flat 100 km/h, which was a tighter
+     bound than the roads allow and therefore not a bound at all; making it
+     honest cost roughly double the search on the hard routes, and this is
+     that bill.
+
+     What the ceiling actually buys is a bounded answer to a question with
+     no answer. Darwin to Hobart has no route at any cap, because you cannot
+     drive across Bass Strait, and this is what decides how long it takes to
      say so. */
-  ROUTE_MAX_POPS: 600000,
+  ROUTE_MAX_POPS: 1500000,
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -9650,6 +9657,10 @@ const Route = {
   binHead: new Map(),      /* x * 8192 + y -> arena index, or absent */
   binEdge: null, binNext: null, binN: 0,
   fixed: 0,                /* edges belonging to the spine, never dropped */
+  /* The fastest speed anything in the loaded graph is priced at, km/h, and
+     the divisor hope uses. See hope for why it is measured rather than
+     assumed. */
+  vMax: 0,
   busy: false,
   bbBusy: null,
   stale: false,            /* a newer cut has landed and this graph is last month */
@@ -9939,6 +9950,7 @@ const Route = {
      on it. */
   dropGraph: function () {
     this.nE = 0;
+    this.vMax = 0;
     this.names.length = 0;
     this.geoN = 0;
     this.fixed = 0;
@@ -10085,6 +10097,7 @@ const Route = {
       }
       if (!m) { this.geoN = off; continue; }
       const v = row[2] || ROAD_SPEED[cls] || 40;
+      if (v > this.vMax) this.vMax = v;
       let cost = m / (v / 3.6);
       /* Gated, private or permit-only. Still routable, because out here a
          station track is sometimes the only way through and the driver is
@@ -10385,11 +10398,34 @@ const Route = {
   },
 
   /* Time to the destination if the rest of the trip were a straight line at
-     highway speed. Never longer than the real thing, which is what keeps
-     A* honest, and close enough on a long haul to keep it quick. */
+     the fastest speed anything in the graph is priced at.
+
+     It divided by a flat 100 km/h, and that was not true: 7,267 of the
+     edges loaded around Adelaide are priced quicker than that and the
+     fastest is 130. A heuristic that overestimates what is left is not a
+     lower bound, and A* with a bound that is not a bound stops being a
+     search for the best route and becomes a search for a good one. It
+     settles a node, later finds a cheaper way to it, and throws the cheaper
+     way away because the node is already in done.
+
+     Nothing dramatic came of it - the routes were sensible and mostly
+     optimal - but it was luck rather than arithmetic, and which way it fell
+     depended on the order neighbours came out of the adjacency. Adelaide to
+     Marree returned a route seven seconds slower than the one it had, for
+     no reason a driver could have seen.
+
+     vMax rather than a constant 130 because the bound only has to hold for
+     the graph in hand, and the tighter it is the less A* wanders. Out on
+     the spine where nothing is posted above 110 the search stays as narrow
+     as it was; it only widens where there is genuinely something fast
+     loaded to widen it for.
+
+     That makes it consistent as well as admissible - no edge is quicker
+     than vMax, so h(n) is never more than the edge to n' plus h(n') - which
+     is what makes settling a node once actually safe. */
   hope: function (node, goal) {
     return haversine({ lat: this.nodeLat(node) / 1e5, lng: this.nodeLng(node) / 1e5 }, goal)
-           / (100 / 3.6);
+           / ((this.vMax || 100) / 3.6);
   },
 
   route: function (pts, m, secs, snapA, snapB) {
