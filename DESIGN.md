@@ -838,10 +838,26 @@ A deleted waypoint is the other case, and it is different: there is no record
 coming back, so the favourite is dropped rather than left as a name that does
 nothing.
 
-**The star is filled, never merely recoloured**, and the bar button does not
-light up when the list is not empty. `.act.on` paints a control in Burnt
-Orange, and this system spends that on the one persistent mode the driver
-chose. Having kept something is a fact about a list, not a mode you are in.
+**The star is filled, never merely recoloured** — kept against not-kept is solid
+against outline, which reads before colour does. And it is filled in Warm Sand,
+not Burnt Orange. Rust means action, and every card the star sits on already
+spends it on Navigate; a rust star beside a rust button put two accents in one
+card and made the star look like something to press rather than something that
+is already true. Kept is a state, so it takes the text colour.
+
+The bar button does not light up when the list is not empty either. `.act.on`
+paints a control in Burnt Orange, and this system spends that on the one
+persistent mode the driver chose. Having kept something is a fact about a list,
+not a mode you are in.
+
+**It can be kept as it is made.** The same star sits in the New Waypoint form’s
+head, where it holds an intention rather than a state — there is no record to
+point at until Save creates one, and the favourite is added straight after
+`saveWaypoints`, because until then there is nothing for its id to resolve to.
+It resets with the form, so a keep does not carry to the next pin dropped, and
+the toast says which of the two things happened rather than leaving the star to
+be checked afterwards. One star, four places, one path: `STAR_D` is stamped
+into the three that are markup, so the shape cannot drift between them.
 
 ### Orientation
 

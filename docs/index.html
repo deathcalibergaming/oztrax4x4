@@ -959,9 +959,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .favstar svg{width:19px;height:19px;stroke:var(--dim);fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
 /* Filled, not just recoloured. An outline that changes hue is a difference
-   this system does not accept anywhere else, and least of all in sun. */
-.favstar.on svg{stroke:var(--rust);fill:var(--rust)}
+   this system does not accept anywhere else, and least of all in sun - so kept
+   against not-kept is solid against outline, which reads before colour does.
+
+   Warm Sand and not Burnt Orange. Rust means action here, and every card this
+   star sits on already spends it on Navigate; a rust star beside a rust button
+   put two accents in one card, which The One Accent Rule does not allow and
+   which made the star look like something to press rather than something that
+   is already true. Kept is a state, so it takes the text colour filled. */
+.favstar.on svg{stroke:var(--sand);fill:var(--sand)}
 .favstar:active{background:rgba(216,203,170,.16)}
+/* In a form head there is no card padding to pull back over, and a negative
+   right margin would slide the star under the close button beside it. */
+.float-head .favstar{margin:-7px 0}
 .pop-head{display:flex;align-items:flex-start;gap:6px}
 .pop-head .pop-t{flex:1;min-width:0}
 /* A kept card whose area is not loaded says so where the prices would have
@@ -2801,7 +2811,7 @@ input[type=date],input[type=time]{color-scheme:dark}
            saved - and a place you chose to keep belongs in that row rather
            than in a menu two taps away. -->
       <button class="act" id="btnFav" aria-label="Favourites">
-        <svg viewBox="0 0 24 24"><path d="M12 3.4 14.29 8.84 20.18 9.34 15.71 13.21 17.05 18.96 12 15.9 6.95 18.96 8.29 13.21 3.82 9.34 9.71 8.84Z"/></svg><span>Favourites</span>
+        <svg></svg><span>Favourites</span>
       </button>
       <button class="act" id="btnRec">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
@@ -3033,7 +3043,7 @@ input[type=date],input[type=time]{color-scheme:dark}
      distance - newest kept first, the way saved waypoints and tracks are. -->
 <aside id="favPanel" aria-hidden="true">
   <div class="dr-head">
-    <svg id="favHeadIcon" viewBox="0 0 24 24"><path d="M12 3.4 14.29 8.84 20.18 9.34 15.71 13.21 17.05 18.96 12 15.9 6.95 18.96 8.29 13.21 3.82 9.34 9.71 8.84Z"/></svg>
+    <svg id="favHeadIcon" viewBox="0 0 24 24"></svg>
     <h2 class="t">Favourites <span class="cnt" id="cntFavs">0</span></h2>
     <button id="btnCloseFav" class="icon-btn" aria-label="Close favourites">
       <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -3051,6 +3061,12 @@ input[type=date],input[type=time]{color-scheme:dark}
 <div id="wpForm" class="float hidden">
   <div class="float-head">
     <div class="t" id="wpFormTitle">New Waypoint</div>
+    <!-- Keeping it is decided while it is being made, not on a second trip
+         through a list. The same star the cards and popups carry, so there is
+         one thing to learn; what differs is that there is no record to point
+         at yet, so this one holds an intention until Save creates one. -->
+    <button type="button" class="favstar" id="wpFav" aria-pressed="false"
+            aria-label="Also keep as a favourite" title="Also keep as a favourite"></button>
     <button class="icon-btn" id="wpCancelX" style="width:28px;height:28px">
       <svg viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
@@ -5903,11 +5919,25 @@ function reclampFloat() {
   if (wpFormEl._anchor) placeFloat(wpFormEl, wpFormEl._anchor.cx, wpFormEl._anchor.cy);
 }
 
+/* The form’s star holds an intention rather than a state: there is no waypoint
+   to favourite until Save makes one. It resets with the form, so a keep does
+   not carry over to the next pin dropped. */
+let wpFav = false;
+function syncWpFav() {
+  const b = $("#wpFav");
+  const say = wpFav ? "Do not keep as a favourite" : "Also keep as a favourite";
+  b.classList.toggle("on", wpFav);
+  b.setAttribute("aria-pressed", wpFav ? "true" : "false");
+  b.setAttribute("aria-label", say);
+  b.title = say;
+}
+
 function openWpForm(latlng, cx, cy) {
   wpTarget = latlng;
   wpFormOpen = true;
   $("#wpName").value = "";
   $("#wpNote").value = "";
+  wpFav = false; syncWpFav();
   $("#wpCoord").textContent = latlng.lat.toFixed(5) + ", " + latlng.lng.toFixed(5);
   setCat("flag");
   const st = stageEl.getBoundingClientRect();
@@ -5926,13 +5956,20 @@ function closeWpForm() {
 function saveWpForm() {
   if (!wpTarget) return;
   const name = ($("#wpName").value || "").trim() || (CATS[wpCat].label + " " + (waypoints.length + 1));
+  const id = uid();
   waypoints.push({
-    id: uid(), lat: wpTarget.lat, lng: wpTarget.lng,
+    id: id, lat: wpTarget.lat, lng: wpTarget.lng,
     name: name, cat: wpCat, note: ($("#wpNote").value || "").trim(), ts: Date.now()
   });
   saveWaypoints();
+  /* The waypoint has to exist before it can be kept - Fav stores an id, and
+     until saveWaypoints has run there is nothing for that id to resolve to. */
+  const keep = wpFav;
+  if (keep) Fav.add("wpt", id, null);
   closeWpForm();
-  toast("Waypoint saved", "ok");
+  /* One line, and it says which of the two things happened rather than
+     leaving the star to be checked afterwards. */
+  toast(keep ? "Waypoint saved and kept" : "Waypoint saved", "ok");
 }
 
 /* A tap that lands off an open card is a tap that dismisses the card, and
@@ -11887,6 +11924,17 @@ $("#btnWpt").addEventListener("click", function () {
 });
 $("#btnCloseWpt").addEventListener("click", closeDrawer);
 $("#wpSave").addEventListener("click", saveWpForm);
+$("#wpFav").addEventListener("click", function () { wpFav = !wpFav; syncWpFav(); });
+/* One star, four places, one path. Three of them are markup rather than
+   generated, so they are stamped from STAR_D here - a change to the shape
+   cannot leave one of them drawing the old one. */
+[["#btnFav svg", 0], ["#favHeadIcon", 0], ["#wpFav", 1]].forEach(function (pair) {
+  const el = $(pair[0]);
+  if (!el) return;
+  const path = '<path d="' + STAR_D + '"/>';
+  el.innerHTML = pair[1] ? '<svg viewBox="0 0 24 24">' + path + "</svg>" : path;
+  if (!pair[1] && !el.getAttribute("viewBox")) el.setAttribute("viewBox", "0 0 24 24");
+});
 $("#wpCancel").addEventListener("click", closeWpForm);
 $("#wpCancelX").addEventListener("click", closeWpForm);
 $("#wpCats").addEventListener("click", function (e) {
