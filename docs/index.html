@@ -3538,12 +3538,25 @@ const CFG = {
   POI_PACK_URL: "poi/",
   POI_PACK_Z: 13,
   ROUTE_Z: 13,
+  /* The coarse grid the tertiary roads are cut on, about 78 km a tile.
+     They are the minor rural roads - Googs Track, Old Andado, the alternate
+     that rejoins the highway twenty kilometres on - and they are
+     destinations far more often than corridors, so they are fetched around
+     the vehicle and around each end of a route rather than carried. */
+  ROUTE_REGION_Z: 9,
+  /* Metres of tertiary kept loaded around the vehicle and around each end
+     of a route. Wider than the local radius because the grid is wider: one
+     r9 tile either side of wherever you are. */
+  ROUTE_REGION_RADIUS: 40000,
   ROUTE_RADIUS: 6000,      /* metres of local streets kept loaded as you drive */
   ROUTE_REACH: 4000,       /* and fetched around each end of a route being asked for */
   /* Edges held in the graph before the local half is dropped and rebuilt
-     from the backbone. The state backbone is 69000 of them and never goes;
-     the rest is whatever streets the trip has driven past. */
-  ROUTE_MEM_MAX: 260000,
+     from the spine. The national spine is 577,448 of them and never goes;
+     the rest is whatever tertiary and streets the trip has driven past.
+
+     The old ceiling was 260,000, set when the backbone was one state's
+     69,000 - a number the spine alone is more than twice. */
+  ROUTE_MEM_MAX: 800000,
   /* Standing further than this from any road the app holds, there is
      nothing honest to route from. */
   ROUTE_SNAP_MAX: 5000,
@@ -3559,9 +3572,22 @@ const CFG = {
      track underneath you, and at 30 it takes a real saving to be worth
      crossing a paddock for. */
   ROUTE_SNAP_KMH: 30,
-  /* A safety valve, not a budget. The whole state backbone is 62000 nodes,
-     so a search that has looked at five times that is not converging. */
-  ROUTE_MAX_POPS: 300000,
+  /* A safety valve, not a budget, and set from what the hard routes
+     actually cost rather than from the size of the graph.
+
+     Measured on the national spine: Perth to Sydney, which is the longest
+     drive on the continent at 3,853 km, settles 231,093 nodes. Adelaide to
+     Brisbane settles 143,844. The straight-line heuristic keeps the search
+     in a corridor, so it never goes near the 620,000 nodes the spine holds -
+     which is why the old 300,000, set when the backbone was one state, would
+     have carried an interstate route anyway.
+
+     Six hundred thousand is two and a half times the worst measured drive.
+     Higher would only buy a slower answer to a question with no answer:
+     Darwin to Hobart has no route at any cap, because you cannot drive
+     across Bass Strait, and the cap is what decides how long it takes to
+     say so. */
+  ROUTE_MAX_POPS: 600000,
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -4069,7 +4095,7 @@ const DB = (function () {
            changes until the next quarterly release replaces it. */
         if (!db.objectStoreNames.contains("addr")) db.createObjectStore("addr");
         /* v4: the road network. Tiles keyed "13/x/y" like the addresses,
-           and the state backbone under "backbone" - four megabytes of it,
+           and the national road spine under "spine" - ten megabytes of it,
            which is the one entry here worth more than the rest put
            together and the one that has to survive going out of range. */
         if (!db.objectStoreNames.contains("route")) db.createObjectStore("route");
@@ -7009,7 +7035,7 @@ async function fetchPois(force) {
   /* Addresses and roads ride the same movement trigger, but nothing waits
      on them and a POI failure must not hold them up - the packs come off
      our own origin and have no reason to be unreachable when a map server
-     is. Route.ensure also brings down the state backbone the first time it
+     is. Route.ensure also brings down the national road spine the first time it
      runs, which is the one download that has to happen before the signal
      goes rather than after. */
   Addr.ensure(a);
@@ -9503,12 +9529,20 @@ const Pack = {
    So the road network is carried instead, built by tools/build-routing.mjs
    and served from our own origin in two parts:
 
-     backbone.json  every road of tertiary class or better in the state -
-                    thirty thousand kilometres, which is the whole touring
-                    network including the Oodnadatta, Birdsville and
-                    Strzelecki - in about a megabyte and a third over the
-                    wire. Fetched once and kept. Every long route is
-                    answered out of it with no further request at all.
+     spine.json     motorway, trunk, primary, secondary and the ferries for
+                    the whole of Australia - 577,448 edges and 196,813 km,
+                    10.4 MB over the wire. Fetched once and kept. Every long
+                    route is answered out of it with no further request.
+
+                    Secondary is in it and that is the point: the Oodnadatta
+                    Track is secondary, and so are the Birdsville and the
+                    Strzelecki. Stopping at primary would save 3 MB and lose
+                    the roads this app exists for.
+
+     r9/x/y.json    tertiary, on a coarse grid of about 78 km - the minor
+                    rural roads, which are destinations far more often than
+                    corridors. Fetched around the vehicle and around each
+                    end of a route, never along the middle of one.
 
      13/x/y.json    the streets, station tracks and service roads, on the
                     same grid as the address packs and fetched the same
@@ -9560,8 +9594,9 @@ const Route = {
      arrays for adjacency, which reads beautifully and costs about 200 bytes
      an edge once V8 has laid out the object, the Map entry and the little
      array hanging off it. South Australia's 69,000 backbone edges could
-     carry that. The national spine is 324,864 and the full backbone is
-     978,783, and at 200 bytes an edge the spine alone is 65 MB of heap
+     carry that. The national spine is 577,448 and the tertiary
+     network on top of it another 401,589, and at 200 bytes an edge the spine
+     alone would be 115 MB of heap
      before a single street is loaded.
 
      As columns it is 35 bytes an edge and the same numbers. Nothing about
@@ -9614,7 +9649,7 @@ const Route = {
      threads them, binHead maps a packed x/y to the first. */
   binHead: new Map(),      /* x * 8192 + y -> arena index, or absent */
   binEdge: null, binNext: null, binN: 0,
-  fixed: 0,                /* edges belonging to the backbone, never dropped */
+  fixed: 0,                /* edges belonging to the spine, never dropped */
   busy: false,
   bbBusy: null,
   stale: false,            /* a newer cut has landed and this graph is last month */
@@ -9725,20 +9760,26 @@ const Route = {
     return !!col && col.indexOf(y) >= 0;
   },
 
-  /* The backbone, once. Four megabytes of JSON and about a second and a
-     half to fetch and fold in on a phone, which is why it is pulled in the
-     background as soon as the app has something better to do than start up,
-     rather than at the moment somebody asks for a route.
+  /* The spine, once. Motorway, trunk, primary, secondary and the ferries
+     for the whole country - 577,448 edges, 196,813 km, 10.4 MB over the
+     wire and a second or two to fold in on a phone, which is why it is
+     pulled in the background as soon as the app has something better to do
+     than start up rather than at the moment somebody asks for a route.
+
+     Secondary is in it and that is the point. The Oodnadatta Track is
+     secondary, and so are the Birdsville and the Strzelecki: a spine that
+     stopped at primary would be 3 MB lighter and would not know the roads
+     this app exists for.
 
      Held under one promise: the startup fetch and a route asked for while
      it is still in flight are the same download, not two. */
-  ensureBackbone: function () {
-    if (this.packs.has("bb")) return Promise.resolve(true);
+  ensureSpine: function () {
+    if (this.packs.has("sp")) return Promise.resolve(true);
     if (this.bbBusy) return this.bbBusy;
     const self = this;
     this.bbBusy = (async function () {
       let pk = null, held = null;
-      try { held = await DB.get("route", "backbone"); } catch (e) { /* fall through */ }
+      try { held = await DB.get("route", "spine"); } catch (e) { /* fall through */ }
       /* Read after the lookup: freshen may have landed a new manifest while
          this was waiting on storage. */
       const cut = self.cut();
@@ -9750,13 +9791,17 @@ const Route = {
       if (held && (cut === null || (held.__cut || "") === cut)) pk = held;
       if (!pk) {
         try {
-          const r = await fetch(CFG.ROUTE_URL + "backbone.json");
+          const r = await fetch(CFG.ROUTE_URL + "spine.json");
           if (!r.ok) throw new Error("http " + r.status);
           pk = await r.json();
           pk.__cut = cut || "";
-          try { await DB.put("route", pk, "backbone"); } catch (e) { /* ignore */ }
+          try { await DB.put("route", pk, "spine"); } catch (e) { /* ignore */ }
+          /* The four megabytes of one state's backbone, which nothing will
+             ask for again. Left alone it would sit in storage for the life
+             of the install. */
+          try { await DB.del("route", "backbone"); } catch (e) { /* ignore */ }
         } catch (e) {
-          /* stale beats nothing, and a stale backbone still routes */
+          /* stale beats nothing, and a stale spine still routes */
           if (held) pk = held;
           else {
             self.bbBusy = null;
@@ -9764,7 +9809,7 @@ const Route = {
           }
         }
       }
-      self.addPack(pk, "bb");
+      self.addPack(pk, "sp");
       self.fixed = self.nE;
       return true;
     })();
@@ -9772,25 +9817,25 @@ const Route = {
   },
 
   /* On disk is a different question from in the graph, and an offline area
-     is asking the first one. Going through ensureBackbone would answer the
+     is asking the first one. Going through ensureSpine would answer the
      second: a phone that has routed once this session already holds the
-     backbone in memory, so it would report success and write nothing, and
+     spine in memory, so it would report success and write nothing, and
      the area would go out of range without the network it was downloaded
      to do without. */
-  keepBackbone: async function () {
+  keepSpine: async function () {
     let held = null;
-    try { held = await DB.get("route", "backbone"); } catch (e) { /* ask the server */ }
+    try { held = await DB.get("route", "spine"); } catch (e) { /* ask the server */ }
     const cut = this.cut();
     if (held && (cut === null || (held.__cut || "") === cut)) return true;
     try {
-      const r = await fetch(CFG.ROUTE_URL + "backbone.json");
+      const r = await fetch(CFG.ROUTE_URL + "spine.json");
       if (!r.ok) throw new Error("http " + r.status);
       const pk = await r.json();
       pk.__cut = cut || "";
-      await DB.put("route", pk, "backbone");
+      await DB.put("route", pk, "spine");
       return true;
     } catch (e) {
-      /* A backbone that is a cut behind is still a backbone, and this is
+      /* A spine that is a cut behind is still a spine, and this is
          being asked whether the area can be driven without a signal. It
          can. Reporting a failure here would tell the driver the download
          had not worked when the only thing missing is the newest cut. */
@@ -9798,13 +9843,43 @@ const Route = {
     }
   },
 
+  /* Which tertiary tiles the pack holds. A separate index from the local
+     one because they are a different grid, and empty desert has no tile on
+     either. */
+  regionKey: function (x, y) { return "r" + CFG.ROUTE_REGION_Z + "/" + x + "/" + y; },
+
+  regionExists: function (x, y) {
+    const t = this.manifest && this.manifest.region && this.manifest.region.tiles;
+    if (!t) return false;
+    const col = t[x];
+    return !!col && col.indexOf(y) >= 0;
+  },
+
+  regionAround: function (lat, lng, radius) {
+    const z = CFG.ROUTE_REGION_Z;
+    const dLat = radius / 111320;
+    const dLng = radius / (111320 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    const x0 = lon2tile(lng - dLng, z), x1 = lon2tile(lng + dLng, z);
+    const y0 = lat2tile(lat + dLat, z), y1 = lat2tile(lat - dLat, z);
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        if (this.regionExists(x, y)) out.push([x, y]);
+      }
+    }
+    return out;
+  },
+
+  fetchRegion: function (x, y, keep) { return this.fetchPack(this.regionKey(x, y), keep); },
+
   /* keep says whether the tile also joins the graph. An offline area passes
      false: it is writing a whole region to storage and has no business
      turning over the working set of wherever the vehicle actually is - two
      thousand tiles folded in would trip the cap and throw away the streets
      under the wheels to make room for streets nobody has driven to yet. */
-  fetchTile: async function (x, y, keep) {
-    const k = this.key(x, y);
+  fetchTile: function (x, y, keep) { return this.fetchPack(this.key(x, y), keep); },
+
+  fetchPack: async function (k, keep) {
     /* Already in the graph is only a reason to stop when the graph is what
        was wanted. An offline area is filling storage, and asks again. */
     if (keep !== false && (this.packs.has(k) || this.tried.has(k))) return;
@@ -9891,7 +9966,10 @@ const Route = {
          the mark - so a tile that slipped in ahead of it would be pinned
          there for the session and re-added as a duplicate after every
          eviction. */
-      await this.ensureBackbone();
+      await this.ensureSpine();
+      for (const t of this.regionAround(a.lat, a.lng, CFG.ROUTE_REGION_RADIUS)) {
+        await this.fetchRegion(t[0], t[1]);
+      }
       for (const t of this.around(a.lat, a.lng, CFG.ROUTE_RADIUS)) {
         await this.fetchTile(t[0], t[1]);
       }
@@ -9906,6 +9984,24 @@ const Route = {
   reach: async function (from, to) {
     await this.loadManifest();
     if (!this.manifest) return;
+    /* The tertiary roads at both ends, before the streets. A trip that
+       begins on a minor rural road - which out here is most of them -
+       cannot be joined to the spine without them, and they are the cheaper
+       of the two: two or three tiles of a couple of kilobytes against a
+       dozen streets.
+
+       Only around the ends, never along the middle. The middle of a long
+       route is what the spine is for, and a corridor of tertiary from
+       Perth to Sydney would be most of the seven megabytes of them. */
+    const regions = this.regionAround(from.lat, from.lng, CFG.ROUTE_REGION_RADIUS)
+      .concat(this.regionAround(to.lat, to.lng, CFG.ROUTE_REGION_RADIUS));
+    const seenR = {};
+    for (const t of regions) {
+      const k = t[0] + "/" + t[1];
+      if (seenR[k]) continue;
+      seenR[k] = 1;
+      await this.fetchRegion(t[0], t[1]);
+    }
     const want = this.around(from.lat, from.lng, CFG.ROUTE_REACH)
       .concat(this.around(to.lat, to.lng, CFG.ROUTE_REACH));
     const seen = {};
@@ -10157,7 +10253,7 @@ const Route = {
      beating the track under the wheels to save two minutes. Nearest that
      works, then. Not cheapest counting a leg nobody can drive. */
   find: async function (from, to) {
-    const ok = await this.ensureBackbone();
+    const ok = await this.ensureSpine();
     if (!ok) return null;
     await this.reach(from, to);
 
@@ -10315,8 +10411,8 @@ const Route = {
   stats: async function () {
     try {
       const keys = await DB.keys("route");
-      const tiles = keys.filter(function (k) { return k !== "index" && k !== "backbone"; }).length;
-      return (keys.indexOf("backbone") >= 0 ? "backbone + " : "") + tiles;
+      const tiles = keys.filter(function (k) { return k !== "index" && k !== "spine"; }).length;
+      return (keys.indexOf("spine") >= 0 ? "spine + " : "") + tiles;
     } catch (e) { return "0"; }
   }
 };
@@ -11700,14 +11796,14 @@ async function runAreaDownload() {
 
   /* And the roads, for the same reasons and one more: an area is downloaded
      because somebody is about to be out of range in it, and a route is the
-     thing they will want most once they are. The state backbone comes with
+     thing they will want most once they are. The national spine comes with
      it whether or not it was already here - it is four megabytes against
      the several this has just spent on imagery, and without it the streets
      in this box lead nowhere. */
   let routeTiles = 0;
   if (!dlAbort) {
     try {
-      await Route.keepBackbone();
+      await Route.keepSpine();
       await Route.loadManifest();
       for (const t of Route.cover(bounds.getSouth(), bounds.getWest(),
                                   bounds.getNorth(), bounds.getEast())) {
@@ -11883,14 +11979,14 @@ async function runDiagnostics() {
      phone, and that is answered from storage. */
   rows.push(await (async function () {
     try {
-      const held = await DB.get("route", "backbone");
+      const held = await DB.get("route", "spine");
       const tiles = (await DB.keys("route")).filter(function (k) {
-        return k !== "index" && k !== "backbone";
+        return k !== "index" && k !== "spine";
       }).length;
       return held
         ? { label: "Routing (on this phone)", cls: "ok",
-            text: "backbone + " + tiles + " local" }
-        : { label: "Routing (on this phone)", cls: "bad", text: "backbone not downloaded" };
+            text: "spine + " + tiles + " local" }
+        : { label: "Routing (on this phone)", cls: "bad", text: "spine not downloaded" };
     } catch (e) {
       return { label: "Routing (on this phone)", cls: "bad", text: "storage unavailable" };
     }
@@ -12100,7 +12196,7 @@ function directLine(from, to) {
    the one every route takes, so it cannot quietly stop working while the
    online path covers for it.
 
-   OSRM is still there for what the packs do not carry: the backbone stops
+   OSRM is still there for what the packs do not carry: the spine stops
    at the state border, so Broken Hill or Mildura is its job. */
 async function findRoute(from, to) {
   try {
