@@ -972,9 +972,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    an exception in DESIGN.md rather than left to look like a slip. */
 .favstar.on svg{stroke:var(--rust);fill:var(--rust)}
 .favstar:active{background:rgba(216,203,170,.16)}
-/* In a form head there is no card padding to pull back over, and a negative
-   right margin would slide the star under the close button beside it. */
-.float-head .favstar{margin:-7px 0}
+/* The star is the only thing at this end of the head now - the close button it
+   used to sit beside is gone, since Cancel is already in the footer saying the
+   same thing. Pulled 3px right so its glyph lands where the cross’s did: both
+   boxes are bigger than their marks, and the star’s is 3px more generous. */
+.float-head .favstar{margin:-7px -3px -7px 0}
 .pop-head{display:flex;align-items:flex-start;gap:6px}
 .pop-head .pop-t{flex:1;min-width:0}
 /* A kept card whose area is not loaded says so where the prices would have
@@ -1903,8 +1905,28 @@ details.sub > .sec-body{padding:12px 0 0}
   background:var(--rust);border-color:var(--rust);color:#12100E}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
 
-/* ---------- floating form (clamped to viewport) ---------- */
-.float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));background:var(--panel);
+/* ---------- floating form (centred in what the keyboard leaves) ---------- */
+/* It used to be pinned beside the tap and clamped between the stats bar and
+   the action bar, measuring its own idea of where the bottom of the screen
+   was. That idea was the layout viewport, and Android’s keyboard covers the
+   page rather than shortening it - so an open keyboard put Cancel and Save
+   under the keys. Exactly the fault the navigation search had, and it went
+   unnoticed here because the form was measured rather than centred.
+
+   It also listened for resize only, and the browser’s pan to keep the focused
+   field in sight arrives afterwards as a scroll - so even the measurement it
+   did take was a frame out of date.
+
+   Centred against the published --vv- values instead: the same ones the
+   modals use, already kept in sync on both events. Nothing is measured and
+   nothing is re-clamped, so there is nothing to miss - when the keyboard
+   opens the box re-centres in the band left above it, because the band is a
+   custom property and the box is positioned from it. */
+.float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));
+  left:50%;top:calc(var(--vv-top,0px) + var(--vv-h,100vh) / 2);
+  transform:translate(-50%,-50%);
+  max-height:calc(var(--vv-h,100vh) - 24px);
+  background:var(--panel);
   border:1px solid var(--line2);border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.62);
   display:flex;flex-direction:column;overflow:hidden}
 .float-head{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--line);
@@ -3070,9 +3092,6 @@ input[type=date],input[type=time]{color-scheme:dark}
          at yet, so this one holds an intention until Save creates one. -->
     <button type="button" class="favstar" id="wpFav" aria-pressed="false"
             aria-label="Also keep as a favourite" title="Also keep as a favourite"></button>
-    <button class="icon-btn" id="wpCancelX" style="width:28px;height:28px">
-      <svg viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
   </div>
   <div class="float-body">
     <div class="fld">
@@ -4563,11 +4582,7 @@ requestAnimationFrame(frame);
 window.addEventListener("resize", function () {
   sizeMap();
   if (S.follow) applyFollowTransform(true);
-  if (wpFormOpen) reclampFloat();
 });
-if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", function () { if (wpFormOpen) reclampFloat(); });
-}
 
 /* What the on-screen keyboard has taken, published to CSS.
 
@@ -5886,41 +5901,6 @@ function setCat(k) {
   });
 }
 
-/* vertical band the form is allowed to occupy: below the stats bar,
-   above the floating action bar - never off-screen on a phone */
-function floatLimits() {
-  const st = stageEl.getBoundingClientRect();
-  const ab = $("#actionbar").getBoundingClientRect();
-  const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-  const top = Math.max(st.top, 0) + 8;
-  const bottom = Math.min(ab.top, vh) - 8;
-  return { top: top, bottom: Math.max(top + 140, bottom) };
-}
-
-function placeFloat(el, cx, cy) {
-  const lim = floatLimits();
-  const avail = lim.bottom - lim.top;
-  el.style.maxHeight = Math.round(avail) + "px";
-  el.classList.remove("hidden");
-  el.style.visibility = "hidden";
-  el.style.left = "0px"; el.style.top = "0px";
-  const r = el.getBoundingClientRect();
-  const w = r.width, h = r.height;
-  const pad = 10;
-  const vw = (window.visualViewport ? window.visualViewport.width : window.innerWidth);
-  let x = cx - w / 2;
-  let y = cy - h - 22;                       /* prefer just above the tap */
-  if (y < lim.top) y = cy + 24;              /* flip below when it will not fit */
-  x = clamp(x, pad, Math.max(pad, vw - w - pad));
-  y = clamp(y, lim.top, Math.max(lim.top, lim.bottom - h));
-  el.style.left = Math.round(x) + "px";
-  el.style.top = Math.round(y) + "px";
-  el.style.visibility = "visible";
-  el._anchor = { cx: cx, cy: cy };
-}
-function reclampFloat() {
-  if (wpFormEl._anchor) placeFloat(wpFormEl, wpFormEl._anchor.cx, wpFormEl._anchor.cy);
-}
 
 /* The form’s star holds an intention rather than a state: there is no waypoint
    to favourite until Save makes one. It resets with the form, so a keep does
@@ -5935,7 +5915,11 @@ function syncWpFav() {
   b.title = say;
 }
 
-function openWpForm(latlng, cx, cy) {
+/* No coordinates any more. The card is the same box wherever the pin was
+   dropped, which is what the keyboard fix asks for and what a driver reading
+   it wants anyway: one place to look, not wherever the thumb happened to
+   land. */
+function openWpForm(latlng) {
   wpTarget = latlng;
   wpFormOpen = true;
   $("#wpName").value = "";
@@ -5943,8 +5927,7 @@ function openWpForm(latlng, cx, cy) {
   wpFav = false; syncWpFav();
   $("#wpCoord").textContent = latlng.lat.toFixed(5) + ", " + latlng.lng.toFixed(5);
   setCat("flag");
-  const st = stageEl.getBoundingClientRect();
-  placeFloat(wpFormEl, cx == null ? st.left + st.width / 2 : cx, cy == null ? st.top + st.height / 2 : cy);
+  wpFormEl.classList.remove("hidden");
   setTimeout(function () { $("#wpName").focus(); }, 60);
 }
 
@@ -5952,7 +5935,6 @@ function closeWpForm() {
   wpFormOpen = false;
   wpTarget = null;
   wpFormEl.classList.add("hidden");
-  wpFormEl._anchor = null;
   document.activeElement && document.activeElement.blur();
 }
 
@@ -6000,7 +5982,7 @@ map.on("click", function (e) {
   if (wpFormOpen) { closeWpForm(); return; }
   const oe = e.originalEvent;
   const ll = clientToLatLng(oe.clientX, oe.clientY);
-  openWpForm(ll, oe.clientX, oe.clientY);
+  openWpForm(ll);
 });
 
 /* =====================================================================
@@ -11939,7 +11921,6 @@ $("#wpFav").addEventListener("click", function () { wpFav = !wpFav; syncWpFav();
   if (!pair[1] && !el.getAttribute("viewBox")) el.setAttribute("viewBox", "0 0 24 24");
 });
 $("#wpCancel").addEventListener("click", closeWpForm);
-$("#wpCancelX").addEventListener("click", closeWpForm);
 $("#wpCats").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-cat]");
   if (b) setCat(b.dataset.cat);
