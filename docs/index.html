@@ -2061,14 +2061,20 @@ details.sub > .sec-body{padding:12px 0 0}
    scrollbar lying across the card above the position row. The column edge
    is where the labels and the rules already line up anyway. */
 #wpForm #wpName,#wpForm #wpNote{transition:background .12s ease,border-color .12s ease}
-/* Rust, which is Save's colour and the app's one accent. Sand was the wrong
-   pick: it is the colour of ordinary text here, so a sand outline said "this
-   is a box" a bit louder rather than "this is the one you are in". Rust is
-   used for exactly one thing in this app - the live one - and it is already
-   the caret sitting inside these fields and the border every other input in
-   the app takes on focus. This card was the odd one out. */
-#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;border-color:var(--rust);
-  background:#1E2420}
+/* The box holds its line at every state, and focus is said inside it rather
+   than around it - the field fills, and the caret is rust.
+
+   A coloured outline is the usual way to do this and it does not work on
+   this card. The fields sit between hairline dividers of the same weight,
+   so lighting one field's border lights a rectangle inside a grid of lines
+   and the eye reads it as the ruling coming apart rather than as a field
+   waking up. There is nowhere for an outline to be the loudest thing here.
+   A fill has the whole field to itself and no line to be confused with.
+
+   Rust is still on the card and still means the live thing: the caret in
+   the field, the chosen category, Save. It is just not drawn as a border
+   here. */
+#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;background:#1E2420}
 #wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
 /* The rule under the chips was landing on them. Every other section here
    ends in a line of text, which carries its own descender space, so five
