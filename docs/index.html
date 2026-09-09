@@ -9014,18 +9014,40 @@ const Addr = {
     }
   },
 
-  /* An address off a tile, back in the shape the suggestion list speaks. */
+  /* What G-NAF calls a state, said the way somebody would read it out.
+
+     OT is Other Territories - Christmas Island, the Cocos Islands, Jervis
+     Bay, Norfolk - and maps to nothing on purpose. "Flying Fish Cove, 6798"
+     is an address; "Flying Fish Cove, 6798, Other Territories" is a filing
+     category, and nobody on Christmas Island calls it that. */
+  STATE_NAME: {
+    NSW: "New South Wales", VIC: "Victoria", QLD: "Queensland",
+    SA: "South Australia", WA: "Western Australia", TAS: "Tasmania",
+    NT: "Northern Territory", ACT: "Australian Capital Territory", OT: ""
+  },
+
+  /* An address off a tile, back in the shape the suggestion list speaks.
+
+     The state used to be the literal string "South Australia", which was
+     true for as long as the pack was one state and became a lie the day it
+     was nine - a Cairns address reading "Cairns City, 4870, South
+     Australia". It is carried per address now, because a tile on the Murray
+     holds two states and picking one for the tile would just move the lie
+     somewhere less visible. */
   row: function (tile, rec) {
     const lat = (tile.o[0] + rec[0]) / 1e5;
     const lng = (tile.o[1] + rec[1]) / 1e5;
     const street = tile.s[rec[2]] || "";
     const town = tile.t[rec[3]] || "";
     const pc = tile.p[rec[4]] || "";
+    /* A pack cut before the state was carried has no st - those tiles are
+       South Australian, because that is all there was. */
+    const state = tile.st ? (this.STATE_NAME[tile.st[rec[6]]] || "") : "South Australia";
     const name = fmtAddress(rec[5], street);
     return {
       id: "gnaf" + lat.toFixed(5) + lng.toFixed(5),
       name: name,
-      where: [town, pc, "South Australia"].filter(Boolean).join(", "),
+      where: [town, pc, state].filter(Boolean).join(", "),
       kind: "address",
       lat: lat, lng: lng,
       named: false,

@@ -263,8 +263,12 @@ async function findArchive() {
 const COLLAPSE_UNITS = true;
 
 function cutStamp(release, states) {
+  /* ROW is the shape of an address inside a tile. It belongs in the stamp
+     for the same reason the rest does: add a field to a row and every tile
+     changes while the release string sits exactly where it was. */
+  const ROW = "lat,lng,street,town,postcode,number,state";
   const shape = JSON.stringify([
-    WANT_DATUM, states, TABLES, Z, PRECISION, COLLAPSE_UNITS
+    WANT_DATUM, states, TABLES, Z, PRECISION, COLLAPSE_UNITS, ROW
   ]);
   return createHash("sha1").update(release + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -439,7 +443,7 @@ async function readState(st, url, cd, tmp, spool, tally) {
     const town = locality.get(f[24] || sl.locality) || "";
     const x = lngToX(lng / PRECISION, Z);
     const y = latToY(lat / PRECISION, Z);
-    spool.add(x, [y, lat, lng, num, sl.name, town, clean(f[26] || "")]);
+    spool.add(x, [y, lat, lng, num, sl.name, town, clean(f[26] || ""), st]);
     kept++;
   });
 
@@ -535,18 +539,28 @@ async function main() {
        naming it once rather than forty times is most of the saving. */
     for (const [y, rows] of byY) {
       const [oLat, oLng] = tileOrigin(x, y, Z);
-      const streets = [], towns = [], postcodes = [];
-      const sIdx = new Map(), tIdx = new Map(), pIdx = new Map();
+      const streets = [], towns = [], postcodes = [], states = [];
+      const sIdx = new Map(), tIdx = new Map(), pIdx = new Map(), stIdx = new Map();
       const addrs = [];
-      for (const [, lat, lng, num, sname, town, pc] of rows) {
+      for (const [, lat, lng, num, sname, town, pc, st] of rows) {
         if (!sIdx.has(sname)) { sIdx.set(sname, streets.length); streets.push(sname); }
         if (!tIdx.has(town)) { tIdx.set(town, towns.length); towns.push(town); }
         if (!pIdx.has(pc)) { pIdx.set(pc, postcodes.length); postcodes.push(pc); }
-        addrs.push([lat - oLat, lng - oLng, sIdx.get(sname), tIdx.get(town), pIdx.get(pc), num]);
+        if (!stIdx.has(st)) { stIdx.set(st, states.length); states.push(st); }
+        addrs.push([lat - oLat, lng - oLng, sIdx.get(sname), tIdx.get(town), pIdx.get(pc),
+                    num, stIdx.get(st)]);
       }
+      /* The state is interned the same way the town is, rather than written
+         once for the tile. Almost every tile is one state and would not need
+         it - but a tile is 4.3 km across and the borders do not care, so the
+         Murray tiles hold Wentworth and Mildura together and Coolangatta
+         holds two states in one street. Interned it costs a byte a row and
+         nothing at all once gzipped, and it is right at the border instead
+         of nearly right. */
       await writeFile(
         join(dir, y + ".json"),
-        JSON.stringify({ o: [oLat, oLng], s: streets, t: towns, p: postcodes, a: addrs })
+        JSON.stringify({ o: [oLat, oLng], s: streets, t: towns, p: postcodes,
+                         st: states, a: addrs })
       );
       (index[x] || (index[x] = [])).push(y);
       tileCount++;
