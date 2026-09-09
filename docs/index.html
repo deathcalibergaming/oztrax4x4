@@ -2071,10 +2071,19 @@ details.sub > .sec-body{padding:12px 0 0}
    waking up. There is nowhere for an outline to be the loudest thing here.
    A fill has the whole field to itself and no line to be confused with.
 
-   Rust is still on the card and still means the live thing: the caret in
-   the field, the chosen category, Save. It is just not drawn as a border
-   here. */
+   Rust is still on the card and still means the live thing: the chosen
+   category, and Save. It is just not drawn around a field here. */
 #wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;background:#1E2420}
+/* The caret is sand, with the text it is sitting in.
+
+   A rust caret was the accent spent on the smallest mark on the card - a
+   two pixel bar that blinks - while the two things rust is actually for
+   here, the chosen category and Save, are large and still. It read as a
+   third rust thing competing with them rather than as anything you needed
+   told. The fill already says which field you are in; the caret only has to
+   say where in the line you are, and sand says that against this ground
+   perfectly well. */
+#wpForm #wpName,#wpForm #wpNote{caret-color:var(--sand)}
 #wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
 /* The rule under the chips was landing on them. Every other section here
    ends in a line of text, which carries its own descender space, so five
