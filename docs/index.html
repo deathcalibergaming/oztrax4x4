@@ -2022,9 +2022,17 @@ details.sub > .sec-body{padding:12px 0 0}
    The category chips keep theirs. They are the one control here that has to
    show which of three it is, and an outline that means "this one" cannot
    also be an outline that means "this is a control" - so the resting chip
-   drops to the same 22% as the rules and the chosen one keeps the sand. */
-#wpForm #wpName,#wpForm #wpNote{background:transparent;border:0;border-radius:0;
-  padding:0;color:var(--sand)}
+   drops to the same 22% as the rules and the chosen one keeps the sand.
+
+   The boxes are back, at the card's own line weight. Taking them off went
+   too far: what was loud was not that the fields had outlines, it was that
+   their outlines were twice the weight of everything else on the card, so
+   they shouted over the rules instead of sitting inside them. At 22% they
+   are the same line as the dividers and the same line as a resting chip -
+   the card now has exactly one line colour in it, and the fields read as
+   things you type in without competing with the sections they sit in. */
+#wpForm #wpName,#wpForm #wpNote{background:transparent;border:1px solid var(--line);
+  border-radius:4px;padding:6px 8px;color:var(--sand)}
 /* Taking the box off took the tap target with it: the name field measured
    eighteen pixels, against the thirty-six this app holds as the floor for
    anything pressed at a stop. The padding a border used to imply is now
@@ -2044,9 +2052,17 @@ details.sub > .sec-body{padding:12px 0 0}
    scrolls because a keyboard can squeeze it, answered with a horizontal
    scrollbar lying across the card above the position row. The column edge
    is where the labels and the rules already line up anyway. */
-#wpForm #wpName,#wpForm #wpNote{border-radius:3px;transition:background .12s ease}
-#wpForm #wpName:focus,#wpForm #wpNote:focus{border:0;outline:none;background:#1E2420}
+#wpForm #wpName,#wpForm #wpNote{transition:background .12s ease,border-color .12s ease}
+#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;border-color:var(--sand);
+  background:#1E2420}
 #wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
+/* The rule under the chips was landing on them. Every other section here
+   ends in a line of text, which carries its own descender space, so five
+   above the next rule was enough; the chips end in a hard 36px edge and the
+   hairline sat flat against it. The five is stated on this one section
+   rather than added to all four - it is the only one that needs it, and the
+   card is fighting an Android keyboard for every pixel it has. */
+#wpCats{margin-bottom:5px}
 #wpForm .catgrid button{border-color:var(--line)}
 #wpForm .catgrid button.on{border-color:var(--sand)}
 /* The floor is one row, written as the box that holds one: eighteen of
