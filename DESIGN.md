@@ -839,11 +839,20 @@ coming back, so the favourite is dropped rather than left as a name that does
 nothing.
 
 **The star is filled, never merely recoloured** — kept against not-kept is solid
-against outline, which reads before colour does. And it is filled in Warm Sand,
-not Burnt Orange. Rust means action, and every card the star sits on already
-spends it on Navigate; a rust star beside a rust button put two accents in one
-card and made the star look like something to press rather than something that
-is already true. Kept is a state, so it takes the text colour.
+against outline, which reads before colour does.
+
+**And it is filled in Burnt Orange, which is a stated exception to The One
+Accent Rule.** It was Warm Sand for a day, on the argument that rust means
+action and every card the star sits on already spends it on Navigate. The
+argument was sound and the result was not: a filled sand star against sand text
+is the same weight as everything around it, and this control exists to be found
+on a card you are scanning. Standing out is its whole job, and on a screen read
+in full sun that beats the tidiness of the rule.
+
+So a card may carry two Burnt Orange marks: its primary button, and the star if
+the place is kept. Nothing else gets that licence — the rule holds everywhere
+but here, and this is written down so the next pass reads it as a decision
+rather than a slip to tidy away.
 
 The bar button does not light up when the list is not empty either. `.act.on`
 paints a control in Burnt Orange, and this system spends that on the one
