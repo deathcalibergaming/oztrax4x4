@@ -1956,13 +1956,20 @@ details.sub > .sec-body{padding:12px 0 0}
    than set by what is in it, and it grows back the moment the keys go. */
 /* This card is the only one that has to hold four sections inside whatever a
    keyboard leaves, so it runs a tighter rhythm than the forms that get a whole
-   screen: 8px between sections rather than 11, and 8 from the head to the first
-   label. Eight is the floor, not a preference - the gap from a label to its own
-   field is 5, and once the two are within a couple of pixels of each other the
-   labels stop reading as belonging to the field below them and the card becomes
-   an undifferentiated stack. */
+   screen: 5px between sections rather than 11, and 5 from the head to the first
+   label.
+
+   Five is the same gap a label keeps from its own field, which is the owner’s
+   call against the argument written here before it. The argument was that a
+   label reads as belonging to the field below it only while that distance is
+   the shorter of the two, and at 5 against 5 nothing in the spacing says which
+   way a caption faces. What carries the grouping instead is that the labels are
+   the only dim, uppercase, 10px things in the card and every field is a bordered
+   box - so the reading survives on contrast where it used to have distance. The
+   card stops scrolling at two of the three text sizes, which is what was asked
+   for and what a driver actually meets. */
 #wpForm .float-body{display:flex;flex-direction:column}
-#wpForm .float-body > .fld{margin-bottom:8px}
+#wpForm .float-body > .fld{margin-bottom:5px}
 #wpForm .float-body > .fld{flex:0 0 auto}
 /* The wrapper is dissolved rather than shrunk. Shrinking it took min-height:0,
    and that let the field’s own box close 12px past the textarea inside it: the
@@ -2002,9 +2009,9 @@ details.sub > .sec-body{padding:12px 0 0}
 /* Four below rather than twelve: the footer brings its own twelve above the
    buttons, so the pair were spending 25px separating one line from a row that
    is already fenced off by a rule. Seventeen still reads as the break between
-   the card and its controls, against the eight between rows. */
-#wpCoordRow{flex:0 0 auto;padding:8px 12px 4px}
-#wpForm .float-body{padding:8px 12px 0}
+   the card and its controls, against the five between rows. */
+#wpCoordRow{flex:0 0 auto;padding:5px 12px 4px}
+#wpForm .float-body{padding:5px 12px 0}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
    native control renders in the browser's own locale, which showed 24 hour

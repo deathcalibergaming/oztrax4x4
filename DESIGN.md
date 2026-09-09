@@ -564,28 +564,33 @@ while the bottom one sat on top of the 48 already held back; it keeps 8 now.
 The readout kept 12px below it while the footer brought its own 12 above the
 buttons; it keeps 4, so 17px still separates the card from its controls.
 
-**This card runs a tighter rhythm than the forms that get a whole screen**: 8px
+**This card runs a tighter rhythm than the forms that get a whole screen**: 5px
 between sections and from the head to the first label, against the 11px `.fld`
 carries elsewhere. It is the only form that has to hold four sections inside
 whatever a keyboard leaves, and the alternative to a tighter rhythm is a card
 that scrolls in ordinary use.
 
-Eight is the floor rather than a preference. The gap from a label to its own
-field is 5, and a label reads as belonging to the field below it only while
-that distance is clearly the shorter of the two — at 8 against 5 the grouping
-still lands, at 6 or 7 the labels start to float between the field above and
-the one below and the card becomes an undifferentiated stack. Any further room
-has to come from what is in the card, not from the space between it.
+**Five is the same gap a label keeps from its own field, and that is fine here
+— which was not the call made first.** The argument against it, written into
+this file at 8px and recorded here because it was wrong in an instructive way,
+was that a label reads as belonging to the field below it only while that
+distance is clearly the shorter of the two, so equal gaps would leave every
+caption facing both ways at once. Built and looked at, it does not: the labels
+are the only dim, uppercase, 10px things in the card and every field is a
+bordered box, so the grouping is carried by contrast and by the boxes
+themselves rather than by distance. Spacing is one cue among several, and it
+stops being the deciding one as soon as the thing being grouped has an edge of
+its own. Where nothing has an edge — a stack of bare rows — the original
+argument still stands.
 
 Measured against the phone’s own band — 453px of 772 with the keyboard up, less
-the 48 held back — every gap holds at 8px between sections and 5px between a
-label and its field, at all three text sizes, and Save’s bottom edge sits 21px
-clear of where the chips begin. Nothing scrolls at the first two text sizes;
-the third scrolls 20px, which is what 130% type in a third of a screen costs
-and the readout and the buttons do not move while it does. At 520px of band —
-nearer what the installed app has, with no browser toolbar taking a bite — all
-three fit outright. Below 453 it scrolls further and the buttons still do not
-move: verified down to 260px, which is a screen no phone has.
+the 48 held back — every gap holds at 5px, at all three text sizes, and Save’s
+bottom edge sits 21px clear of where the chips begin. Nothing scrolls at the
+first two text sizes; the third scrolls 8px, and the readout and the buttons do
+not move while it does. At 520px of band — nearer what the installed app has,
+with no browser toolbar taking a bite — all three fit outright. Below 453 it
+scrolls further and the buttons still do not move: verified down to 260px,
+which is a screen no phone has.
 
 **A label sits above what you fill in, and beside what you only read.** Every
 field in that card carries its label overhead; the position readout is not a
