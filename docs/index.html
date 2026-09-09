@@ -3044,6 +3044,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="kv"><span>Cached POI cells</span><b id="kvPoi">--</b></div>
         <div class="kv"><span>Address packs</span><b id="kvAddr">--</b></div>
         <div class="kv"><span>Road packs</span><b id="kvRoute">--</b></div>
+        <div class="kv"><span>POI packs</span><b id="kvPoiPack">--</b></div>
         <div class="kv"><span>Estimated usage</span><b id="kvUsage">--</b></div>
         <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
@@ -3444,6 +3445,12 @@ const CFG = {
      as the addresses so a drive pulls both from the same tile numbers.
      tools/build-routing.mjs builds them. */
   ROUTE_URL: "route/",
+  /* The POI pack: every POI in the state, cut on the same grid as the
+     other two and served off our own origin, so it has no rate limit, no
+     latency worth the name and no opinion about how often you ask. 0.78 MB
+     gzipped for South Australia, biggest tile 20 KB. */
+  POI_PACK_URL: "poi/",
+  POI_PACK_Z: 13,
   ROUTE_Z: 13,
   ROUTE_RADIUS: 6000,      /* metres of local streets kept loaded as you drive */
   ROUTE_REACH: 4000,       /* and fetched around each end of a route being asked for */
@@ -3947,7 +3954,7 @@ function showUpdateBar() {
    IndexedDB: tiles / poi cells / saved areas / recorded tracks / addresses
    ===================================================================== */
 const DB = (function () {
-  const NAME = "trailtracker", VER = 4;
+  const NAME = "trailtracker", VER = 5;
   let dbp = null;
   function open() {
     if (dbp) return dbp;
@@ -3968,6 +3975,11 @@ const DB = (function () {
            which is the one entry here worth more than the rest put
            together and the one that has to survive going out of range. */
         if (!db.objectStoreNames.contains("route")) db.createObjectStore("route");
+        /* v5: the POI pack, keyed "13/x/y" like the other two, manifest
+           under "index". Its own store rather than the "poi" one beside
+           it, which holds the week-old answers from the network and is
+           cleared on a different clock entirely. */
+        if (!db.objectStoreNames.contains("poipack")) db.createObjectStore("poipack");
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = () => rej(rq.error);
@@ -6902,28 +6914,48 @@ async function fetchPois(force) {
       items = osm.items;
       found = osm.roads || [];
       note = "OpenStreetMap, " + fmtBytes(osm.bytes) + " uncompressed, " + osm.secs + "s";
-      /* a dense town shrinks the box, so widen the net again with the index */
+      /* A dense town shrinks the box, so widen the net again. The pack
+         first: it is on the phone, it is complete, and it costs a read
+         rather than eighteen seconds of somebody else's server. Overpass
+         is for the ground the pack does not cover. */
       if (osm.radius < CFG.POI_RADIUS) {
         if (show) setPoiStatus("Dense area - filling out to 5 km...");
-        const ph = await overpassPois(a);
-        if (!ph.error) {
+        const pk = await Pack.around(a, CFG.POI_RADIUS);
+        if (pk) {
           const before = items.length;
-          items = mergePois(items, ph.items);
+          items = mergePois(items, pk.items);
           note = "full detail within " + (osm.radius / 1000) + " km, " +
-                 (items.length - before) + " more out to 5 km, " + ph.secs + "s";
+                 (items.length - before) + " more from the offline pack";
         } else {
-          note = "OpenStreetMap, full detail within " + (osm.radius / 1000) +
-                 " km only - " + ph.error;
+          const ph = await overpassPois(a);
+          if (!ph.error) {
+            const before = items.length;
+            items = mergePois(items, ph.items);
+            note = "full detail within " + (osm.radius / 1000) + " km, " +
+                   (items.length - before) + " more out to 5 km, " + ph.secs + "s";
+          } else {
+            note = "OpenStreetMap, full detail within " + (osm.radius / 1000) +
+                   " km only - " + ph.error;
+          }
         }
       }
     } else {
-      if (show) setPoiStatus("Map data unavailable - asking the map query service...");
-      const ph = await overpassPois(a);
-      if (!ph.error) {
-        items = ph.items;
-        note = "map query, " + fmtBytes(ph.bytes) + " uncompressed, " + ph.secs + "s";
+      /* No extract. Inside the state that is not a problem any more: the
+         pack is the whole answer and it does not need a signal to give it,
+         which is the case this app was written for. */
+      const pk = await Pack.around(a, CFG.POI_RADIUS);
+      if (pk) {
+        items = pk.items;
+        note = "offline pack" + (pk.built ? ", cut " + pk.built : "");
       } else {
-        note = osm.error + "; " + ph.error;
+        if (show) setPoiStatus("Map data unavailable - asking the map query service...");
+        const ph = await overpassPois(a);
+        if (!ph.error) {
+          items = ph.items;
+          note = "map query, " + fmtBytes(ph.bytes) + " uncompressed, " + ph.secs + "s";
+        } else {
+          note = osm.error + "; " + ph.error;
+        }
       }
     }
 
@@ -8920,6 +8952,200 @@ const Addr = {
 
 
 /* =====================================================================
+   POIs with nothing on the other end of it.
+
+   Both network sources under-report, in ways that took a long time to see.
+   The map extract refuses a box over 50,000 nodes, so in a town the radius
+   collapses - 1.2 km at Torrensville against the 5 km asked for - and
+   everything past that has to come from somewhere else. Overpass is a good
+   somewhere else and it is still a request to another server, over the
+   signal this app exists because you do not have.
+
+   So the state ships. 32,145 POIs, 1,984 tiles on the same z13 grid the
+   addresses and roads use, 0.78 MB gzipped for the lot - which is less
+   than the road backbone and about a third of one satellite tile. Built by
+   tools/build-poi.mjs from the same Geofabrik extract as the roads.
+
+   A tile carries tags, not categories. Shipping "this one is a Free camp"
+   would put poiKind - a hundred lines of rules and six allowlists - in the
+   build script as well as here, and the two would drift the first time
+   somebody taught the app what a shop=agrarian is. So the pack is raw and
+   this classifies it with the same poiKind everything else goes through.
+   Row: [dLat, dLng, isWay, osmId, k, v, k, v, ...] against the tile origin,
+   with the key and value strings interned per tile, which is what makes a
+   thousand car parks cost almost nothing.
+
+   The OpenStreetMap id rides along because the phone needs it: a favourite
+   is stored against it, Hide remembers it, and the merge with a live
+   extract folds two copies of a place by it. Without it a starred camp
+   would be lost every time the pack was rebuilt.
+   ===================================================================== */
+const Pack = {
+  manifest: null,
+  mem: new Map(),          /* "13/x/y" -> parsed tile */
+  tried: new Set(),        /* asked for and failed, so a dead tile is asked once */
+
+  key: function (x, y) { return CFG.POI_PACK_Z + "/" + x + "/" + y; },
+
+  loadManifest: async function () {
+    if (this.manifest) return this.manifest;
+    try {
+      const held = await DB.get("poipack", "index");
+      if (held) this.manifest = held;
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    if (!this.manifest) {
+      try {
+        const r = await fetch(CFG.POI_PACK_URL + "index.json");
+        if (!r.ok) throw new Error("http " + r.status);
+        this.manifest = await r.json();
+        try { await DB.put("poipack", this.manifest, "index"); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.manifest = null;
+      }
+    }
+    return this.manifest;
+  },
+
+  exists: function (x, y) {
+    if (!this.manifest || !this.manifest.tiles) return false;
+    const col = this.manifest.tiles[x];
+    return !!col && col.indexOf(y) >= 0;
+  },
+
+  /* Whether the pack knows this part of the world at all, which is a
+     different question from whether there is anything here. Empty desert
+     inside the state is covered and holds nothing; Victoria is not covered
+     and has to go to the network. Judged on the manifest rather than on
+     tiles, because a box of empty desert has no tiles either. */
+  covers: function (a) {
+    if (!this.manifest || !this.manifest.tiles) return false;
+    const cols = Object.keys(this.manifest.tiles);
+    if (!cols.length) return false;
+    /* the pack spans one state, so its own extent answers this cheaply */
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    if (this.span) { x0 = this.span[0]; x1 = this.span[1]; y0 = this.span[2]; y1 = this.span[3]; }
+    else {
+      cols.forEach(function (x) {
+        const xi = +x;
+        if (xi < x0) x0 = xi;
+        if (xi > x1) x1 = xi;
+      });
+      const t = this.manifest.tiles;
+      cols.forEach(function (x) {
+        t[x].forEach(function (y) {
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        });
+      });
+      this.span = [x0, x1, y0, y1];
+    }
+    const z = CFG.POI_PACK_Z;
+    const x = lon2tile(a.lng, z), y = lat2tile(a.lat, z);
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  },
+
+  cover: function (south, west, north, east) {
+    const z = CFG.POI_PACK_Z;
+    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
+    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        if (this.exists(x, y)) out.push([x, y]);
+      }
+    }
+    return out;
+  },
+
+  /* Storage first, then the network. A tile never changes until the pack
+     is rebuilt, so a stored one is never refetched to check.
+
+     keep says whether it also stays in memory. An offline area passes
+     false: it is filling storage for later and has no business turning
+     over the working set of wherever the vehicle actually is. */
+  fetchTile: async function (x, y, keep) {
+    const k = this.key(x, y);
+    if (this.mem.has(k)) return this.mem.get(k);
+    if (this.tried.has(k)) return null;
+    let tile = null;
+    try { tile = await DB.get("poipack", k); } catch (e) { /* fall through */ }
+    if (!tile) {
+      try {
+        const r = await fetch(CFG.POI_PACK_URL + k + ".json");
+        if (!r.ok) throw new Error("http " + r.status);
+        tile = await r.json();
+        try { await DB.put("poipack", tile, k); } catch (e) { /* ignore */ }
+      } catch (e) {
+        this.tried.add(k);
+        return null;
+      }
+    }
+    if (keep !== false) {
+      this.mem.set(k, tile);
+      /* Twenty tiles is a 5 km bubble several times over, and a tile is
+         twenty kilobytes at its worst. Oldest out, which is the tile
+         furthest behind on a drive. */
+      while (this.mem.size > 20) this.mem.delete(this.mem.keys().next().value);
+    }
+    return tile;
+  },
+
+  /* One row, back in the shape everything downstream speaks. The same
+     fields the map extract fills in, from the same tags, through the same
+     poiKind - a POI off the pack and the same POI off the wire are the
+     same object but for where it came from. */
+  row: function (tile, r) {
+    const tags = {};
+    for (let i = 4; i < r.length; i += 2) tags[tile.k[r[i]]] = tile.v[r[i + 1]];
+    const kind = poiKind(tags);
+    if (!kind) return null;
+    const named = tags.name || tags.brand || tags.operator;
+    return {
+      id: (r[2] ? "way" : "node") + "/" + r[3],
+      kind: kind,
+      lat: (tile.o[0] + r[0]) / 1e5,
+      lng: (tile.o[1] + r[1]) / 1e5,
+      name: named || poiCaption(tags, kind),
+      caption: !named,
+      info: poiInfoLine(tags, kind),
+      addr: poiAddress(tags)
+    };
+  },
+
+  /* Everything the pack holds within radius of a. Returns null when the
+     pack has nothing to say about this part of the world, which is how the
+     caller tells "outside the state" from "nothing out here". */
+  around: async function (a, radius) {
+    await this.loadManifest();
+    if (!this.manifest || !this.covers(a)) return null;
+    const r = radius || CFG.POI_RADIUS;
+    const reach = r * 1.05;
+    const dLat = r / 111320;
+    const dLng = r / (111320 * Math.max(0.2, Math.cos(a.lat * Math.PI / 180)));
+    const want = this.cover(a.lat - dLat, a.lng - dLng, a.lat + dLat, a.lng + dLng);
+    const out = [];
+    for (const t of want) {
+      const tile = await this.fetchTile(t[0], t[1]);
+      if (!tile) continue;
+      for (const r2 of tile.p) {
+        const p = this.row(tile, r2);
+        if (p && haversine(a, p) <= reach) out.push(p);
+      }
+    }
+    return { items: out, tiles: want.length, built: this.manifest.built || "" };
+  },
+
+  /* What is stored, for the storage panel. */
+  stats: async function () {
+    try {
+      const keys = await DB.keys("poipack");
+      return keys.filter(function (k) { return k !== "index"; }).length;
+    } catch (e) { return 0; }
+  }
+};
+
+
+/* =====================================================================
    Routing with nothing on the other end of it.
 
    Every route used to come from the public OSRM server, which meant the
@@ -10830,6 +11056,24 @@ async function runAreaDownload() {
     } catch (e) { /* ignore */ }
   }
 
+  /* And the POIs, which are the cheapest thing in this whole download and
+     the one most likely to be wanted: the water, the fuel and the camps in
+     the box somebody has just told us they are about to be out of range
+     in. A tile is twenty kilobytes at its worst against the megabytes of
+     imagery above it. */
+  let poiTiles = 0;
+  if (!dlAbort) {
+    try {
+      await Pack.loadManifest();
+      for (const t of Pack.cover(bounds.getSouth(), bounds.getWest(),
+                                 bounds.getNorth(), bounds.getEast())) {
+        if (dlAbort) break;
+        await Pack.fetchTile(t[0], t[1], false);
+        poiTiles++;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
 
   /* An area that filled the device is still saved, under a name that says
      what it is. The tiles are on the phone either way; without a record the
@@ -10907,6 +11151,7 @@ async function refreshStorageStats() {
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
   try { $("#kvAddr").textContent = await Addr.stats(); } catch (e) { $("#kvAddr").textContent = "--"; }
   try { $("#kvRoute").textContent = await Route.stats(); } catch (e) { $("#kvRoute").textContent = "--"; }
+  try { $("#kvPoiPack").textContent = await Pack.stats(); } catch (e) { $("#kvPoiPack").textContent = "--"; }
   if (navigator.storage && navigator.storage.estimate) {
     try { const est = await navigator.storage.estimate(); $("#kvUsage").textContent = fmtBytes(est.usage || 0); }
     catch (e) { $("#kvUsage").textContent = "--"; }

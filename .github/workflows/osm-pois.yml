@@ -1,0 +1,61 @@
+name: POI pack
+
+# Every POI in the state, carried on the phone. Same Geofabrik extract the
+# road packs are cut from, and the same reasoning about how often: Geofabrik
+# rebuilds daily, and a new bakery in Adelaide is not worth a commit that
+# rewrites two thousand tiles. Once a month keeps it current to within a few
+# weeks, which is far fresher than a bore or a rest area changes.
+#
+# The 19th, so it lands on neither the G-NAF job on the 5th nor the roads on
+# the 12th. Nothing shares a working directory with them, but three jobs that
+# each rewrite a tree of tiles are three jobs that should not race to push.
+
+on:
+  schedule:
+    - cron: "40 20 19 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if the extract has not changed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: osm-pois
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      # Lighter than the road build: only tagged elements are held, and the
+      # second pass wants coordinates for a hundred and fifty thousand way
+      # nodes rather than two million. The headroom is there because the
+      # extract itself is 64 MB in a Buffer and read twice.
+      - name: Build the POI pack
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: node tools/build-poi.mjs ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit if the extract moved
+        run: |
+          # Staged first, because a fresh build writes the whole tree from
+          # scratch and untracked files are invisible to a plain git diff.
+          git add -A docs/poi
+          if git diff --cached --quiet; then
+            echo "POI pack unchanged - nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "POI pack, OpenStreetMap via Geofabrik $(node -p "require('./docs/poi/index.json').built")"
+          git push
