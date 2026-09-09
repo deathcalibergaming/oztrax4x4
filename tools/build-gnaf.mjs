@@ -91,6 +91,27 @@ const STATES = ["OT", "NT", "ACT", "TAS", "SA", "WA", "QLD", "VIC", "NSW"];
    a million is about ninety megabytes held and a few hundred appends per
    flush rather than one per address. */
 const SPOOL_BATCH = 1000000;
+
+/* How many tile columns of street names go in one shard.
+
+   The street index answers "which tiles hold a street with this name" for a
+   query that named no suburb. Whole, for the country, it is 239,203 names
+   and 3.0 MB gzipped, which is not a thing to pull over one bar - and
+   almost all of it is wasted, because the app sorts the answer by distance
+   from the vehicle and keeps the nearest sixty tiles. It was downloading
+   the streets of Cairns to throw them away in Ceduna.
+
+   Eight columns is about 33 km of longitude, and the app fetches the
+   vehicle's shard and the one either side, so roughly a hundred kilometre
+   strip. Measured over the country that is a median of 8 KB gzipped a
+   shard and 275 KB in the worst of Sydney, against 3.0 MB for the lot.
+
+   A band runs the full height of the country rather than being a square.
+   That keeps the count at a hundred and twenty files instead of thousands,
+   and costs nothing worth having: a shard at Sydney's longitude also holds
+   Cooktown's streets, and the distance sort drops them without being
+   asked. */
+const STREET_SHARD_W = 8;
 const TABLES = ["ADDRESS_DETAIL", "ADDRESS_DEFAULT_GEOCODE", "STREET_LOCALITY", "LOCALITY"];
 
 const Z = 13;                 /* tile zoom the packs are cut on */
@@ -268,7 +289,7 @@ function cutStamp(release, states) {
      changes while the release string sits exactly where it was. */
   const ROW = "lat,lng,street,town,postcode,number,state";
   const shape = JSON.stringify([
-    WANT_DATUM, states, TABLES, Z, PRECISION, COLLAPSE_UNITS, ROW
+    WANT_DATUM, states, TABLES, Z, PRECISION, COLLAPSE_UNITS, ROW, STREET_SHARD_W
   ]);
   return createHash("sha1").update(release + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -577,10 +598,46 @@ async function main() {
   }
   for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
 
-  /* Which tiles exist, so the app never asks for one that is desert. A
-     hundred and twenty thousand tiles cover the country and the rest of the
-     grid is empty; without this every drive would spend its requests on
-     404s. */
+  /* The street index, cut into longitude bands - see STREET_SHARD_W.
+
+     A street that crosses a band boundary is written into both, carrying
+     only that band's tiles each time. Nothing is duplicated: every tile
+     reference appears in exactly one shard, and a name appears in as many
+     shards as it has tiles in.
+
+     Interning the tile references was measured and dropped: it takes the
+     raw file from 1385 KB to 1022 KB and the gzipped one barely at all,
+     328 KB against 331 KB, because gzip was already doing that job on the
+     repeated strings. Plain keeps it the same shape as the suburb index. */
+  const shards = new Map();
+  for (const name in roads) {
+    for (const k of roads[name]) {
+      const b = Math.floor(+k.slice(0, k.indexOf("/")) / STREET_SHARD_W);
+      let o = shards.get(b);
+      if (!o) { o = {}; shards.set(b, o); }
+      (o[name] || (o[name] = [])).push(k);
+    }
+  }
+  await mkdir(join(OUT, "streets"), { recursive: true });
+  for (const [b, o] of shards) {
+    await writeFile(join(OUT, "streets", b + ".json"), JSON.stringify(o));
+  }
+  const bands = [...shards.keys()].sort((a, b) => a - b);
+
+  /* Kept out of index.json deliberately. The manifest is read at startup to
+     know which tiles exist at all; this is only wanted when somebody commits
+     to a search, so it is a second file and a second request rather than
+     doubling the one every launch pays for. */
+  await writeFile(join(OUT, "localities.json"), JSON.stringify(places));
+
+  /* Which tiles exist, so the app never asks for one that is desert. Eighty
+     thousand tiles cover the country and the rest of the grid is empty;
+     without this every drive would spend its requests on 404s.
+
+     Written last of everything, because it also names the street shards and
+     a manifest promising a file that is not there yet is worse than no
+     manifest: the phone would store it, believe it, and ask for shards that
+     never arrived. */
   await writeFile(
     join(OUT, "index.json"),
     JSON.stringify({
@@ -590,25 +647,15 @@ async function main() {
       z: Z,
       states: states,
       count: tally.kept,
+      streets: { w: STREET_SHARD_W, bands: bands },
       tiles: index
     })
   );
 
-  /* Kept out of index.json deliberately. The manifest is read at startup to
-     know which tiles exist at all; this is only wanted when somebody commits
-     to a search, so it is a second file and a second request rather than
-     doubling the one every launch pays for. */
-  await writeFile(join(OUT, "localities.json"), JSON.stringify(places));
-
-  /* Interning the tile references was measured and dropped: it takes the raw
-     file from 1385 KB to 1022 KB and the gzipped one barely at all, 328 KB
-     against 331 KB, because gzip was already doing that job on the repeated
-     strings. Plain keeps it the same shape as the suburb index. */
-  await writeFile(join(OUT, "streets.json"), JSON.stringify(roads));
-
   await rm(tmp, { recursive: true, force: true });
   console.log(`wrote ${tileCount} tiles, ${Object.keys(places).length} suburbs ` +
-              `and ${Object.keys(roads).length} streets to ${OUT}/`);
+              `and ${Object.keys(roads).length} streets in ${bands.length} shards ` +
+              `to ${OUT}/`);
 }
 
 main().catch((e) => {

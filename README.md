@@ -70,8 +70,9 @@ land on the very next launch.
 
 * Map tiles — Esri World Topo, cached in IndexedDB for offline use
 * POIs — the OpenStreetMap `/map` API, with Photon as a standby
-* Addresses — Geoscape G-NAF, cut into z13 packs under `docs/addr/` and
-  served off this origin; built quarterly by `tools/build-gnaf.mjs`
+* Addresses — Geoscape G-NAF, every state and territory, cut into z13 packs
+  under `docs/addr/` and served off this origin; 11.4 million addresses in
+  80,382 tiles, built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
 * Roads — OpenStreetMap via the Geofabrik South Australia extract, cut into a
   state backbone and z13 packs under `docs/route/` and served off this origin;
