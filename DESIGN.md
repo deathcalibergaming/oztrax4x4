@@ -540,11 +540,40 @@ borders and a line of whatever size the driver has set the text to. A pixel
 floor read as one row at the smallest of the three text sizes and cropped the
 line at the largest.
 
+**Shrink the item, never the box around it.** The note lives in a `.fld`
+wrapper, and shrinking that wrapper took `min-height:0` — which let the
+wrapper’s box close 12px past the textarea inside it. The field ended above its
+own control, so the row below started early and sat on the note’s bottom edge
+with no air at all where every other pair in the card has eleven. `min-height:
+auto` cures the overlap and loses the shrink, because Chrome takes the
+automatic minimum from the two rows the textarea declares rather than from the
+floor set on it. So the wrapper goes: `display:contents` leaves the label and
+the textarea as items of the body itself, which is where the shrink belonged.
+
+**What a squeezed box scrolls should never be the thing it is there to say.**
+The position readout sits outside the scrolling body, between the fields and
+the pinned footer. Inside it, it was the first thing over the edge — the one
+line saying where the pin actually is, pushed out of sight by a keyboard. Its
+eleven pixels of air are its own top padding rather than the note’s bottom
+margin, too: a margin on the far side of a clipping edge goes under the clip
+with the field it belongs to, and the row lands flush against a cut-off box.
+
+Two places were found to be spending air twice, and that is where the tightest
+band gets its room. The card kept 12px of clearance at each end of the band
+while the bottom one sat on top of the 48 already held back; it keeps 8 now.
+The readout kept 12px below it while the footer brought its own 12 above the
+buttons; it keeps 6, so 19px still separates the card from its controls against
+the 11 between rows.
+
 Measured against the phone’s own band — 453px of 772 with the keyboard up, less
-the 48 held back — the card fits with nothing scrolling at the first two text
-sizes and two pixels of it at the third, and Save’s bottom edge sits 24px clear
-of where the chips begin. Below that band it scrolls and the buttons still do
-not move: verified down to 260px, which is a screen no phone has.
+the 48 held back — every gap holds at 11px between rows and 5px between a label
+and its field, at all three text sizes, and Save’s bottom edge sits 21px clear
+of where the chips begin. At the default text size nothing scrolls and nothing
+is clipped; at the two larger ones the fields scroll 15px and 35px while the
+readout and the buttons stay where they are. At 520px of band — nearer what the
+installed app has, with no browser toolbar taking a bite — all three text sizes
+fit outright. Below 453 it scrolls further and the buttons still do not move:
+verified down to 260px, which is a screen no phone has.
 
 **A label sits above what you fill in, and beside what you only read.** Every
 field in that card carries its label overhead; the position readout is not a

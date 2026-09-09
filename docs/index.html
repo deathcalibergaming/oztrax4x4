@@ -1929,7 +1929,12 @@ details.sub > .sec-body{padding:12px 0 0}
 .float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));
   left:50%;top:calc(var(--vv-top,0px) + (var(--vv-h,100vh) - var(--kb-res,0px)) / 2);
   transform:translate(-50%,-50%);
-  max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 24px);
+  /* 16, not 24. Twelve of clearance at each end is right when the band is the
+     screen; when it is the keyboard’s leftovers the bottom twelve is sitting on
+     top of the 48 already held back, so it is air doubling up. Eight each end
+     is the app’s own small gap and it is what lets the card hold its rhythm at
+     the tightest band instead of clipping a field. */
+  max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 16px);
   background:var(--panel);
   border:1px solid var(--line2);border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.62);
   display:flex;flex-direction:column;overflow:hidden}
@@ -1951,17 +1956,47 @@ details.sub > .sec-body{padding:12px 0 0}
    than set by what is in it, and it grows back the moment the keys go. */
 #wpForm .float-body{display:flex;flex-direction:column}
 #wpForm .float-body > .fld{flex:0 0 auto}
-#wpForm .float-body > .fld-note{flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
+/* The wrapper is dissolved rather than shrunk. Shrinking it took min-height:0,
+   and that let the field’s own box close 12px past the textarea inside it: the
+   box ended above its own field, so the position row started early and sat on
+   the note’s bottom edge with no air at all where every other pair in the card
+   has eleven. min-height:auto cures the overlap and loses the shrink - Chrome
+   takes the automatic minimum from the two rows the textarea declares, not from
+   the floor set below. So the box goes instead: display:contents leaves the
+   label and the textarea as items of the body itself, which is where the
+   shrink belonged all along. The gap below the note is not this box’s to give
+   any more - it belongs to the readout underneath, which is on the other side
+   of a line the body clips at. */
+#wpForm .float-body > .fld-note{display:contents}
+#wpForm .fld-note > label{flex:0 0 auto}
 /* The floor is one row, written as the box that holds one: eighteen of
    padding, two of border and a line of whatever size the driver has set the
    text to. A fixed pixel floor read as one row at the smallest of the three
-   and cropped the line at the largest. */
-#wpForm .fld-note textarea{flex:1 1 auto;min-height:calc(1.35em + 20px);resize:none}
+   and cropped the line at the largest. The 11px is the same gap `.fld` carries
+   between every other pair in this card. */
+#wpForm .fld-note textarea{flex:0 1 auto;min-height:calc(1.35em + 20px);resize:none}
 /* A label sits above a thing you fill in. This one names a thing you can only
    read, so it sits beside it instead - the arrangement the card meta rows
-   already use, and it hands back a line of height in the bargain. */
+   already use, and it hands back a line of height in the bargain.
+
+   Being a readout rather than a field is also why it does not scroll with
+   them. Squeezed hard enough the body has to give somewhere, and the row that
+   says where the pin is should not be the thing that goes over the edge - so
+   it sits between the scrolling fields and the pinned footer, with the same
+   eleven above it and twelve below it that it had inside the body. */
 .fld-read{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .fld-read .fld-cap{margin-bottom:0}
+/* The eleven is the readout’s own top padding rather than the note’s bottom
+   margin, because the note’s margin lives inside a box that clips: the moment
+   the fields scrolled, that margin went under the clip with them and the row
+   sat flush against a cut-off field. Padding on this side of the line is air
+   nothing can scroll away. */
+/* Six below rather than twelve, for the same reason: the footer brings its own
+   twelve above the buttons, so the pair were spending 25px separating one line
+   from a row that is already fenced off by a rule. Nineteen still reads as the
+   break between the card and its controls, against the eleven between rows. */
+#wpCoordRow{flex:0 0 auto;padding:11px 12px 6px}
+#wpForm .float-body{padding-bottom:0}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
    native control renders in the browser's own locale, which showed 24 hour
@@ -1974,7 +2009,7 @@ details.sub > .sec-body{padding:12px 0 0}
   font-size:var(--t-body);-webkit-appearance:none;appearance:none;text-align:center}
 .timepick .tp-ap{flex:0 0 auto;width:62px}
 .timepick b{color:var(--dim);flex:0 0 auto}
-.fld label,.fld .fld-cap{display:block;font-size:var(--t-label-sm);letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
+.fld label,.fld .fld-cap,.fld-read .fld-cap{display:block;font-size:var(--t-label-sm);letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
 .seg{display:flex;gap:0;border:1px solid var(--line2);border-radius:5px;overflow:hidden}
 .seg button{flex:1;padding:9px 4px;font-size:var(--t-label-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--dim);border-right:1px solid var(--line2);background:#111513}
@@ -3106,7 +3141,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
 </aside>
 
-<!-- floating waypoint form: position clamped inside the visible map area -->
+<!-- floating waypoint form: centred in whatever the keyboard leaves -->
 <div id="wpForm" class="float hidden">
   <div class="float-head">
     <div class="t" id="wpFormTitle">New Waypoint</div>
@@ -3130,10 +3165,13 @@ input[type=date],input[type=time]{color-scheme:dark}
       <label for="wpNote">Note</label>
       <textarea id="wpNote" rows="2" maxlength="240" placeholder="Optional Detail" autocomplete="off"></textarea>
     </div>
-    <div class="fld fld-read" style="margin-bottom:0">
-      <span class="fld-cap" id="wpCoordCap">Position</span>
-      <div class="pop-m" id="wpCoord" role="group" aria-labelledby="wpCoordCap">--</div>
-    </div>
+  </div>
+  <!-- Outside the body on purpose: this is the one line that says where the
+       pin actually is, and the fields above it are what should scroll when a
+       keyboard leaves the card a third of a screen. -->
+  <div class="fld-read" id="wpCoordRow">
+    <span class="fld-cap" id="wpCoordCap">Position</span>
+    <div class="pop-m" id="wpCoord" role="group" aria-labelledby="wpCoordCap">--</div>
   </div>
   <div class="modal-foot">
     <button class="btn sm ghost" id="wpCancel">Cancel</button>
