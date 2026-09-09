@@ -1969,8 +1969,24 @@ details.sub > .sec-body{padding:12px 0 0}
    card stops scrolling at two of the three text sizes, which is what was asked
    for and what a driver actually meets. */
 #wpForm .float-body{display:flex;flex-direction:column}
-#wpForm .float-body > .fld{margin-bottom:5px}
 #wpForm .float-body > .fld{flex:0 0 auto}
+/* Hairlines rather than gaps, which is how every other card in this app
+   separates one fact from the next: a POI card rules off its address from
+   its prices, and the prices from what set them. Four sections sitting in
+   air was the one card that did not, and it read as a different app.
+
+   The rule replaces the gap rather than joining it - five above, none
+   below, and the line where the five used to be - so the whole change costs
+   one pixel a section. That matters here more than anywhere: this card has
+   to fit between an Android keyboard and the top of the screen, and it took
+   a long time to make it.
+
+   The note carries its line on its own label, because .fld-note is
+   display:contents and a box that generates no box cannot draw a border. */
+#wpForm .float-body > .fld{margin-bottom:0;padding-top:5px}
+#wpForm .float-body > .fld:first-child{padding-top:0}
+#wpForm .float-body > .fld + .fld{border-top:1px solid var(--line)}
+#wpForm .fld-note > label{border-top:1px solid var(--line);padding-top:5px}
 /* The wrapper is dissolved rather than shrunk. Shrinking it took min-height:0,
    and that let the field’s own box close 12px past the textarea inside it: the
    box ended above its own field, so the position row started early and sat on
@@ -1984,12 +2000,64 @@ details.sub > .sec-body{padding:12px 0 0}
    of a line the body clips at. */
 #wpForm .float-body > .fld-note{display:contents}
 #wpForm .fld-note > label{flex:0 0 auto}
+/* The textarea keeps the gap the dissolved wrapper used to carry, so the
+   rule under it lands where the eye expects rather than against the box. */
+#wpForm .fld-note textarea{margin-bottom:5px}
+
+/* The boxes come off the two text fields, and this is what actually makes
+   the card match the POI cards rather than merely having lines in it.
+
+   Ruling a card into sections only reads if the sections are quiet. These
+   were three outlined boxes at 48% against hairlines at 22%, so the boxes
+   drew the eye and the rules did nothing - the card still read as a stack
+   of widgets that happened to have lines between them. A POI card is type
+   on a panel, ruled off; so is this now.
+
+   The field is still a field. It is the biggest type on the card, the way
+   the name of a place is on every other card here; it opens focused with a
+   caret in it; an empty one says what it wants; and the caret is rust
+   against sand, which is the app telling you where the keyboard is
+   pointing. That is what a border was doing and none of it needed one.
+
+   The category chips keep theirs. They are the one control here that has to
+   show which of three it is, and an outline that means "this one" cannot
+   also be an outline that means "this is a control" - so the resting chip
+   drops to the same 22% as the rules and the chosen one keeps the sand. */
+#wpForm #wpName,#wpForm #wpNote{background:transparent;border:0;border-radius:0;
+  padding:0;color:var(--sand)}
+/* Taking the box off took the tap target with it: the name field measured
+   eighteen pixels, against the thirty-six this app holds as the floor for
+   anything pressed at a stop. The padding a border used to imply is now
+   stated, so the target is the same size it always was and only the outline
+   has gone. */
+#wpForm #wpName{font-size:var(--t-body);font-weight:600;min-height:var(--tap-sm)}
+#wpForm #wpNote{font-size:var(--t-note);line-height:1.45}
+/* The border these fields lost was also their focus state - it went rust
+   when the keyboard was pointing at them, and dropping it without putting
+   anything back would have taken an affordance away rather than restyled
+   one. So focus tints the field instead, which is the same thing the
+   category chip does to say it is the chosen one.
+
+   The tint is exactly the text column, not a pixel wider. Widening it by
+   six each side to make more of a band put the field past the body it sits
+   in - scrollWidth 304 against a client width of 298 - and the body, which
+   scrolls because a keyboard can squeeze it, answered with a horizontal
+   scrollbar lying across the card above the position row. The column edge
+   is where the labels and the rules already line up anyway. */
+#wpForm #wpName,#wpForm #wpNote{border-radius:3px;transition:background .12s ease}
+#wpForm #wpName:focus,#wpForm #wpNote:focus{border:0;outline:none;background:#1E2420}
+#wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
+#wpForm .catgrid button{border-color:var(--line)}
+#wpForm .catgrid button.on{border-color:var(--sand)}
 /* The floor is one row, written as the box that holds one: eighteen of
    padding, two of border and a line of whatever size the driver has set the
    text to. A fixed pixel floor read as one row at the smallest of the three
    and cropped the line at the largest. The 11px is the same gap `.fld` carries
    between every other pair in this card. */
-#wpForm .fld-note textarea{flex:0 1 auto;min-height:calc(1.35em + 20px);resize:none}
+/* A thumb floor rather than a line floor. It still shrinks under a keyboard
+   the way it always did - this is the size it stops at, and it is two pixels
+   under the box-and-padding it replaced. */
+#wpForm .fld-note textarea{flex:0 1 auto;min-height:var(--tap-sm);resize:none}
 /* A label sits above a thing you fill in. This one names a thing you can only
    read, so it sits beside it instead - the arrangement the card meta rows
    already use, and it hands back a line of height in the bargain.
@@ -2010,7 +2078,14 @@ details.sub > .sec-body{padding:12px 0 0}
    buttons, so the pair were spending 25px separating one line from a row that
    is already fenced off by a rule. Seventeen still reads as the break between
    the card and its controls, against the five between rows. */
-#wpCoordRow{flex:0 0 auto;padding:5px 12px 4px}
+#wpCoordRow{flex:0 0 auto;padding:5px 12px 4px;border-top:1px solid var(--line)}
+/* Read as a value, not as a caption. A POI card sets its facts in sand at
+   body size against a dim label, and the one line on this card that is a
+   fact rather than a field is the position - so it is set the same way. It
+   was two steps smaller than the note above it and the same dim as the word
+   naming it, which made the only thing on the card you cannot edit look
+   like the least important thing on it. */
+#wpCoord{font-size:var(--t-note);color:var(--sand);letter-spacing:-.02em}
 #wpForm .float-body{padding:5px 12px 0}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
@@ -6048,11 +6123,32 @@ function viewCenterLatLng() {
 /* =====================================================================
    Waypoint form - always clamped fully inside the visible map area
    ===================================================================== */
-let wpFormOpen = false, wpTarget = null, wpCat = "flag";
+/* The three a driver actually marks by hand, out of the six CATS knows.
+
+   Fuel, Photo and Flag came off the picker rather than out of CATS. The app
+   maps servos itself, from a scheme that carries their prices, so a hand
+   made fuel pin was a worse copy of something already on the map. Photo was
+   a category for a thing the phone already files somewhere else. Flag was
+   the default and meant nothing - it was what you got for not choosing, and
+   a bare flag on a track a fortnight later tells you that you stopped, not
+   why.
+
+   What is left is the three that answer a question you will have again:
+   where you can sleep, where you can fill up, and what will stop you.
+
+   CATS keeps all six, and deliberately. A waypoint saved last year carries
+   its category as a string, and the list, the map pin and the popup all
+   read the colour and the label straight out of CATS - so dropping an entry
+   would not tidy anything up, it would turn somebody's old Photo pin into a
+   Flag with the wrong colour. This is what the card offers, not what a
+   waypoint may be. */
+const WP_PICK = ["camp", "water", "obstacle"];
+
+let wpFormOpen = false, wpTarget = null, wpCat = WP_PICK[0];
 const wpFormEl = $("#wpForm");
 
 (function buildCatGrid() {
-  $("#wpCats").innerHTML = Object.keys(CATS).map(function (k) {
+  $("#wpCats").innerHTML = WP_PICK.map(function (k) {
     const c = CATS[k];
     return '<button type="button" data-cat="' + k + '">' + catIcon(k, c.color) +
            "<em>" + c.label + "</em></button>";
@@ -6091,7 +6187,11 @@ function openWpForm(latlng) {
   $("#wpNote").value = "";
   wpFav = false; syncWpFav();
   $("#wpCoord").textContent = latlng.lat.toFixed(5) + ", " + latlng.lng.toFixed(5);
-  setCat("flag");
+  /* Camp, because the picker opens on something rather than on nothing and
+     it is the one people mark most. Flag used to be the default and is no
+     longer offered at all, which would have left the card opening with
+     nothing lit and saving a category the driver never chose. */
+  setCat(WP_PICK[0]);
   wpFormEl.classList.remove("hidden");
   setTimeout(function () { $("#wpName").focus(); }, 60);
 }
