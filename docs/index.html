@@ -7389,11 +7389,11 @@ function applyPoiFixes(items) {
 /* Where the map has nothing at all, and something is still standing there.
 
    A correction needs something to correct; this is the other half of the
-   same job. Salisbury Plain Discount Pharmacy trades in the shops on
-   Stanbel Road and OpenStreetMap has no pharmacy there - not a node, not a
-   unit, not a wrong tag on the right building. Nothing in poiKind could
-   have filed it under the wrong category and no search word could have
-   found it: it was never in the list to be missing from it.
+   same job. Salisbury Plain Discount Pharmacy trades in the shops at 1700
+   Main North Road and OpenStreetMap has no pharmacy there - not a node,
+   not a unit, not a wrong tag on the right building. Nothing in poiKind
+   could have filed it under the wrong category and no search word could
+   have found it: it was never in the list to be missing from it.
 
    Seeded only when the POIs were gathered somewhere near it, so it arrives
    the way an OSM pin does rather than conjuring itself onto a map of the
@@ -7410,14 +7410,22 @@ const POI_ADDED = [
     id: "local/salisbury-plain-chemist",
     kind: "chemist",
     name: "Salisbury Plain Discount Pharmacy",
-    /* The shop block rather than the shopfront. The address is unit 1a of
-       89 Stanbel Road and the map carries the building without its units,
-       so the pin is the strip the chemist stands in - the same one already
-       carrying the doctors' surgery, the takeaway and the hairdresser. The
-       building is 75 m end to end, so the pin is within about forty of the
-       door and on the right side of the car park either way. */
-    lat: -34.772335, lng: 138.663102,
-    addr: "1a/89 Stanbel Rd, Salisbury Plain SA 5109"
+    /* The shop strip rather than the shopfront: way/69804158, which the map
+       has as one commercial building carrying Subway, the bike shop, the op
+       shop, a florist and a church hall, all of them addressed 1700 Main
+       North Road. The map has the building without its units, so the pin is
+       placed in the southern third of a 71 m front, which is where the
+       chemist stands.
+
+       This pin was 195 m away and at the wrong shops until the owner said
+       so. Yellow Pages, Whereis and Yelp all give this chemist as 1a/89
+       Stanbel Road, which is the other commercial strip up the road - the
+       one with the doctors' surgery and the hairdresser in it. Three
+       directories agreeing is not a survey, and none of them had been past
+       the place. Worth remembering the next time this table gets an entry
+       from a search rather than from someone who has stood there. */
+    lat: -34.773870, lng: 138.662060,
+    addr: "1700 Main North Rd, Salisbury Plain SA 5109"
   }
 ];
 
