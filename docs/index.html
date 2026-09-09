@@ -2061,7 +2061,13 @@ details.sub > .sec-body{padding:12px 0 0}
    scrollbar lying across the card above the position row. The column edge
    is where the labels and the rules already line up anyway. */
 #wpForm #wpName,#wpForm #wpNote{transition:background .12s ease,border-color .12s ease}
-#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;border-color:var(--sand);
+/* Rust, which is Save's colour and the app's one accent. Sand was the wrong
+   pick: it is the colour of ordinary text here, so a sand outline said "this
+   is a box" a bit louder rather than "this is the one you are in". Rust is
+   used for exactly one thing in this app - the live one - and it is already
+   the caret sitting inside these fields and the border every other input in
+   the app takes on focus. This card was the odd one out. */
+#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;border-color:var(--rust);
   background:#1E2420}
 #wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
 /* The rule under the chips was landing on them. Every other section here
@@ -2072,7 +2078,12 @@ details.sub > .sec-body{padding:12px 0 0}
    card is fighting an Android keyboard for every pixel it has. */
 #wpCats{margin-bottom:5px}
 #wpForm .catgrid button{border-color:var(--line)}
-#wpForm .catgrid button.on{border-color:var(--sand)}
+/* The chosen chip goes rust with them. It and a focused field are the same
+   statement - this is the setting in play - so they should not be making it
+   in two different colours, and the chip's label and icon keep the sand and
+   the category colour they had, which is what still separates a choice you
+   have made from a field you are in. */
+#wpForm .catgrid button.on{border-color:var(--rust)}
 /* The floor is one row, written as the box that holds one: eighteen of
    padding, two of border and a line of whatever size the driver has set the
    text to. A fixed pixel floor read as one row at the smallest of the three
