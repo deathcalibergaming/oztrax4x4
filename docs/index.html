@@ -3399,21 +3399,25 @@ const CFG = {
   /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
      radius does in any town, so fall back through smaller radii */
   OSM_RADII: [5000, 2500, 1200, 700],
-  /* Photon is the standby: a search index rather than a map extract, so it
-     answers in about a second anywhere and never chokes on a dense city,
-     at the cost of carrying only the headline tags. */
+  /* Overpass is the standby: it queries OpenStreetMap by tag, so unlike a
+     geocoder it can see the 93% of POIs out here that carry no name, and
+     it hands back every tag rather than the headline. See overpassPois.
+
+     Two hosts, tried in order and only ever one at a time. The second is
+     there because the first returned a 504 under load while this was being
+     measured, not because two are needed on a good day. Both send
+     Access-Control-Allow-Origin, which not every mirror does. */
+  OVERPASS: ["https://overpass-api.de/api/interpreter",
+             "https://overpass.kumi.systems/api/interpreter"],
+  /* Generous, because a real query on a busy server is slow: 7s measured on
+     a quiet run and 22s on a busy one for the same box. Anything past this
+     is a server in trouble rather than a server thinking. */
+  OVERPASS_TIMEOUT: 45000,
+  /* Photon stays for the geocoding it is actually good at - reverse
+     lookups and the address type-ahead - which is one named place at a
+     time and exactly what an index of names is for. */
   PHOTON: "https://photon.komoot.io/reverse",
   PHOTON_TIMEOUT: 12000,
-  PHOTON_LIMIT: 50,
-  /* How far apart the twelve group requests go out, and the longest the
-     index gets to answer once the first one has gone. 1200 is a choice,
-     not a threshold - see photonSlot for why nobody here knows the
-     threshold and why finding it out would be the very thing being fixed.
-     It is also comfortably above the second that browsers clamp timers to
-     in a backgrounded tab, so the pacing survives the app being in the
-     background rather than quietly becoming one request a second. */
-  PHOTON_GAP: 1200,
-  PHOTON_BUDGET: 45000,
   /* Photon is the type-ahead geocoder; Nominatim forbids that traffic. */
   PHOTON_SEARCH: "https://photon.komoot.io/api",
   SUGGEST_MIN: 3,          /* characters before anything is asked for */
@@ -6695,229 +6699,149 @@ function schedulePoi() {
 }
 
 /* ---------------------------------------------------------------------
-   Standby POI source: Photon, a search index over OpenStreetMap. It is a
-   different shape of service to a map extract - it answers in about a
-   second anywhere on earth and never chokes on a city - but it carries
-   only the headline tags, so a camp found this way has no fee recorded.
-   Tags are sent in groups because the server caps each answer at fifty
-   results; one group per cap stops a town full of car parks crowding out
-   its only fuel station.
+   Standby POI source: Overpass, which queries OpenStreetMap by tag.
 
-   Twelve groups is twelve requests, and they go out one at a time now.
-   See photonSlot.
+   It used to be Photon, and Photon was the wrong shape of service. Photon
+   is a geocoder: it indexes places that have names. Measured over a five
+   kilometre box at Torrensville, 3,753 of the 4,043 POIs this app wants
+   carry no name at all - 93% of them - and no amount of asking politely
+   was going to make a geocoder hand back an unnamed tap. That is the whole
+   story behind the eight water points the app used to show in a suburb
+   where OpenStreetMap holds a hundred and fifty five.
+
+   Overpass answers the question actually being asked: give me everything
+   carrying these tags inside this box. One request instead of twelve, and
+   the full tag set rather than the headline - which means a camp found
+   this way knows whether it charges, a tap knows whether you may drink
+   from it, and a bore knows whether the gate is shut. Those three tags are
+   what poiKind needs and what the old standby threw away.
+
+   Measured on the same box: 105 KB gzipped, 4,043 POIs, the full 5 km. The
+   cost is latency and its spread - 7s on a quiet run, 16 to 22s on a busy
+   one - which is the price of a shared free service doing real work rather
+   than serving an index. It is a standby; it runs when the extract could
+   not, or to fill the edges of a town dense enough to shrink the extract's
+   box, and a slow answer with everything in it beats a fast one without.
+
+   Fair use, learned the hard way from the service this replaced: one
+   request per search, a second only if the first host fails, and never a
+   burst. Overpass publishes a real number - two concurrent slots an
+   address - and one query per five kilometres of driving is nowhere near
+   it.
    --------------------------------------------------------------------- */
-const PHOTON_GROUPS = [
-  ["amenity:fuel"],
-  /* Everything you can fill from, in one group, because that is now one
-     category. The bores are gone from here altogether: the index carries
-     the headline tag and nothing else, so a well arrives with no access
-     and no drinking_water and could never clear the bar that keeps station
-     infrastructure off the map. Asking for them spent a request to throw
-     the answer away.
-     Springs keep a group of their own rather than riding with the taps,
-     which outnumber them thirteen to one in this state and would fill the
-     fifty-result cap before a spring got a look in. */
-  ["amenity:drinking_water", "amenity:water_point", "man_made:water_tap"],
-  ["natural:spring"],
-  ["tourism:camp_site", "tourism:caravan_site", "tourism:camp_pitch",
-   "tourism:wilderness_hut", "tourism:alpine_hut", "amenity:shelter"],
-  ["tourism:picnic_site", "highway:rest_area"],
-  ["shop:supermarket", "shop:convenience", "shop:general",
-   "shop:department_store", "shop:grocery"],
-  ["shop:car_repair", "shop:tyres", "shop:car_parts"],
-  /* The gear shops are the one part of Supplies worth a request of its own.
-     They are national chains with names on them, which is what the index
-     is actually good at, and in a city the extract has shrunk to about a
-     kilometre by the time you would be looking for one. */
-  ["shop:outdoor", "shop:fishing", "shop:hunting", "shop:camping"],
-  ["amenity:toilets", "amenity:parking", "tourism:viewpoint",
-   "tourism:information", "amenity:ranger_station"],
-  /* The chemists get their own request. Sharing one with the hospitals put
-     250 pharmacies and 98 hospitals through a single fifty-result cap, and
-     the pin that loses that race is the one nobody can afford to lose. Two
-     requests instead of one returned 74 medical POIs around Torrensville
-     where the shared group returned 50. */
-  ["amenity:hospital", "amenity:doctors", "amenity:clinic"],
-  ["amenity:pharmacy", "shop:chemist"],
-  ["amenity:shower", "amenity:sanitary_dump_station", "amenity:bbq",
-   "amenity:telephone", "amenity:post_office"],
-];
-const PHOTON_TYPE = { N: "node", W: "way", R: "relation" };
 
-async function photonGroup(a, tags) {
-  const q = CFG.PHOTON + "?lat=" + a.lat.toFixed(5) + "&lon=" + a.lng.toFixed(5) +
-            "&radius=" + Math.ceil(CFG.POI_RADIUS / 1000) +
-            "&limit=" + CFG.PHOTON_LIMIT +
-            tags.map(function (t) { return "&osm_tag=" + encodeURIComponent(t); }).join("");
+/* Everything poiKind can make something of, as the tags to ask for.
+
+   The shop half is derived from the two allowlists rather than repeated,
+   because that half moves: adding a value to SUPPLY_SHOP has to start
+   fetching it as well as start accepting it, and a list copied out here
+   would have gone quietly stale the first time one changed. The rest is
+   written out, and the duty to keep it in step with poiKind is real but
+   small - these are the tags OSM has used for a decade.
+
+   Getting it wrong is not fatal either way: this is the standby, and the
+   primary extract hands poiKind every tag in the box regardless. A tag
+   missing here costs coverage in a dense town, not correctness. */
+const OVERPASS_TAGS = [
+  ["amenity", ["fuel", "drinking_water", "water_point", "toilets",
+               "sanitary_dump_station", "shower", "hospital", "pharmacy",
+               "doctors", "clinic", "telephone", "post_office", "bbq",
+               "parking", "shelter", "ranger_station"]],
+  ["man_made", ["water_tap", "water_well", "water_tank", "watering_place"]],
+  ["natural", ["spring"]],
+  ["tourism", ["wilderness_hut", "alpine_hut", "camp_site", "caravan_site",
+               "camp_pitch", "picnic_site", "viewpoint", "information"]],
+  ["highway", ["rest_area"]],
+  /* healthcare= stands on its own: poiKind reads a hospital or a pharmacy
+     off it even where the amenity tag is missing or says something else. */
+  ["healthcare", ["hospital", "pharmacy", "doctor", "clinic", "centre"]],
+  ["emergency", ["phone"]],
+  ["shop", ["chemist", "supermarket", "grocery", "convenience", "general",
+            "department_store", "car_repair", "tyres", "car_parts"]
+           .concat(Object.keys(OUTDOOR_SHOP)).concat(Object.keys(SUPPLY_SHOP))]
+];
+
+/* A bbox rather than a radius: Overpass answers a box off its index and
+   works out a circle the slow way. Measured on the same query at
+   Torrensville, around: took 16.7s and the box took 7.0s for a superset of
+   the same answer. The corners are thrown away by the distance test below
+   anyway, so the box costs bytes and saves seconds. */
+function overpassQuery(a) {
+  const m = CFG.POI_RADIUS * 1.05;
+  const dLat = m / 111320, dLng = m / (111320 * Math.cos(rad(a.lat)));
+  const bbox = [(a.lat - dLat).toFixed(5), (a.lng - dLng).toFixed(5),
+                (a.lat + dLat).toFixed(5), (a.lng + dLng).toFixed(5)].join(",");
+  const lines = [];
+  OVERPASS_TAGS.forEach(function (pair) {
+    pair[1].forEach(function (v) {
+      lines.push('nwr["' + pair[0] + '"="' + v + '"];');
+    });
+  });
+  /* out center, so a shop mapped as its building arrives as one point the
+     way the extract path already averages one. */
+  return "[out:json][timeout:" + Math.round(CFG.OVERPASS_TIMEOUT / 1000) +
+         "][bbox:" + bbox + "];(" + lines.join("") + ");out center tags;";
+}
+
+async function overpassAt(host, body) {
   const ctl = new AbortController();
-  const bail = setTimeout(function () { ctl.abort(); }, CFG.PHOTON_TIMEOUT);
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.OVERPASS_TIMEOUT);
   try {
-    const r = await fetch(q, { signal: ctl.signal });
-    /* The status rides out on the error because the caller has to tell a
-       throttle from a refusal: one is worth asking again, the other is us.
-       The browser will usually not see it - a 503 from this server carries
-       no CORS header, so fetch rejects before the response is readable -
-       but a proxy or a self-hosted instance would, and the retry below
-       costs nothing on the days the status is absent. */
+    const r = await fetch(host, {
+      method: "POST", signal: ctl.signal,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body
+    });
     if (!r.ok) { const bad = new Error("http " + r.status); bad.status = r.status; throw bad; }
-    const j = await r.json();
-    return { features: j.features || [], bytes: JSON.stringify(j).length };
+    const text = await r.text();
+    /* Overpass answers an overloaded server with an HTML error page under a
+       200, so the shape of the answer is checked rather than the status. */
+    if (text.charAt(0) !== "{") throw new Error("not json");
+    return { json: JSON.parse(text), bytes: text.length };
   } finally {
     clearTimeout(bail);
   }
 }
 
-/* One request at a time, with a gap between them.
-
-   photon.komoot.io is somebody else's machine, given away free, and what
-   it publishes in place of a rate limit is a sentence: use it for your
-   project as long as you remain fair, extensive usage will be throttled.
-   A search here is twelve tag groups and it used to send all twelve at
-   once, which is not fair by any reading and was not working either.
-   Measured against the deployed app, six of the twelve came back 503, and
-   a 503 from this server carries no CORS header, so the browser reports it
-   as a blocked request rather than as a status. The groups that lost the
-   race included the hospitals and the chemists - the pair that were given
-   separate groups in the first place so neither could crowd the other out
-   of a fifty-result cap.
-
-   Nothing said so. Half a search looked exactly like a whole one: the
-   status line reported that the index had answered, and six categories
-   were simply not in the result. That is the failure this file names by
-   hand in the cache-version comment - a feature silently missing rather
-   than absent - arriving through the front door.
-
-   The gap is 1200ms because that is slow, not because anyone found the
-   line. Komoot publish no number - the policy is a sentence - and the only
-   way to find the real threshold is to keep knocking until the server says
-   stop, which is the behaviour this comment exists to remove. What was
-   measured is one round of twelve at once (six 503s, 6.5s) against the
-   same twelve one at a time (all twelve answered), and then, after that
-   one round of probing, four minutes of every request from this address
-   being refused outright. A limiter with that much memory is not one to
-   go looking for the edge of.
-
-   The clock is shared across searches rather than restarted for each one,
-   so panning twice in a row queues instead of bursting. Twelve paced
-   requests cost about 14.4s, and 15.6s in the measured run where one group
-   was throttled and asked again. That is the right trade for a standby: it
-   runs when the map extract could not, or to fill the edges of a town
-   dense enough to shrink the extract's box. Fifteen seconds with every
-   category in it beats six with half of them missing and nothing saying
-   which. */
-let photonNext = 0;
-function photonSlot(gaps) {
-  const now = Date.now();
-  const at = Math.max(now, photonNext);
-  photonNext = at + CFG.PHOTON_GAP * (gaps || 1);
-  return new Promise(function (r) { setTimeout(r, at - now); });
-}
-
-/* What a group would have brought back, in the words the category chips
-   use. Worked out from the tags rather than kept in a second list beside
-   them, so a group that gains a tag says so without being told twice. */
-function groupLabels(tags) {
-  const out = [];
-  tags.forEach(function (t) {
-    const i = t.indexOf(":");
-    const one = {};
-    one[t.slice(0, i)] = t.slice(i + 1);
-    const k = poiKind(one);
-    const m = k && POI_META[k];
-    if (m && out.indexOf(m.label) < 0) out.push(m.label);
-  });
-  return out;
-}
-
-/* Returns {items,bytes,secs,missed} or {error}, where missed names the
-   categories that were asked for and did not arrive. */
-async function photonPois(a) {
+/* Returns {items,bytes,secs,host} or {error}. */
+async function overpassPois(a) {
   const t0 = Date.now();
-  /* Set when the first request actually goes out rather than here, because
-     the budget is meant to cap how long the index is given to answer and
-     not how long we spent waiting for a turn. A search that queued behind
-     another one would otherwise spend its whole allowance in the queue and
-     report eleven categories missing without having asked for any: with a
-     900ms budget behind a 2400ms queue it asked one group before the fix
-     and nine after it. */
-  let deadline = Infinity;
-  const ok = [], missed = [];
-  for (let i = 0; i < PHOTON_GROUPS.length; i++) {
-    const g = PHOTON_GROUPS[i];
-    let got = null, why = null;
-    if (Date.now() > deadline) {
-      /* Out of time rather than refused, and the rest are not asked for at
-         all: a standby that spends two minutes is not a standby, and the
-         driver is told what is missing either way. */
-      why = new Error("out of time");
-    } else {
-      await photonSlot();
-      if (deadline === Infinity) deadline = Date.now() + CFG.PHOTON_BUDGET;
-      try { got = await photonGroup(a, g); } catch (e) { why = e; }
-      /* 429 and 503 are the server saying "not now", which is the one
-         answer worth asking again - and the one time to wait longer than
-         usual first, since being told to slow down is a poor moment to
-         knock at the same rate. A 400 is us, and a timeout has already
-         spent twelve seconds proving the point. */
-      if (!got && why && (why.status === 429 || why.status === 503) &&
-          Date.now() < deadline) {
-        await photonSlot(2);
-        try { got = await photonGroup(a, g); why = null; } catch (e) { why = e; }
-      }
-    }
-    if (got) ok.push(got); else missed.push({ group: g, why: why });
+  const body = "data=" + encodeURIComponent(overpassQuery(a));
+  let got = null, why = null, host = "";
+  for (let i = 0; i < CFG.OVERPASS.length && !got; i++) {
+    try { got = await overpassAt(CFG.OVERPASS[i], body); host = CFG.OVERPASS[i]; }
+    catch (e) { why = e; }
   }
-  if (!ok.length) {
-    const why = missed[0] && missed[0].why;
+  if (!got) {
     return { error: why && why.name === "AbortError"
-      ? "search index timed out" : "could not reach the search index" };
+      ? "the map query timed out" : "could not reach the map query service" };
   }
-  const lost = [];
-  missed.forEach(function (m) {
-    groupLabels(m.group).forEach(function (l) {
-      if (lost.indexOf(l) < 0) lost.push(l);
-    });
+  const out = [], seen = {};
+  (got.json.elements || []).forEach(function (el) {
+    const tags = el.tags || {};
+    const kind = poiKind(tags);
+    if (!kind) return;
+    const lat = el.lat !== undefined ? el.lat : (el.center && el.center.lat);
+    const lng = el.lon !== undefined ? el.lon : (el.center && el.center.lon);
+    if (lat === undefined || lng === undefined) return;
+    const id = el.type + "/" + el.id;
+    if (seen[id]) return;
+    seen[id] = 1;
+    const item = {
+      id: id, kind: kind, lat: lat, lng: lng,
+      /* the same order the extract path uses, for the same reason: the
+         brand is what is on the sign, the operator is the company behind it */
+      name: tags.name || tags.brand || tags.operator || poiCaption(tags, kind),
+      caption: !(tags.name || tags.brand || tags.operator),
+      info: poiInfoLine(tags, kind),
+      addr: poiAddress(tags)
+      /* not thin: this carries every tag the extract does, fee included,
+         which is the whole reason for the change */
+    };
+    if (haversine(a, item) <= CFG.POI_RADIUS * 1.05) out.push(item);
   });
-  const seen = {}, out = [];
-  let bytes = 0;
-  ok.forEach(function (r) {
-    bytes += r.bytes;
-    r.features.forEach(function (f) {
-      const p = f.properties || {}, g = f.geometry || {};
-      if (!g.coordinates) return;
-      const tags = {};
-      if (p.osm_key) tags[p.osm_key] = p.osm_value;
-      if (p.name) tags.name = p.name;
-      const kind = poiKind(tags);
-      if (!kind) return;
-      const id = (PHOTON_TYPE[p.osm_type] || "node") + "/" + p.osm_id;
-      if (seen[id]) return;
-      seen[id] = 1;
-      const item = {
-        id: id, kind: kind, lat: g.coordinates[1], lng: g.coordinates[0],
-        name: p.name || poiCaption(tags, kind),
-        caption: !p.name,
-        info: poiInfoLine(tags, kind),
-        /* The index carries the address fields even though it drops most
-           other tags, so a thin record can still be placed on a street. */
-        addr: fmtAddress(p.housenumber, p.street),
-        thin: true                     /* headline tags only - no fee recorded */
-      };
-      if (haversine(a, item) <= CFG.POI_RADIUS * 1.05) out.push(item);
-    });
-  });
-  return { items: out, bytes: bytes,
-           secs: Math.round((Date.now() - t0) / 100) / 10,
-           missed: lost };
-}
-
-/* A short list reads as a short list; a long one reads as a count, because
-   eleven category names in a status line is a wall rather than a warning. */
-function photonMissedNote(ph) {
-  const m = (ph && ph.missed) || [];
-  if (!m.length) return "";
-  return ", " + (m.length > 3 ? m.length + " categories" : m.join("/")) +
-         " did not answer";
+  return { items: out, bytes: got.bytes, host: host,
+           secs: Math.round((Date.now() - t0) / 100) / 10 };
 }
 
 /* Two sources, one list. Where both know a place the extract wins, because
@@ -6981,24 +6905,23 @@ async function fetchPois(force) {
       /* a dense town shrinks the box, so widen the net again with the index */
       if (osm.radius < CFG.POI_RADIUS) {
         if (show) setPoiStatus("Dense area - filling out to 5 km...");
-        const ph = await photonPois(a);
+        const ph = await overpassPois(a);
         if (!ph.error) {
           const before = items.length;
           items = mergePois(items, ph.items);
           note = "full detail within " + (osm.radius / 1000) + " km, " +
-                 (items.length - before) + " more out to 5 km" +
-                 photonMissedNote(ph);
+                 (items.length - before) + " more out to 5 km, " + ph.secs + "s";
         } else {
-          note = "OpenStreetMap, full detail within " + (osm.radius / 1000) + " km only";
+          note = "OpenStreetMap, full detail within " + (osm.radius / 1000) +
+                 " km only - " + ph.error;
         }
       }
     } else {
-      if (show) setPoiStatus("Map data unavailable - trying the search index...");
-      const ph = await photonPois(a);
+      if (show) setPoiStatus("Map data unavailable - asking the map query service...");
+      const ph = await overpassPois(a);
       if (!ph.error) {
         items = ph.items;
-        note = "search index, " + fmtBytes(ph.bytes) + ", " + ph.secs + "s" +
-               photonMissedNote(ph) + " - no camp fees recorded";
+        note = "map query, " + fmtBytes(ph.bytes) + " uncompressed, " + ph.secs + "s";
       } else {
         note = osm.error + "; " + ph.error;
       }
