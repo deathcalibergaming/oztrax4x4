@@ -515,6 +515,44 @@ measured and nothing is re-clamped, so there is no event to miss. The card also
 stopped following the thumb, which is better anyway — one place to look rather
 than wherever the tap landed.
 
+**The band the browser reports is not the band you can see.** The keyboard’s
+autofill row — Passwords, Payment methods, Addresses — is drawn over the page
+rather than inside it, so `visualViewport` reports a band 48dp taller than the
+one actually left, and a box centred and capped in that band has its footer
+behind the chips. Nothing here can measure that strip and nothing here can
+refuse it: the row is offered against any focused field, not only ones autofill
+has recognised, so `autocomplete="off"` does not remove it. It is held back
+instead. `--kb-res` is 48px whenever a keyboard-sized inset exists and 0
+otherwise, and every box that centres in the band subtracts it twice — once
+from the height, once from the centring — so the box is centred in what is left
+and capped to it. The floating form and the modals both take it, because both
+meet the same keyboard. If a password manager ever draws a taller bar, that one
+number is the whole fix.
+
+**When a box runs short of height, one named thing gives ground before anything
+scrolls.** The New Waypoint card is head, four fields and a footer, and only one
+of them has an arbitrary height: the note, whose two rows are a guess rather
+than a measurement of what is in it. So the body is a column, everything else
+holds its size, and the note collapses to a single row — only when that is spent
+does the body scroll, with the footer pinned throughout. The floor is one row
+written as the box that holds one, `calc(1.35em + 20px)`: the padding, the
+borders and a line of whatever size the driver has set the text to. A pixel
+floor read as one row at the smallest of the three text sizes and cropped the
+line at the largest.
+
+Measured against the phone’s own band — 453px of 772 with the keyboard up, less
+the 48 held back — the card fits with nothing scrolling at the first two text
+sizes and two pixels of it at the third, and Save’s bottom edge sits 24px clear
+of where the chips begin. Below that band it scrolls and the buttons still do
+not move: verified down to 260px, which is a screen no phone has.
+
+**A label sits above what you fill in, and beside what you only read.** Every
+field in that card carries its label overhead; the position readout is not a
+field, so its label sits on the same line as the coordinates — the arrangement
+the card meta rows already use. It is also a line of height back, which is the
+kind of saving worth having: one earned by making the thing read correctly
+rather than by tightening a rhythm the rest of the app keeps.
+
 Panels overlay the map rather than displacing it: a left drawer, a POI panel,
 and a bottom panel stack that splits width when two are open at once. Spacing
 is tight throughout — gaps of 6–14px, card padding 10px — because the density
@@ -534,9 +572,24 @@ anything other than the shape of the glass.
 **The One Screen Rule.** The application never scrolls. Anything that does
 not fit belongs in a panel that scrolls inside itself.
 
+**The One Field Gives Rule.** Where a box can run short of height, name the
+one element that yields and let it take the whole squeeze. Everything else
+holds its size, the footer stays pinned, and scrolling is what happens once
+that element is spent rather than instead of it. Pick the element whose height
+is a guess rather than a measurement of what is in it, and write its floor as
+the box that holds one line, not as a pixel count — a pixel count reads as one
+row at the smallest text size and crops the line at the largest.
+
 **The Rail Follows Itself Rule.** The bars' heights and widths are single
 custom properties, and everything that must clear them measures from those
 properties. Never hard-code a bar's size into another element's offset.
+
+**The Unmeasured Inset Rule.** The band `visualViewport` reports is not the
+band you can see. The keyboard’s autofill row is painted over the page and no
+API admits to it, so every box that centres in that band subtracts `--kb-res`
+twice — once from its height, once from its centring — and nothing sizes or
+places itself against `--vv-h` alone. It is one number in one place: raise it
+if a password manager ever draws a taller bar.
 
 **The Nothing Behind The Glass Rule.** A panel moved off screen with a
 transform is still in the tab order and still in the accessibility tree. The
