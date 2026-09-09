@@ -7362,6 +7362,57 @@ function applyPoiFixes(items) {
   return out;
 }
 
+/* Where the map has nothing at all, and something is still standing there.
+
+   A correction needs something to correct; this is the other half of the
+   same job. Salisbury Plain Discount Pharmacy trades in the shops on
+   Stanbel Road and OpenStreetMap has no pharmacy there - not a node, not a
+   unit, not a wrong tag on the right building. Nothing in poiKind could
+   have filed it under the wrong category and no search word could have
+   found it: it was never in the list to be missing from it.
+
+   Seeded only when the POIs were gathered somewhere near it, so it arrives
+   the way an OSM pin does rather than conjuring itself onto a map of the
+   other side of the state, and only while nothing of its kind already
+   stands there - the day someone maps the chemist properly the local copy
+   steps aside on its own, with no edit here. Its id has a shape of its own
+   the way a scheme servo's does, so favourites and Hide treat it as they
+   would any other pin.
+
+   A local entry, not a repair. The durable fix is to put it on
+   OpenStreetMap, where every other app gets it too. */
+const POI_ADDED = [
+  {
+    id: "local/salisbury-plain-chemist",
+    kind: "chemist",
+    name: "Salisbury Plain Discount Pharmacy",
+    /* The shop block rather than the shopfront. The address is unit 1a of
+       89 Stanbel Road and the map carries the building without its units,
+       so the pin is the strip the chemist stands in - the same one already
+       carrying the doctors' surgery, the takeaway and the hairdresser. The
+       building is 75 m end to end, so the pin is within about forty of the
+       door and on the right side of the car park either way. */
+    lat: -34.772335, lng: 138.663102,
+    addr: "1a/89 Stanbel Rd, Salisbury Plain SA 5109"
+  }
+];
+
+function addLocalPois(centre, items) {
+  if (!POI_ADDED.length || !centre) return items;
+  const reach = CFG.POI_RADIUS * 1.05;
+  const add = [];
+  POI_ADDED.forEach(function (a) {
+    if (haversine(centre, a) > reach) return;
+    /* the map got there first, so it wins: a real record carries hours and
+       a phone number and whatever else a mapper stood there and wrote */
+    const mapped = items.some(function (p) {
+      return p.kind === a.kind && haversine(p, a) <= CFG.POI_DUP_M;
+    });
+    if (!mapped) add.push(Object.assign({}, a));
+  });
+  return add.length ? items.concat(add) : items;
+}
+
 function composePois() {
   const merged = Fuel.mergePins(poiSourcedAt, poiSourced);
   poiFuelAdded = merged.added;
@@ -7369,16 +7420,23 @@ function composePois() {
      one of the two survives, so fixing them both is what makes the result
      the same whichever one wins. Moving them to the same spot under the
      same name is also what lets the dedupe see them as one place. */
-  pois = dedupeByName(applyPoiFixes(merged.items));
+  pois = dedupeByName(addLocalPois(poiSourcedAt, applyPoiFixes(merged.items)));
   renderPois();
 }
 
 /* The words a driver would type for a category, where the app happened to
    choose a different one. This app calls it Chemist; half the country calls
    it a pharmacy, and typing that returned nothing at all - which reads as
-   "there isn't one" rather than "not that word". That is exactly what
-   happened at Salisbury Plain, where the chemist was on the map the whole
-   time and could not be found by the word on its own front window.
+   "there isn't one" rather than "not that word".
+
+   Salisbury Plain is what prompted this, and it turned out not to be a case
+   of it: the chemist there was never on the map, so no word was ever going
+   to find it and this rule fixed nothing that day. It is kept because it is
+   right anyway - "pharmacy" finds the dozen around Salisbury that are
+   mapped - and the story is corrected here rather than quietly dropped,
+   because a fix that was never tested against the thing it was written for
+   is the kind that goes on looking finished. See POI_ADDED for what was
+   actually wrong.
 
    Category words only, never a brand. "Coles" has to find Coles, not every
    supermarket in the town, and a place that carries a name is already
