@@ -2012,79 +2012,23 @@ details.sub > .sec-body{padding:12px 0 0}
    had, so this is the last one brought into line rather than a new gap. */
 #wpForm .fld-note textarea,#wpForm #wpName{margin-bottom:5px}
 
-/* The boxes come off the two text fields, and this is what actually makes
-   the card match the POI cards rather than merely having lines in it.
+/* The two fields are stock. input,select,textarea already gives every field
+   in the app its ground, its border, its radius, its padding and its rust
+   caret, and :focus already turns that border rust - so these take all of
+   it, and this card overrides nothing that is a colour.
 
-   Ruling a card into sections only reads if the sections are quiet. These
-   were three outlined boxes at 48% against hairlines at 22%, so the boxes
-   drew the eye and the rules did nothing - the card still read as a stack
-   of widgets that happened to have lines between them. A POI card is type
-   on a panel, ruled off; so is this now.
+   That was worth arriving at rather than assuming. Ruled into sections the
+   fields looked loud, and the things tried in order were taking the boxes
+   off, putting them back at the hairline weight, lighting them rust on
+   focus, and filling them instead. What was loud was never the fields: it
+   was that they were the only ones in the app not saying what every other
+   field says. A card whose whole point is to look like the rest of the app
+   is not the place to invent a field.
 
-   The field is still a field. It is the biggest type on the card, the way
-   the name of a place is on every other card here; it opens focused with a
-   caret in it; an empty one says what it wants; and the caret is rust
-   against sand, which is the app telling you where the keyboard is
-   pointing. That is what a border was doing and none of it needed one.
-
-   The category chips keep theirs. They are the one control here that has to
-   show which of three it is, and an outline that means "this one" cannot
-   also be an outline that means "this is a control" - so the resting chip
-   drops to the same 22% as the rules and the chosen one keeps the sand.
-
-   The boxes are back, at the card's own line weight. Taking them off went
-   too far: what was loud was not that the fields had outlines, it was that
-   their outlines were twice the weight of everything else on the card, so
-   they shouted over the rules instead of sitting inside them. At 22% they
-   are the same line as the dividers and the same line as a resting chip -
-   the card now has exactly one line colour in it, and the fields read as
-   things you type in without competing with the sections they sit in. */
-#wpForm #wpName,#wpForm #wpNote{background:transparent;border:1px solid var(--line);
-  border-radius:4px;padding:6px 8px;color:var(--sand)}
-/* Taking the box off took the tap target with it: the name field measured
-   eighteen pixels, against the thirty-six this app holds as the floor for
-   anything pressed at a stop. The padding a border used to imply is now
-   stated, so the target is the same size it always was and only the outline
-   has gone. */
+   What is left is size, which is the card's business and not the field's:
+   the type scale it reads at and the tap floor it has to keep. */
 #wpForm #wpName{font-size:var(--t-body);font-weight:600;min-height:var(--tap-sm)}
 #wpForm #wpNote{font-size:var(--t-note);line-height:1.45}
-/* The border these fields lost was also their focus state - it went rust
-   when the keyboard was pointing at them, and dropping it without putting
-   anything back would have taken an affordance away rather than restyled
-   one. So focus tints the field instead, which is the same thing the
-   category chip does to say it is the chosen one.
-
-   The tint is exactly the text column, not a pixel wider. Widening it by
-   six each side to make more of a band put the field past the body it sits
-   in - scrollWidth 304 against a client width of 298 - and the body, which
-   scrolls because a keyboard can squeeze it, answered with a horizontal
-   scrollbar lying across the card above the position row. The column edge
-   is where the labels and the rules already line up anyway. */
-#wpForm #wpName,#wpForm #wpNote{transition:background .12s ease,border-color .12s ease}
-/* The box holds its line at every state, and focus is said inside it rather
-   than around it - the field fills, and the caret is rust.
-
-   A coloured outline is the usual way to do this and it does not work on
-   this card. The fields sit between hairline dividers of the same weight,
-   so lighting one field's border lights a rectangle inside a grid of lines
-   and the eye reads it as the ruling coming apart rather than as a field
-   waking up. There is nowhere for an outline to be the loudest thing here.
-   A fill has the whole field to itself and no line to be confused with.
-
-   Rust is still on the card and still means the live thing: the chosen
-   category, and Save. It is just not drawn around a field here. */
-#wpForm #wpName:focus,#wpForm #wpNote:focus{outline:none;background:#1E2420}
-/* The caret is sand, with the text it is sitting in.
-
-   A rust caret was the accent spent on the smallest mark on the card - a
-   two pixel bar that blinks - while the two things rust is actually for
-   here, the chosen category and Save, are large and still. It read as a
-   third rust thing competing with them rather than as anything you needed
-   told. The fill already says which field you are in; the caret only has to
-   say where in the line you are, and sand says that against this ground
-   perfectly well. */
-#wpForm #wpName,#wpForm #wpNote{caret-color:var(--sand)}
-#wpForm #wpName::placeholder,#wpForm #wpNote::placeholder{color:var(--dim)}
 /* The rule under the chips was landing on them. Every other section here
    ends in a line of text, which carries its own descender space, so five
    above the next rule was enough; the chips end in a hard 36px edge and the
