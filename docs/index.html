@@ -7334,6 +7334,30 @@ const POI_FIXES = [
     is: /^(repco:\s*)?chris'?s mechanical/i,
     name: "Repco: Chris's Mechanical & Tyres",
     kind: "mechanic"
+  },
+  {
+    /* Cobbler Creek's car park, where the map has two water points and
+       the ground has nothing worth driving to. OpenStreetMap carries a tap
+       at node/4744521181 tagged drinking_water=yes and bottle=yes, and a
+       second point 65 m west at node/13991111332 carrying dog=yes, which is
+       the dog bowl. The owner has stood at both and neither is water this
+       app should be sending anyone to.
+
+       Both captions rather than just the one they wear today. The pins are
+       here because the map is confident about something it has wrong, and
+       a retag to drinking_water=no tomorrow would bring them straight back
+       as Raw water - just as wrong, and harder to notice the second time. A
+       named water point is left alone: someone who took the trouble to name
+       it knew something the tag does not say.
+
+       This is the one entry in here where the map has the better claim on
+       paper - the tap was surveyed in April 2026 by a mapper who was
+       standing in front of it. It is overruled on the strength of someone
+       who has been there since, and the durable fix is to say so on
+       OpenStreetMap rather than to keep saying it only here. */
+    at: [-34.781604, 138.675274], within: 60,
+    is: /^(water refill|raw water)$/i,
+    drop: true
   }
 ];
 
