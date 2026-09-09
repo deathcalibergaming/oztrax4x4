@@ -500,6 +500,21 @@ at a shared 80px width (`--railW`) so the columns cannot drift apart.
 Safe-area insets are added to the top bar and every bottom-anchored element,
 never ignored.
 
+**Anything with a text field is centred on the visual viewport, never measured**
+**against the layout one.** Android’s keyboard covers the page instead of
+shortening it, so the layout viewport keeps the full height of the screen while
+only the visual viewport shrinks. `--vv-top`, `--vv-bottom` and `--vv-h` publish
+what is actually left, synced on resize *and* scroll because the shrink and the
+browser’s pan are two events and the pan arrives second.
+
+The New Waypoint card used to be pinned beside the tap and clamped between the
+stats bar and the action bar with its own measurement of the bottom of the
+screen — which put Cancel and Save under the keys, the same fault the
+navigation search had. It is centred from those properties now: nothing is
+measured and nothing is re-clamped, so there is no event to miss. The card also
+stopped following the thumb, which is better anyway — one place to look rather
+than wherever the tap landed.
+
 Panels overlay the map rather than displacing it: a left drawer, a POI panel,
 and a bottom panel stack that splits width when two are open at once. Spacing
 is tight throughout — gaps of 6–14px, card padding 10px — because the density
@@ -860,7 +875,9 @@ persistent mode the driver chose. Having kept something is a fact about a list,
 not a mode you are in.
 
 **It can be kept as it is made.** The same star sits in the New Waypoint form’s
-head, where it holds an intention rather than a state — there is no record to
+head — and it is the only thing there, since the close button it used to sit
+beside is gone: Cancel is in the footer already saying the same thing, and one
+way out of a box is enough. It holds an intention rather than a state — there is no record to
 point at until Save creates one, and the favourite is added straight after
 `saveWaypoints`, because until then there is nothing for its id to resolve to.
 It resets with the form, so a keep does not carry to the next pin dropped, and
