@@ -1,1 +1,1 @@
-{"o":[-3423451,14088867],"k":["highway","name","amenity","shelter_type","access"],"v":["rest_area","Yamba East (Eastbound) Rest Area","shelter","picnic_shelter","yes","parking"],"p":[[-3492,1787,0,1811205282,0,0,1,1],[-3472,1735,0,9657981961,2,2,3,3],[-3490,1758,0,9657981962,4,4,2,5,1,1]]}
+{"o":[-3423451,14088867],"k":["highway","name","amenity","shelter_type"],"v":["rest_area","Yamba East (Eastbound) Rest Area","shelter","picnic_shelter"],"p":[[-3492,1787,0,1811205282,0,0,1,1],[-3472,1735,0,9657981961,2,2,3,3]]}
