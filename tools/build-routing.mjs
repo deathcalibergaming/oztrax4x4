@@ -40,6 +40,7 @@
    Usage: node tools/build-routing.mjs [--force] */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { inflate } from "node:zlib";
 import { promisify } from "node:util";
 import { join } from "node:path";
@@ -358,22 +359,65 @@ async function sourceStamp() {
   return (await res.text()).trim().split(/\s+/)[0];
 }
 
+/* What decides the contents of a pack, in one short string: the extract it
+   was cut from, and every decision this script makes about what to take out
+   of it - which classes are carried, which of those are the backbone, what
+   is skipped outright, which ramps belong to which road, what counts as
+   sealed, and the grid and precision it is all written on.
+
+   The Geofabrik checksum alone will not do that job. It identifies the
+   input, not the output. Drop busway from the class list, or move tertiary
+   out of the backbone, and every edge in the state is repriced or gone
+   while the checksum sits exactly where it was - and every phone already
+   holding the old packs would go on believing them, because the checksum
+   is the only thing it had to compare. */
+function cutStamp(source) {
+  const shape = JSON.stringify([
+    CLASSES, [...BACKBONE].sort(), [...SKIP].sort(),
+    Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
+    [...PAVED].sort(), Z, PRECISION, STATES
+  ]);
+  return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
+}
+
 async function builtStamp() {
   try {
-    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).source || null;
+    return JSON.parse(await readFile(join(OUT, "index.json"), "utf8")).cut || null;
   } catch {
     return null;
   }
 }
 
+/* Put the cut on a tree that was built before there was one, without
+   rebuilding it. The packs on disk came out of exactly this shape and
+   exactly the source recorded in their own manifest, so the stamp can be
+   worked out from what is already written there and added in place - and
+   the recorded source is the one to use, not whatever is upstream today,
+   because the tiles are from the extract that was current when they were
+   cut.
+
+   Worth doing rather than letting the next scheduled run sort it out: that
+   run would otherwise see a manifest with no cut, decide it had nothing to
+   compare, and rewrite ten thousand files that had not changed. */
+async function restamp() {
+  const path = join(OUT, "index.json");
+  const index = JSON.parse(await readFile(path, "utf8"));
+  index.cut = cutStamp(index.source);
+  await writeFile(path, JSON.stringify(index));
+  console.log(`stamped ${path} as ${index.cut}`);
+}
+
 async function main() {
+  if (process.argv.includes("--restamp")) return restamp();
   const force = process.argv.includes("--force");
   const stamp = await sourceStamp();
+  const cut = cutStamp(stamp);
   console.log(`extract: ${stamp}`);
+  console.log(`cut:     ${cut}`);
 
   const have = await builtStamp();
-  if (have === stamp && !force) {
-    console.log("already built from this extract - nothing to do");
+  if (have === cut && !force) {
+    console.log("already built from this extract and this road shape - nothing to do");
     return;
   }
 
@@ -522,6 +566,7 @@ async function main() {
 
   await writeFile(join(OUT, "index.json"), JSON.stringify({
     source: stamp,
+    cut: cut,
     built: new Date().toISOString().slice(0, 10),
     z: Z,
     states: STATES,

@@ -8569,24 +8569,128 @@ const Addr = {
 
   /* The manifest is 9604 tiles listed as {x:[y,...]}, about 60 KB. Read
      once from the network, then kept in the same store as the tiles so a
-     phone that has been here before starts up knowing the coverage. */
+     phone that has been here before starts up knowing the coverage.
+
+     A stored one answers straight away and the check goes off behind it,
+     not waited on. Waiting here would make every launch pay for a request
+     that four times out of five says nothing has changed, and out where
+     this app is for there is frequently nothing on the other end of it to
+     wait on at all. */
   loadManifest: async function () {
     if (this.manifest) return this.manifest;
     try {
       const held = await DB.get("addr", "index");
       if (held) { this.manifest = held; }
     } catch (e) { /* idb unavailable - the network copy still works */ }
-    if (!this.manifest) {
-      try {
-        const r = await fetch(CFG.ADDR_URL + "index.json");
-        if (!r.ok) throw new Error("http " + r.status);
-        this.manifest = await r.json();
-        try { await DB.put("addr", this.manifest, "index"); } catch (e) { /* ignore */ }
-      } catch (e) {
-        this.manifest = null;
-      }
+    if (this.manifest) { this.freshen(); return this.manifest; }
+    try {
+      const r = await fetch(CFG.ADDR_URL + "index.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      this.manifest = await r.json();
+      this.checked = true;
+      try { await DB.put("addr", this.manifest, "index"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      this.manifest = null;
     }
     return this.manifest;
+  },
+
+  /* Whether the addresses on the server are still the addresses on the
+     phone.
+
+     They were never compared. A stored manifest was read once and believed
+     for good, so a phone that had opened the address search kept that
+     quarter's cut of G-NAF for the life of the install - which for
+     something rebuilt four times a year is a pack that updates once, on
+     the day it is first opened, and then never again. New estates, renamed
+     streets and renumbered lots would all have gone missing quietly, and
+     the only cure would have been clearing the site data.
+
+     Only the manifest is refetched, which is 60 KB. The tiles look after
+     themselves: each carries the cut it was written under and refreshes
+     the next time it is wanted, so a rebuilt pack comes down tile by tile
+     as the driver reaches them. Nothing is deleted, because deleting is
+     what would put a hole in an offline area - catch one bar in town, have
+     the tiles thrown away for being old, drive back out of range, and the
+     map downloaded for exactly that moment is empty.
+
+     Once a session. The pack is quarterly; asking twice on one drive would
+     spend a signal that may well be the only one there is. */
+  freshen: async function () {
+    if (this.checked) return;
+    this.checked = true;
+    try {
+      const r = await fetch(CFG.ADDR_URL + "index.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const fresh = await r.json();
+      if (!fresh || !fresh.tiles) return;
+      /* cut, not release. release names the G-NAF quarter this was built
+         from - the input - and says nothing about what the builder did
+         with it. Change which fields a row carries, or stop collapsing
+         units onto their building, and every tile in the state changes
+         shape while the release string sits exactly where it was, and
+         every phone holding the old tiles would go on believing them. cut
+         is a hash of the release and the build's own shape together, so it
+         moves whenever the tiles do. */
+      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
+      this.manifest = fresh;
+      /* The side indexes are cut in the same run as the tiles, so a new cut
+         invalidates them too. Dropped from memory only - what is stored is
+         re-checked when next wanted, and served stale if it cannot be. */
+      this.mem.clear();
+      this.count = 0;
+      this.tried.clear();
+      this.localities = null;
+      this.streets = null;
+      try { await DB.put("addr", fresh, "index"); } catch (e) { /* ignore */ }
+    } catch (e) { /* no signal: what is held is what there is */ }
+  },
+
+  /* The cut everything stored in this store is measured against. null means
+     there is no manifest to measure against yet, and a stored copy is then
+     taken at its word rather than thrown at the network on a hunch.
+
+     An absent stamp counts as the empty one on both sides, so a phone still
+     holding a manifest and tiles from before any of this existed matches
+     itself and sits quiet. It stops matching the moment freshen brings down
+     a manifest carrying a real cut, which is the one time the refetch is
+     actually wanted. */
+  cut: function () {
+    return this.manifest ? (this.manifest.cut || "") : null;
+  },
+
+  /* A file built alongside the tiles but stored on its own - localities and
+     streets. Same rule as a tile: use the stored copy while it came from
+     the cut being served, otherwise go and get it, and if that cannot be
+     done serve what is held anyway. Without this the two indexes would go
+     stale while the tiles refreshed around them, and a search would be
+     sent to tile numbers that no longer hold the street it named.
+
+     Wrapped rather than stamped in place, because both of these are plain
+     name -> tiles objects that the search walks with for..in. A stamp put
+     among the keys would be a suburb called __cut, turning up in a search
+     and counted in the suburb total. The wrapper is keyed on __d for the
+     same reason a tile is stamped __cut: no G-NAF locality or street name
+     carries an underscore, so there is no object of the old shape that can
+     be mistaken for one of the new. */
+  side: async function (file, key) {
+    let held = null;
+    try { held = await DB.get("addr", key); } catch (e) { /* fall through */ }
+    const cut = this.cut();
+    /* An unwrapped one is what an older build left behind: no stamp, so it
+       counts as the empty cut, same as a tile with no __cut. */
+    const heldCut = held ? (held.__d ? (held.__cut || "") : "") : null;
+    const data = held ? (held.__d || held) : null;
+    if (data && (cut === null || heldCut === cut)) return data;
+    try {
+      const r = await fetch(CFG.ADDR_URL + file);
+      if (!r.ok) throw new Error("http " + r.status);
+      const fresh = await r.json();
+      try { await DB.put("addr", { __cut: cut || "", __d: fresh }, key); } catch (e) { /* ignore */ }
+      return fresh;
+    } catch (e) {
+      return data;            /* stale beats nothing */
+    }
   },
 
   exists: function (x, y) {
@@ -8601,18 +8705,7 @@ const Addr = {
      every launch pays for and this is not wanted until then. */
   loadLocalities: async function () {
     if (this.localities) return this.localities;
-    try {
-      const held = await DB.get("addr", "localities");
-      if (held) { this.localities = held; return held; }
-    } catch (e) { /* idb unavailable - the network copy still works */ }
-    try {
-      const r = await fetch(CFG.ADDR_URL + "localities.json");
-      if (!r.ok) throw new Error("http " + r.status);
-      this.localities = await r.json();
-      try { await DB.put("addr", this.localities, "localities"); } catch (e) { /* ignore */ }
-    } catch (e) {
-      this.localities = null;
-    }
+    this.localities = await this.side("localities.json", "localities");
     return this.localities;
   },
 
@@ -8681,18 +8774,7 @@ const Addr = {
      cost is not paid twice. */
   loadStreets: async function () {
     if (this.streets) return this.streets;
-    try {
-      const held = await DB.get("addr", "streets");
-      if (held) { this.streets = held; return held; }
-    } catch (e) { /* idb unavailable - the network copy still works */ }
-    try {
-      const r = await fetch(CFG.ADDR_URL + "streets.json");
-      if (!r.ok) throw new Error("http " + r.status);
-      this.streets = await r.json();
-      try { await DB.put("addr", this.streets, "streets"); } catch (e) { /* ignore */ }
-    } catch (e) {
-      this.streets = null;
-    }
+    this.streets = await this.side("streets.json", "streets");
     return this.streets;
   },
 
@@ -8735,8 +8817,16 @@ const Addr = {
     return out;
   },
 
-  /* Storage first, then the network. A tile never changes between quarterly
-     releases, so a stored one is never refetched to check.
+  /* Storage first, then the network, and the stored copy is trusted only
+     while it came from the cut the manifest is describing. A tile does not
+     change between quarterly releases - but it changes very much across
+     one, and this took the first half of that sentence for the whole of it
+     and never asked again.
+
+     A tile that is behind and cannot be refetched is still returned. Last
+     quarter's house numbers beat an empty search by a very long way, and
+     dropping one for being old would empty the address book precisely
+     where there is no signal to fill it back up.
 
      keep says whether the tile also goes into memory for the search to
      walk. An offline area passes false: it is writing a whole region to
@@ -8746,17 +8836,24 @@ const Addr = {
     const k = this.key(x, y);
     if (this.tried.has(k)) return;
     if (this.mem.has(k)) return;
-    let tile = null;
-    try { tile = await DB.get("addr", k); } catch (e) { /* fall through */ }
+    let tile = null, held = null;
+    try { held = await DB.get("addr", k); } catch (e) { /* fall through */ }
+    /* Read after the lookup, not before: freshen may have landed a new
+       manifest while this was waiting on storage, and the stamp to judge
+       the stored tile by is the one in force now. */
+    const cut = this.cut();
+    if (held && (cut === null || (held.__cut || "") === cut)) tile = held;
     if (!tile) {
       try {
         const r = await fetch(CFG.ADDR_URL + k + ".json");
         if (!r.ok) throw new Error("http " + r.status);
         tile = await r.json();
+        tile.__cut = cut || "";
         try { await DB.put("addr", tile, k); } catch (e) { /* ignore */ }
       } catch (e) {
-        this.tried.add(k);
-        return;
+        /* stale beats nothing */
+        if (held) tile = held;
+        else { this.tried.add(k); return; }
       }
     }
     if (keep !== false) this.hold(k, tile);
@@ -9276,23 +9373,87 @@ const Route = {
 
   /* ---- the packs ---- */
 
+  /* A stored manifest answers immediately and the check goes off behind it,
+     unwaited. A route is asked for at the moment somebody wants to leave,
+     and making that wait on a request to see whether the road network has
+     been rebuilt would be paying for freshness at the exact instant the
+     driver is paying attention. */
   loadManifest: async function () {
     if (this.manifest) return this.manifest;
     try {
       const held = await DB.get("route", "index");
       if (held) this.manifest = held;
     } catch (e) { /* idb unavailable - the network copy still works */ }
-    if (!this.manifest) {
-      try {
-        const r = await fetch(CFG.ROUTE_URL + "index.json");
-        if (!r.ok) throw new Error("http " + r.status);
-        this.manifest = await r.json();
-        try { await DB.put("route", this.manifest, "index"); } catch (e) { /* ignore */ }
-      } catch (e) {
-        this.manifest = null;
-      }
+    if (this.manifest) { this.freshen(); return this.manifest; }
+    try {
+      const r = await fetch(CFG.ROUTE_URL + "index.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      this.manifest = await r.json();
+      this.checked = true;
+      try { await DB.put("route", this.manifest, "index"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      this.manifest = null;
     }
     return this.manifest;
+  },
+
+  /* Whether the road network on the server is still the road network on the
+     phone.
+
+     It was not being asked. A stored manifest was read once and believed
+     forever, so a phone that had ever routed kept that month's cut of the
+     roads for good - and roads are the pack where that hurts most. A new
+     bypass, a bridge back after a flood, a track reopened for the season:
+     all of it is exactly the sort of thing a driver out here would want and
+     none of it would ever have arrived.
+
+     Only the manifest is refetched. The backbone and the tiles look after
+     themselves, each stamped with the cut it was written under and
+     refreshed the next time it is wanted, so a rebuilt network comes down
+     as the driver reaches it rather than in one purge. Nothing is deleted -
+     deleting is what would put a hole in an offline area, and a hole in the
+     road graph is a route that cannot be drawn at all. */
+  freshen: async function () {
+    if (this.checked) return;
+    this.checked = true;
+    try {
+      const r = await fetch(CFG.ROUTE_URL + "index.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const fresh = await r.json();
+      if (!fresh || !fresh.tiles) return;
+      /* cut, not source. source is the Geofabrik checksum and names the
+         extract this was built from, not what came out of it. Add busway to
+         the class list, or change which surfaces count as unpaved, and
+         every edge in the state is repriced while the checksum sits exactly
+         where it was. cut is a hash of the extract and the build's own
+         shape together, so it moves whenever the edges do. */
+      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
+      this.manifest = fresh;
+      /* The graph in memory was folded out of the old cut, backbone
+         included, so all of it goes - edges, geometry, adjacency and bins
+         together. Half a graph from each of two builds would be worse than
+         either: the two cuts do not share node coordinates where a way was
+         resurveyed, and the join would silently come apart. */
+      this.edges.length = 0;
+      this.geoN = 0;
+      this.fixed = 0;
+      this.adj.clear();
+      this.bins.clear();
+      this.packs.clear();
+      this.tried.clear();
+      this.bbBusy = null;
+      try { await DB.put("route", fresh, "index"); } catch (e) { /* ignore */ }
+    } catch (e) { /* no signal: what is held is what there is */ }
+  },
+
+  /* The cut everything stored in this store is measured against. null means
+     there is no manifest to measure against yet, and a stored pack is then
+     taken at its word rather than thrown at the network on a hunch. An
+     absent stamp counts as the empty one on both sides, so a phone holding
+     packs from before any of this existed matches itself and sits quiet
+     until freshen brings down a manifest carrying a real cut. */
+  cut: function () {
+    return this.manifest ? (this.manifest.cut || "") : null;
   },
 
   exists: function (x, y) {
@@ -9313,17 +9474,31 @@ const Route = {
     if (this.bbBusy) return this.bbBusy;
     const self = this;
     this.bbBusy = (async function () {
-      let pk = null;
-      try { pk = await DB.get("route", "backbone"); } catch (e) { /* fall through */ }
+      let pk = null, held = null;
+      try { held = await DB.get("route", "backbone"); } catch (e) { /* fall through */ }
+      /* Read after the lookup: freshen may have landed a new manifest while
+         this was waiting on storage. */
+      const cut = self.cut();
+      /* Stamped and checked like a tile. It is the one file every long
+         route is made of, so leaving it out would have left the whole
+         touring network frozen while the streets at each end refreshed
+         around it - the exact roads a rebuild is most likely to have
+         changed, and the ones a driver is furthest from help on. */
+      if (held && (cut === null || (held.__cut || "") === cut)) pk = held;
       if (!pk) {
         try {
           const r = await fetch(CFG.ROUTE_URL + "backbone.json");
           if (!r.ok) throw new Error("http " + r.status);
           pk = await r.json();
+          pk.__cut = cut || "";
           try { await DB.put("route", pk, "backbone"); } catch (e) { /* ignore */ }
         } catch (e) {
-          self.bbBusy = null;
-          return false;
+          /* stale beats nothing, and a stale backbone still routes */
+          if (held) pk = held;
+          else {
+            self.bbBusy = null;
+            return false;
+          }
         }
       }
       self.addPack(pk, "bb");
@@ -9340,13 +9515,24 @@ const Route = {
      the area would go out of range without the network it was downloaded
      to do without. */
   keepBackbone: async function () {
-    try { if (await DB.get("route", "backbone")) return true; } catch (e) { /* ask the server */ }
+    let held = null;
+    try { held = await DB.get("route", "backbone"); } catch (e) { /* ask the server */ }
+    const cut = this.cut();
+    if (held && (cut === null || (held.__cut || "") === cut)) return true;
     try {
       const r = await fetch(CFG.ROUTE_URL + "backbone.json");
       if (!r.ok) throw new Error("http " + r.status);
-      await DB.put("route", await r.json(), "backbone");
+      const pk = await r.json();
+      pk.__cut = cut || "";
+      await DB.put("route", pk, "backbone");
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      /* A backbone that is a cut behind is still a backbone, and this is
+         being asked whether the area can be driven without a signal. It
+         can. Reporting a failure here would tell the driver the download
+         had not worked when the only thing missing is the newest cut. */
+      return !!held;
+    }
   },
 
   /* keep says whether the tile also joins the graph. An offline area passes
@@ -9359,18 +9545,27 @@ const Route = {
     /* Already in the graph is only a reason to stop when the graph is what
        was wanted. An offline area is filling storage, and asks again. */
     if (keep !== false && (this.packs.has(k) || this.tried.has(k))) return;
-    let pk = null;
-    try { pk = await DB.get("route", k); } catch (e) { /* fall through */ }
-    if (pk && keep === false) return;             /* already stored, nothing to do */
+    /* A stored pack is trusted only while it came from the cut the manifest
+       is describing. A pack that is behind and cannot be refetched is still
+       folded in: last month's roads route, and dropping them for being old
+       would leave no graph at all precisely where there is no signal to
+       fetch a new one. */
+    let pk = null, held = null;
+    try { held = await DB.get("route", k); } catch (e) { /* fall through */ }
+    const cut = this.cut();
+    if (held && (cut === null || (held.__cut || "") === cut)) pk = held;
+    if (pk && keep === false) return;             /* already stored and current */
     if (!pk) {
       try {
         const r = await fetch(CFG.ROUTE_URL + k + ".json");
         if (!r.ok) throw new Error("http " + r.status);
         pk = await r.json();
+        pk.__cut = cut || "";
         try { await DB.put("route", pk, k); } catch (e) { /* ignore */ }
       } catch (e) {
-        this.tried.add(k);
-        return;
+        /* stale beats nothing */
+        if (held) pk = held;
+        else { this.tried.add(k); return; }
       }
     }
     if (keep !== false) this.addPack(pk, k);
