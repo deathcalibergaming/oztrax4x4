@@ -562,18 +562,30 @@ Two places were found to be spending air twice, and that is where the tightest
 band gets its room. The card kept 12px of clearance at each end of the band
 while the bottom one sat on top of the 48 already held back; it keeps 8 now.
 The readout kept 12px below it while the footer brought its own 12 above the
-buttons; it keeps 6, so 19px still separates the card from its controls against
-the 11 between rows.
+buttons; it keeps 4, so 17px still separates the card from its controls.
+
+**This card runs a tighter rhythm than the forms that get a whole screen**: 8px
+between sections and from the head to the first label, against the 11px `.fld`
+carries elsewhere. It is the only form that has to hold four sections inside
+whatever a keyboard leaves, and the alternative to a tighter rhythm is a card
+that scrolls in ordinary use.
+
+Eight is the floor rather than a preference. The gap from a label to its own
+field is 5, and a label reads as belonging to the field below it only while
+that distance is clearly the shorter of the two — at 8 against 5 the grouping
+still lands, at 6 or 7 the labels start to float between the field above and
+the one below and the card becomes an undifferentiated stack. Any further room
+has to come from what is in the card, not from the space between it.
 
 Measured against the phone’s own band — 453px of 772 with the keyboard up, less
-the 48 held back — every gap holds at 11px between rows and 5px between a label
-and its field, at all three text sizes, and Save’s bottom edge sits 21px clear
-of where the chips begin. At the default text size nothing scrolls and nothing
-is clipped; at the two larger ones the fields scroll 15px and 35px while the
-readout and the buttons stay where they are. At 520px of band — nearer what the
-installed app has, with no browser toolbar taking a bite — all three text sizes
-fit outright. Below 453 it scrolls further and the buttons still do not move:
-verified down to 260px, which is a screen no phone has.
+the 48 held back — every gap holds at 8px between sections and 5px between a
+label and its field, at all three text sizes, and Save’s bottom edge sits 21px
+clear of where the chips begin. Nothing scrolls at the first two text sizes;
+the third scrolls 20px, which is what 130% type in a third of a screen costs
+and the readout and the buttons do not move while it does. At 520px of band —
+nearer what the installed app has, with no browser toolbar taking a bite — all
+three fit outright. Below 453 it scrolls further and the buttons still do not
+move: verified down to 260px, which is a screen no phone has.
 
 **A label sits above what you fill in, and beside what you only read.** Every
 field in that card carries its label overhead; the position readout is not a

@@ -1954,7 +1954,15 @@ details.sub > .sec-body{padding:12px 0 0}
    when that is spent does anything scroll. It is the right thing to spend -
    the field is optional, it is the only one whose height is arbitrary rather
    than set by what is in it, and it grows back the moment the keys go. */
+/* This card is the only one that has to hold four sections inside whatever a
+   keyboard leaves, so it runs a tighter rhythm than the forms that get a whole
+   screen: 8px between sections rather than 11, and 8 from the head to the first
+   label. Eight is the floor, not a preference - the gap from a label to its own
+   field is 5, and once the two are within a couple of pixels of each other the
+   labels stop reading as belonging to the field below them and the card becomes
+   an undifferentiated stack. */
 #wpForm .float-body{display:flex;flex-direction:column}
+#wpForm .float-body > .fld{margin-bottom:8px}
 #wpForm .float-body > .fld{flex:0 0 auto}
 /* The wrapper is dissolved rather than shrunk. Shrinking it took min-height:0,
    and that let the field’s own box close 12px past the textarea inside it: the
@@ -1991,12 +1999,12 @@ details.sub > .sec-body{padding:12px 0 0}
    the fields scrolled, that margin went under the clip with them and the row
    sat flush against a cut-off field. Padding on this side of the line is air
    nothing can scroll away. */
-/* Six below rather than twelve, for the same reason: the footer brings its own
-   twelve above the buttons, so the pair were spending 25px separating one line
-   from a row that is already fenced off by a rule. Nineteen still reads as the
-   break between the card and its controls, against the eleven between rows. */
-#wpCoordRow{flex:0 0 auto;padding:11px 12px 6px}
-#wpForm .float-body{padding-bottom:0}
+/* Four below rather than twelve: the footer brings its own twelve above the
+   buttons, so the pair were spending 25px separating one line from a row that
+   is already fenced off by a rule. Seventeen still reads as the break between
+   the card and its controls, against the eight between rows. */
+#wpCoordRow{flex:0 0 auto;padding:8px 12px 4px}
+#wpForm .float-body{padding:8px 12px 0}
 .fld{margin-bottom:11px}
 /* A 12 hour picker built from selects rather than <input type="time">. The
    native control renders in the browser's own locale, which showed 24 hour
