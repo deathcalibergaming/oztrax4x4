@@ -6919,9 +6919,13 @@ function poiInfoLine(tags, kind) {
       const n = String(tags["socket:" + s[0]] || "").toLowerCase().trim();
       if (!n || n === "no" || n === "0") return;
       plugs.push(s[1] + (/^\d+$/.test(n) && n !== "1" ? " ×" + n : ""));
-      kw = Math.max(kw, evKw(tags["socket:" + s[0] + ":output"]));
     });
-    kw = Math.max(kw, evKw(tags["charging_station:output"]));
+    /* The power off any plug's output, not only a plug listed above: a
+       Supercharger tagged tesla_supercharger_ccs often keeps its 250 kW on
+       the older tesla_supercharger:output key. */
+    for (const k in tags) {
+      if (/^socket:[a-z0-9_]+:output$/.test(k) || k === "charging_station:output") kw = Math.max(kw, evKw(tags[k]));
+    }
     bits.push(plugs.length ? plugs.join(", ") : "plug type not recorded");
     if (kw) bits.push("up to " + (kw >= 10 ? Math.round(kw) : kw) + " kW");
     if (/^\d+$/.test(tags.capacity || "")) bits.push(tags.capacity + (tags.capacity === "1" ? " bay" : " bays"));
