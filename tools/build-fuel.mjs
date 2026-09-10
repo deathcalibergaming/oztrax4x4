@@ -356,15 +356,20 @@ const NSW_FUEL = { U91: 2, E10: 12, P95: 5, P98: 8, DL: 3, PDL: 14, LPG: 4, E85:
    37.6 degrees and all of Tasmania is south of 39.5. */
 const inTas = (lat) => lat < -39;
 
-/* FuelCheck stamps a price in Sydney's local time, "10/09/2026 14:05:00",
-   with no zone on it. The app's age arithmetic works in UTC, so read as UTC
-   it would call every price ten or eleven hours older than it is. Converted
-   here through the zone rules rather than a fixed +10, because half the year
-   it is +11. Tasmania keeps the same clock and the same daylight dates. */
-function sydneyToIso(s) {
+/* FuelCheck writes a price's time as "10/09/2026 04:05:00" with no zone on
+   it, and it is UTC - not Sydney wall-clock time, though it looks like it.
+
+   This was first built the other way, converting from Sydney time, and the
+   first real run proved it wrong. With the conversion, the freshest of 2,392
+   NSW prices was 10.07 hours old, and the hour of day each price last
+   changed piled up between midnight and 6am Sydney time. Take the conversion
+   out and the same prices change between 6am and 4pm and the freshest is
+   four minutes old - which is what 2,400 servos actually do. So the string
+   is read as UTC, as is. */
+function stampToIso(s) {
   if (!s) return "";
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-    const t = Date.parse(s);
+    const t = Date.parse(/Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s + "Z");
     return isFinite(t) ? new Date(t).toISOString().slice(0, 19) : "";
   }
   const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
@@ -372,21 +377,19 @@ function sydneyToIso(s) {
   let [, d, mo, y, h, mi, se, ap] = m;
   h = +h;
   if (ap) { ap = ap.toUpperCase(); if (ap === "PM" && h < 12) h += 12; if (ap === "AM" && h === 12) h = 0; }
-  const wall = Date.UTC(+y, +mo - 1, +d, h, +mi, +(se || 0));
-  /* the offset Sydney was running at that wall-clock time */
-  const offsetAt = (utc) => {
-    const p = new Intl.DateTimeFormat("en-AU", {
-      timeZone: "Australia/Sydney", hourCycle: "h23",
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", second: "2-digit"
-    }).formatToParts(new Date(utc));
-    const g = (t) => +p.find((x) => x.type === t).value;
-    return Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second")) - utc;
-  };
-  let utc = wall - offsetAt(wall - 10 * 3600e3);
-  utc = wall - offsetAt(utc);
-  return new Date(utc).toISOString().slice(0, 19);
+  const t = Date.UTC(+y, +mo - 1, +d, h, +mi, +(se || 0));
+  return isFinite(t) ? new Date(t).toISOString().slice(0, 19) : "";
 }
+
+/* Below this a price is a typing error, not a price. The first run carried
+   Premium 95 at Minnie Water at 24.0 cents - a dropped digit - and it would
+   have been the cheapest 95 in the state on every card that asked. The
+   cheapest real price of anything in NSW that day was LPG at 94.9.
+
+   There is deliberately no ceiling. The dearest fuel in the country is what
+   this app exists to show, and a sanity filter on the high side would delete
+   exactly the outback rows that matter. */
+const NSW_FLOOR_CENTS = 50;
 
 function nswId(code) {
   return parseInt(createHash("sha1").update("fuelcheck|" + code).digest("hex").slice(0, 12), 16);
@@ -406,15 +409,15 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
   const token = (await tok.json()).access_token;
   if (!token) throw new Error("FuelCheck token response carried no access_token");
 
-  const res = await fetchImpl(NSW_HOST + "/FuelPriceCheck/v2/fuel/prices", {
-    headers: {
-      "Authorization": "Bearer " + token,
-      "apikey": key,
-      "transactionid": randomUUID(),
-      "requesttimestamp": new Date().toISOString().slice(0, 19) + "Z",
-      "Content-Type": "application/json; charset=utf-8"
-    }
+  const hdrs = () => ({
+    "Authorization": "Bearer " + token,
+    "apikey": key,
+    "transactionid": randomUUID(),
+    "requesttimestamp": new Date().toISOString().slice(0, 19) + "Z",
+    "Content-Type": "application/json; charset=utf-8"
   });
+
+  const res = await fetchImpl(NSW_HOST + "/FuelPriceCheck/v2/fuel/prices", { headers: hdrs() });
   if (!res.ok) throw new Error("FuelCheck prices request failed: " + res.status + " " + res.statusText);
   const body = await res.json();
 
@@ -425,8 +428,38 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
       `the response shape has changed (keys: ${Object.keys(body).join(", ")})`);
   }
 
+  /* Tasmania, asked for by name when the plain call leaves it out - which
+     the first real run did: 2,392 NSW stations and none south of Bass
+     Strait. Nothing documents how v2 wants a state selected, so this tries
+     the obvious query parameter and says in the log exactly what came back,
+     so the next change is made from evidence rather than another guess.
+
+     A failure here is logged and not thrown. New South Wales is already in
+     hand, and losing it to a probe for a second state would be the wrong
+     trade. */
+  const tasCount = (list) => list.filter((st) => inTas(Number((st.location || {}).latitude))).length;
+  let stationsAll = stations, pricesAll = prices;
+  if (!tasCount(stations)) {
+    try {
+      const r2 = await fetchImpl(NSW_HOST + "/FuelPriceCheck/v2/fuel/prices?states=TAS", { headers: hdrs() });
+      if (!r2.ok) {
+        console.log(`FuelCheck: no Tasmania in the plain call; ?states=TAS answered ${r2.status}`);
+      } else {
+        const b2 = await r2.json();
+        const s2 = Array.isArray(b2.stations) ? b2.stations : [];
+        const p2 = Array.isArray(b2.prices) ? b2.prices : [];
+        const t2 = tasCount(s2);
+        console.log(`FuelCheck: no Tasmania in the plain call; ?states=TAS answered ${r2.status} ` +
+          `with ${s2.length} stations, ${t2} of them in Tasmania, and ${p2.length} prices`);
+        if (t2) { stationsAll = stations.concat(s2); pricesAll = prices.concat(p2); }
+      }
+    } catch (e) {
+      console.log("FuelCheck: Tasmania probe failed - " + e.message);
+    }
+  }
+
   const byCode = new Map();
-  for (const st of stations) {
+  for (const st of stationsAll) {
     const loc = st.location || {};
     const lat = Number(loc.latitude), lng = Number(loc.longitude);
     if (!isFinite(lat) || !isFinite(lng) || !lat || !lng) continue;
@@ -444,14 +477,14 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
     });
   }
 
-  for (const pr of prices) {
+  for (const pr of pricesAll) {
     const site = byCode.get(String(pr.stationcode));
     const id = NSW_FUEL[String(pr.fueltype || "").toUpperCase()];
     const c = Number(pr.price);
-    if (!site || !id || !isFinite(c) || c <= 0) continue;
+    if (!site || !id || !isFinite(c) || c < NSW_FLOOR_CENTS) continue;
     /* cents a litre in the feed, tenths of a cent in the file */
     site.p[id] = Math.round(c * 10);
-    const t = sydneyToIso(pr.lastupdated);
+    const t = stampToIso(pr.lastupdated);
     if (t > site.t) site.t = t;
   }
 
@@ -562,7 +595,7 @@ async function main() {
    is the only way to see a scheme's real output without publishing it - and
    so the merge can be tested against made-up sources, which is where a bug
    would cost a state rather than a field. */
-export { sourceSA, sourceWA, sourceNSW, merge, unxml, waId, nswId, sydneyToIso };
+export { sourceSA, sourceWA, sourceNSW, merge, unxml, waId, nswId, stampToIso };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(e.message); process.exit(1); });
