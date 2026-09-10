@@ -1,12 +1,18 @@
-name: SA fuel prices
+name: Fuel prices
 
-# South Australian prices move daily, so this pulls them once a day and
-# commits the result. The subscriber token stays here, in repository
-# secrets - the scheme's terms are server-to-server only, and a token in
-# the page would be a token published to everyone who opens the app.
+# Prices move daily, so this pulls them once a day and commits the result.
+# Two schemes so far: South Australia, whose subscriber token stays here in
+# repository secrets because the scheme's terms are server-to-server only
+# and a token in the page would be a token published to everyone who opens
+# the app; and Western Australia's FuelWatch, a public feed needing no token
+# at all, on the condition that it is credited as the source with a link
+# back. That credit is rendered from the file the builder writes.
 #
-# 19:40 UTC is about ten past five in the morning in South Australia,
-# after the overnight moves and before anybody sets out.
+# 19:40 UTC is about ten past five in the morning in South Australia, after
+# the overnight moves and before anybody sets out. It is 3:40am in Perth,
+# which for FuelWatch is the right side of the line: WA sets one price per
+# site per day and publishes it the afternoon before, so the whole day's
+# prices are already sitting there waiting.
 
 on:
   schedule:
