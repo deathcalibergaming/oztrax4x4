@@ -37,9 +37,14 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Fetch prices from the scheme
+      - name: Fetch prices from the schemes
         env:
           SAFPIS_TOKEN: ${{ secrets.SAFPIS_TOKEN }}
+          # NSW and Tasmania, from the one NSW Fuel API v2 app. The key and
+          # the secret are both needed - the key alone is refused - and
+          # FuelWatch needs neither, so Western Australia has no line here.
+          NSW_FUEL_KEY: ${{ secrets.NSW_FUEL_KEY }}
+          NSW_FUEL_SECRET: ${{ secrets.NSW_FUEL_SECRET }}
         run: node tools/build-fuel.mjs
 
       # Nothing is committed on a day the prices did not move, so the

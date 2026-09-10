@@ -81,7 +81,10 @@ land on the very next launch.
 * Fuel prices — the state reporting schemes, fetched server-side once a day by
   `tools/build-fuel.mjs` into `docs/fuel.json`: South Australia's Fuel Pricing
   Information Scheme, whose subscriber token is a repository secret because its
-  terms are server-to-server only, and Western Australia's
+  terms are server-to-server only; New South Wales and Tasmania together from
+  the NSW Government's [FuelCheck](https://www.fuelcheck.nsw.gov.au) Fuel API
+  v2, licensed CC-BY-SA, whose key and secret are repository secrets as well;
+  and Western Australia's
   [FuelWatch](https://www.fuelwatch.wa.gov.au), a public feed used on the
   condition that FuelWatch is credited as the source with a link back — which
   the app renders from the file rather than hard-coding, so the credit travels
