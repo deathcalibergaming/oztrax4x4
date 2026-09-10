@@ -69,7 +69,11 @@ land on the very next launch.
 ## Data sources
 
 * Map tiles — Esri World Topo, cached in IndexedDB for offline use
-* POIs — the OpenStreetMap `/map` API, with Photon as a standby
+* POIs — OpenStreetMap via the seven Geofabrik state extracts, cut into z13
+  packs under `docs/poi/` covering every state and territory on the mainland
+  and Tasmania, served off this origin and built monthly by
+  `tools/build-poi.mjs`; the live `/map` API fills in on top of it, and
+  Overpass covers anywhere the pack does not reach
 * Addresses — Geoscape G-NAF, every state and territory, cut into z13 packs
   under `docs/addr/` and served off this origin; 11.4 million addresses in
   80,382 tiles, built quarterly by `tools/build-gnaf.mjs`

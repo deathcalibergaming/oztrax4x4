@@ -3531,10 +3531,14 @@ const CFG = {
      as the addresses so a drive pulls both from the same tile numbers.
      tools/build-routing.mjs builds them. */
   ROUTE_URL: "route/",
-  /* The POI pack: every POI in the state, cut on the same grid as the
+  /* The POI pack: every POI in the country, cut on the same grid as the
      other two and served off our own origin, so it has no rate limit, no
-     latency worth the name and no opinion about how often you ask. 0.78 MB
-     gzipped for South Australia, biggest tile 20 KB. */
+     latency worth the name and no opinion about how often you ask.
+
+     180,576 POIs over 15,838 tiles - 6.6 MB gzipped for the whole of
+     Australia, which is the size of the tree on the server rather than
+     anything a phone fetches. A vehicle pulls the tiles it is standing in
+     and no others, and the worst of those is Sydney at 28 KB. */
   POI_PACK_URL: "poi/",
   POI_PACK_Z: 13,
   ROUTE_Z: 13,
@@ -9314,7 +9318,9 @@ const Pack = {
      of it for good - which for something rebuilt every month is a pack
      that updates once, on the day it is first opened, and never again.
 
-     Only the manifest is refetched here, which is three kilobytes. The
+     Only the manifest is refetched here, which is twenty-two kilobytes
+     gzipped for the whole country - a list of which tiles exist, not what
+     is in any of them. The
      tiles look after themselves: each one remembers which cut it came from
      and refreshes the next time it is wanted. Nothing is deleted, because
      deleting is what would put a hole in an offline area - a driver who
@@ -9348,14 +9354,20 @@ const Pack = {
 
   /* Whether the pack knows this part of the world at all, which is a
      different question from whether there is anything here. Empty desert
-     inside the state is covered and holds nothing; Victoria is not covered
-     and has to go to the network. Judged on the manifest rather than on
-     tiles, because a box of empty desert has no tiles either. */
+     inside the pack is covered and holds nothing; Christmas Island is not
+     covered and has to go to the network. Judged on the manifest rather
+     than on tiles, because a box of empty desert has no tiles either. */
   covers: function (a) {
     if (!this.manifest || !this.manifest.tiles) return false;
     const cols = Object.keys(this.manifest.tiles);
     if (!cols.length) return false;
-    /* the pack spans one state, so its own extent answers this cheaply */
+    /* The pack spans the seven states and territories that make up the
+       mainland and Tasmania, so its own extent answers this cheaply and
+       the box it comes to is roughly Australia. That is coarse on purpose:
+       a corner of the Coral Sea falls inside it and holds no tiles, which
+       costs a driver who will never be there nothing, and the alternative
+       - a real coastline in the manifest - is kilobytes of polygon to
+       answer a question that a rectangle answers. */
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     if (this.span) { x0 = this.span[0]; x1 = this.span[1]; y0 = this.span[2]; y1 = this.span[3]; }
     else {
@@ -9429,7 +9441,8 @@ const Pack = {
     if (keep !== false) {
       this.mem.set(k, tile);
       /* Twenty tiles is a 5 km bubble several times over, and a tile is
-         twenty kilobytes at its worst. Oldest out, which is the tile
+         28 KB at its very worst - central Sydney, where nobody is using
+         this app for what it is for. Oldest out, which is the tile
          furthest behind on a drive. */
       while (this.mem.size > 20) this.mem.delete(this.mem.keys().next().value);
     }
