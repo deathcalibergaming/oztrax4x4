@@ -8152,7 +8152,8 @@ const Fuel = {
          had put away - so a new scheme gets its own rather than everything
          getting a tidier one. */
       id: (st.s === "WA" ? "fuelwatch/" :
-           st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" : "safpis/") + st.i,
+           st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" :
+           st.s === "QLD" ? "fuelqld/" : "safpis/") + st.i,
       kind: "fuel",
       lat: osm ? osm.lat : st.y,
       lng: osm ? osm.lng : st.x,
@@ -8262,7 +8263,10 @@ const Fuel = {
     /* FuelCheck reports changes as they happen, like the SA scheme, so its
        prices have an age in the same sense - the builder has already turned
        its Sydney wall-clock stamp into UTC, so the arithmetic is shared. */
-    const scheme = site && (site.s === "NSW" || site.s === "TAS") ? "FuelCheck" : "SAFPIS";
+    const scheme = !site ? "SAFPIS"
+      : site.s === "NSW" || site.s === "TAS" ? "FuelCheck"
+      : site.s === "QLD" ? "Fuel Prices QLD"
+      : "SAFPIS";
     const when = this.age(site && site.t);
     return when ? scheme + " &middot; set " + when : "";
   }
