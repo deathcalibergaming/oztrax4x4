@@ -6635,6 +6635,36 @@ function isInfoOffice(tags) {
 
 /* OSM tagging is inconsistent in the outback, so several tags map onto the
    same kind - a station tank and a spring are both "water" to a driver. */
+/* Whether a water point says it is safe to drink: "yes", "no", or
+   "unknown". Water refill is only for the first of those - a pin that
+   calls a tap refill is telling a driver to fill the tanks from it, and
+   that is not something to say on a guess.
+
+   The drinking_water tag first, and only yes or treated count: every other
+   value mappers use - untreated, boil, conditional, rainwater_tank, unknown
+   - is a qualification, and a qualified promise is not a promise. Then the
+   mapper's own words in the description or note, negation first so "not
+   potable" is never read as "potable". Last, amenity=drinking_water on its
+   own, because in OpenStreetMap that tag is the statement: it means a place
+   where drinking water is available. A tap or a water point saying nothing
+   is unknown - measured nationally that was 1,138 of them, all of which
+   used to be filed as refill. */
+const DRINKABLE_TAG = { yes: 1, treated: 1 };
+const WATER_SAYS_NO = /\b(non[- ]?potable|not potable|not drinkable|undrinkable|not for drinking|do not drink|unsafe to drink|untreated|not treated|boil)/i;
+const WATER_SAYS_YES = /\b(potable|drinkable|safe to drink|fit to drink|treated water)\b/i;
+
+function waterDrinkable(tags) {
+  const dw = String(tags.drinking_water || "").toLowerCase().trim();
+  if (dw) return DRINKABLE_TAG[dw] ? "yes" : "no";
+  const pot = String(tags.potable || "").toLowerCase();
+  if (pot === "yes") return "yes";
+  if (pot === "no") return "no";
+  const text = [tags.description, tags.note].filter(Boolean).join(" ");
+  if (WATER_SAYS_NO.test(text)) return "no";
+  if (WATER_SAYS_YES.test(text)) return "yes";
+  return tags.amenity === "drinking_water" ? "yes" : "unknown";
+}
+
 function poiKind(tags) {
   if (!tags) return null;
   const a = tags.amenity, t = tags.tourism, hw = tags.highway;
@@ -6667,7 +6697,9 @@ function poiKind(tags) {
   if (a === "drinking_water" || a === "water_point" || tags.man_made === "water_tap") {
     const acc = (tags.access || "").toLowerCase();
     if (acc && !OPEN_ACCESS[acc]) return null;
-    return (tags.drinking_water || "").toLowerCase() === "no" ? "water" : "refill";
+    /* refill only when it says it is drinkable; everything else is still on
+       the map, as raw water, where a radiator or a wash is still worth it */
+    return waterDrinkable(tags) === "yes" ? "refill" : "water";
   }
   if (tags.man_made === "water_well" || tags.man_made === "water_tank" ||
       tags.man_made === "watering_place") return boreKind(tags);
@@ -6794,10 +6826,17 @@ function poiInfoLine(tags, kind) {
      question - so both are said outright rather than left to the category
      name, which only has room for one of them. */
   if (kind === "refill" || kind === "water" || kind === "spring") {
-    const drink = (tags.drinking_water || "").toLowerCase();
-    if (drink === "yes") bits.push("drinking water");
-    else if (drink === "no") bits.push("not drinking water");
-    else if (kind !== "refill") bits.push("untreated - not tagged drinkable");
+    /* Said as what the map actually records, so "raw water" is never read
+       as "bad water": most of it is simply water nobody vouched for. */
+    const verdict = kind === "spring" ? (tags.drinking_water ? waterDrinkable(tags) : "unknown")
+                                      : waterDrinkable(tags);
+    const dw = String(tags.drinking_water || "").toLowerCase().trim();
+    if (verdict === "yes") bits.push("drinking water");
+    else if (dw === "no") bits.push("not drinking water");
+    else if (dw === "boil" || dw === "boiling") bits.push("boil before drinking");
+    else if (dw) bits.push("not confirmed drinkable (" + dw.replace(/[_;]/g, " ") + ")");
+    else if (verdict === "no") bits.push("description says not drinkable");
+    else bits.push("untreated - not tagged drinkable");
     if (tags.man_made === "water_well") bits.push("bore");
     else if (tags.man_made === "water_tank") bits.push("tank");
     else if (tags.man_made === "watering_place") bits.push("stock water");
