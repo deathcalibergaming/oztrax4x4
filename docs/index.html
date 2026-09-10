@@ -3551,6 +3551,18 @@ const CFG = {
   /* Standing further than this from any road the app holds, there is
      nothing honest to route from. */
   ROUTE_SNAP_MAX: 5000,
+  /* How many roads near each end the search is allowed to start from and
+     arrive at. The nearest is usually the right one and usually the only
+     one tried; this is what stops a driveway that happens to be six metres
+     closer than the highway from being the only thing considered. Four,
+     because the case it exists for is one wrong road rather than four. */
+  ROUTE_SNAP_TRIES: 4,
+  /* What the gap between where you are and the road you snapped to costs,
+     in km/h. It is not a road, so it is not priced like one: this is the
+     rate that decides whether a highway 900 m off is worth more than the
+     track underneath you, and at 30 it takes a real saving to be worth
+     crossing a paddock for. */
+  ROUTE_SNAP_KMH: 30,
   /* A safety valve, not a budget. The whole state backbone is 62000 nodes,
      so a search that has looked at five times that is not converging. */
   ROUTE_MAX_POPS: 300000,
@@ -9555,11 +9567,66 @@ const Route = {
   manifest: null,
   packs: new Set(),        /* pack ids already folded in - "bb", or "x/y" */
   tried: new Set(),        /* asked for and not there, so a gap is asked once */
-  edges: [],               /* {cls,f,v,name,off,n,m,cost,a,b} */
+  /* The graph is columns of numbers, not objects.
+
+     It used to be an array of {cls,f,v,name,off,n,m,cost,a,b} with a Map of
+     arrays for adjacency, which reads beautifully and costs about 200 bytes
+     an edge once V8 has laid out the object, the Map entry and the little
+     array hanging off it. South Australia's 69,000 backbone edges could
+     carry that. The national spine is 324,864 and the full backbone is
+     978,783, and at 200 bytes an edge the spine alone is 65 MB of heap
+     before a single street is loaded.
+
+     As columns it is 35 bytes an edge and the same numbers. Nothing about
+     the algorithm changes - A* still walks slots and reads costs - but the
+     thing it walks is a handful of typed arrays instead of a million
+     objects, which is also why it stopped being the reason a long route is
+     slow.
+
+     One field per column, indexed by edge:
+
+       eCls   Uint8    index into ROAD_CLASSES
+       eF     Uint8    the flag bits the pack carries
+       eName  Int32    index into names, -1 for a road with no name
+       eOff   Int32    where this edge's points start in geo
+       eNp    Int32    how many points
+       eM     Float64  metres
+       eCost  Float64  seconds, already weighted for surface and ferries
+       eA/eB  Float64  the node keys at each end - 7.2e14, so not an Int32
+
+     cls and name are carried but not read by anything yet. They are what a
+     turn instruction would be written from, they cost two bytes and an
+     array slot, and dropping them would be deciding against that feature
+     rather than making this one cheaper. */
+  eCap: 0,                 /* how many edges the columns have room for */
+  nE: 0,                   /* how many they hold */
+  eCls: null, eF: null, eName: null, eOff: null, eNp: null,
+  eM: null, eCost: null, eA: null, eB: null,
+  names: [],               /* interned road names, shared across packs */
+
   geo: new Int32Array(1 << 16),   /* every loaded edge's points, back to back */
   geoN: 0,
-  adj: new Map(),          /* node key -> slots, slot = i*2 forward, i*2+1 back */
-  bins: new Map(),         /* "x/y" -> edge indices, so snapping is local */
+
+  /* Adjacency as an intrusive list rather than a Map of arrays.
+
+     A slot is i*2 to leave edge i by its far end, i*2+1 to leave by its
+     near one - unchanged. adjHead maps a node key to its first slot and
+     adjNext threads the rest, so a node costs one Map entry holding a
+     number instead of one holding an array holding numbers.
+
+     The thread runs newest first, which reverses the order neighbours come
+     out in. A* takes them off a heap by cost, so the only thing that can
+     turn on it is a tie between two paths of exactly equal seconds - and
+     these are floating point seconds off haversine metres. */
+  adjHead: new Map(),      /* node key -> first slot, or absent */
+  adjNext: null,           /* Int32Array, slot -> next slot, -1 ends it */
+
+  /* The same trick for the snapping bins, which hold an edge once per tile
+     it crosses. An edge is in several, so these need their own arena
+     rather than one entry per edge: binEdge holds which edge, binNext
+     threads them, binHead maps a packed x/y to the first. */
+  binHead: new Map(),      /* x * 8192 + y -> arena index, or absent */
+  binEdge: null, binNext: null, binN: 0,
   fixed: 0,                /* edges belonging to the backbone, never dropped */
   busy: false,
   bbBusy: null,
@@ -9711,7 +9778,7 @@ const Route = {
         }
       }
       self.addPack(pk, "bb");
-      self.fixed = self.edges.length;
+      self.fixed = self.nE;
       return true;
     })();
     return this.bbBusy;
@@ -9809,11 +9876,14 @@ const Route = {
      the graph is found to be out of date, this is where it is safe to act
      on it. */
   dropGraph: function () {
-    this.edges.length = 0;
+    this.nE = 0;
+    this.names.length = 0;
     this.geoN = 0;
     this.fixed = 0;
-    this.adj.clear();
-    this.bins.clear();
+    this.adjHead.clear();
+    if (this.adjNext) this.adjNext.fill(-1);
+    this.binHead.clear();
+    this.binN = 0;
     this.packs.clear();
     this.tried.clear();
     this.bbBusy = null;
@@ -9871,13 +9941,47 @@ const Route = {
     this.geo = bigger;
   },
 
+  /* Room for one more edge in every column, and for its two slots. */
+  edgeRoom: function () {
+    if (this.nE < this.eCap) return;
+    const cap = this.eCap ? this.eCap * 2 : 1 << 14;
+    const grow = (Type, old, n) => {
+      const a = new Type(n);
+      if (old) a.set(old.subarray(0, this.nE));
+      return a;
+    };
+    this.eCls = grow(Uint8Array, this.eCls, cap);
+    this.eF = grow(Uint8Array, this.eF, cap);
+    this.eName = grow(Int32Array, this.eName, cap);
+    this.eOff = grow(Int32Array, this.eOff, cap);
+    this.eNp = grow(Int32Array, this.eNp, cap);
+    this.eM = grow(Float64Array, this.eM, cap);
+    this.eCost = grow(Float64Array, this.eCost, cap);
+    this.eA = grow(Float64Array, this.eA, cap);
+    this.eB = grow(Float64Array, this.eB, cap);
+    const next = new Int32Array(cap * 2).fill(-1);
+    if (this.adjNext) next.set(this.adjNext.subarray(0, this.nE * 2));
+    this.adjNext = next;
+    this.eCap = cap;
+  },
+
+  binRoom: function () {
+    if (this.binEdge && this.binN < this.binEdge.length) return;
+    const cap = this.binEdge ? this.binEdge.length * 2 : 1 << 15;
+    const e = new Int32Array(cap), n = new Int32Array(cap);
+    if (this.binEdge) { e.set(this.binEdge); n.set(this.binNext); }
+    this.binEdge = e; this.binNext = n;
+  },
+
+  binKey: function (x, y) { return x * 8192 + y; },
+
   addPack: function (pk, id) {
     if (this.packs.has(id) || !pk || !pk.e) return;
     /* The local half is dropped whole rather than a tile at a time. There
        is no cheap way to pull one pack's points out of the middle of a flat
        array, and by the time the cap is reached the vehicle is a long way
        from where the early tiles were loaded anyway. */
-    if (this.edges.length > CFG.ROUTE_MEM_MAX) this.dropLocal();
+    if (this.nE > CFG.ROUTE_MEM_MAX) this.dropLocal();
     this.packs.add(id);
     const oLat = pk.o[0], oLng = pk.o[1];
     for (let r = 0; r < pk.e.length; r++) {
@@ -9907,130 +10011,209 @@ const Route = {
       /* A ferry is the wait, not the crossing. Fifteen minutes covers the
          Murray punts either side of the timetable. */
       if (cls === "ferry") cost += 900;
-      const i = this.edges.length;
-      this.edges.push({
-        cls: cls, f: row[1], name: row[3] >= 0 ? (pk.n[row[3]] || "") : "",
-        off: off, n: n, m: m, cost: cost,
-        a: this.nodeKey(this.geo[off], this.geo[off + 1]),
-        b: this.nodeKey(this.geo[off + n * 2 - 2], this.geo[off + n * 2 - 1])
-      });
+      const i = this.nE;
+      this.edgeRoom();
+      this.eCls[i] = row[0];
+      this.eF[i] = row[1];
+      this.eName[i] = -1;
+      if (row[3] >= 0 && pk.n[row[3]]) {
+        this.eName[i] = this.names.length;
+        this.names.push(pk.n[row[3]]);
+      }
+      this.eOff[i] = off;
+      this.eNp[i] = n;
+      this.eM[i] = m;
+      this.eCost[i] = cost;
+      this.eA[i] = this.nodeKey(this.geo[off], this.geo[off + 1]);
+      this.eB[i] = this.nodeKey(this.geo[off + n * 2 - 2], this.geo[off + n * 2 - 1]);
+      this.nE++;
       this.link(i);
     }
   },
 
   link: function (i) {
-    const e = this.edges[i];
-    if (!(e.f & 2)) this.slot(e.a, i * 2);
-    if (!(e.f & 1)) this.slot(e.b, i * 2 + 1);
+    const f = this.eF[i], off = this.eOff[i], n = this.eNp[i];
+    if (!(f & 2)) this.slot(this.eA[i], i * 2);
+    if (!(f & 1)) this.slot(this.eB[i], i * 2 + 1);
     /* Binned by every tile the edge touches, so snapping to the road under
        the vehicle looks at a few dozen edges rather than a hundred thousand. */
-    let last = "";
-    for (let p = 0; p < e.n; p++) {
-      const la = this.geo[e.off + p * 2] / 1e5, lng = this.geo[e.off + p * 2 + 1] / 1e5;
-      const k = lon2tile(lng, CFG.ROUTE_Z) + "/" + lat2tile(la, CFG.ROUTE_Z);
+    let last = -1;
+    for (let p = 0; p < n; p++) {
+      const la = this.geo[off + p * 2] / 1e5, lng = this.geo[off + p * 2 + 1] / 1e5;
+      const k = this.binKey(lon2tile(lng, CFG.ROUTE_Z), lat2tile(la, CFG.ROUTE_Z));
       if (k === last) continue;
       last = k;
-      let bin = this.bins.get(k);
-      if (!bin) { bin = []; this.bins.set(k, bin); }
-      if (bin[bin.length - 1] !== i) bin.push(i);
+      /* The old array kept this edge out of the same bin twice by looking
+         at the tail; the thread runs newest first, so its head is the same
+         check. */
+      const head = this.binHead.get(k);
+      if (head !== undefined && this.binEdge[head] === i) continue;
+      this.binRoom();
+      const at = this.binN++;
+      this.binEdge[at] = i;
+      this.binNext[at] = head === undefined ? -1 : head;
+      this.binHead.set(k, at);
     }
   },
 
   slot: function (node, s) {
-    let list = this.adj.get(node);
-    if (!list) { list = []; this.adj.set(node, list); }
-    list.push(s);
+    const head = this.adjHead.get(node);
+    this.adjNext[s] = head === undefined ? -1 : head;
+    this.adjHead.set(node, s);
   },
 
   dropLocal: function () {
-    this.edges.length = this.fixed;
-    this.geoN = this.fixed ? this.edges[this.fixed - 1].off +
-                             this.edges[this.fixed - 1].n * 2 : 0;
-    this.adj.clear();
-    this.bins.clear();
+    this.nE = this.fixed;
+    this.geoN = this.fixed ? this.eOff[this.fixed - 1] + this.eNp[this.fixed - 1] * 2 : 0;
+    /* The name array is trimmed with them. It only ever grew, so without
+       this the strings of every street ever driven past would outlive the
+       edges that referenced them - which is most of what dropping the local
+       half is meant to reclaim. */
+    let names = 0;
+    for (let i = 0; i < this.nE; i++) if (this.eName[i] >= 0) names = Math.max(names, this.eName[i] + 1);
+    this.names.length = names;
+    this.adjHead.clear();
+    this.binHead.clear();
+    this.binN = 0;
+    if (this.adjNext) this.adjNext.fill(-1);
     this.tried.clear();
     const keep = this.packs.has("bb");
     this.packs.clear();
     if (keep) this.packs.add("bb");
-    for (let i = 0; i < this.edges.length; i++) this.link(i);
+    for (let i = 0; i < this.nE; i++) this.link(i);
   },
 
   /* ---- snapping ---- */
 
-  /* The nearest point on any loaded road, as the edge it is on and how far
-     along it. Both ends of that edge become entrances to the graph, priced
-     by the time to drive the stub between them - which is what makes a
-     route from a house halfway down a street start at the house rather
-     than at the corner. */
-  snap: function (lat, lng) {
+  /* Every road near a point, nearest first, as the edge and how far along
+     it - up to CFG.ROUTE_SNAP_TRIES of them.
+
+     It used to return only the nearest, and that lost whole trips. Whyalla
+     to Streaky Bay came back "no route found" because the destination's
+     nearest road was a service road in a car park, sixty-six metres away
+     and joined to nothing else that was loaded - an island of its own while
+     ninety-one thousand of the ninety-two thousand loaded nodes sat in one
+     component the search could not leave. The highway was eighty metres
+     away and never looked at.
+
+     That is not a rare shape. A car park, a driveway, a farm track whose
+     junction is in a tile nobody fetched: any of them can be a few metres
+     nearer than the road actually wanted, and being nearest was the whole
+     of the test. So the choice is handed to the search, which is the only
+     thing that knows what is reachable. */
+  snapAll: function (lat, lng) {
     const x = lon2tile(lng, CFG.ROUTE_Z), y = lat2tile(lat, CFG.ROUTE_Z);
-    let best = null, bd = Infinity;
-    const seen = {};
+    const near = new Map();                /* edge -> its own closest point */
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
-        const bin = this.bins.get((x + dx) + "/" + (y + dy));
-        if (!bin) continue;
-        for (const i of bin) {
-          if (seen[i]) continue;
-          seen[i] = 1;
-          const e = this.edges[i];
-          for (let p = 0; p < e.n; p++) {
+        let at = this.binHead.get(this.binKey(x + dx, y + dy));
+        if (at === undefined) continue;
+        for (; at >= 0; at = this.binNext[at]) {
+          const i = this.binEdge[at];
+          if (near.has(i)) continue;
+          const off = this.eOff[i], n = this.eNp[i];
+          let bd = Infinity, bp = 0;
+          for (let p = 0; p < n; p++) {
             const d = haversine({ lat: lat, lng: lng }, {
-              lat: this.geo[e.off + p * 2] / 1e5,
-              lng: this.geo[e.off + p * 2 + 1] / 1e5
+              lat: this.geo[off + p * 2] / 1e5,
+              lng: this.geo[off + p * 2 + 1] / 1e5
             });
-            if (d < bd) { bd = d; best = { i: i, p: p }; }
+            if (d < bd) { bd = d; bp = p; }
           }
+          if (bd <= CFG.ROUTE_SNAP_MAX) near.set(i, { i: i, p: bp, d: bd });
         }
       }
     }
-    if (!best || bd > CFG.ROUTE_SNAP_MAX) return null;
-    best.d = bd;
-    return best;
+    const out = [];
+    for (const v of near.values()) out.push(v);
+    out.sort(function (a, b) { return a.d - b.d; });
+    return out.slice(0, CFG.ROUTE_SNAP_TRIES);
   },
+
+  /* What that gap costs to cross, in seconds. */
+  gapCost: function (d) { return d / (CFG.ROUTE_SNAP_KMH / 3.6); },
 
   /* The geometry of an edge from one of its ends up to a point on it, and
      what that stretch costs. Used for the two stubs a route begins and ends
      with, and for stitching them into the drawn line. */
   part: function (i, from, to) {
-    const e = this.edges[i];
+    const off = this.eOff[i];
     const pts = [];
     let m = 0;
     const step = from <= to ? 1 : -1;
     for (let p = from; ; p += step) {
-      pts.push([this.geo[e.off + p * 2] / 1e5, this.geo[e.off + p * 2 + 1] / 1e5]);
+      pts.push([this.geo[off + p * 2] / 1e5, this.geo[off + p * 2 + 1] / 1e5]);
       if (p === to) break;
       m += haversine(
-        { lat: this.geo[e.off + p * 2] / 1e5, lng: this.geo[e.off + p * 2 + 1] / 1e5 },
-        { lat: this.geo[e.off + (p + step) * 2] / 1e5,
-          lng: this.geo[e.off + (p + step) * 2 + 1] / 1e5 });
+        { lat: this.geo[off + p * 2] / 1e5, lng: this.geo[off + p * 2 + 1] / 1e5 },
+        { lat: this.geo[off + (p + step) * 2] / 1e5,
+          lng: this.geo[off + (p + step) * 2 + 1] / 1e5 });
     }
-    return { pts: pts, m: m, cost: e.m ? e.cost * (m / e.m) : 0 };
+    return { pts: pts, m: m, cost: this.eM[i] ? this.eCost[i] * (m / this.eM[i]) : 0 };
   },
 
   /* ---- the search ---- */
 
+  /* The nearest road, and then the rest of them.
+
+     Nearest is almost always right and is what this has always done, so it
+     is tried on its own first and comes back with exactly what it used to.
+     Only when that finds nothing are the other candidates brought in - and
+     that is the case this exists for, where the nearest road is a car park
+     stub joined to nothing loaded and the highway eighty metres away was
+     never considered.
+
+     Deliberately a second attempt rather than one search over all of them.
+     Pricing the walk to a road against the driving it saves reads like the
+     more elegant answer and gives worse advice: at any rate cheap enough to
+     rescue a stranded snap, a highway 1.7 km across the paddock starts
+     beating the track under the wheels to save two minutes. Nearest that
+     works, then. Not cheapest counting a leg nobody can drive. */
   find: async function (from, to) {
     const ok = await this.ensureBackbone();
     if (!ok) return null;
     await this.reach(from, to);
 
-    const a = this.snap(from.lat, from.lng);
-    const b = this.snap(to.lat, to.lng);
-    if (!a || !b) return null;
+    const near = this.snapAll(from.lat, from.lng);
+    const dest = this.snapAll(to.lat, to.lng);
+    if (!near.length || !dest.length) return null;
+    const one = this.search(from, to, near.slice(0, 1), dest.slice(0, 1));
+    if (one) return one;
+    if (near.length < 2 && dest.length < 2) return null;
+    return this.search(from, to, near, dest);
+  },
 
-    /* Both ends of the destination's edge are arrivals, each with the stub
-       from it back to the point actually asked for. */
-    const eb = this.edges[b.i];
+  search: function (from, to, near, dest) {
+    const a = near[0], b = dest[0];
+
+    /* Both ends of every candidate destination edge are arrivals, each with
+       the stub from it back to the point actually asked for, and each
+       carrying what it cost to be standing off the road in the first place.
+       A node reached from two candidates keeps the cheaper. */
     const finish = new Map();
-    finish.set(eb.a, this.part(b.i, 0, b.p));
-    finish.set(eb.b, this.part(b.i, eb.n - 1, b.p));
+    for (const c of dest) {
+      const gap = this.gapCost(c.d);
+      const ends = [[this.eA[c.i], this.part(c.i, 0, c.p)],
+                    [this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.p)]];
+      for (const [node, stub] of ends) {
+        const held = finish.get(node);
+        if (held && held.cost + held.gap <= stub.cost + gap) continue;
+        stub.gap = gap;
+        stub.d = c.d;
+        finish.set(node, stub);
+      }
+    }
 
-    const ea = this.edges[a.i];
-    const seeds = [
-      { node: ea.a, stub: this.part(a.i, a.p, 0) },
-      { node: ea.b, stub: this.part(a.i, a.p, ea.n - 1) }
-    ];
+    /* And the search starts from all of them at once. The gap is in the
+       seed cost rather than left free, or a highway four kilometres off
+       would cost the same to join as the street outside the door. */
+    const seeds = [];
+    for (const c of near) {
+      const gap = this.gapCost(c.d);
+      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, stub: this.part(c.i, c.p, 0) });
+      seeds.push({ node: this.eB[c.i], d: c.d, gap: gap,
+                   stub: this.part(c.i, c.p, this.eNp[c.i] - 1) });
+    }
 
     /* Standing on the destination's own edge, with nothing to search. */
     if (a.i === b.i) {
@@ -10043,10 +10226,11 @@ const Route = {
     const g = new Map(), prev = new Map(), done = new Set();
     const open = new RouteHeap();
     for (const s of seeds) {
-      if (g.has(s.node) && g.get(s.node) <= s.stub.cost) continue;
-      g.set(s.node, s.stub.cost);
+      const c = s.stub.cost + s.gap;
+      if (g.has(s.node) && g.get(s.node) <= c) continue;
+      g.set(s.node, c);
       prev.set(s.node, null);
-      open.push(s.stub.cost + this.hope(s.node, goal), s.node);
+      open.push(c + this.hope(s.node, goal), s.node);
     }
 
     let end = null;
@@ -10057,13 +10241,13 @@ const Route = {
       done.add(n);
       if (++popped > CFG.ROUTE_MAX_POPS) break;
       if (finish.has(n)) { end = n; break; }
-      const list = this.adj.get(n);
-      if (!list) continue;
+      let s = this.adjHead.get(n);
+      if (s === undefined) continue;
       const base = g.get(n);
-      for (const s of list) {
-        const e = this.edges[s >> 1];
-        const to2 = (s & 1) ? e.a : e.b;
-        const cost = base + e.cost;
+      for (; s >= 0; s = this.adjNext[s]) {
+        const i = s >> 1;
+        const to2 = (s & 1) ? this.eA[i] : this.eB[i];
+        const cost = base + this.eCost[i];
         if (g.has(to2) && g.get(to2) <= cost) continue;
         g.set(to2, cost);
         prev.set(to2, [n, s]);
@@ -10079,25 +10263,42 @@ const Route = {
     while (prev.get(n)) { chain.push(prev.get(n)); n = prev.get(n)[0]; }
     chain.reverse();
 
-    const seed = seeds.find(function (s) { return s.node === n; });
+    /* Several seeds can sit on the same node; the one that set g is the one
+       the chain came back through, so the cheapest is the one to report. */
+    let seed = null;
+    for (const s of seeds) {
+      if (s.node !== n) continue;
+      if (!seed || s.stub.cost + s.gap < seed.stub.cost + seed.gap) seed = s;
+    }
     if (!seed) return null;
     const startStub = seed.stub;
     const pts = [[from.lat, from.lng]].concat(startStub.pts);
     let m = startStub.m;
     for (const [, s] of chain) {
-      const e = this.edges[s >> 1];
+      const i = s >> 1;
+      const off = this.eOff[i], n = this.eNp[i];
       const back = !!(s & 1);
-      for (let p = 0; p < e.n; p++) {
-        const q = back ? e.n - 1 - p : p;
-        pts.push([this.geo[e.off + q * 2] / 1e5, this.geo[e.off + q * 2 + 1] / 1e5]);
+      for (let p = 0; p < n; p++) {
+        const q = back ? n - 1 - p : p;
+        pts.push([this.geo[off + q * 2] / 1e5, this.geo[off + q * 2 + 1] / 1e5]);
       }
-      m += e.m;
+      m += this.eM[i];
     }
     const endStub = finish.get(end);
     for (let p = endStub.pts.length - 1; p >= 0; p--) pts.push(endStub.pts[p]);
     pts.push([to.lat, to.lng]);
     m += endStub.m;
-    return this.route(pts, m, g.get(end) + endStub.cost, a.d, b.d);
+    /* The gap decided which roads to use and then comes back out of the
+       answer. It is what it costs to reach a road, not time spent driving
+       one, and the card already says "nearest road is N away" in its own
+       right - leaving it in would charge for that twice and would move
+       every estimate the app has ever given by a few seconds for no reason
+       a driver could see.
+
+       Reported against the roads actually used, not the ones that happened
+       to be nearest, which is the whole point of there being a choice. */
+    return this.route(pts, m, g.get(end) - seed.gap + endStub.cost,
+                      seed.d, endStub.d);
   },
 
   /* Time to the destination if the rest of the trip were a straight line at
