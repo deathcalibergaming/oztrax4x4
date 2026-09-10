@@ -1387,7 +1387,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    at the same density. Scaling the glyphs by the same ratio as the bar
    would have taken the labels under 7px, which is not a size this app can
    use: these are read at a glance, in open sun, through sunglasses. */
-.act{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+/* flex-basis 0, not auto. With auto each button started at the width of
+   its own label and shared out only what was left, so in portrait at 375px
+   FAVOURITES was 90px and POI 53px - five targets of five different sizes
+   on the one row a driver hits without looking. From zero they all get the
+   same share. Measured to still fit the longest label, FAVOURITES at 60px,
+   down to a 320px-wide phone. */
+.act{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   border-radius:0;border:none;border-right:1px solid var(--line);padding:0 2px;transition:background .12s}
 .act:last-child{border-right:none}
 /* stopped short of the facet for the same reason the stats dividers are */
