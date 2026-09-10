@@ -78,8 +78,17 @@ land on the very next launch.
   under `docs/addr/` and served off this origin; 11.4 million addresses in
   80,382 tiles, built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
-* Roads — OpenStreetMap via the Geofabrik South Australia extract, cut into a
-  state backbone and z13 packs under `docs/route/` and served off this origin;
-  built monthly by `tools/build-routing.mjs`
-* Routing — worked out on the phone from those packs, with OSRM behind it for
-  destinations outside the state and a plain bearing behind that
+* Fuel prices — the state reporting schemes, fetched server-side once a day by
+  `tools/build-fuel.mjs` into `docs/fuel.json`: South Australia's Fuel Pricing
+  Information Scheme, whose subscriber token is a repository secret because its
+  terms are server-to-server only, and Western Australia's
+  [FuelWatch](https://www.fuelwatch.wa.gov.au), a public feed used on the
+  condition that FuelWatch is credited as the source with a link back — which
+  the app renders from the file rather than hard-coding, so the credit travels
+  with the data
+* Roads — OpenStreetMap via the Geofabrik state extracts, cut into a national
+  spine and z13 packs under `docs/route/` and served off this origin; built
+  monthly by `tools/build-routing.mjs`
+* Routing — worked out on the phone from those packs across the whole country,
+  with OSRM behind it for anywhere the packs do not reach and a plain bearing
+  behind that

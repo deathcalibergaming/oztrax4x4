@@ -7802,6 +7802,9 @@ function visiblePois() {
 /* =====================================================================
    Fuel prices
    =====================================================================
+   Every state runs its own scheme and no two of them work alike. Two are in
+   the file so far.
+
    South Australia requires every retailer to report a price change within
    thirty minutes, and publishes the lot under the Fuel Pricing Information
    Scheme. This app is a subscriber to it - but not from the phone. The
@@ -7811,15 +7814,26 @@ function visiblePois() {
    publisher's to keep secret. A token shipped inside a public single file
    page is neither of those.
 
-   So the fetching happens once a day in a GitHub Action holding the token
+   Western Australia works the other way round. FuelWatch sets one price per
+   site per day - published the afternoon before and fixed until the next -
+   and hands it out as a public RSS feed with no token at all, on the single
+   condition that FuelWatch is credited as the source with a link back. So a
+   WA price is not a last-seen figure that may already have moved; it is the
+   price for the day, which for planning a leg is the more useful of the two.
+
+   So the fetching happens once a day in a GitHub Action holding the SA token
    as a repository secret, and what arrives here is fuel.json sitting beside
    index.html on the same origin. No token on the phone, no cross origin
    request to be refused, and the service worker keeps the last copy - so
    this morning's prices are still readable from the bottom of a gorge with
    no signal, which is where the question actually gets asked.
 
-   Prices arrive in tenths of a cent, the unit the scheme publishes, and are
-   divided once here at the point of display. */
+   Prices arrive in different units and are stored in tenths of a cent
+   throughout - the unit the SA scheme publishes - and divided once here at
+   the point of display. Which scheme a site came from is on the site as `s`,
+   and the credits are in `sources`, which is what the settings note renders:
+   the FuelWatch acknowledgement is a licence condition, so it is built from
+   the data rather than written into the page. */
 /* The colours off the bowser, because that is what the driver is looking for
    when they pull in rather than a word read at arm's length: blue for 91,
    green for the ethanol blends, yellow for 95, red for 98, grey for diesel.
@@ -8041,8 +8055,8 @@ const Fuel = {
 
   /* One pin per servo the scheme lists, named the way the scheme names it.
 
-     OSM was the app's only source of places, and for fuel in South Australia
-     it is both thinner and less exact than the scheme. Measured on 2 Sep
+     OSM was the app's only source of places, and for fuel in a state with a
+     reporting scheme it is both thinner and less exact. Measured on 2 Sep
      2026 across Mount Gambier, Port Augusta and Coober Pedy: 35 OSM fuel
      records, of which 28 disagreed with the scheme about the name, and most
      of those were a bare brand - "BP", "Ampol", "Shell", "Fuel" - where the
@@ -8058,16 +8072,17 @@ const Fuel = {
      succeeded never asks it, which is exactly where the servos went
      missing.
 
-     So in South Australia the scheme is the servo list, and OSM is asked
-     only where the pin stands and when the place is open. Which record
-     belongs to which servo is decided by siteFor, the same rule that
-     decides whose prices to print, so a pin and the prices on it can never
-     disagree about what they are describing.
+     So where a scheme covers the ground the scheme is the servo list, and
+     OSM is asked only where the pin stands and when the place is open.
+     Which record belongs to which servo is decided by siteFor, the same
+     rule that decides whose prices to print, so a pin and the prices on it
+     can never disagree about what they are describing.
 
-     A servo the scheme has never heard of keeps its OSM pin untouched -
-     there are a few, mostly community and airport bowsers - and outside
-     South Australia there is no scheme file, so none of this does anything
-     at all. */
+     A servo no scheme has heard of keeps its OSM pin untouched - there are a
+     few, mostly community and airport bowsers - and in a state with no
+     scheme in the file none of this does anything at all. South Australia
+     and Western Australia are covered; the rest is OSM alone, and reads
+     exactly as it did before either was added. */
   mergePins: function (centre, items) {
     const src = items || [];
     if (!this.data || !centre) return { items: src, added: 0, named: 0 };
@@ -8131,7 +8146,12 @@ const Fuel = {
       });
     }
     return {
-      id: "safpis/" + st.i,
+      /* Namespaced by scheme, because the id is what a hidden pin is
+         remembered by. South Australian sites keep the prefix they were
+         first published under - renaming it would un-hide every pin a driver
+         had put away - so a new scheme gets its own rather than everything
+         getting a tidier one. */
+      id: (st.s === "WA" ? "fuelwatch/" : "safpis/") + st.i,
       kind: "fuel",
       lat: osm ? osm.lat : st.y,
       lng: osm ? osm.lng : st.x,
@@ -8211,9 +8231,35 @@ const Fuel = {
     const rows = got.rows.map(function (r) {
       return '<div><span>' + esc(r.name) + "</span><b>" + Fuel.fmt(r.c) + "</b></div>";
     }).join("");
-    const when = this.age(got.site.t);
+    const stamp = this.stamp(got.site);
     return '<div class="pop-facts prices">' + rows +
-      (when ? '<i>SAFPIS &middot; set ' + when + "</i>" : "") + "</div>";
+      (stamp ? "<i>" + stamp + "</i>" : "") + "</div>";
+  },
+
+  /* Which scheme said so, and how old it is - which is not the same question
+     in both states, so this is not one sentence with the name swapped.
+
+     South Australia requires a change reported within thirty minutes, so a
+     price has an age and the age is the useful fact. FuelWatch sets one
+     price per site for the entire day and publishes it the afternoon before,
+     so there is no moment it was "set" at: the honest line is which day it
+     is the price for. When Western Australia was first added this block
+     still read SAFPIS and still ran the age arithmetic, and a Broome pump
+     came up "SAFPIS - set 7 h ago" - the wrong scheme, and a staleness
+     invented out of a date that was never a timestamp. A price that is a day
+     old by design should not be made to look neglected. */
+  stamp: function (site) {
+    if (site && site.s === "WA") {
+      const d = new Date();
+      const today = d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0");
+      if (!site.t) return "FuelWatch &middot; price for the day";
+      return "FuelWatch &middot; " +
+        (site.t === today ? "today's price" : "price for " + esc(site.t));
+    }
+    const when = this.age(site && site.t);
+    return when ? "SAFPIS &middot; set " + when : "";
   }
 };
 
@@ -8240,7 +8286,8 @@ function poiPopupHtml(p, here) {
        record was gathered rather than about the place: OSM against INDEX is
        not a difference a driver at the wheel can do anything with. Where
        provenance does change a decision it is still said, on the one block
-       where it does: the prices sign themselves SAFPIS and give their age. */
+       where it does: the prices name the scheme they came from and say how
+       old they are, in whichever of the two senses that scheme supports. */
     '<div class="pop-facts">' + factRows([
       /* "away" went with the dot-separated line it used to sit in. A row
          called Distance does not need its value to say it is one. */
@@ -8712,8 +8759,30 @@ function renderFuelTypes() {
   if (note) {
     const n = (Fuel.data.sites || []).length;
     const when = Fuel.data.updated ? fmtDate(Date.parse(Fuel.data.updated)) : "";
-    note.textContent = n + " South Australian sites" + (when ? ", updated " + when : "") +
-      ". Source: SA Fuel Pricing Information Scheme. Switch off what you do not burn and the cards stay short.";
+    /* Each scheme named, and named with a link, because for FuelWatch the
+       acknowledgement is the licence rather than a courtesy: they publish
+       the feed on the condition that they are credited as the source with a
+       link back. So this is the one line in the app that is not free to be
+       tidied away, and it is built from the file rather than written here -
+       add a state to the builder and the credit for it appears with it.
+
+       A phone still running the previous build has no `sources` in its
+       cached file, so the old single-source wording stands in. */
+    const srcs = Array.isArray(Fuel.data.sources) && Fuel.data.sources.length
+      ? Fuel.data.sources
+      : [{ name: Fuel.data.source || "SA Fuel Pricing Information Scheme",
+           state: "South Australia", sites: n, url: "" }];
+    const where = srcs.map(function (s) {
+      return (s.sites || 0) + " in " + (s.state || "?");
+    }).join(", ");
+    const credit = srcs.map(function (s) {
+      return s.url
+        ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>"
+        : esc(s.name);
+    }).join(" and ");
+    note.innerHTML = esc(n + " sites - " + where + (when ? ", updated " + when : "") +
+      ". Source: ") + credit +
+      esc(". Switch off what you do not burn and the cards stay short.");
   }
 }
 
