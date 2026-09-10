@@ -1125,6 +1125,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #map{position:absolute;background:#0D100F}
 .leaflet-container{background:#0D100F;font-family:var(--ui);outline:none}
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
+/* Leaflet adds tiles together (plus-lighter) so that two half-covered edge
+   pixels sum to one whole one. That only holds while tiles abut exactly;
+   they overlap by a pixel here (see OfflineTileLayer._initTile), and adding
+   the overlap would print the joins brighter rather than hide them. */
+.leaflet-container img.leaflet-tile{mix-blend-mode:normal}
 .leaflet-fade-anim .leaflet-tile{will-change:auto}
 
 /* The attribution used to sit here, bottom left, over the map. It is in the
@@ -4367,6 +4372,22 @@ const OfflineTileLayer = L.TileLayer.extend({
       }
     })();
     return img;
+  },
+  /* Every tile one pixel wider and taller than its slot, so each overlaps
+     the next and there is never a hairline between them. The map is moved
+     by fractional pixels and turned to the heading while following, and
+     at a phone's 2.6x the edges of two abutting tiles each cover only part
+     of the pixel they share - the pale topo shows through as a white line
+     along every join, and the relief's multiply leaves the same line
+     unshaded. Set here rather than as a CSS width because Leaflet sizes a
+     stretched tile itself: the relief past zoom 13 is 2048px a tile at
+     driving zoom, and a fixed width would shrink it to a postage stamp.
+     One pixel in 256 is a stretch nobody can see. */
+  _initTile: function (tile) {
+    L.TileLayer.prototype._initTile.call(this, tile);
+    const s = this.getTileSize();
+    tile.style.width = (s.x + 1) + "px";
+    tile.style.height = (s.y + 1) + "px";
   },
   onAdd: function (m) {
     L.TileLayer.prototype.onAdd.call(this, m);
