@@ -6820,7 +6820,11 @@ function poiKind(tags) {
    fast plugs first, then AC. as3112 is the ordinary Australian wall socket -
    a trickle overnight, but out here sometimes the only power for 300 km. */
 const EV_SOCKETS = [
-  ["type2_combo", "CCS2"], ["chademo", "CHAdeMO"], ["tesla_supercharger", "Tesla"],
+  /* tesla_supercharger_ccs is how Australia's newer Superchargers are
+     tagged - a CCS2 plug on Tesla's own post - and without it those cards
+     read "plug type not recorded" over a perfectly recorded plug */
+  ["type2_combo", "CCS2"], ["chademo", "CHAdeMO"], ["tesla_supercharger_ccs", "Tesla CCS2"],
+  ["tesla_supercharger", "Tesla"],
   ["type1_combo", "CCS1"], ["type2", "Type 2"], ["type2_cable", "Type 2 tethered"],
   ["type1", "Type 1"], ["as3112", "Wall socket"]
 ];
