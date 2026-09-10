@@ -124,7 +124,7 @@ const WANT = {
   amenity: new Set(["fuel", "drinking_water", "water_point", "toilets",
     "sanitary_dump_station", "shower", "hospital", "pharmacy", "doctors",
     "clinic", "telephone", "post_office", "bbq", "shelter",
-    "ranger_station", "atm", "bank"]),
+    "ranger_station", "atm", "bank", "charging_station"]),
   man_made: new Set(["water_tap", "water_well", "water_tank", "watering_place"]),
   natural: new Set(["spring"]),
   tourism: new Set(["wilderness_hut", "alpine_hut", "camp_site", "caravan_site",
@@ -163,10 +163,17 @@ const KEEP = new Set([
   /* what a card says about it */
   "opening_hours", "phone", "website", "wheelchair", "dispensing",
   "fuel:diesel", "fuel:lpg", "capacity",
-  "atm", "cash_in", "self_service",
+  "atm", "cash_in", "self_service", "charging_station:output",
   /* where it is */
   "addr:housenumber", "addr:street", "addr:city", "addr:suburb", "addr:postcode"
 ]);
+
+/* A charger's plugs and their power: socket:type2_combo=2 and
+   socket:type2_combo:output=50 kW. A pattern rather than a list because
+   the plug names are open-ended; the voltage, current and pin-level
+   sub-keys are left behind, since the card only says which plug and how
+   fast. */
+const KEEP_SOCKET = /^socket:[a-z0-9_]+(:output)?$/;
 
 /* What decides the contents of a tile, in one short string: the extract it
    was cut from, the tags that were selected out of it, and the tags kept on
@@ -180,7 +187,7 @@ const KEEP = new Set([
 function cutStamp(source) {
   const shape = JSON.stringify(Object.keys(WANT).sort().map(function (k) {
     return [k, [...WANT[k]].sort()];
-  })) + "|" + [...KEEP].sort().join(",");
+  })) + "|" + [...KEEP].sort().join(",") + "|" + KEEP_SOCKET.source;
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
 
@@ -437,7 +444,7 @@ async function builtStamp() {
 
 function trim(tags) {
   const out = {};
-  for (const k in tags) if (KEEP.has(k)) out[k] = tags[k];
+  for (const k in tags) if (KEEP.has(k) || KEEP_SOCKET.test(k)) out[k] = tags[k];
   return out;
 }
 
