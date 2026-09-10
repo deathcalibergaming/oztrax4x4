@@ -124,7 +124,7 @@ const WANT = {
   amenity: new Set(["fuel", "drinking_water", "water_point", "toilets",
     "sanitary_dump_station", "shower", "hospital", "pharmacy", "doctors",
     "clinic", "telephone", "post_office", "bbq", "shelter",
-    "ranger_station"]),
+    "ranger_station", "atm", "bank"]),
   man_made: new Set(["water_tap", "water_well", "water_tank", "watering_place"]),
   natural: new Set(["spring"]),
   tourism: new Set(["wilderness_hut", "alpine_hut", "camp_site", "caravan_site",
@@ -153,6 +153,9 @@ const KEEP = new Set([
   "emergency", "shop", "information", "shelter_type", "healthcare:speciality",
   /* what it is called */
   "name", "brand", "operator",
+  /* whose ATM it is: an ATM is very often tagged with no name at all, only
+     the bank that runs it, and sometimes only the network it pays out on */
+  "network",
   /* whether you may, and whether you would want to */
   "access", "drinking_water", "fee", "charge", "backcountry", "permit",
   "tents", "caravan", "camping", "overnight", "motorhome",
@@ -160,6 +163,7 @@ const KEEP = new Set([
   /* what a card says about it */
   "opening_hours", "phone", "website", "wheelchair", "dispensing",
   "fuel:diesel", "fuel:lpg", "capacity",
+  "atm", "cash_in", "self_service",
   /* where it is */
   "addr:housenumber", "addr:street", "addr:city", "addr:suburb", "addr:postcode"
 ]);
