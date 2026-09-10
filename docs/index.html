@@ -1793,6 +1793,28 @@ details.sub > .sec-body{padding:12px 0 0}
 .kchip i{font-variant-numeric:tabular-nums;font-style:normal;font-size:var(--t-meta);flex:0 0 auto}
 .kchip.on{opacity:1;color:var(--kc);border-color:var(--kc);background:rgba(255,255,255,.05)}
 .kchip:active{background:rgba(216,203,170,.14)}
+/* The categories, twenty-seven of them and most switched on at once. Each
+   used to say its colour three times over - border, label and count - and
+   together they were a rainbow wall. The colour lives in the dot now, as it
+   does on the pin; an on chip carries it only as a tint on the border and a
+   breath of it in the fill, and the words are sand like every other word in
+   the drawer. Off is the dot at half strength beside a dim label, so the two
+   states are told apart at a glance without either shouting.
+
+   One height for all of them. A chip with a "nearest 14 km" line stood 3px
+   taller than its neighbour and every row with one in it stepped; 40px holds
+   both lines and gives a gloved thumb a little more to hit. */
+#poiKinds .kchip{height:40px;gap:8px;padding:0 10px 0 7px;border-radius:8px;opacity:1}
+#poiKinds .kchip .dotmark{opacity:.45;transition:opacity .16s}
+#poiKinds .kchip.on{color:var(--sand);border-color:var(--kc);
+  border-color:color-mix(in srgb,var(--kc) 55%,transparent);
+  background:color-mix(in srgb,var(--kc) 8%,#0F1311)}
+#poiKinds .kchip.on .dotmark{opacity:1}
+#poiKinds .kchip > span:not(.dotmark){line-height:1.2}
+#poiKinds .kchip small{margin-top:1px;line-height:1.2}
+#poiKinds .kchip i{color:var(--dim);font-weight:600;min-width:2ch;text-align:right}
+#poiKinds .kchip i.zero{opacity:.45;font-weight:400}
+#poiKinds .kchip:active{background:rgba(216,203,170,.14)}
 /* The type-ahead list, tucked under the search box. Buttons rather than
    rows so a thumb gets a real target and a keyboard can reach them. */
 #nmSuggest{display:flex;flex-direction:column;margin-top:5px;border:1px solid var(--line2);
@@ -9012,7 +9034,8 @@ function renderPoiFilters() {
     return '<button class="kchip' + (on ? " on" : "") + '" data-kind="' + k + '" ' +
       'aria-pressed="' + on + '" style="--kc:' + inkOf(m.color) + '">' +
       '<span class="dotmark poi" style="background:' + m.color + '">' + catIcon(m.icon) + "</span>" +
-      "<span>" + m.label + far + "</span><i>" + (counts[k] || 0) + "</i></button>";
+      "<span>" + m.label + far + "</span><i" + (counts[k] ? "" : ' class="zero"') + ">" +
+      (counts[k] || 0) + "</i></button>";
   }).join("");
 }
 

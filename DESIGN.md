@@ -801,13 +801,18 @@ categories on and off on the map — several can be on at once. A dot in the
 category's colour, a label that takes the slack, and a count pushed to a
 shared right edge.
 
-- **Style:** `#0F1311` fill, hairline-strong border, 9px radius, minimum
-  height 36px (`--tap-sm`)
-- **State:** off is muted-sand text at 80% opacity. On lifts to full opacity
-  and a wash of `rgba(255,255,255,.05)`, and its border and text take that
-  category's own colour, lifted for contrast the same way a pin's ink is —
-  see The Mark Versus Ink Rule. The dot itself never changes; it is always
-  the category's colour, on or off.
+- **Style:** `#0F1311` fill, hairline-strong border, 8px radius, a fixed
+  40px height so a chip carrying a "nearest 14 km" line sits level with one
+  that does not
+- **State:** the colour lives in the dot, as it does on the pin. On is Warm
+  Sand text, a border tinted 55% of the category's lifted ink (see The Mark
+  Versus Ink Rule) and 8% of it mixed into the fill. Off is muted-sand text
+  on the neutral border, with the dot at 45% opacity — the same hue, faded,
+  so an off category is still recognisable. Twenty-seven chips that each
+  wore their colour on border, label and count read as a rainbow wall; one
+  place for it reads as a key.
+- **Count:** muted sand, tabular, semibold; a zero drops to 45% and regular
+  weight, so an empty category is quieter than a busy one
 
 **The choice chip** (`chip-category-choice` / `chip-category-choice-on`)
 picks the one category a new waypoint belongs to — exactly one is on. Field
