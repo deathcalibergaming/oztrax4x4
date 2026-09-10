@@ -13,28 +13,50 @@
    sending mail unless each one has been verified deliverable elsewhere.
    Nothing here sends mail.
 
-   Only South Australia is built. The whole country is eight times the
-   size and there is no point carrying the Kimberley around until someone
-   is driving there; STATES below is the one line to change.
+   The whole country is built. That is 15 million addresses against South
+   Australia's one, and none of it fits in memory the way one state did, so
+   the shape of this build is set by three places where it would otherwise
+   run out:
 
-   The archive is 1.85 GB and this needs about 4% of it. Rather than pull
-   the lot, the zip's central directory is read out of the last few
-   kilobytes and the four tables actually wanted are fetched by byte range
-   and inflated on their own. That turns a quarter-hour download into
-   about seventy megabytes.
+     The tables. New South Wales' ADDRESS_DETAIL alone is 685 MB inflated,
+     and the old reader held the compressed member and the inflated one in
+     Buffers at the same time. It now streams range straight through
+     inflate into the file.
 
-   Usage: node tools/build-gnaf.mjs */
+     The joins. geocode, street and locality are lookups from a pid to a
+     thing, and a pid only ever appears in its own state's tables, so they
+     are built for one state, used, and dropped before the next. Across the
+     country in one Map they would be about three gigabytes; the largest
+     state on its own is closer to one.
+
+     The tiles. Fifteen million finished rows cannot be held either, so a
+     row is written to a spool file for its tile column as soon as it is
+     made, and the tiles are cut in a second pass that reads one column at
+     a time. A column is also what makes a tile straddling a border come
+     out whole: the spool does not know which state a row came from, so
+     Wentworth and Mildura land in the same file with no merge step.
+
+   The archive is 1.85 GB and this needs about half of it - the four tables
+   for nine state groups. Rather than pull the lot, the zip's central
+   directory is read out of the last few kilobytes and each table is fetched
+   by byte range and inflated on its own.
+
+   Usage: node tools/build-gnaf.mjs [--force] [--only SA,NT] [--restamp]
+
+   --only limits the build to some of the states, which is how a change gets
+   tried without waiting on the country. What it writes is a partial pack,
+   so it is not something to commit. */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream, appendFileSync, readdirSync,
+         readFileSync, statSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { inflateRaw } from "node:zlib";
-import { promisify } from "node:util";
+import { createInflateRaw } from "node:zlib";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-const inflateRawAsync = promisify(inflateRaw);
 
 /* data.gov.au holds the release; the id is the dataset, not the file, so
    the URL of the current quarter is looked up rather than pinned. A
@@ -49,7 +71,47 @@ const CKAN = "https://data.gov.au/data/api/3/action/package_show" +
    number is useful that difference is worth having. */
 const WANT_DATUM = "GDA2020";
 
-const STATES = ["SA"];
+/* Every state group G-NAF ships, in the order they are read. Smallest
+   first, so a run that is going to fall over does it in the first minute
+   rather than the fortieth, and OT last of the small ones because it is the
+   one nobody thinks about.
+
+   OT is Other Territories - Christmas Island, the Cocos Islands, Jervis Bay
+   and Norfolk. Six hundred kilobytes and a few thousand addresses. It is in
+   because it costs nothing and because leaving it out would mean the
+   address book and the POI pack disagree about where Australia stops for no
+   reason either of them could give.
+
+   ACT is its own table here, unlike the POI pack, where Canberra had to
+   arrive inside New South Wales because Geofabrik cuts on state boundaries.
+   G-NAF files it separately, so it is simply listed. */
+const STATES = ["OT", "NT", "ACT", "TAS", "SA", "WA", "QLD", "VIC", "NSW"];
+
+/* Rows buffered before the spool is written out. Ninety-odd bytes a row, so
+   a million is about ninety megabytes held and a few hundred appends per
+   flush rather than one per address. */
+const SPOOL_BATCH = 1000000;
+
+/* How many tile columns of street names go in one shard.
+
+   The street index answers "which tiles hold a street with this name" for a
+   query that named no suburb. Whole, for the country, it is 239,203 names
+   and 3.0 MB gzipped, which is not a thing to pull over one bar - and
+   almost all of it is wasted, because the app sorts the answer by distance
+   from the vehicle and keeps the nearest sixty tiles. It was downloading
+   the streets of Cairns to throw them away in Ceduna.
+
+   Eight columns is about 33 km of longitude, and the app fetches the
+   vehicle's shard and the one either side, so roughly a hundred kilometre
+   strip. Measured over the country that is a median of 8 KB gzipped a
+   shard and 275 KB in the worst of Sydney, against 3.0 MB for the lot.
+
+   A band runs the full height of the country rather than being a square.
+   That keeps the count at a hundred and twenty files instead of thousands,
+   and costs nothing worth having: a shard at Sydney's longitude also holds
+   Cooktown's streets, and the distance sort drops them without being
+   asked. */
+const STREET_SHARD_W = 8;
 const TABLES = ["ADDRESS_DETAIL", "ADDRESS_DEFAULT_GEOCODE", "STREET_LOCALITY", "LOCALITY"];
 
 const Z = 13;                 /* tile zoom the packs are cut on */
@@ -102,18 +164,28 @@ function readCentralDirectory(buf, entries) {
 
 /* A local header repeats the name and extra fields with its own lengths -
    they are allowed to differ from the central directory's - so the start
-   of the data can only be worked out after reading it. */
+   of the data can only be worked out after reading it.
+
+   Streamed rather than held. This used to read the compressed member into
+   one Buffer and inflate it into another, which was fine at South
+   Australia's 87 MB and is not at New South Wales' 685: the two Buffers
+   are alive at the same moment, and the inflated one is the whole table.
+   Range, inflate and file are now one pipeline and the peak is a chunk. */
 async function extractMember(url, entry, dest) {
   const head = await ranged(url, entry.localHeader, entry.localHeader + 29);
   if (head.readUInt32LE(0) !== 0x04034b50) throw new Error(`bad local header for ${entry.name}`);
   const dataAt = entry.localHeader + 30 + head.readUInt16LE(26) + head.readUInt16LE(28);
-  const raw = await ranged(url, dataAt, dataAt + entry.compressed - 1);
-  const out = await inflateRawAsync(raw);
-  if (out.length !== entry.uncompressed) {
-    throw new Error(`${entry.name}: inflated ${out.length}, expected ${entry.uncompressed}`);
+  const from = dataAt, to = dataAt + entry.compressed - 1;
+  const res = await fetch(url, { headers: { Range: `bytes=${from}-${to}` } });
+  if (!res.ok && res.status !== 206) {
+    throw new Error(`range ${from}-${to} returned HTTP ${res.status}`);
   }
-  await writeFile(dest, out);
-  return out.length;
+  await pipeline(Readable.fromWeb(res.body), createInflateRaw(), createWriteStream(dest));
+  const got = statSync(dest).size;
+  if (got !== entry.uncompressed) {
+    throw new Error(`${entry.name}: inflated ${got}, expected ${entry.uncompressed}`);
+  }
+  return got;
 }
 
 /* ---- text ---- */
@@ -211,9 +283,13 @@ async function findArchive() {
    it, the stamp moves with them. */
 const COLLAPSE_UNITS = true;
 
-function cutStamp(release) {
+function cutStamp(release, states) {
+  /* ROW is the shape of an address inside a tile. It belongs in the stamp
+     for the same reason the rest does: add a field to a row and every tile
+     changes while the release string sits exactly where it was. */
+  const ROW = "lat,lng,street,town,postcode,number,state";
   const shape = JSON.stringify([
-    WANT_DATUM, STATES, TABLES, Z, PRECISION, COLLAPSE_UNITS
+    WANT_DATUM, states, TABLES, Z, PRECISION, COLLAPSE_UNITS, ROW, STREET_SHARD_W
   ]);
   return createHash("sha1").update(release + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -248,17 +324,170 @@ async function builtCut() {
 async function restamp() {
   const path = join(OUT, "index.json");
   const index = JSON.parse(await readFile(path, "utf8"));
-  index.cut = cutStamp(index.release);
+  index.cut = cutStamp(index.release, index.states);
   await writeFile(path, JSON.stringify(index));
   console.log(`stamped ${path} as ${index.cut}`);
+}
+
+/* The spool.
+
+   A finished address row is written here the moment it is made, into the
+   file for its tile column, and the tiles are cut afterwards by reading one
+   column at a time. Fifteen million rows will not sit in memory; on disk
+   they are about a gigabyte and a half, which a build machine has.
+
+   A column rather than a tile because there are nine hundred columns and a
+   hundred and twenty thousand tiles, and nine hundred is a number of files
+   a process can append to. It also settles the border question for free:
+   the spool has no idea which state a row came from, so the Murray tiles
+   that hold both Wentworth and Mildura are assembled from one file with no
+   merge step and no chance of one state's write clobbering the other's.
+
+   Rows are JSON, one per line. The pipe-separated form G-NAF itself uses
+   was the obvious choice and is the wrong one: a single pipe inside a
+   street name - which nothing in this release has and no release promises
+   not to - would silently shift every field after it. */
+class Spool {
+  constructor(dir) { this.dir = dir; this.buf = new Map(); this.n = 0; }
+
+  add(x, row) {
+    let a = this.buf.get(x);
+    if (!a) { a = []; this.buf.set(x, a); }
+    a.push(JSON.stringify(row));
+    /* Flushed from here rather than by the caller because the caller is a
+       synchronous line handler fifteen million calls deep, and awaiting in
+       it would put a microtask behind every address in the country. */
+    if (++this.n >= SPOOL_BATCH) this.flush();
+  }
+
+  flush() {
+    for (const [x, a] of this.buf) {
+      appendFileSync(join(this.dir, x + ".jsonl"), a.join("\n") + "\n");
+    }
+    this.buf.clear();
+    this.n = 0;
+  }
+
+  columns() {
+    return readdirSync(this.dir)
+      .filter((f) => f.endsWith(".jsonl"))
+      .map((f) => +f.slice(0, -6))
+      .sort((a, b) => a - b);
+  }
+}
+
+/* One state's four tables, fetched and read into the spool.
+
+   Everything built in here is a lookup from a G-NAF pid to something, and a
+   pid only ever appears in the tables of its own state, so none of it has
+   any use once the state is done. That is the whole reason this is a
+   function: the maps go out of scope with it, and the next state starts
+   from nothing rather than from New South Wales still being held. */
+async function readState(st, url, cd, tmp, spool, tally) {
+  const files = {};
+  let pulled = 0;
+  for (const t of TABLES) {
+    const entry = cd.find((e) => e.name.endsWith(`/${st}_${t}_psv.psv`));
+    if (!entry) throw new Error(`${st}_${t} is not in the archive`);
+    const dest = join(tmp, `${st}_${t}.psv`);
+    await extractMember(url, entry, dest);
+    files[t] = dest;
+    pulled += entry.compressed;
+  }
+  console.log(`  fetched ${(pulled / 1e6).toFixed(0)} MB compressed`);
+
+  const locality = new Map();
+  await eachLine(files.LOCALITY, (f) => {
+    if (f[2]) return;                                    /* retired */
+    locality.set(f[0], titleCase(clean(f[3])));
+  });
+
+  const street = new Map();
+  await eachLine(files.STREET_LOCALITY, (f) => {
+    if (f[2]) return;
+    const name = titleCase(clean(f[4]));
+    const type = f[5] ? " " + titleCase(clean(f[5])) : "";
+    const suffix = f[6] ? " " + titleCase(clean(f[6])) : "";
+    street.set(f[0], { name: name + type + suffix, locality: f[7] });
+  });
+
+  /* The default geocode is the point G-NAF considers the address to be
+     at - a parcel centroid, a frontage, a building centroid, whichever it
+     holds - and is the only table with coordinates in it. */
+  const geocode = new Map();
+  await eachLine(files.ADDRESS_DEFAULT_GEOCODE, (f) => {
+    if (f[2] || !f[5] || !f[6]) return;
+    geocode.set(f[3], [Math.round(+f[6] * PRECISION), Math.round(+f[5] * PRECISION)]);
+  });
+  console.log(`  ${locality.size} localities, ${street.size} streets, ${geocode.size} geocodes`);
+
+  /* Scoped to the state for the same reason the maps are. The key is a
+     street_locality_pid and a number, and a pid belongs to one state, so
+     two states cannot hold the same key and there is nothing to carry
+     across. */
+  const seen = new Set();
+  let kept = 0;
+
+  await eachLine(files.ADDRESS_DETAIL, (f) => {
+    if (f[3]) return;                                    /* retired */
+    if (f[25] !== "P") return;                           /* aliases are the same place twice */
+    const sl = street.get(f[22]);
+    if (!sl) { tally.skipped++; return; }
+
+    /* A number first, and a lot number only where there is no number -
+       out on the pastoral leases the lot is the address, and dropping
+       those would take out exactly the country this is for. */
+    let num = "";
+    if (f[17]) {
+      num = f[16] + f[17] + f[18];
+      if (f[20]) num += "-" + f[19] + f[20] + f[21];
+    } else if (f[6]) {
+      num = "Lot " + f[5] + f[6] + f[7];
+    }
+    if (!num) { tally.skipped++; return; }
+    num = clean(num);
+
+    /* Units collapse onto their building. Seventeen per cent of the
+       state's addresses are a flat or a unit inside a building that is
+       already in the list, they all geocode to within a few metres of
+       each other, and nobody navigating to a place needs the map to
+       hold all nine of them separately. */
+    if (f[10]) tally.units++;
+    const key = f[22] + "|" + num;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const gc = geocode.get(f[0]);
+    if (!gc) { tally.skipped++; return; }
+    const [lat, lng] = gc;
+
+    const town = locality.get(f[24] || sl.locality) || "";
+    const x = lngToX(lng / PRECISION, Z);
+    const y = latToY(lat / PRECISION, Z);
+    spool.add(x, [y, lat, lng, num, sl.name, town, clean(f[26] || ""), st]);
+    kept++;
+  });
+
+  tally.kept += kept;
+  console.log(`  ${kept} addresses`);
+
+  for (const t of TABLES) await rm(files[t], { force: true });
 }
 
 async function main() {
   if (process.argv.includes("--restamp")) return restamp();
   const force = process.argv.includes("--force");
+  const onlyArg = process.argv.indexOf("--only");
+  const only = onlyArg >= 0
+    ? new Set(process.argv[onlyArg + 1].toUpperCase().split(",").map((v) => v.trim()))
+    : null;
+  const states = STATES.filter((st) => !only || only.has(st));
+  if (!states.length) throw new Error("--only named no state group G-NAF ships");
+
   const archive = await findArchive();
-  const cut = cutStamp(archive.name);
+  const cut = cutStamp(archive.name, states);
   console.log(`release: ${archive.name}`);
+  console.log(`states:  ${states.join(", ")}`);
   console.log(`cut:     ${cut}`);
 
   const have = await builtCut();
@@ -276,112 +505,28 @@ async function main() {
   console.log(`archive holds ${cd.length} members`);
 
   const tmp = join(tmpdir(), "gnaf-" + process.pid);
-  await mkdir(tmp, { recursive: true });
+  const spoolDir = join(tmp, "spool");
+  await mkdir(spoolDir, { recursive: true });
 
-  const want = [];
-  for (const st of STATES) {
-    for (const t of TABLES) {
-      const entry = cd.find((e) => e.name.endsWith(`/${st}_${t}_psv.psv`));
-      if (!entry) throw new Error(`${st}_${t} is not in the archive`);
-      want.push({ st, t, entry });
-    }
+  /* ---- pass one: every state, into the spool ---- */
+
+  const spool = new Spool(spoolDir);
+  const tally = { kept: 0, units: 0, skipped: 0 };
+  for (const st of states) {
+    console.log(`\n--- ${st} ---`);
+    await readState(st, archive.url, cd, tmp, spool, tally);
   }
-  let pulled = 0;
-  for (const w of want) {
-    const dest = join(tmp, `${w.st}_${w.t}.psv`);
-    const n = await extractMember(archive.url, w.entry, dest);
-    pulled += w.entry.compressed;
-    console.log(`  ${w.st}_${w.t}: ${(n / 1e6).toFixed(1)} MB`);
-  }
-  console.log(`fetched ${(pulled / 1e6).toFixed(0)} MB of a ${(archive.size / 1e6).toFixed(0)} MB archive`);
+  spool.flush();
+  if (!tally.kept) throw new Error("no addresses kept - the archive or the reader is wrong");
 
-  /* Localities and streets are small enough to sit in memory whole, and
-     everything downstream needs to look into them by id. */
-  const locality = new Map();
-  const street = new Map();
-  for (const st of STATES) {
-    await eachLine(join(tmp, `${st}_LOCALITY.psv`), (f) => {
-      if (f[2]) return;                                  /* retired */
-      locality.set(f[0], titleCase(clean(f[3])));
-    });
-    await eachLine(join(tmp, `${st}_STREET_LOCALITY.psv`), (f) => {
-      if (f[2]) return;
-      const name = titleCase(clean(f[4]));
-      const type = f[5] ? " " + titleCase(clean(f[5])) : "";
-      const suffix = f[6] ? " " + titleCase(clean(f[6])) : "";
-      street.set(f[0], { name: name + type + suffix, locality: f[7] });
-    });
-  }
-  console.log(`${locality.size} localities, ${street.size} streets`);
+  const cols = spool.columns();
+  console.log(`\n${tally.kept} addresses spooled into ${cols.length} columns (${tally.units} units collapsed, ${tally.skipped} skipped)`);
 
-  /* The default geocode is the point G-NAF considers the address to be
-     at - a parcel centroid, a frontage, a building centroid, whichever it
-     holds - and is the only table with coordinates in it. */
-  const geocode = new Map();
-  for (const st of STATES) {
-    await eachLine(join(tmp, `${st}_ADDRESS_DEFAULT_GEOCODE.psv`), (f) => {
-      if (f[2] || !f[5] || !f[6]) return;
-      geocode.set(f[3], [Math.round(+f[6] * PRECISION), Math.round(+f[5] * PRECISION)]);
-    });
-  }
-  console.log(`${geocode.size} geocodes`);
-
-  const tiles = new Map();
-  const seen = new Set();
-  let kept = 0, units = 0, skipped = 0;
-
-  for (const st of STATES) {
-    await eachLine(join(tmp, `${st}_ADDRESS_DETAIL.psv`), (f) => {
-      if (f[3]) return;                                  /* retired */
-      if (f[25] !== "P") return;                         /* aliases are the same place twice */
-      const sl = street.get(f[22]);
-      if (!sl) { skipped++; return; }
-
-      /* A number first, and a lot number only where there is no number -
-         out on the pastoral leases the lot is the address, and dropping
-         those would take out exactly the country this is for. */
-      let num = "";
-      if (f[17]) {
-        num = f[16] + f[17] + f[18];
-        if (f[20]) num += "-" + f[19] + f[20] + f[21];
-      } else if (f[6]) {
-        num = "Lot " + f[5] + f[6] + f[7];
-      }
-      if (!num) { skipped++; return; }
-      num = clean(num);
-
-      /* Units collapse onto their building. Seventeen per cent of the
-         state's addresses are a flat or a unit inside a building that is
-         already in the list, they all geocode to within a few metres of
-         each other, and nobody navigating to a place needs the map to
-         hold all nine of them separately. */
-      if (f[10]) units++;
-      const key = f[22] + "|" + num;
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const gc = geocode.get(f[0]);
-      if (!gc) { skipped++; return; }
-      const [lat, lng] = gc;
-
-      const town = locality.get(f[24] || sl.locality) || "";
-      const x = lngToX(lng / PRECISION, Z);
-      const y = latToY(lat / PRECISION, Z);
-      const k = x + "/" + y;
-      let bucket = tiles.get(k);
-      if (!bucket) { bucket = []; tiles.set(k, bucket); }
-      bucket.push([lat, lng, num, sl.name, town, clean(f[26] || "")]);
-      kept++;
-    });
-  }
-  console.log(`${kept} addresses in ${tiles.size} tiles (${units} units collapsed, ${skipped} skipped)`);
+  /* ---- pass two: one column at a time, into tiles ---- */
 
   await rm(OUT, { recursive: true, force: true });
   await mkdir(join(OUT, String(Z)), { recursive: true });
 
-  /* Street, town and postcode are interned per tile and referenced by
-     index. A street carries about forty addresses inside one z13 tile, so
-     naming it once rather than forty times is most of the saving. */
   const index = {};
   /* Which tiles each suburb occupies. Without it a search can only look at
      packs the phone already holds, which are the ones near the vehicle - so
@@ -394,52 +539,90 @@ async function main() {
      less often, so it is a third file and is fetched only when a search has
      nothing else to go on. */
   const roads = {};
-  for (const [k, rows] of tiles) {
-    const [xs, ys] = k.split("/");
-    const x = +xs, y = +ys;
-    const [oLat, oLng] = tileOrigin(x, y, Z);
-    const streets = [], towns = [], postcodes = [];
-    const sIdx = new Map(), tIdx = new Map(), pIdx = new Map();
-    const addrs = [];
-    for (const [lat, lng, num, sname, town, pc] of rows) {
-      if (!sIdx.has(sname)) { sIdx.set(sname, streets.length); streets.push(sname); }
-      if (!tIdx.has(town)) { tIdx.set(town, towns.length); towns.push(town); }
-      if (!pIdx.has(pc)) { pIdx.set(pc, postcodes.length); postcodes.push(pc); }
-      addrs.push([lat - oLat, lng - oLng, sIdx.get(sname), tIdx.get(town), pIdx.get(pc), num]);
+  let tileCount = 0;
+
+  for (const x of cols) {
+    const path = join(spoolDir, x + ".jsonl");
+    const byY = new Map();
+    for (const line of readFileSync(path, "utf8").split("\n")) {
+      if (!line) continue;
+      const r = JSON.parse(line);
+      let a = byY.get(r[0]);
+      if (!a) { a = []; byY.set(r[0], a); }
+      a.push(r);
     }
+
     const dir = join(OUT, String(Z), String(x));
     await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, y + ".json"),
-      JSON.stringify({ o: [oLat, oLng], s: streets, t: towns, p: postcodes, a: addrs })
-    );
-    (index[x] || (index[x] = [])).push(y);
-    for (const town of towns) {
-      if (!town) continue;
-      (places[town] || (places[town] = [])).push(x + "/" + y);
+
+    /* Street, town and postcode are interned per tile and referenced by
+       index. A street carries about forty addresses inside one z13 tile, so
+       naming it once rather than forty times is most of the saving. */
+    for (const [y, rows] of byY) {
+      const [oLat, oLng] = tileOrigin(x, y, Z);
+      const streets = [], towns = [], postcodes = [], states = [];
+      const sIdx = new Map(), tIdx = new Map(), pIdx = new Map(), stIdx = new Map();
+      const addrs = [];
+      for (const [, lat, lng, num, sname, town, pc, st] of rows) {
+        if (!sIdx.has(sname)) { sIdx.set(sname, streets.length); streets.push(sname); }
+        if (!tIdx.has(town)) { tIdx.set(town, towns.length); towns.push(town); }
+        if (!pIdx.has(pc)) { pIdx.set(pc, postcodes.length); postcodes.push(pc); }
+        if (!stIdx.has(st)) { stIdx.set(st, states.length); states.push(st); }
+        addrs.push([lat - oLat, lng - oLng, sIdx.get(sname), tIdx.get(town), pIdx.get(pc),
+                    num, stIdx.get(st)]);
+      }
+      /* The state is interned the same way the town is, rather than written
+         once for the tile. Almost every tile is one state and would not need
+         it - but a tile is 4.3 km across and the borders do not care, so the
+         Murray tiles hold Wentworth and Mildura together and Coolangatta
+         holds two states in one street. Interned it costs a byte a row and
+         nothing at all once gzipped, and it is right at the border instead
+         of nearly right. */
+      await writeFile(
+        join(dir, y + ".json"),
+        JSON.stringify({ o: [oLat, oLng], s: streets, t: towns, p: postcodes,
+                         st: states, a: addrs })
+      );
+      (index[x] || (index[x] = [])).push(y);
+      tileCount++;
+      for (const town of towns) {
+        if (!town) continue;
+        (places[town] || (places[town] = [])).push(x + "/" + y);
+      }
+      for (const name of streets) {
+        if (!name) continue;
+        (roads[name] || (roads[name] = [])).push(x + "/" + y);
+      }
     }
-    for (const name of streets) {
-      if (!name) continue;
-      (roads[name] || (roads[name] = [])).push(x + "/" + y);
-    }
+    await rm(path, { force: true });
   }
   for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
 
-  /* Which tiles exist, so the app never asks for one that is desert. Nine
-     and a half thousand tiles cover the state and the rest of the grid is
-     empty; without this every drive would spend its requests on 404s. */
-  await writeFile(
-    join(OUT, "index.json"),
-    JSON.stringify({
-      release: archive.name,
-      cut: cut,
-      built: new Date().toISOString().slice(0, 10),
-      z: Z,
-      states: STATES,
-      count: kept,
-      tiles: index
-    })
-  );
+  /* The street index, cut into longitude bands - see STREET_SHARD_W.
+
+     A street that crosses a band boundary is written into both, carrying
+     only that band's tiles each time. Nothing is duplicated: every tile
+     reference appears in exactly one shard, and a name appears in as many
+     shards as it has tiles in.
+
+     Interning the tile references was measured and dropped: it takes the
+     raw file from 1385 KB to 1022 KB and the gzipped one barely at all,
+     328 KB against 331 KB, because gzip was already doing that job on the
+     repeated strings. Plain keeps it the same shape as the suburb index. */
+  const shards = new Map();
+  for (const name in roads) {
+    for (const k of roads[name]) {
+      const b = Math.floor(+k.slice(0, k.indexOf("/")) / STREET_SHARD_W);
+      let o = shards.get(b);
+      if (!o) { o = {}; shards.set(b, o); }
+      (o[name] || (o[name] = [])).push(k);
+    }
+  }
+  await mkdir(join(OUT, "streets"), { recursive: true });
+  for (const [b, o] of shards) {
+    await writeFile(join(OUT, "streets", b + ".json"), JSON.stringify(o));
+  }
+  const bands = [...shards.keys()].sort((a, b) => a - b);
 
   /* Kept out of index.json deliberately. The manifest is read at startup to
      know which tiles exist at all; this is only wanted when somebody commits
@@ -447,15 +630,32 @@ async function main() {
      doubling the one every launch pays for. */
   await writeFile(join(OUT, "localities.json"), JSON.stringify(places));
 
-  /* Interning the tile references was measured and dropped: it takes the raw
-     file from 1385 KB to 1022 KB and the gzipped one barely at all, 328 KB
-     against 331 KB, because gzip was already doing that job on the repeated
-     strings. Plain keeps it the same shape as the suburb index. */
-  await writeFile(join(OUT, "streets.json"), JSON.stringify(roads));
+  /* Which tiles exist, so the app never asks for one that is desert. Eighty
+     thousand tiles cover the country and the rest of the grid is empty;
+     without this every drive would spend its requests on 404s.
+
+     Written last of everything, because it also names the street shards and
+     a manifest promising a file that is not there yet is worse than no
+     manifest: the phone would store it, believe it, and ask for shards that
+     never arrived. */
+  await writeFile(
+    join(OUT, "index.json"),
+    JSON.stringify({
+      release: archive.name,
+      cut: cut,
+      built: new Date().toISOString().slice(0, 10),
+      z: Z,
+      states: states,
+      count: tally.kept,
+      streets: { w: STREET_SHARD_W, bands: bands },
+      tiles: index
+    })
+  );
 
   await rm(tmp, { recursive: true, force: true });
-  console.log(`wrote ${tiles.size} tiles, ${Object.keys(places).length} suburbs ` +
-              `and ${Object.keys(roads).length} streets to ${OUT}/`);
+  console.log(`wrote ${tileCount} tiles, ${Object.keys(places).length} suburbs ` +
+              `and ${Object.keys(roads).length} streets in ${bands.length} shards ` +
+              `to ${OUT}/`);
 }
 
 main().catch((e) => {

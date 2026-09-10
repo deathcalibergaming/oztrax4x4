@@ -3509,12 +3509,17 @@ const CFG = {
   POI_RADIUS: 5000,        /* metres around you */
   /* Addresses come off our own origin - the packs are built quarterly by
      tools/build-gnaf.mjs and committed, so there is no third party to be
-     unreachable from the field and no usage policy to stay inside. */
+     unreachable from the field and no usage policy to stay inside.
+
+     11.4 million addresses over 80,382 tiles for the whole country, 101 MB
+     gzipped on the server. A vehicle pulls the tiles it is standing in and
+     no others; the median tile is under a kilobyte and the worst of
+     central Sydney is 274 KB. */
   ADDR_URL: "addr/",
   ADDR_Z: 13,              /* the zoom the packs are cut on, ~4.3 km a tile */
   ADDR_RADIUS: 6000,       /* metres of addresses kept loaded around you */
   /* Held in memory for the search to walk. Country tiles run to a few
-     hundred addresses and central Adelaide to twenty two thousand, so the
+     hundred addresses and central Sydney to thirty one thousand, so the
      ceiling is on addresses rather than on tiles. */
   ADDR_MEM_MAX: 120000,
   ADDR_HITS: 40,           /* address matches gathered before ranking by distance */
@@ -8752,6 +8757,7 @@ const Addr = {
       this.tried.clear();
       this.localities = null;
       this.streets = null;
+      this.streetShards = null;
       try { await DB.put("addr", fresh, "index"); } catch (e) { /* ignore */ }
     } catch (e) { /* no signal: what is held is what there is */ }
   },
@@ -8810,9 +8816,13 @@ const Addr = {
   },
 
   /* Which tiles each suburb occupies, so a committed search can go and get
-     the ones it needs. 1896 suburbs, 49 KB gzipped, fetched the first time
-     somebody presses Search rather than at startup - the manifest is what
-     every launch pays for and this is not wanted until then. */
+     the ones it needs. 14,135 suburbs, 360 KB gzipped, fetched the first
+     time somebody presses Search rather than at startup - the manifest is
+     what every launch pays for and this is not wanted until then.
+
+     Not banded the way the street index is. It is a twelfth the size, and
+     a suburb name is the one thing a driver types when the place is
+     nowhere near them - "Birdsville" from Adelaide has to work. */
   loadLocalities: async function () {
     if (this.localities) return this.localities;
     this.localities = await this.side("localities.json", "localities");
@@ -8860,11 +8870,11 @@ const Addr = {
       }
     }
     /* A suburb was named and its packs are here now. The answer is in them
-       or it is nowhere, so the street index is not worth its 328 KB. */
+       or it is nowhere, so the street index is not worth fetching. */
     if (got) return got;
     /* Nothing named a suburb - "12 Waterford Avenue" on its own, which is a
        fair thing to type when the street is unusual enough. One short word
-       is not, and is not worth fetching a state's worth of streets for. */
+       is not, and is not worth fetching the streets around you for. */
     if (t.words.length === 1 && t.words[0].length < 4) return 0;
     const streets = await this.loadStreets();
     if (!streets) return 0;
@@ -8877,15 +8887,62 @@ const Addr = {
     return got;
   },
 
-  /* Which tiles each street name appears in. 31549 streets and 328 KB
-     gzipped, nearly seven times the suburb index, so it is fetched only
-     when a search has nothing else to go on, and never when the query
-     named a suburb. Once fetched it is stored like everything else, so the
-     cost is not paid twice. */
+  /* Which longitude bands of the street index cover where the vehicle is.
+
+     The index is cut into bands of manifest.streets.w tile columns - about
+     33 km each - and this asks for the one the vehicle is in and the one
+     either side, so roughly a hundred kilometre strip. Three rather than
+     one because a vehicle sitting near a band edge would otherwise get half
+     a search, and two of the three are usually a few kilobytes.
+
+     null means a pack cut before the index was sharded, which still has the
+     single streets.json and is read that way. */
+  streetBands: function () {
+    const m = this.manifest && this.manifest.streets;
+    if (!m || !m.w || !m.bands) return null;
+    const here = poiAnchor();
+    const b = Math.floor(lon2tile(here.lng, CFG.ADDR_Z) / m.w);
+    const want = [];
+    for (const d of [0, -1, 1]) if (m.bands.indexOf(b + d) >= 0) want.push(b + d);
+    return want;
+  },
+
+  /* Which tiles each street name appears in, for the bands around the
+     vehicle. 239,203 streets over the country and 3.0 MB gzipped whole,
+     which is not a thing to fetch on one bar - and nearly all of it would
+     be thrown away, because tilesForStreets sorts by distance and keeps
+     sixty tiles. Banded it is a median of 8 KB a shard.
+
+     Only wanted when a search has nothing else to go on, and never when the
+     query named a suburb. Each shard is stored like everything else, so a
+     second search in the same part of the country pays nothing. */
   loadStreets: async function () {
-    if (this.streets) return this.streets;
-    this.streets = await this.side("streets.json", "streets");
-    return this.streets;
+    const bands = this.streetBands();
+    if (bands === null) {
+      if (this.streets) return this.streets;
+      this.streets = await this.side("streets.json", "streets");
+      return this.streets;
+    }
+    if (!this.streetShards) this.streetShards = new Map();
+    const out = {};
+    let got = 0;
+    for (const b of bands) {
+      let part = this.streetShards.get(b);
+      if (part === undefined) {
+        part = (await this.side("streets/" + b + ".json", "streets" + b)) || {};
+        this.streetShards.set(b, part);
+      }
+      /* Merged rather than searched three times over: a street runs across
+         a band edge as readily as it runs across a tile edge, and the
+         caller wants one list of its tiles to sort by distance. */
+      for (const name in part) {
+        const have = out[name];
+        if (have) { for (const k of part[name]) have.push(k); }
+        else out[name] = part[name].slice();
+        got++;
+      }
+    }
+    return got ? out : null;
   },
 
   /* The tiles a street-only query could be answered from, nearest first.
@@ -9018,18 +9075,40 @@ const Addr = {
     }
   },
 
-  /* An address off a tile, back in the shape the suggestion list speaks. */
+  /* What G-NAF calls a state, said the way somebody would read it out.
+
+     OT is Other Territories - Christmas Island, the Cocos Islands, Jervis
+     Bay, Norfolk - and maps to nothing on purpose. "Flying Fish Cove, 6798"
+     is an address; "Flying Fish Cove, 6798, Other Territories" is a filing
+     category, and nobody on Christmas Island calls it that. */
+  STATE_NAME: {
+    NSW: "New South Wales", VIC: "Victoria", QLD: "Queensland",
+    SA: "South Australia", WA: "Western Australia", TAS: "Tasmania",
+    NT: "Northern Territory", ACT: "Australian Capital Territory", OT: ""
+  },
+
+  /* An address off a tile, back in the shape the suggestion list speaks.
+
+     The state used to be the literal string "South Australia", which was
+     true for as long as the pack was one state and became a lie the day it
+     was nine - a Cairns address reading "Cairns City, 4870, South
+     Australia". It is carried per address now, because a tile on the Murray
+     holds two states and picking one for the tile would just move the lie
+     somewhere less visible. */
   row: function (tile, rec) {
     const lat = (tile.o[0] + rec[0]) / 1e5;
     const lng = (tile.o[1] + rec[1]) / 1e5;
     const street = tile.s[rec[2]] || "";
     const town = tile.t[rec[3]] || "";
     const pc = tile.p[rec[4]] || "";
+    /* A pack cut before the state was carried has no st - those tiles are
+       South Australian, because that is all there was. */
+    const state = tile.st ? (this.STATE_NAME[tile.st[rec[6]]] || "") : "South Australia";
     const name = fmtAddress(rec[5], street);
     return {
       id: "gnaf" + lat.toFixed(5) + lng.toFixed(5),
       name: name,
-      where: [town, pc, "South Australia"].filter(Boolean).join(", "),
+      where: [town, pc, state].filter(Boolean).join(", "),
       kind: "address",
       lat: lat, lng: lng,
       named: false,
@@ -9124,7 +9203,7 @@ const Addr = {
 
      This reads the whole store, which is bounded by what was deliberately
      downloaded - an area over Adelaide is about fifty tiles - rather than
-     by the state's nine and a half thousand. Memory is searched first and
+     by the country's eighty thousand. Memory is searched first and
      its hits kept in front, so the near answer never sorts below a far one
      that happens to share a street name. */
   searchStored: async function (q, limit) {

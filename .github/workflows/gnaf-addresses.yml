@@ -7,7 +7,10 @@ name: G-NAF addresses
 # runs a year cost a single small request to data.gov.au and nothing else.
 #
 # 20:10 UTC is about half past five in the morning in South Australia. The
-# job that does run pulls about seventy megabytes and takes a few minutes.
+# job that does run pulls about nine hundred megabytes of compressed tables
+# for the nine state groups, inflates three and a half gigabytes of them
+# through the disk, and writes a hundred and twenty thousand tiles. Allow
+# the better part of two hours.
 
 on:
   schedule:
@@ -36,12 +39,22 @@ jobs:
         with:
           node-version: "20"
 
+      # New South Wales is the shape of the headroom: 685 MB of
+      # ADDRESS_DETAIL and 354 MB of geocodes, whose lookup maps are about a
+      # gigabyte while that state is being read and are dropped before the
+      # next one starts. The finished rows never accumulate in memory at
+      # all - they go to a spool on disk and come back one tile column at a
+      # time - so the peak is one state's joins, not the country's.
       - name: Build the address packs
+        timeout-minutes: 150
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: node tools/build-gnaf.mjs ${{ inputs.force && '--force' || '' }}
 
-      # A quarter's release rewrites most of the nine and a half thousand
+      # A quarter's release rewrites most of the hundred and twenty thousand
       # tiles, so nothing is committed on the months where the release has
-      # not moved and the script stopped early.
+      # not moved and the script stopped early. On the months it has, this is
+      # far and away the largest commit anything in this repository makes.
       - name: Commit if the release moved
         run: |
           # Staged first, because a fresh build writes the whole tree from

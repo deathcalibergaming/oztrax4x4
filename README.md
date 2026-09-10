@@ -74,8 +74,9 @@ land on the very next launch.
   and Tasmania, served off this origin and built monthly by
   `tools/build-poi.mjs`; the live `/map` API fills in on top of it, and
   Overpass covers anywhere the pack does not reach
-* Addresses — Geoscape G-NAF, cut into z13 packs under `docs/addr/` and
-  served off this origin; built quarterly by `tools/build-gnaf.mjs`
+* Addresses — Geoscape G-NAF, every state and territory, cut into z13 packs
+  under `docs/addr/` and served off this origin; 11.4 million addresses in
+  80,382 tiles, built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
 * Roads — OpenStreetMap via the Geofabrik South Australia extract, cut into a
   state backbone and z13 packs under `docs/route/` and served off this origin;
