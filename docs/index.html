@@ -5831,6 +5831,11 @@ const ICONS = {
   shop:      '<path d="M5.5 8h13l-1.2 12H6.7z"/><path d="M9 8V6.2a3 3 0 0 1 6 0V8"/>',
   mechanic:  '<path d="M17.7 4.6a4.6 4.6 0 0 0-5.9 5.9l-7.2 7.2 2.3 2.3 7.2-7.2a4.6 4.6 0 0 0 5.9-5.9l-2.9 2.9-2.3-.6-.6-2.3z"/>',
   parts:     '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v3.1M12 18.3v3.1M21.4 12h-3.1M5.7 12H2.6M18.6 5.4l-2.2 2.2M7.6 16.4l-2.2 2.2M18.6 18.6l-2.2-2.2M7.6 7.6L5.4 5.4"/>',
+  /* a banknote rather than a "$": the paid-camp badge already uses the
+     dollar in a circle, and a note is what you are going to the ATM for */
+  atm:       '<rect x="2.6" y="6.4" width="18.8" height="11.2" rx="1.6"/><circle cx="12" cy="12" r="2.7"/><path d="M5.8 9.6v.1M18.2 14.4v.1"/>',
+  /* a front-loader: the door is the whole silhouette */
+  laundry:   '<rect x="4.6" y="2.8" width="14.8" height="18.4" rx="2"/><path d="M4.6 7.4h14.8"/><circle cx="12" cy="14.2" r="4"/><path d="M7.6 5.1h.1M10.2 5.1h.1"/>',
   refill:    '<path d="M6.2 6.6h8.6a1.6 1.6 0 0 1 1.6 1.6v10.6a1.6 1.6 0 0 1-1.6 1.6H6.2a1.6 1.6 0 0 1-1.6-1.6V8.2a1.6 1.6 0 0 1 1.6-1.6z"/><path d="M9 6.6V5.2a1.1 1.1 0 0 1 1.1-1.1h.8a1.1 1.1 0 0 1 1.1 1.1v1.4"/><path d="M16.4 10.4h2.4a.8.8 0 0 1 .8.8v2a.8.8 0 0 1-.8.8h-2.4"/>',
   /* Three glyphs where there was one cross, because the three errands are
      nothing like each other: the sign on the highway for a hospital, a
@@ -6356,7 +6361,8 @@ const SHOP_CAPTION = {
   general: "General store",
   doityourself: "Hardware",
   variety_store: "Variety store",
-  grocery: "Grocery"
+  grocery: "Grocery",
+  laundry: "Laundromat"
 };
 
 function poiCaption(tags, kind) {
@@ -6394,6 +6400,10 @@ const POI_META = {
   rest:        { label: "Rest area",   icon: "rest",        color: "#A8794F" },
   dump:        { label: "Dump point",  icon: "dump",        color: "#7E6B4F" },
   shower:      { label: "Shower",      icon: "shower",      color: "#8AC4D8" },
+  /* Beside the shower because it is the same errand at the end of a long
+     dusty week. Mint rather than another sky blue: the shower is already
+     the pale blue and the water ramp owns the rest of that hue. */
+  laundry:     { label: "Laundromat",  icon: "laundry",     color: "#4FC2AE" },
   supermarket: { label: "Supermarket", icon: "supermarket", color: "#4FA89B" },
   /* Ahead of Supplies so a store mapped twice - once as the node, once as
      the building - survives as the gear shop rather than the generic one.
@@ -6408,6 +6418,11 @@ const POI_META = {
   parking:     { label: "Parking",     icon: "parking",     color: "#8A9A8F" },
   phone:       { label: "Phone",       icon: "phone",       color: "#B85FA8" },
   post:        { label: "Post",        icon: "post",        color: "#5F7FC8" },
+  /* Cash, which out here is not optional: plenty of roadhouses and
+     community stores are card-only on a good day and cash-only when the
+     link is down. Brass rather than the servo's yellow - duller and
+     darker, so the two do not read as one on a badge. */
+  atm:         { label: "ATM",         icon: "atm",         color: "#B08D3C" },
   viewpoint:   { label: "Viewpoint",   icon: "viewpoint",   color: "#D8CBAA" },
   info:        { label: "Information", icon: "info",        color: "#C77B9E" }
 };
@@ -6527,9 +6542,9 @@ const SUPPLY_SHOP = {
   gas: 1,
   /* feed the people in it, short of the weekly shop */
   bakery: 1, butcher: 1, greengrocer: 1, deli: 1, seafood: 1, farm: 1,
-  alcohol: 1, health_food: 1,
-  /* the other errand on a long trip */
-  laundry: 1
+  alcohol: 1, health_food: 1
+  /* laundry has its own category now - see poiKind - and is asked for by
+     name in OVERPASS_TAGS */
 };
 
 /* healthcare= values that still mean "somewhere you can see a doctor" when
@@ -6692,6 +6707,13 @@ function poiKind(tags) {
   if (a === "clinic") return null;
   if (a === "telephone" || tags.emergency === "phone") return "phone";
   if (a === "post_office") return "post";
+  /* Cash. A bank branch counts: in and around Adelaide 35 of 86 branches
+     are tagged as having an ATM, none say they do not, and the other 51
+     say nothing - and a branch is where most people would go looking for
+     one anyway. The card says which of those it is rather than guessing.
+     Only a branch that states atm=no is left off. */
+  if (a === "atm") return "atm";
+  if (a === "bank") return (tags.atm || "").toLowerCase() === "no" ? null : "atm";
   if (a === "bbq") return "bbq";
   if (a === "parking") return "parking";
   if (t === "wilderness_hut") return "campfree";
@@ -6732,6 +6754,10 @@ function poiKind(tags) {
      mechanics out was for. */
   if (tags.shop === "car_repair" || tags.shop === "tyres") return "mechanic";
   if (tags.shop === "car_parts") return "parts";
+  /* A laundromat is its own errand, not shopping: it was filed in Supplies
+     among the bakeries and bottle shops, where a week into a trip nobody
+     would think to look for one. */
+  if (tags.shop === "laundry") return "laundry";
   if (OUTDOOR_SHOP[tags.shop]) return "outdoor";
   if (tags.shop) return SUPPLY_SHOP[tags.shop] ? "shop" : null;
   return null;
@@ -6778,6 +6804,31 @@ function poiInfoLine(tags, kind) {
     if (tags.seasonal === "yes") bits.push("seasonal");
     if (tags.fee === "yes") bits.push("fee");
   }
+  /* Whose machine, said plainly, because that decides the fee: the name on
+     the card is already the bank, so this adds who runs it where that is
+     someone else, and what a branch can actually be relied on for. */
+  if (kind === "atm") {
+    const owner = atmOwner(tags);
+    const runBy = atmCanon(tags.operator);
+    if (tags.amenity === "bank") {
+      bits.push((tags.atm || "").toLowerCase() === "yes"
+        ? "bank branch with ATM" : "bank branch - ATM not recorded");
+    } else if (!owner) {
+      bits.push("bank not recorded");
+    }
+    if (runBy && owner && runBy !== owner) bits.push("run by " + runBy);
+    if (atmCanon(tags.network) && atmCanon(tags.network) !== owner) bits.push("network: " + atmCanon(tags.network));
+    if ((tags.cash_in || "").toLowerCase() === "yes") bits.push("takes deposits");
+    const fee = (tags.fee || "").toLowerCase();
+    if (fee === "no") bits.push("no fee"); else if (fee === "yes") bits.push("fee");
+    if (tags.opening_hours) bits.push(tags.opening_hours);
+  }
+  if (kind === "laundry") {
+    const ss = (tags.self_service || "").toLowerCase();
+    if (ss === "yes") bits.push("self-service");
+    else if (ss === "no") bits.push("service wash");
+    if (tags.opening_hours) bits.push(tags.opening_hours);
+  }
   if (tags.access && tags.access !== "yes") bits.push("access: " + tags.access);
   if (tags.description) bits.push(tags.description);
   return bits.join(" · ");
@@ -6811,6 +6862,72 @@ function fmtAddress(num, street) {
 function poiAddress(tags) {
   if (!tags) return "";
   return fmtAddress(tags["addr:housenumber"], tags["addr:street"] || tags["addr:place"]);
+}
+
+/* The same bank written the ways mappers write it. Measured over the 61
+   ATMs in and around Adelaide: Commonwealth Bank and CBA; BankSA, banksa
+   and Bank SA; RediATM and rediATM. Left as tagged, one bank reads as
+   three on the list and a search for one misses the others. Keys are
+   lower case with the spaces and full stops taken out. */
+const ATM_OWNER = {
+  cba: "Commonwealth Bank", commbank: "Commonwealth Bank",
+  commonwealthbank: "Commonwealth Bank", commonwealthbankofaustralia: "Commonwealth Bank",
+  banksa: "BankSA", bankofsouthaustralia: "BankSA",
+  nab: "NAB", nationalaustraliabank: "NAB",
+  anz: "ANZ", anzbank: "ANZ", australiaandnewzealandbankinggroup: "ANZ",
+  australiaandnewzealandbankinggrouplimited: "ANZ",
+  westpac: "Westpac", westpacbankingcorporation: "Westpac",
+  stgeorge: "St.George", stgeorgebank: "St.George",
+  bankofmelbourne: "Bank of Melbourne", bankwest: "Bankwest",
+  bendigo: "Bendigo Bank", bendigobank: "Bendigo Bank", bendigoandadelaidebank: "Bendigo Bank",
+  boq: "BOQ", bankofqueensland: "BOQ",
+  suncorp: "Suncorp", suncorpbank: "Suncorp",
+  rediatm: "rediATM", atmx: "atmx", armaguard: "Armaguard",
+  peopleschoicecreditunion: "People's Choice", peopleschoice: "People's Choice"
+};
+
+function atmCanon(raw) {
+  const s = String(raw || "").trim().replace(/\s+ATM$/i, "");
+  if (!s) return "";
+  return ATM_OWNER[s.toLowerCase().replace(/[\s.']/g, "")] || s;
+}
+
+/* Whose cash machine it is, which is the question: the brand is the name on
+   the machine and the operator the company behind it, and between them they
+   carry the answer on 44 of those 61. The network is the last resort; the
+   name comes after it because a name on an ATM is as often "precinct" as a
+   bank. */
+function atmOwner(tags) {
+  return atmCanon(tags.brand) || atmCanon(tags.operator) ||
+         atmCanon(tags.network) || atmCanon(tags.name);
+}
+
+/* What a place is called on its pin and its card. One function because
+   three sources - the pack, the map extract, Overpass - each used to spell
+   out the same rule, and the ATM is the first category where the rule
+   differs: a cash machine is almost never named, so its bank is its name.
+   "NAB ATM" for a nameless NAB machine, but "rediATM" rather than "rediATM
+   ATM", and the plain category label only when nothing says whose it is. */
+function poiTitle(tags, kind) {
+  if (kind === "atm") {
+    const owner = atmOwner(tags);
+    if (tags.amenity === "bank") {
+      /* A branch's own name is kept when it says something - "Westpac
+         Rundle Mall" - but a name that is only a bank's name, spelled one
+         of the ways mappers spell it, gets the bank's own spelling. Left
+         raw, the first Adelaide run titled branches "Bank SA", "Banksa" and
+         "Bendigo" beside "BankSA" and "Bendigo Bank". */
+      const n = atmCanon(tags.name) || owner;
+      return n ? { name: n, caption: false } : { name: "Bank", caption: true };
+    }
+    if (!owner) return { name: "ATM", caption: true };
+    return { name: /atm$/i.test(owner) ? owner : owner + " ATM", caption: false };
+  }
+  /* Brand before operator: the brand is what is on the sign - IGA,
+     Foodland, Woolworths - while the operator is the company behind it, so
+     operator first turned a nameless IGA into "Metcash Trading Limited". */
+  const named = tags.name || tags.brand || tags.operator;
+  return { name: named || poiCaption(tags, kind), caption: !named };
 }
 
 let pois = [];
@@ -6949,7 +7066,7 @@ const OVERPASS_TAGS = [
   ["amenity", ["fuel", "drinking_water", "water_point", "toilets",
                "sanitary_dump_station", "shower", "hospital", "pharmacy",
                "doctors", "clinic", "telephone", "post_office", "bbq",
-               "shelter", "ranger_station"]],
+               "shelter", "ranger_station", "atm", "bank"]],
   ["man_made", ["water_tap", "water_well", "water_tank", "watering_place"]],
   ["natural", ["spring"]],
   ["tourism", ["wilderness_hut", "alpine_hut", "camp_site", "caravan_site",
@@ -6961,7 +7078,8 @@ const OVERPASS_TAGS = [
   ["emergency", ["phone"]],
   ["shop", ["chemist", "supermarket", "grocery", "convenience", "general",
             "department_store", "car_repair", "tyres", "car_parts"]
-           .concat(Object.keys(OUTDOOR_SHOP)).concat(Object.keys(SUPPLY_SHOP))]
+           .concat(Object.keys(OUTDOOR_SHOP)).concat(Object.keys(SUPPLY_SHOP))
+           .concat(["laundry"])]
 ];
 
 /* A bbox rather than a radius: Overpass answers a box off its index and
@@ -7034,8 +7152,7 @@ async function overpassPois(a) {
       id: id, kind: kind, lat: lat, lng: lng,
       /* the same order the extract path uses, for the same reason: the
          brand is what is on the sign, the operator is the company behind it */
-      name: tags.name || tags.brand || tags.operator || poiCaption(tags, kind),
-      caption: !(tags.name || tags.brand || tags.operator),
+      ...poiTitle(tags, kind),
       info: poiInfoLine(tags, kind),
       addr: poiAddress(tags)
       /* not thin: this carries every tag the extract does, fee included,
@@ -7279,8 +7396,7 @@ function parseOsmXml(text, a, radius) {
          Foodland, Woolworths - while the operator is the company behind
          it, so operator first turned a nameless IGA into "Metcash Trading
          Limited". */
-      name: tags.name || tags.brand || tags.operator || poiCaption(tags, kind),
-      caption: !(tags.name || tags.brand || tags.operator),
+      ...poiTitle(tags, kind),
       info: poiInfoLine(tags, kind),
       /* The address tags ride in on the same extract as everything else,
          so a place that carries one now says where it is as well as what
@@ -7760,6 +7876,7 @@ const KIND_WORDS = {
   rest:        "picnic stop",
   dump:        "black water cassette",
   shower:      "wash",
+  laundry:     "laundromat laundrette washing machine dryer clothes wash",
   supermarket: "groceries food shopping",
   outdoor:     "camping gear tackle fishing hunting disposals",
   shop:        "supplies store shopping",
@@ -7768,6 +7885,7 @@ const KIND_WORDS = {
   parking:     "car park",
   phone:       "landline payphone",
   post:        "postal mail parcel",
+  atm:         "cash money bank withdraw teller",
   viewpoint:   "lookout",
   info:        "visitor centre ranger"
 };
@@ -9647,14 +9765,14 @@ const Pack = {
     for (let i = 4; i < r.length; i += 2) tags[tile.k[r[i]]] = tile.v[r[i + 1]];
     const kind = poiKind(tags);
     if (!kind) return null;
-    const named = tags.name || tags.brand || tags.operator;
+    const title = poiTitle(tags, kind);
     return {
       id: (r[2] ? "way" : "node") + "/" + r[3],
       kind: kind,
       lat: (tile.o[0] + r[0]) / 1e5,
       lng: (tile.o[1] + r[1]) / 1e5,
-      name: named || poiCaption(tags, kind),
-      caption: !named,
+      name: title.name,
+      caption: title.caption,
       info: poiInfoLine(tags, kind),
       addr: poiAddress(tags)
     };
