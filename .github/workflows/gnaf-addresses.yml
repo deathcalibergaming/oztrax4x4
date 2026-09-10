@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  pages: read
 
 concurrency:
   group: gnaf-addresses
@@ -56,15 +57,29 @@ jobs:
       # not moved and the script stopped early. On the months it has, this is
       # far and away the largest commit anything in this repository makes.
       - name: Commit if the release moved
+        id: commit
         run: |
           # Staged first, because a fresh build writes the whole tree from
           # scratch and untracked files are invisible to a plain git diff.
           git add -A docs/addr
           if git diff --cached --quiet; then
             echo "address packs unchanged - nothing to commit"
+            echo "pushed=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "G-NAF addresses, $(node -p "require('./docs/addr/index.json').release")"
           git push
+          echo "pushed=yes" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The push is not the deploy. Pages builds main/docs separately and can
+      # fail on its own, and when it does the site goes on serving the version
+      # before this one without saying so. On a job that runs monthly that is a
+      # month of stale roads behind a green tick.
+      - name: Check the site actually took it
+        if: steps.commit.outputs.pushed == 'yes'
+        uses: ./.github/actions/pages-landed
+        with:
+          sha: ${{ steps.commit.outputs.sha }}
