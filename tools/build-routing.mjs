@@ -12,15 +12,28 @@
    points have to be exact and why an edge that crosses a tile boundary is
    cut at a vertex both tiles can see rather than clipped to the line.
 
-   Two files' worth of it, because a road network is not one thing:
+   Three files' worth of it, because a road network is not one thing, and
+   because the country is twelve times the state this started as:
 
-     backbone.json  Every road of tertiary class or better in the state,
-                    9,900 km of it as motorway through primary and 30,000
-                    through tertiary, in about a megabyte. That is the whole
-                    of the touring network - Adelaide to Marree, the Flinders,
-                    the Eyre - and it is small enough to ship in the shell and
-                    hold in memory always. Every long route is answered from
-                    it without a single request.
+     spine.json     Motorway, trunk, primary, secondary and the ferries, for
+                    the whole of Australia. 579,000 edges, and it is what a
+                    long route is made of: shipped once, held in memory
+                    always, and every interstate trip answered out of it
+                    without a single request.
+
+                    Secondary is in it, and that is the whole reason the line
+                    is drawn here rather than at primary. The Oodnadatta
+                    Track is secondary. So are the Birdsville and the
+                    Strzelecki. A spine that stopped at primary would be
+                    3 MB smaller and would not know the roads this app
+                    exists for.
+
+     r9/x/y.json    Tertiary, on a coarse grid of about 78 km. These are the
+                    minor rural roads - Googs Track, Old Andado, the alternate
+                    that rejoins the highway twenty kilometres on. They are
+                    destinations more often than corridors, so they are
+                    fetched around the vehicle and around each end of a route
+                    rather than carried.
 
      13/x/y.json    Residential streets, station tracks, service roads. Cut
                     on the same z13 grid as the address packs and fetched the
@@ -29,30 +42,89 @@
                     no sense carrying the streets of Ceduna while driving in
                     the Gammons.
 
-   Source is the Geofabrik South Australia extract, which is 67 MB and
-   rebuilt daily from OpenStreetMap. Read with the PBF reader below rather
-   than a dependency: the format is a few protobuf messages and the whole of
-   what is needed from it is nodes, ways and their tags.
+   Source is the seven Geofabrik state extracts, rebuilt daily from
+   OpenStreetMap. Read with the PBF reader below rather than a dependency:
+   the format is a few protobuf messages and the whole of what is needed
+   from it is nodes, ways and their tags.
+
+   Read one state at a time and written out as it goes, because none of the
+   country fits at once: New South Wales alone is 255 MB of extract and its
+   own node table. Nothing crosses between states except the set of way ids
+   already seen - Geofabrik writes a way that crosses a border complete into
+   both files, so the Sturt Highway would otherwise be in the pack twice.
+   The edges themselves need nothing shared: the app rebuilds the topology by
+   matching coordinates, and a node on the border has the same coordinates in
+   both extracts, so the two halves join without being told.
 
    OpenStreetMap data, licensed ODbL. The app already carries the attribution
    for the map extract it fetches live, and the same notice covers this.
 
-   Usage: node tools/build-routing.mjs [--force] */
+   Usage: node tools/build-routing.mjs [--force] [--only SA,NT] [--restamp]
+
+   --only limits the build to some of the states, which is how a change gets
+   tried without waiting on nine hundred megabytes. What it writes is a
+   partial pack, so it is not something to commit. */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { createWriteStream, createReadStream, appendFileSync, readdirSync } from "node:fs";
+import { createInterface } from "node:readline";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
+import { tmpdir } from "node:os";
 import { inflate } from "node:zlib";
 import { promisify } from "node:util";
 import { join } from "node:path";
 
 const inflateAsync = promisify(inflate);
 
-const PBF = "https://download.geofabrik.de/australia-oceania/australia/" +
-            "south-australia-latest.osm.pbf";
+const MIRROR = "https://download.geofabrik.de/australia-oceania/australia/";
 const OUT = "docs/route";
 const Z = 13;                 /* the same grid the address packs are cut on */
+const REGION_Z = 9;           /* the coarse grid the tertiary roads are cut on, ~78 km.
+                                 Measured against 8: the worst tile in South Australia
+                                 falls from 185 KB gzipped to 75, for twice the files and
+                                 the same roads. The worst tile is the one that hurts. */
 const PRECISION = 100000;     /* five decimals, a bit over a metre */
-const STATES = ["SA"];
+
+/* How far the drawn road may stray from the surveyed one, in metres, when
+   corners that carry no shape are dropped.
+
+   OSM traces roads at whatever density the mapper happened to click, and
+   splitByTile then adds a point every 200 m along anything crossing a tile
+   edge. Most of those corners say nothing: they sit on the straight line
+   between their neighbours. Measured over the whole country at five metres,
+   46% of the corners on the spine carry no shape at all.
+
+   Five rather than ten. Ten only saves another 14 MB and triples what it
+   does to the length of the local roads. Five costs 0.060% of the spine's
+   length and 0.167% of the local network's - on Perth to Sydney, about two
+   kilometres in 3,853 and under two minutes in forty hours - and stays under
+   a screen pixel until roughly zoom 18, which is past where anyone reads a
+   road shape.
+
+   This is only safe because snapping projects onto the segment between
+   corners rather than onto the corners themselves. While it went corner to
+   corner, thinning them took the 99th percentile snap error from 155 m to
+   791 m. See segNear in index.html. */
+const SIMPLIFY_M = 5;
+
+/* Smallest first, so a build that is going to fall over does it in the
+   first minute rather than the fortieth. */
+const SOURCES = [
+  { state: "NT",  slug: "northern-territory" },
+  { state: "TAS", slug: "tasmania" },
+  { state: "SA",  slug: "south-australia" },
+  { state: "WA",  slug: "western-australia" },
+  { state: "QLD", slug: "queensland" },
+  { state: "VIC", slug: "victoria" },
+  { state: "NSW", slug: "new-south-wales", also: ["ACT"] }
+];
+
+function pbfUrl(slug) { return MIRROR + slug + "-latest.osm.pbf"; }
+
+/* Rows held before a spool is written out. */
+const SPOOL_BATCH = 400000;
 
 /* Everything drivable, in the order the app's class table expects. The
    index into this array is what ships in the pack, so it may be appended
@@ -70,7 +142,16 @@ const CLASSES = [
   "unclassified", "residential", "living_street", "service", "track", "road", "busway"
 ];
 const CLASS_ID = new Map(CLASSES.map((c, i) => [c, i]));
-const BACKBONE = new Set(["motorway", "trunk", "primary", "secondary", "tertiary", "ferry"]);
+
+/* What goes in which file. Everything not named here is local.
+
+   The split is measured rather than chosen: of the country's 978,783
+   backbone edges, 578,942 are spine and 399,841 are tertiary. Moving
+   tertiary out is 41% of the graph that a phone in the Flinders has no use
+   for, and moving secondary out with it would have been another 26% and the
+   Birdsville Track. */
+const SPINE = new Set(["motorway", "trunk", "primary", "secondary", "ferry"]);
+const REGION = new Set(["tertiary"]);
 
 /* A link is the ramp on and off, and it belongs with the road it serves -
    an interchange with the ramps missing is a road you cannot get onto. */
@@ -244,8 +325,10 @@ function readBlock(b, onWay, onNodes) {
 
 function readWay(b, start, end, str, onWay) {
   const keys = [], vals = [], refs = [];
-  fields(b, start, end, (f, w, s, e) => {
-    if (f === 2) packed(b, s, e, keys, false);
+  let wid = 0;
+  fields(b, start, end, (f, w, s, e, v) => {
+    if (f === 1) wid = v;
+    else if (f === 2) packed(b, s, e, keys, false);
     else if (f === 3) packed(b, s, e, vals, false);
     else if (f === 8) packed(b, s, e, refs, true);
   });
@@ -255,7 +338,7 @@ function readWay(b, start, end, str, onWay) {
   /* delta coded, so walk them back into real ids */
   let id = 0;
   for (let i = 0; i < refs.length; i++) { id += refs[i]; refs[i] = id; }
-  onWay(tags, refs);
+  onWay(tags, refs, wid);
 }
 
 function readDense(b, start, end, granularity, latOff, lonOff, onNodes) {
@@ -353,12 +436,6 @@ function flagsOf(tags) {
    The build
    --------------------------------------------------------------------- */
 
-async function sourceStamp() {
-  const res = await fetch(PBF + ".md5");
-  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status} for the checksum`);
-  return (await res.text()).trim().split(/\s+/)[0];
-}
-
 /* What decides the contents of a pack, in one short string: the extract it
    was cut from, and every decision this script makes about what to take out
    of it - which classes are carried, which of those are the backbone, what
@@ -373,9 +450,9 @@ async function sourceStamp() {
    is the only thing it had to compare. */
 function cutStamp(source) {
   const shape = JSON.stringify([
-    CLASSES, [...BACKBONE].sort(), [...SKIP].sort(),
+    CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
-    [...PAVED].sort(), Z, PRECISION, STATES
+    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M
   ]);
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -407,27 +484,68 @@ async function restamp() {
   console.log(`stamped ${path} as ${index.cut}`);
 }
 
-async function main() {
-  if (process.argv.includes("--restamp")) return restamp();
-  const force = process.argv.includes("--force");
-  const stamp = await sourceStamp();
-  const cut = cutStamp(stamp);
-  console.log(`extract: ${stamp}`);
-  console.log(`cut:     ${cut}`);
+/* A spool of finished edges, one file per bucket, flushed in batches.
 
-  const have = await builtStamp();
-  if (have === cut && !force) {
-    console.log("already built from this extract and this road shape - nothing to do");
-    return;
+   The edges of one state will not sit in memory - New South Wales alone
+   splits into well over a million - so each one is written out as soon as it
+   is made and the tiles are cut afterwards by reading a bucket at a time. A
+   bucket is a z13 column for the local roads and a coarse tile for the
+   tertiary ones, which is few enough files to append to and small enough to
+   read back whole.
+
+   Rows are JSON. The alternative is a delimiter, and a road called
+   "Bridge|Street" would quietly shift every field after it. */
+class Spool {
+  constructor(dir) { this.dir = dir; this.buf = new Map(); this.n = 0; }
+
+  add(bucket, row) {
+    let a = this.buf.get(bucket);
+    if (!a) { a = []; this.buf.set(bucket, a); }
+    a.push(JSON.stringify(row));
+    if (++this.n >= SPOOL_BATCH) this.flush();
   }
 
-  console.log("downloading the extract...");
-  const res = await fetch(PBF);
-  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  console.log(`${(buf.length / 1048576).toFixed(0)} MB`);
+  flush() {
+    for (const [b, a] of this.buf) {
+      appendFileSync(join(this.dir, b + ".jsonl"), a.join("\n") + "\n");
+    }
+    this.buf.clear();
+    this.n = 0;
+  }
 
-  /* ---- pass one: the ways ---- */
+  buckets() {
+    return readdirSync(this.dir).filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -6));
+  }
+}
+
+async function fetchExtract(slug, dir) {
+  const res = await fetch(pbfUrl(slug));
+  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status} for ${slug}`);
+  const path = join(dir, slug + ".osm.pbf");
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(path));
+  return path;
+}
+
+async function sourceStamp(slug) {
+  const res = await fetch(pbfUrl(slug) + ".md5");
+  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status} for the ${slug} checksum`);
+  return (await res.text()).trim().split(/\s+/)[0];
+}
+
+async function sourceStamps(sources) {
+  const out = [];
+  for (const src of sources) out.push(src.state + ":" + await sourceStamp(src.slug));
+  return out.join(" ");
+}
+
+/* One state: read it, cut it into edges, hand each to emit.
+
+   Everything built here belongs to this extract alone and goes out of scope
+   with it. Only seenWays crosses, and only to keep a border-crossing way
+   from being written twice. */
+async function readExtract(path, seenWays, emit, tally) {
+  const buf = await readFile(path);
+  console.log(`  ${(buf.length / 1048576).toFixed(0)} MB`);
 
   const refsFlat = new Grow(Float64Array, 1 << 22);
   const wayStart = new Grow(Int32Array, 1 << 19);
@@ -437,9 +555,14 @@ async function main() {
   const wayName = [];
 
   for await (const block of blocks(buf)) {
-    readBlock(block, (tags, refs) => {
+    readBlock(block, (tags, refs, wid) => {
       const cls = classOf(tags);
       if (cls < 0) return;
+      /* Geofabrik writes a way that crosses a state line complete into both
+         files. Without this the Sturt Highway is in the pack twice, as two
+         edges lying exactly on top of each other. */
+      if (seenWays.has(wid)) return;
+      seenWays.add(wid);
       wayStart.push(refsFlat.n);
       wayCls.push(cls);
       wayFlags.push(flagsOf(tags));
@@ -448,10 +571,10 @@ async function main() {
       for (const r of refs) refsFlat.push(r);
     }, null);
   }
-  wayStart.push(refsFlat.n);            /* sentinel, so way i runs to start[i+1] */
+  wayStart.push(refsFlat.n);
   const nWays = wayCls.n;
-  console.log(`${nWays} drivable ways, ${refsFlat.n} node references`);
-  if (!nWays) throw new Error("no drivable ways found - the extract or the reader is wrong");
+  console.log(`  ${nWays} drivable ways, ${refsFlat.n} node references`);
+  if (!nWays) return;
 
   /* ---- which nodes are wanted, and which of those are junctions ---- */
 
@@ -465,7 +588,6 @@ async function main() {
   }
   const nodes = uniq.subarray(0, u);
   const isJunction = junction.subarray(0, u);
-  console.log(`${u} distinct nodes, ${isJunction.reduce((a, b) => a + b, 0)} of them junctions`);
 
   function nodeIdx(id) {
     let lo = 0, hi = u - 1;
@@ -490,33 +612,27 @@ async function main() {
     found++;
   };
   for await (const block of blocks(buf)) readBlock(block, null, sink);
-  if (sink.sparse) console.log("note: the extract carries non-dense nodes, which were skipped");
-  console.log(`${found} of ${u} node coordinates resolved`);
+  if (sink.sparse) console.log("  note: the extract carries non-dense nodes, which were skipped");
   if (found < u * 0.99) throw new Error("too many nodes missing coordinates");
 
   /* ---- ways become edges, cut at every junction ---- */
 
-  const backbone = [];
-  const local = [];
   let dropped = 0;
   for (let w = 0; w < nWays; w++) {
     const cls = wayCls.get(w);
-    const s = wayStart.get(w), e = wayStart.get(w + 1);
+    const st = wayStart.get(w), en = wayStart.get(w + 1);
     const pts = [];
     const flush = () => {
-      if (pts.length < 2) return;
-      const edge = { cls: cls, f: wayFlags.get(w), v: waySpeed.get(w),
-                     name: wayName[w], pts: pts.slice() };
-      (BACKBONE.has(CLASSES[cls]) ? backbone : local).push(edge);
+      if (pts.length < 4) return;
+      emit({ cls: cls, f: wayFlags.get(w), v: waySpeed.get(w),
+             name: wayName[w], pts: pts.slice() });
+      tally.edges++;
     };
-    for (let i = s; i < e; i++) {
+    for (let i = st; i < en; i++) {
       const idx = nodeIdx(refsFlat.get(i));
       if (idx < 0 || lat[idx] === 0x7fffffff) { dropped++; continue; }
       pts.push(lat[idx], lon[idx]);
-      /* An interior junction ends this edge and begins the next one at the
-         same point, so the two share a coordinate exactly and the app can
-         join them without being told they are joined. */
-      if (isJunction[idx] && pts.length > 2 && i < e - 1) {
+      if (isJunction[idx] && pts.length > 2 && i < en - 1) {
         flush();
         pts.length = 0;
         pts.push(lat[idx], lon[idx]);
@@ -524,78 +640,276 @@ async function main() {
     }
     flush();
   }
-  if (dropped) console.log(`${dropped} references had no coordinate and were skipped`);
+  if (dropped) console.log(`  ${dropped} references had no coordinate and were skipped`);
+}
 
-  /* ---- the local edges are cut again, at the tile boundaries ---- */
+async function main() {
+  if (process.argv.includes("--restamp")) return restamp();
+  const force = process.argv.includes("--force");
+  const onlyArg = process.argv.indexOf("--only");
+  const only = onlyArg >= 0
+    ? new Set(process.argv[onlyArg + 1].toUpperCase().split(",").map((v) => v.trim()))
+    : null;
+  const sources = SOURCES.filter(function (src) {
+    if (!only) return true;
+    if (only.has(src.state)) return true;
+    return (src.also || []).some((a) => only.has(a));
+  });
+  if (!sources.length) throw new Error("--only named no state this build knows");
 
-  const tiles = new Map();
-  for (const edge of local) {
-    for (const piece of splitByTile(edge.pts)) {
-      const x = lngToX(piece[1] / PRECISION, Z);
-      const y = latToY(piece[0] / PRECISION, Z);
-      const k = x + "/" + y;
-      let bucket = tiles.get(k);
-      if (!bucket) { bucket = []; tiles.set(k, bucket); }
-      bucket.push({ cls: edge.cls, f: edge.f, v: edge.v, name: edge.name, pts: piece });
+  const stamp = await sourceStamps(sources);
+  const cut = cutStamp(stamp);
+  console.log("extracts:");
+  for (const line of stamp.split(" ")) console.log("  " + line);
+  console.log(`cut:     ${cut}`);
+
+  const have = await builtStamp();
+  if (have === cut && !force) {
+    console.log("already built from these extracts and this road shape - nothing to do");
+    return;
+  }
+
+  const tmp = join(tmpdir(), "route-" + process.pid);
+  const regionDir = join(tmp, "region"), localDir = join(tmp, "local");
+  await mkdir(regionDir, { recursive: true });
+  await mkdir(localDir, { recursive: true });
+  const spinePath = join(tmp, "spine.jsonl");
+
+  const region = new Spool(regionDir);
+  const local = new Spool(localDir);
+  let spineBuf = [], spineN = 0;
+  const spineOut = createWriteStream(spinePath);
+  function spine(row) {
+    spineBuf.push(JSON.stringify(row));
+    spineN++;
+    if (spineBuf.length >= 20000) { spineOut.write(spineBuf.join("\n") + "\n"); spineBuf = []; }
+  }
+
+  /* Where each finished edge goes. The spine is one file for the country;
+     tertiary is cut on the coarse grid and everything else on z13, both of
+     them split at the tile boundary at a vertex the two sides share, so the
+     halves rejoin without being told they are joined. */
+  const tally = { edges: 0, spine: 0, region: 0, local: 0, pts: 0, kept: 0 };
+  function emit(edge) {
+    const name = CLASSES[edge.cls];
+    if (SPINE.has(name)) {
+      const pts = simplify(edge.pts, SIMPLIFY_M);
+      tally.pts += edge.pts.length / 2;
+      tally.kept += pts.length / 2;
+      spine([edge.cls, edge.f, edge.v, edge.name, pts]);
+      tally.spine++;
+      return;
+    }
+    const coarse = REGION.has(name);
+    const z = coarse ? REGION_Z : Z;
+    /* Split first, then thin. The other way round would drop the corners
+       that splitByTile goes on to re-add - it densifies anything crossing a
+       tile edge so the two halves meet at a point they both hold - and the
+       thinning would have bought nothing. Done in this order the densified
+       run is exactly what gets thinned, and the boundary points survive
+       because they are each piece's ends. */
+    for (const dense of splitByTile(edge.pts, z)) {
+      const piece = simplify(dense, SIMPLIFY_M);
+      tally.pts += dense.length / 2;
+      tally.kept += piece.length / 2;
+      const x = lngToX(piece[1] / PRECISION, z), y = latToY(piece[0] / PRECISION, z);
+      const row = [edge.cls, edge.f, edge.v, edge.name, piece];
+      if (coarse) { region.add(x + "_" + y, row); tally.region++; }
+      else { local.add(x + "_" + y, row); tally.local++; }
     }
   }
+
+  const seenWays = new Set();
+  for (const src of sources) {
+    console.log(`\n--- ${src.state} ---`);
+    const path = await fetchExtract(src.slug, tmp);
+    try {
+      await readExtract(path, seenWays, emit, tally);
+    } finally {
+      await rm(path, { force: true });
+    }
+    console.log(`  running total: ${tally.spine} spine, ${tally.region} tertiary, ${tally.local} local`);
+    console.log(`  corners: ${tally.kept} kept of ${tally.pts} ` +
+                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m)`);
+  }
+  region.flush();
+  local.flush();
+  if (spineBuf.length) spineOut.write(spineBuf.join("\n") + "\n");
+  await new Promise((res) => spineOut.end(res));
+  if (!tally.edges) throw new Error("no edges built - the extracts or the reader are wrong");
 
   /* ---- write ---- */
 
   await rm(OUT, { recursive: true, force: true });
   await mkdir(join(OUT, String(Z)), { recursive: true });
 
-  const bbKm = totalKm(backbone);
-  await writeFile(join(OUT, "backbone.json"), JSON.stringify(pack(backbone, [0, 0])));
-  console.log(`backbone: ${backbone.length} edges, ${bbKm.toFixed(0)} km`);
+  /* The spine, streamed rather than assembled. 579,000 edges is 30 MB of
+     JSON and there is no reason for it to exist as one string first. Names
+     are interned as the rows go past and written at the end, which is why
+     they are the last key rather than the first - JSON does not care and
+     the alternative is holding every row to find out. */
+  const names = [], nIdx = new Map();
+  const spineFile = createWriteStream(join(OUT, "spine.json"));
+  spineFile.write('{"o":[0,0],"e":[');
+  let first = true, spineKm = 0;
+  await eachLine(spinePath, (row) => {
+    const [cls, f, v, name, pts] = row;
+    let ni = -1;
+    if (name) {
+      if (!nIdx.has(name)) { nIdx.set(name, names.length); names.push(name); }
+      ni = nIdx.get(name);
+    }
+    const out = [cls, f, v, ni];
+    let pLat = 0, pLng = 0;
+    for (let i = 0; i < pts.length; i += 2) {
+      out.push(pts[i] - pLat, pts[i + 1] - pLng);
+      pLat = pts[i]; pLng = pts[i + 1];
+    }
+    spineKm += lineKm(pts);
+    spineFile.write((first ? "" : ",") + JSON.stringify(out));
+    first = false;
+  });
+  spineFile.write('],"n":' + JSON.stringify(names) + "}");
+  await new Promise((res) => spineFile.end(res));
+  console.log(`\nspine: ${tally.spine} edges, ${spineKm.toFixed(0)} km`);
 
-  const index = {};
-  let localKm = 0, localEdges = 0;
-  for (const [k, edges] of tiles) {
-    const [xs, ys] = k.split("/");
+  const regionIndex = {}, localIndex = {};
+  let regionKm = 0, localKm = 0;
+
+  for (const bucket of region.buckets()) {
+    const [xs, ys] = bucket.split("_");
     const x = +xs, y = +ys;
+    const edges = [];
+    await eachLine(join(regionDir, bucket + ".jsonl"), (row) => {
+      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4] });
+      regionKm += lineKm(row[4]);
+    });
+    const dir = join(OUT, "r" + REGION_Z, String(x));
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, y + ".json"),
+                    JSON.stringify(pack(edges, tileOrigin(x, y, REGION_Z))));
+    (regionIndex[x] || (regionIndex[x] = [])).push(y);
+  }
+
+  for (const bucket of local.buckets()) {
+    const [xs, ys] = bucket.split("_");
+    const x = +xs, y = +ys;
+    const edges = [];
+    await eachLine(join(localDir, bucket + ".jsonl"), (row) => {
+      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4] });
+      localKm += lineKm(row[4]);
+    });
     const dir = join(OUT, String(Z), String(x));
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, y + ".json"), JSON.stringify(pack(edges, tileOrigin(x, y, Z))));
-    (index[x] || (index[x] = [])).push(y);
-    localKm += totalKm(edges);
-    localEdges += edges.length;
+    (localIndex[x] || (localIndex[x] = [])).push(y);
   }
-  for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
-  console.log(`local: ${localEdges} edges in ${tiles.size} tiles, ${localKm.toFixed(0)} km`);
+  for (const x of Object.keys(regionIndex)) regionIndex[x].sort((a, b) => a - b);
+  for (const x of Object.keys(localIndex)) localIndex[x].sort((a, b) => a - b);
+
+  let regionTiles = 0, localTiles = 0;
+  for (const x of Object.keys(regionIndex)) regionTiles += regionIndex[x].length;
+  for (const x of Object.keys(localIndex)) localTiles += localIndex[x].length;
+  console.log(`tertiary: ${tally.region} edges in ${regionTiles} tiles, ${regionKm.toFixed(0)} km`);
+  console.log(`local: ${tally.local} edges in ${localTiles} tiles, ${localKm.toFixed(0)} km`);
+
+  const states = [];
+  for (const src of sources) {
+    states.push(src.state);
+    for (const extra of src.also || []) states.push(extra);
+  }
 
   await writeFile(join(OUT, "index.json"), JSON.stringify({
     source: stamp,
     cut: cut,
     built: new Date().toISOString().slice(0, 10),
     z: Z,
-    states: STATES,
+    regionZ: REGION_Z,
+    states: states,
     classes: CLASSES,
-    backbone: { edges: backbone.length, km: Math.round(bbKm) },
-    local: { edges: localEdges, km: Math.round(localKm) },
-    tiles: index
+    spine: { edges: tally.spine, km: Math.round(spineKm) },
+    region: { edges: tally.region, km: Math.round(regionKm), tiles: regionIndex },
+    local: { edges: tally.local, km: Math.round(localKm) },
+    tiles: localIndex
   }));
+
+  await rm(tmp, { recursive: true, force: true });
   console.log(`wrote ${OUT}/`);
 }
 
-/* Every point of an edge is somewhere; the edge belongs to the tile its
-   first point is in. Left alone, a fifty kilometre station road would sit
-   in one tile and be invisible from the twelve it actually crosses, so it
-   is cut where it changes tile and each piece filed where it starts.
+/* One JSON row per line, read back. */
+async function eachLine(path, fn) {
+  const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
+  for await (const line of rl) {
+    if (line) fn(JSON.parse(line));
+  }
+}
 
-   The cut lands on a vertex rather than on the boundary itself, which is
-   what lets the two pieces share an exact coordinate and rejoin on the
-   phone. Where the vertex is a long way past the boundary - and out here a
-   straight can run ten kilometres between vertices - points are put in
-   along the segment first, so no piece overhangs its tile by much. */
-function splitByTile(pts) {
+function lineKm(pts) {
+  let m = 0;
+  for (let i = 2; i < pts.length; i += 2) {
+    m += metres(pts[i - 2] / PRECISION, pts[i - 1] / PRECISION,
+                pts[i] / PRECISION, pts[i + 1] / PRECISION);
+  }
+  return m / 1000;
+}
+
+/* Perpendicular distance from p to the segment a-b, in metres, on a flat
+   [lat, lng, ...] run in PRECISION units. Flat maths: over a segment the
+   error is millimetres against the haversine the rest of this file uses. */
+function perpM(pLat, pLng, aLat, aLng, bLat, bLng, kx) {
+  const px = (pLng - aLng) * kx, py = pLat - aLat;
+  const bx = (bLng - aLng) * kx, by = bLat - aLat;
+  const L = bx * bx + by * by;
+  let t = L > 0 ? (px * bx + py * by) / L : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const dx = px - bx * t, dy = py - by * t;
+  return Math.hypot(dx, dy) / PRECISION * 111320;
+}
+
+/* Douglas-Peucker over a flat [lat, lng, ...] run.
+
+   The first and last points are kept whatever happens, which is the whole
+   reason this is safe to do here: they are the graph's nodes, and for a
+   piece that came out of splitByTile they are the tile-boundary points the
+   neighbouring piece also holds. Keep the ends and the network is exactly
+   the network it was - same junctions, same tiles rejoining - with fewer
+   corners drawn between them.
+
+   Iterative rather than recursive; some of these runs are thousands of
+   points long and a recursive one can bottom out the stack on a bad split. */
+function simplify(pts, tol) {
+  const n = pts.length / 2;
+  if (n <= 2 || !(tol > 0)) return pts;
+  const kx = Math.cos(rad(pts[0] / PRECISION));
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    if (j - i < 2) continue;
+    let worst = -1, at = -1;
+    for (let k = i + 1; k < j; k++) {
+      const d = perpM(pts[k * 2], pts[k * 2 + 1],
+                      pts[i * 2], pts[i * 2 + 1],
+                      pts[j * 2], pts[j * 2 + 1], kx);
+      if (d > worst) { worst = d; at = k; }
+    }
+    if (worst > tol) { keep[at] = 1; stack.push([i, at], [at, j]); }
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
+  return out;
+}
+
+function splitByTile(pts, z) {
   const dense = [];
   for (let i = 0; i < pts.length; i += 2) {
     dense.push(pts[i], pts[i + 1]);
     if (i + 3 >= pts.length) break;
     const aLat = pts[i] / PRECISION, aLng = pts[i + 1] / PRECISION;
     const bLat = pts[i + 2] / PRECISION, bLng = pts[i + 3] / PRECISION;
-    if (lngToX(aLng, Z) === lngToX(bLng, Z) && latToY(aLat, Z) === latToY(bLat, Z)) continue;
+    if (lngToX(aLng, z) === lngToX(bLng, z) && latToY(aLat, z) === latToY(bLat, z)) continue;
     const steps = Math.min(64, Math.ceil(metres(aLat, aLng, bLat, bLng) / 200));
     for (let s = 1; s < steps; s++) {
       dense.push(Math.round(pts[i] + (pts[i + 2] - pts[i]) * s / steps),
@@ -605,9 +919,9 @@ function splitByTile(pts) {
 
   const out = [];
   let cur = [dense[0], dense[1]];
-  let tx = lngToX(dense[1] / PRECISION, Z), ty = latToY(dense[0] / PRECISION, Z);
+  let tx = lngToX(dense[1] / PRECISION, z), ty = latToY(dense[0] / PRECISION, z);
   for (let i = 2; i < dense.length; i += 2) {
-    const x = lngToX(dense[i + 1] / PRECISION, Z), y = latToY(dense[i] / PRECISION, Z);
+    const x = lngToX(dense[i + 1] / PRECISION, z), y = latToY(dense[i] / PRECISION, z);
     cur.push(dense[i], dense[i + 1]);
     if (x !== tx || y !== ty) {
       if (cur.length >= 4) out.push(cur);
@@ -619,16 +933,6 @@ function splitByTile(pts) {
   return out;
 }
 
-function totalKm(edges) {
-  let m = 0;
-  for (const e of edges) {
-    for (let i = 2; i < e.pts.length; i += 2) {
-      m += metres(e.pts[i - 2] / PRECISION, e.pts[i - 1] / PRECISION,
-                  e.pts[i] / PRECISION, e.pts[i + 1] / PRECISION);
-    }
-  }
-  return m / 1000;
-}
 
 /* One file: names interned, coordinates as offsets from the previous point
    and the first from the file's origin. Within a z13 tile the offsets run

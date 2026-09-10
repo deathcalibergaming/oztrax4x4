@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  pages: read
 
 concurrency:
   group: osm-roads
@@ -45,15 +46,29 @@ jobs:
         run: node tools/build-routing.mjs ${{ inputs.force && '--force' || '' }}
 
       - name: Commit if the extract moved
+        id: commit
         run: |
           # Staged first, because a fresh build writes the whole tree from
           # scratch and untracked files are invisible to a plain git diff.
           git add -A docs/route
           if git diff --cached --quiet; then
             echo "road packs unchanged - nothing to commit"
+            echo "pushed=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Road network, OpenStreetMap via Geofabrik $(node -p "require('./docs/route/index.json').built")"
           git push
+          echo "pushed=yes" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The push is not the deploy. Pages builds main/docs separately and can
+      # fail on its own, and when it does the site goes on serving the version
+      # before this one without saying so. On a job that runs monthly that is a
+      # month of stale roads behind a green tick.
+      - name: Check the site actually took it
+        if: steps.commit.outputs.pushed == 'yes'
+        uses: ./.github/actions/pages-landed
+        with:
+          sha: ${{ steps.commit.outputs.sha }}

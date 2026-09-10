@@ -1,0 +1,86 @@
+name: Pages landed
+description: >
+  Waits for the GitHub Pages build of the commit just pushed and fails the job
+  if it did not land.
+
+# Every one of these jobs rewrites a tree of packs and pushes it, and the site
+# is served straight off main/docs by the legacy Pages builder. That build is a
+# separate thing from the push: git can succeed and the deploy can fail, and
+# when it does the site keeps serving the previous version quite happily and
+# says nothing.
+#
+# Which is the failure worth guarding. These run monthly. A silent one means
+# the phone is being served last month's roads for a month, and the first
+# anyone knows is a driver in the wrong place with the wrong map - the job went
+# green, the commit is on main, and everything looks done.
+#
+# Three builds have already errored on this repository, all instantly rather
+# than by timeout, and nobody noticed at the time because nothing was watching.
+
+inputs:
+  sha:
+    description: The commit whose Pages build to wait for.
+    required: true
+  timeout-seconds:
+    description: >
+      How long to wait before giving up. Pages itself times a build out at ten
+      minutes, so waiting much past that only delays the report.
+    required: false
+    default: "780"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SHA: ${{ inputs.sha }}
+        LIMIT: ${{ inputs.timeout-seconds }}
+      run: |
+        set -uo pipefail
+        started=$(date +%s)
+        # Pages does not begin the build the instant the push lands, and until
+        # it does, "latest" is still the previous commit's. So this waits for
+        # the build to be for our commit before it believes anything it says.
+        seen_ours=0
+        while :; do
+          now=$(date +%s)
+          if [ $((now - started)) -ge "$LIMIT" ]; then
+            if [ "$seen_ours" -eq 0 ]; then
+              echo "::warning::No Pages build for $SHA appeared within ${LIMIT}s."
+              echo "The commit is pushed. Whether the site has it is unconfirmed -"
+              echo "check https://github.com/$GITHUB_REPOSITORY/deployments"
+              exit 0
+            fi
+            echo "::error::The Pages build for $SHA was still running after ${LIMIT}s."
+            echo "Pages gives a build ten minutes. The site is still serving the"
+            echo "version before this one."
+            exit 1
+          fi
+
+          build=$(gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" 2>/dev/null || echo "")
+          if [ -n "$build" ]; then
+            commit=$(printf '%s' "$build" | jq -r '.commit // ""')
+            status=$(printf '%s' "$build" | jq -r '.status // ""')
+            if [ "$commit" = "$SHA" ]; then
+              seen_ours=1
+              case "$status" in
+                built)
+                  secs=$(printf '%s' "$build" | jq -r '(.duration // 0) / 1000 | floor')
+                  echo "Pages built $SHA in ${secs}s."
+                  exit 0
+                  ;;
+                errored|failure)
+                  msg=$(printf '%s' "$build" | jq -r '.error.message // "no message"')
+                  echo "::error::The Pages build for $SHA failed: $msg"
+                  echo "The commit is on main but the site is still serving the"
+                  echo "version before it. Pushing again is usually enough -"
+                  echo "the failures on this repository so far have been instant"
+                  echo "and transient rather than anything about the content."
+                  exit 1
+                  ;;
+              esac
+            fi
+          fi
+          sleep 15
+        done
