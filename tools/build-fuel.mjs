@@ -438,7 +438,14 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
      hand, and losing it to a probe for a second state would be the wrong
      trade. */
   const tasCount = (list) => list.filter((st) => inTas(Number((st.location || {}).latitude))).length;
-  let stationsAll = stations, pricesAll = prices;
+  /* Each response is kept as its own batch, and a price only ever attaches
+     to a station from the same batch. Station codes are not unique across
+     the two states: the first run that fetched Tasmania keyed everything on
+     the code alone, and 230 Tasmanian stations silently took the place of
+     the New South Wales stations sharing their codes - NSW fell from 2,392
+     sites to 2,162, and those NSW prices could land on a servo in
+     Tasmania. */
+  const batches = [{ tag: "", stations: stations, prices: prices }];
   if (!tasCount(stations)) {
     try {
       const r2 = await fetchImpl(NSW_HOST + "/FuelPriceCheck/v2/fuel/prices?states=TAS", { headers: hdrs() });
@@ -451,44 +458,58 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
         const t2 = tasCount(s2);
         console.log(`FuelCheck: no Tasmania in the plain call; ?states=TAS answered ${r2.status} ` +
           `with ${s2.length} stations, ${t2} of them in Tasmania, and ${p2.length} prices`);
-        if (t2) { stationsAll = stations.concat(s2); pricesAll = prices.concat(p2); }
+        /* only what is actually south of Bass Strait, in case the parameter
+           is one day ignored and the answer is New South Wales again */
+        if (t2) {
+          batches.push({ tag: "TAS",
+            stations: s2.filter((st) => inTas(Number((st.location || {}).latitude))), prices: p2 });
+        }
       }
     } catch (e) {
       console.log("FuelCheck: Tasmania probe failed - " + e.message);
     }
   }
 
-  const byCode = new Map();
-  for (const st of stationsAll) {
-    const loc = st.location || {};
-    const lat = Number(loc.latitude), lng = Number(loc.longitude);
-    if (!isFinite(lat) || !isFinite(lng) || !lat || !lng) continue;
-    const code = String(st.code != null ? st.code : st.stationid);
-    byCode.set(code, {
-      i: nswId(code),
-      s: inTas(lat) ? "TAS" : "NSW",
-      n: String(st.name || "").trim(),
-      b: String(st.brand || "").trim(),
-      a: String(st.address || "").trim(),
-      y: round6(lat),
-      x: round6(lng),
-      p: {},
-      t: ""
-    });
+  const all = [];
+  for (const batch of batches) {
+    const byCode = new Map();
+    for (const st of batch.stations) {
+      const loc = st.location || {};
+      const lat = Number(loc.latitude), lng = Number(loc.longitude);
+      if (!isFinite(lat) || !isFinite(lng) || !lat || !lng) continue;
+      const code = String(st.code != null ? st.code : st.stationid);
+      const state = inTas(lat) ? "TAS" : "NSW";
+      byCode.set(code, {
+        /* New South Wales keeps the bare-code hash it was first published
+           under, so no pin a driver has hidden comes back. Tasmania's is
+           salted with the state, because the same code in both states would
+           otherwise be the same id - and hiding one would hide both. */
+        i: nswId(state === "TAS" ? "TAS|" + code : code),
+        s: state,
+        n: String(st.name || "").trim(),
+        b: String(st.brand || "").trim(),
+        a: String(st.address || "").trim(),
+        y: round6(lat),
+        x: round6(lng),
+        p: {},
+        t: ""
+      });
+    }
+
+    for (const pr of batch.prices) {
+      const site = byCode.get(String(pr.stationcode));
+      const id = NSW_FUEL[String(pr.fueltype || "").toUpperCase()];
+      const c = Number(pr.price);
+      if (!site || !id || !isFinite(c) || c < NSW_FLOOR_CENTS) continue;
+      /* cents a litre in the feed, tenths of a cent in the file */
+      site.p[id] = Math.round(c * 10);
+      const t = stampToIso(pr.lastupdated);
+      if (t > site.t) site.t = t;
+    }
+    for (const s of byCode.values()) all.push(s);
   }
 
-  for (const pr of pricesAll) {
-    const site = byCode.get(String(pr.stationcode));
-    const id = NSW_FUEL[String(pr.fueltype || "").toUpperCase()];
-    const c = Number(pr.price);
-    if (!site || !id || !isFinite(c) || c < NSW_FLOOR_CENTS) continue;
-    /* cents a litre in the feed, tenths of a cent in the file */
-    site.p[id] = Math.round(c * 10);
-    const t = stampToIso(pr.lastupdated);
-    if (t > site.t) site.t = t;
-  }
-
-  const sites = [...byCode.values()].filter((s) => Object.keys(s.p).length);
+  const sites = all.filter((s) => Object.keys(s.p).length);
   const nsw = sites.filter((s) => s.s === "NSW").length;
   const tas = sites.length - nsw;
 
