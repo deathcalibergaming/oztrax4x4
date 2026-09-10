@@ -10151,6 +10151,52 @@ async function inParallel(list, fn, limit) {
    7.2e14, which a double holds exactly with three decimal orders to spare. */
 const NK_LAT = 9000000, NK_LNG = 18000000, NK_MUL = 40000000;
 
+/* The spine as it is stored: every row laid end to end in one Int32Array
+   (f), and where each row starts in a second (x, one longer than there are
+   rows). The server's shape is an array of 577,514 arrays, and storage
+   hands that back by rebuilding every one of them - 168 ms in one block on
+   a desktop, before a single road was folded in. Two typed arrays come back
+   as two copies: 45 ms, none of it longer than 14. Every value in the pack
+   is a whole number inside 32 bits, which is what makes this lossless. */
+function packSpine(pk) {
+  if (!pk || !Array.isArray(pk.e)) return pk;
+  let len = 0;
+  for (let r = 0; r < pk.e.length; r++) len += pk.e[r].length;
+  const f = new Int32Array(len), x = new Int32Array(pk.e.length + 1);
+  let at = 0;
+  for (let r = 0; r < pk.e.length; r++) {
+    const row = pk.e[r];
+    x[r] = at;
+    for (let i = 0; i < row.length; i++) f[at++] = row[i] == null ? 0 : row[i];
+  }
+  x[pk.e.length] = at;
+  return { o: pk.o, n: pk.n, f: f, x: x, __cut: pk.__cut };
+}
+
+/* How many rows a pack holds, in either shape. */
+function packRows(pk) {
+  if (!pk) return 0;
+  if (pk.x) return pk.x.length - 1;
+  return pk.e ? pk.e.length : 0;
+}
+
+/* Give the page a turn: a message to ourselves. Not scheduler.yield, which
+   was tried first and is the wrong tool here - its continuations run ahead
+   of rendering, so the slices chained until the browser forced a frame
+   every 111 ms and the arrow drew at nine frames a second through the whole
+   fold. A message is an ordinary task and a frame gets in between: folding
+   the spine that way drew 82 frames, none more than 17 ms apart, for 6%
+   longer overall. Not a timer either: a timer in a hidden page is held to
+   once a second, and the fold would take a minute and a half behind
+   another app. */
+function yieldToPage() {
+  return new Promise(function (res) {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = function () { res(); };
+    ch.port2.postMessage(0);
+  });
+}
+
 const Route = {
   manifest: null,
   packs: new Set(),        /* pack ids already folded in - "bb", or "x/y" */
@@ -10366,6 +10412,7 @@ const Route = {
           if (!r.ok) throw new Error("http " + r.status);
           pk = await r.json();
           pk.__cut = cut || "";
+          pk = packSpine(pk);
           try { await DB.put("route", pk, "spine"); } catch (e) { /* ignore */ }
           /* The four megabytes of one state's backbone, which nothing will
              ask for again. Left alone it would sit in storage for the life
@@ -10380,8 +10427,15 @@ const Route = {
           }
         }
       }
-      self.addPack(pk, "sp");
+      await self.addPackSliced(pk, "sp");
       self.fixed = self.nE;
+      /* A spine stored by an earlier build is an array of half a million
+         arrays, and reading one back out of storage is a single 168 ms
+         block that nothing can slice. Rewritten flat once, after the fold,
+         so it is the last launch that pays it. */
+      if (pk === held && !held.x) {
+        try { await DB.put("route", packSpine(held), "spine"); } catch (e) { /* ignore */ }
+      }
       return true;
     })();
     return this.bbBusy;
@@ -10403,7 +10457,7 @@ const Route = {
       if (!r.ok) throw new Error("http " + r.status);
       const pk = await r.json();
       pk.__cut = cut || "";
-      await DB.put("route", pk, "spine");
+      await DB.put("route", packSpine(pk), "spine");
       return true;
     } catch (e) {
       /* A spine that is a cut behind is still a spine, and this is
@@ -10631,16 +10685,53 @@ const Route = {
   binKey: function (x, y) { return x * 8192 + y; },
 
   addPack: function (pk, id) {
-    if (this.packs.has(id) || !pk || !pk.e) return;
+    const rows = packRows(pk);
+    if (this.packs.has(id) || !rows) return;
     /* The local half is dropped whole rather than a tile at a time. There
        is no cheap way to pull one pack's points out of the middle of a flat
        array, and by the time the cap is reached the vehicle is a long way
        from where the early tiles were loaded anyway. */
     if (this.nE > CFG.ROUTE_MEM_MAX) this.dropLocal();
     this.packs.add(id);
+    this.addRows(pk, 0, rows);
+  },
+
+  /* The spine, folded a slice at a time. In one go it held the page for
+     744 ms on a desktop - the map, the arrow and every tap frozen a second
+     after launch, every launch, and several times that on a phone. Eight
+     milliseconds of rows, then the page gets a turn, so the arrow keeps
+     moving while the network goes in underneath it.
+
+     Marked as held only once the last row is in: ensureSpine answers from
+     packs, and a route asked for halfway through has to wait for the whole
+     network rather than be told it is there. */
+  addPackSliced: async function (pk, id) {
+    const rows = packRows(pk);
+    if (this.packs.has(id) || !rows) return;
+    if (this.nE > CFG.ROUTE_MEM_MAX) this.dropLocal();
+    let r = 0;
+    while (r < rows) {
+      const until = performance.now() + 8;
+      do {
+        const next = Math.min(rows, r + 2048);
+        this.addRows(pk, r, next);
+        r = next;
+      } while (r < rows && performance.now() < until);
+      if (r < rows) await yieldToPage();
+    }
+    this.packs.add(id);
+  },
+
+  /* Rows from..to of a pack into the graph. A pack arrives in one of two
+     shapes: an array of rows, which is what the server sends and what
+     every tile keeps, or the spine's flat form (see packSpine), where one
+     row is a view onto a single Int32Array. A view indexes exactly like
+     the array it replaces, so the loop below reads either. */
+  addRows: function (pk, from, to) {
     const oLat = pk.o[0], oLng = pk.o[1];
-    for (let r = 0; r < pk.e.length; r++) {
-      const row = pk.e[r];
+    const flat = pk.x ? pk.f : null, at = pk.x;
+    for (let r = from; r < to; r++) {
+      const row = flat ? flat.subarray(at[r], at[r + 1]) : pk.e[r];
       const n = (row.length - 4) >> 1;
       if (n < 2) continue;
       const cls = ROAD_CLASSES[row[0]] || "unclassified";
