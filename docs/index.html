@@ -1781,6 +1781,8 @@ details.sub > .sec-body{padding:12px 0 0}
 /* the chip carries the same dashed circle the category's pins wear, so the
    filter and the thing it filters look like each other */
 .kchip .dotmark{width:20px;height:20px}
+.kchip small{display:block;font-size:var(--t-meta);color:var(--dim);line-height:1.15;
+  overflow:hidden;text-overflow:ellipsis}
 .kchip .dotmark svg{width:11px;height:11px;stroke:#14181B;fill:none;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .kchip i{font-variant-numeric:tabular-nums;font-style:normal;font-size:var(--t-meta);flex:0 0 auto}
@@ -3513,6 +3515,7 @@ const CFG = {
   SUGGEST_FETCH: 20,       /* asked for, before country and duplicate filtering */
   SUGGEST_MAX: 6,          /* offered, so the list never buries the map */
   POI_RADIUS: 5000,        /* metres around you */
+  POI_FAR_M: 50000,        /* how far the pack looks for a category with none nearby */
   /* Addresses come off our own origin - the packs are built quarterly by
      tools/build-gnaf.mjs and committed, so there is no third party to be
      unreachable from the field and no usage policy to stay inside.
@@ -7061,6 +7064,13 @@ let pois = [];
    the day's prices. */
 let poiSourced = [];
 let poiSourcedAt = null;      /* where that list was gathered around */
+/* The nearest few of every category the radius came back without, out of
+   the offline pack. A charger 10 km away is exactly what someone switching
+   EV charging on is looking for, and the 5 km bubble would never show it.
+   Kept apart and flagged far, so the chips and the status line can still
+   say how many are actually nearby. */
+let poiFar = [];
+let poiFarAt = null;          /* the anchor poiFar was worked out for */
 let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
 /* Roads with a posted limit, from the extract only. Photon is a place
    index and carries no geometry, so a Photon answer leaves this empty and
@@ -7078,8 +7088,10 @@ let poiStatusNote = null;      /* the last successful fetch, kept so units can r
 
 function poiStatusText() {
   if (poiStatusNote == null) return poiStatus;
-  return pois.length
-    ? pois.length + " within " + poiRadiusText() + " (" + poiStatusNote +
+  /* the far ones are not "within" anything - see poiFar */
+  const near = pois.filter(function (p) { return !p.far; }).length;
+  return near
+    ? near + " within " + poiRadiusText() + " (" + poiStatusNote +
       (poiFuelAdded ? ", " + poiFuelAdded + " servo" + (poiFuelAdded > 1 ? "s" : "") +
         " the map was missing" : "") +
       (poiDupCount ? ", " + poiDupCount + " duplicate" + (poiDupCount > 1 ? "s" : "") + " merged" : "") + ")"
@@ -7788,6 +7800,40 @@ function setPois(items, anchor) {
   poiSourced = items || [];
   poiSourcedAt = anchor || poiCentre || null;
   composePois();
+  fillFarKinds(poiSourcedAt);
+}
+
+/* Keyed on the place and on which categories came back empty there. The
+   place alone was not enough: the first call at a spot is often the empty
+   moment before anything has loaded, which makes every category missing,
+   and the same spot with the real list then kept that stale answer. */
+function farKey(a, missing) {
+  return a ? a.lat.toFixed(3) + "," + a.lng.toFixed(3) + "|" + missing.join(",") : null;
+}
+
+/* Looked for after the nearby set is drawn, never before it: the bubble is
+   what the driver needs first, and this is a slower walk outward through
+   the pack. Offline it only finds what is already stored, which is fine -
+   it is an extra, not the answer. */
+async function fillFarKinds(a) {
+  const have = new Set();
+  pois.forEach(function (p) { if (!p.far) have.add(p.kind); });
+  /* Not parking: the pack leaves car parks out on purpose (see build-poi),
+     so the nearest one it could name is whatever odd corner is tagged that
+     way 40 km off - an answer that looks like a fact and is not one. */
+  const missing = POI_ORDER.filter(function (k) { return !have.has(k) && k !== "parking"; });
+  const key = farKey(a, missing);
+  if (!key || key === poiFarAt) return;
+  poiFarAt = key;
+  if (!missing.length) {
+    if (poiFar.length) { poiFar = []; composePois(); }
+    return;
+  }
+  let found = [];
+  try { found = await Pack.nearestOf(a, missing, CFG.POI_FAR_M, 3); } catch (e) { return; }
+  if (poiFarAt !== key || !found.length) return;
+  poiFar = found.map(function (p) { p.far = true; return p; });
+  composePois();
 }
 
 /* Where the map and the sign outside disagree, and the sign wins.
@@ -7957,7 +8003,16 @@ function addLocalPois(centre, items) {
 }
 
 function composePois() {
-  const merged = Fuel.mergePins(poiSourcedAt, poiSourced);
+  /* A far pin only stands in for a category the nearby list has none of,
+     and only from beyond the radius - inside it, it is simply nearby and
+     the next fill will say so. Either can go stale between a far walk and
+     the list it was worked out against. */
+  const nearKinds = new Set(poiSourced.map(function (p) { return p.kind; }));
+  const far = poiFar.filter(function (p) {
+    return !nearKinds.has(p.kind) &&
+      (!poiSourcedAt || haversine(poiSourcedAt, p) > CFG.POI_RADIUS);
+  });
+  const merged = Fuel.mergePins(poiSourcedAt, far.length ? poiSourced.concat(far) : poiSourced);
   poiFuelAdded = merged.added;
   /* Before the dedupe, not after: the store is on the map twice and only
      one of the two survives, so fixing them both is what makes the result
@@ -8884,22 +8939,25 @@ function poiCardHtml(p, here, live) {
     "</div></div>";
 }
 
-/* One chip per category that is actually present in the loaded set, with
-   its count, so switching every car park off is one tap from the menu. */
+/* One chip for every category, with how many are nearby. Every one, not
+   only those present: a category with none inside the radius used to have
+   no chip at all, so there was no switch to find an EV charger 10 km out.
+   A chip at 0 says how far the nearest one is when the pack found it (see
+   poiFar), and that pin is on the map while the chip is on. */
 function renderPoiFilters() {
   const box = $("#poiKinds");
   if (!box) return;
-  const counts = {};
+  const counts = {}, nearest = {};
   pois.forEach(function (p) {
     if (!POI_META[p.kind] || hiddenPoi.has(p.id)) return;
+    if (p.far) {
+      const d = poiSourcedAt ? haversine(poiSourcedAt, p) : 0;
+      if (!(nearest[p.kind] <= d)) nearest[p.kind] = d;
+      return;
+    }
     counts[p.kind] = (counts[p.kind] || 0) + 1;
   });
-  /* Only what is actually here. A hidden category still counts its POIs -
-     switching one off does not remove it from the list - so the chip
-     stays put and can be switched back on. Adding everything in
-     hiddenKinds as well put nine categories with no POIs on the list the
-     moment All Off was pressed, and took them away again on All On. */
-  const kinds = POI_ORDER.filter(function (k) { return counts[k]; });
+  const kinds = POI_ORDER.slice();
 
   /* All On and All Off report which way the categories sit, the way Metric
      and Imperial do, rather than being two buttons that only ever look
@@ -8918,16 +8976,14 @@ function renderPoiFilters() {
   $("#btnKindsAll").classList.toggle("on", anyOn && !anyOff);
   $("#btnKindsNone").classList.toggle("on", anyOff && !anyOn);
 
-  if (!kinds.length) {
-    box.innerHTML = '<div class="empty">Categories appear here once POIs load.</div>';
-    return;
-  }
   box.innerHTML = kinds.map(function (k) {
     const m = POI_META[k], on = !hiddenKinds.has(k);
+    const far = !counts[k] && nearest[k] != null
+      ? "<small>nearest " + fmtDist(nearest[k]) + "</small>" : "";
     return '<button class="kchip' + (on ? " on" : "") + '" data-kind="' + k + '" ' +
       'aria-pressed="' + on + '" style="--kc:' + inkOf(m.color) + '">' +
       '<span class="dotmark poi" style="background:' + m.color + '">' + catIcon(m.icon) + "</span>" +
-      "<span>" + m.label + "</span><i>" + (counts[k] || 0) + "</i></button>";
+      "<span>" + m.label + far + "</span><i>" + (counts[k] || 0) + "</i></button>";
   }).join("");
 }
 
@@ -9928,6 +9984,60 @@ const Pack = {
       }
     }
     return { items: out, tiles: want.length, built: this.manifest.built || "" };
+  },
+
+  /* The nearest `per` of each kind in kinds, out to maxM, by walking rings
+     of tiles outward from the one you are in. A ring is only opened while
+     some kind could still have something closer in it than what is already
+     held, so in a town it stops a ring or two out and only a category that
+     is genuinely scarce walks the whole way. Tiles are read without being
+     kept in memory, so this does not turn over the working set; they do
+     land in storage, so the same walk later is a local read. */
+  nearestOf: async function (a, kinds, maxM, per) {
+    await this.loadManifest();
+    if (!this.manifest || !this.covers(a)) return [];
+    const z = CFG.POI_PACK_Z;
+    const cx = lon2tile(a.lng, z), cy = lat2tile(a.lat, z);
+    /* Mercator: a tile is as tall as it is wide, and both shrink with cos(lat) */
+    const tileM = 40075016 * Math.cos(a.lat * Math.PI / 180) / Math.pow(2, z);
+    const want = new Set(kinds), best = {};
+    kinds.forEach(function (k) { best[k] = []; });
+    const maxRing = Math.ceil(maxM / tileM) + 1;
+    for (let ring = 0; ring <= maxRing; ring++) {
+      /* nothing in this ring can be nearer than this */
+      const inner = Math.max(0, ring - 1) * tileM;
+      if (inner > maxM) break;
+      const open = kinds.some(function (k) {
+        return best[k].length < per || best[k][per - 1].d > inner;
+      });
+      if (!open) break;
+      const cells = [];
+      for (let x = cx - ring; x <= cx + ring; x++) {
+        for (let y = cy - ring; y <= cy + ring; y++) {
+          if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) === ring && this.exists(x, y)) cells.push([x, y]);
+        }
+      }
+      const tiles = new Array(cells.length);
+      await inParallel(cells.map((t, i) => [t, i]), async (pair) => {
+        tiles[pair[1]] = await this.fetchTile(pair[0][0], pair[0][1], false);
+      });
+      for (const tile of tiles) {
+        if (!tile) continue;
+        for (const r of tile.p) {
+          const p = this.row(tile, r);
+          if (!p || !want.has(p.kind)) continue;
+          const d = haversine(a, p);
+          if (d > maxM) continue;
+          const list = best[p.kind];
+          list.push({ p: p, d: d });
+          list.sort(function (u, v) { return u.d - v.d; });
+          if (list.length > per) list.length = per;
+        }
+      }
+    }
+    const out = [];
+    kinds.forEach(function (k) { best[k].forEach(function (e) { out.push(e.p); }); });
+    return out;
   },
 
   /* What is stored, for the storage panel. */
@@ -13945,14 +14055,9 @@ $("#btnKindsAll").addEventListener("click", function () {
   renderPois();
 });
 $("#btnKindsNone").addEventListener("click", function () {
-  /* What is here, not every category in the app. Switching off kinds with
-     nothing behind them meant driving into the next town with categories
-     already off that had never been seen. */
-  const here = new Set();
-  pois.forEach(function (p) {
-    if (POI_META[p.kind] && !hiddenPoi.has(p.id)) here.add(p.kind);
-  });
-  hiddenKinds = here;
+  /* Every category, now that every category has a chip: off means what
+     the chips on screen say, all of them. */
+  hiddenKinds = new Set(POI_ORDER);
   saveLS(LS.hiddenKinds, Array.from(hiddenKinds));
   renderPois();
 });
