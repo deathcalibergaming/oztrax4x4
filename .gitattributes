@@ -8,3 +8,8 @@ docs/addr/** linguist-generated=true
 # The road packs are the same thing again and four times as many files,
 # written by tools/build-routing.mjs from the daily Geofabrik extract.
 docs/route/** linguist-generated=true
+
+# And the POI packs, ten thousand tiles of them once the pack went from one
+# state to the whole country, written by tools/build-poi.mjs and rewritten
+# whole every month.
+docs/poi/** linguist-generated=true
