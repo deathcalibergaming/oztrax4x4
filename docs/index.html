@@ -8151,7 +8151,8 @@ const Fuel = {
          first published under - renaming it would un-hide every pin a driver
          had put away - so a new scheme gets its own rather than everything
          getting a tidier one. */
-      id: (st.s === "WA" ? "fuelwatch/" : "safpis/") + st.i,
+      id: (st.s === "WA" ? "fuelwatch/" :
+           st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" : "safpis/") + st.i,
       kind: "fuel",
       lat: osm ? osm.lat : st.y,
       lng: osm ? osm.lng : st.x,
@@ -8258,8 +8259,12 @@ const Fuel = {
       return "FuelWatch &middot; " +
         (site.t === today ? "today's price" : "price for " + esc(site.t));
     }
+    /* FuelCheck reports changes as they happen, like the SA scheme, so its
+       prices have an age in the same sense - the builder has already turned
+       its Sydney wall-clock stamp into UTC, so the arithmetic is shared. */
+    const scheme = site && (site.s === "NSW" || site.s === "TAS") ? "FuelCheck" : "SAFPIS";
     const when = this.age(site && site.t);
-    return when ? "SAFPIS &middot; set " + when : "";
+    return when ? scheme + " &middot; set " + when : "";
   }
 };
 

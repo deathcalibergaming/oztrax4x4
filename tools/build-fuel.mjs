@@ -42,7 +42,7 @@
    Usage: SAFPIS_TOKEN=<guid> node tools/build-fuel.mjs */
 
 import { writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const OUT = "docs/fuel.json";
@@ -331,6 +331,150 @@ async function sourceWA() {
   };
 }
 
+/* ------------------------------------- New South Wales and Tasmania (FuelCheck) */
+
+/* One app registered with the NSW Government's API gateway covers two states:
+   the Fuel API's v2 endpoints return NSW and Tasmania together. Licensed
+   CC-BY-SA, which permits caching and republishing with attribution - so
+   this is the same shape as the other two, a server-side fetch into the one
+   static file, credited from `sources`.
+
+   Auth is OAuth client credentials: the key and secret buy a bearer token
+   good for about twelve hours, and every data call then carries the token,
+   the key again as `apikey`, a transaction id and a timestamp. The free tier
+   is 2,500 calls a month; this spends two a day. */
+
+const NSW_HOST = "https://api.onegov.nsw.gov.au";
+
+/* FuelCheck's codes on the left, this app's fuel ids on the right. B20, CNG
+   and EV have no id in the SA numbering the app is built on, and are left
+   out rather than given a colour and a switch nobody asked for. */
+const NSW_FUEL = { U91: 2, E10: 12, P95: 5, P98: 8, DL: 3, PDL: 14, LPG: 4, E85: 19 };
+
+/* Which of the two a station is in, by where it stands. The feed may or may
+   not say, and Bass Strait settles it either way: no NSW station is south of
+   37.6 degrees and all of Tasmania is south of 39.5. */
+const inTas = (lat) => lat < -39;
+
+/* FuelCheck stamps a price in Sydney's local time, "10/09/2026 14:05:00",
+   with no zone on it. The app's age arithmetic works in UTC, so read as UTC
+   it would call every price ten or eleven hours older than it is. Converted
+   here through the zone rules rather than a fixed +10, because half the year
+   it is +11. Tasmania keeps the same clock and the same daylight dates. */
+function sydneyToIso(s) {
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const t = Date.parse(s);
+    return isFinite(t) ? new Date(t).toISOString().slice(0, 19) : "";
+  }
+  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (!m) return "";
+  let [, d, mo, y, h, mi, se, ap] = m;
+  h = +h;
+  if (ap) { ap = ap.toUpperCase(); if (ap === "PM" && h < 12) h += 12; if (ap === "AM" && h === 12) h = 0; }
+  const wall = Date.UTC(+y, +mo - 1, +d, h, +mi, +(se || 0));
+  /* the offset Sydney was running at that wall-clock time */
+  const offsetAt = (utc) => {
+    const p = new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney", hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit"
+    }).formatToParts(new Date(utc));
+    const g = (t) => +p.find((x) => x.type === t).value;
+    return Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second")) - utc;
+  };
+  let utc = wall - offsetAt(wall - 10 * 3600e3);
+  utc = wall - offsetAt(utc);
+  return new Date(utc).toISOString().slice(0, 19);
+}
+
+function nswId(code) {
+  return parseInt(createHash("sha1").update("fuelcheck|" + code).digest("hex").slice(0, 12), 16);
+}
+
+/* `fetchImpl` is there so the whole source can be run against a recorded
+   response in a test. In the Action it is the real fetch. */
+async function sourceNSW(key, secret, fetchImpl = fetch) {
+  const basic = Buffer.from(key + ":" + secret).toString("base64");
+  const tok = await fetchImpl(NSW_HOST + "/oauth/client_credential/accesstoken?grant_type=client_credentials", {
+    headers: { "Authorization": "Basic " + basic }
+  });
+  if (!tok.ok) {
+    throw new Error("FuelCheck token request failed: " + tok.status +
+      (tok.status === 401 ? " - the key or secret was refused" : ""));
+  }
+  const token = (await tok.json()).access_token;
+  if (!token) throw new Error("FuelCheck token response carried no access_token");
+
+  const res = await fetchImpl(NSW_HOST + "/FuelPriceCheck/v2/fuel/prices", {
+    headers: {
+      "Authorization": "Bearer " + token,
+      "apikey": key,
+      "transactionid": randomUUID(),
+      "requesttimestamp": new Date().toISOString().slice(0, 19) + "Z",
+      "Content-Type": "application/json; charset=utf-8"
+    }
+  });
+  if (!res.ok) throw new Error("FuelCheck prices request failed: " + res.status + " " + res.statusText);
+  const body = await res.json();
+
+  const stations = Array.isArray(body.stations) ? body.stations : [];
+  const prices = Array.isArray(body.prices) ? body.prices : [];
+  if (!stations.length || !prices.length) {
+    throw new Error(`FuelCheck returned ${stations.length} stations and ${prices.length} prices - ` +
+      `the response shape has changed (keys: ${Object.keys(body).join(", ")})`);
+  }
+
+  const byCode = new Map();
+  for (const st of stations) {
+    const loc = st.location || {};
+    const lat = Number(loc.latitude), lng = Number(loc.longitude);
+    if (!isFinite(lat) || !isFinite(lng) || !lat || !lng) continue;
+    const code = String(st.code != null ? st.code : st.stationid);
+    byCode.set(code, {
+      i: nswId(code),
+      s: inTas(lat) ? "TAS" : "NSW",
+      n: String(st.name || "").trim(),
+      b: String(st.brand || "").trim(),
+      a: String(st.address || "").trim(),
+      y: round6(lat),
+      x: round6(lng),
+      p: {},
+      t: ""
+    });
+  }
+
+  for (const pr of prices) {
+    const site = byCode.get(String(pr.stationcode));
+    const id = NSW_FUEL[String(pr.fueltype || "").toUpperCase()];
+    const c = Number(pr.price);
+    if (!site || !id || !isFinite(c) || c <= 0) continue;
+    /* cents a litre in the feed, tenths of a cent in the file */
+    site.p[id] = Math.round(c * 10);
+    const t = sydneyToIso(pr.lastupdated);
+    if (t > site.t) site.t = t;
+  }
+
+  const sites = [...byCode.values()].filter((s) => Object.keys(s.p).length);
+  const nsw = sites.filter((s) => s.s === "NSW").length;
+  const tas = sites.length - nsw;
+
+  const fuels = {};
+  for (const id of Object.values(NSW_FUEL)) if (FUEL_NAMES[id]) fuels[id] = FUEL_NAMES[id];
+
+  return {
+    key: "NSW",
+    name: "FuelCheck",
+    url: "https://www.fuelcheck.nsw.gov.au",
+    /* named for what actually came back, so a day the feed omits Tasmania
+       cannot be credited as covering it */
+    state: tas ? "New South Wales and Tasmania" : "New South Wales",
+    counts: { NSW: nsw, TAS: tas },
+    fuels: fuels,
+    sites: sites
+  };
+}
+
 /* ------------------------------------------------------------------- main */
 
 function merge(sources) {
@@ -395,7 +539,18 @@ async function main() {
     process.exit(1);
   }
 
-  const out = merge(await Promise.all([sourceSA(token), sourceWA()]));
+  /* NSW and Tasmania only when both credentials are there. Not configured is
+     not the same as failing: until the secrets exist the job should go on
+     publishing South Australia and Western Australia exactly as before,
+     rather than going red every morning over a state it was never set up
+     for. Configured and failing is different, and fails the build like any
+     other source. */
+  const nswKey = process.env.NSW_FUEL_KEY, nswSecret = process.env.NSW_FUEL_SECRET;
+  const jobs = [sourceSA(token), sourceWA()];
+  if (nswKey && nswSecret) jobs.push(sourceNSW(nswKey, nswSecret));
+  else console.log("NSW_FUEL_KEY / NSW_FUEL_SECRET not set - New South Wales and Tasmania skipped");
+
+  const out = merge(await Promise.all(jobs));
 
   await writeFile(OUT, JSON.stringify(out) + "\n");
   console.log(`${OUT}: ${out.sites.length} sites, ${Object.keys(out.fuels).length} fuel types`);
@@ -407,7 +562,7 @@ async function main() {
    is the only way to see a scheme's real output without publishing it - and
    so the merge can be tested against made-up sources, which is where a bug
    would cost a state rather than a field. */
-export { sourceSA, sourceWA, merge, unxml, waId };
+export { sourceSA, sourceWA, sourceNSW, merge, unxml, waId, nswId, sydneyToIso };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(e.message); process.exit(1); });
