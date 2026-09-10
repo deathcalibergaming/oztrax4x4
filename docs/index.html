@@ -6529,12 +6529,10 @@ function campIsFree(tags) {
   return unpricedCampIsFree();
 }
 
-/* shelter_type values that mean street furniture rather than somewhere to
-   spend the night */
-const NOT_A_CAMP = {
-  public_transport: 1, picnic_shelter: 1, gazebo: 1, pavilion: 1,
-  changing_rooms: 1, field_shelter: 1, sun_shelter: 1, bicycle_parking: 1
-};
+/* shelter_type values built to be slept in. basic_hut is the bush hut; a
+   lean_to in Australia is the three-sided trail shelter - every Bibbulmun
+   Track campsite is one. */
+const SLEEP_SHELTER = { basic_hut: 1, lean_to: 1 };
 
 /* An access value that lets the public in. "customers" is in because the
    tap behind a roadhouse is a tap you can use once you have bought
@@ -6829,9 +6827,23 @@ function poiKind(tags) {
      camp in the sense that a hotel is. Barely exists in Australia, which
      is why the two were ever treated alike. */
   if (t === "alpine_hut") return "camp";
-  /* a hut you can sleep in is a free camp; a bus stop is not, and town
-     streets are full of amenity=shelter that you would never camp under */
-  if (a === "shelter" && !NOT_A_CAMP[tags.shelter_type || ""]) return "campfree";
+  /* A shelter is a free camp only when something says you can sleep in it:
+     a hut, a lean-to, or a tag saying camping or an overnight stay is fine.
+     It used to be the other way round - every shelter was a camp unless its
+     type was on a short list of exceptions - and 10,996 of the 26,292
+     shelters in the pack were filed as free camps: three bare shade roofs
+     in the Canterbury Drive dog park, a covered playground, a paint washdown
+     shed, a loading dock. Most shelters record no type at all, and a
+     shelter nobody described is a picnic roof far more often than a bed.
+     What survives is 174: the Bibbulmun Track shelters, Mt Dale, Dutchman's,
+     Red Dog and the other bush huts - the ones worth driving to. */
+  if (a === "shelter") {
+    const acc = (tags.access || "").toLowerCase();
+    if (acc && !OPEN_ACCESS[acc]) return null;
+    const stay = tags.camping === "yes" || tags.tents === "yes" || tags.overnight === "yes" ||
+                 tags.caravan === "yes" || tags.motorhome === "yes" || tags.backcountry === "yes";
+    return SLEEP_SHELTER[tags.shelter_type || ""] || stay ? "campfree" : null;
+  }
   if (t === "camp_site" || t === "caravan_site" || t === "camp_pitch") {
     return campIsFree(tags) ? "campfree" : "camp";
   }
