@@ -1,1 +1,1 @@
-{"o":[-2807198,15279785],"k":["amenity"],"v":["toilets"],"p":[[-1058,4303,0,13027642299,0,0]]}
+{"o":[-2807198,15279785],"k":["amenity","brand","capacity","fee","socket:type2","socket:type2_cable","socket:type2_cable:output"],"v":["charging_station","AXCharge","22","yes","0","2","toilets"],"p":[[-1108,4324,0,13025896767,0,0,1,1,2,2,3,3,4,4,5,5,6,2],[-1058,4303,0,13027642299,0,6]]}

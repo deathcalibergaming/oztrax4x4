@@ -1,1 +1,1 @@
-{"o":[-2083828,11781738],"k":["fee","name","tents","toilets","tourism"],"v":["no","Whim Creek Free Campsite","yes","camp_site"],"p":[[-116,1834,1,456934921,0,0,1,1,2,2,3,2,4,3]]}
+{"o":[-2083828,11781738],"k":["amenity","capacity","operator","socket:type2","socket:type2_combo","fee","name","tents","toilets","tourism"],"v":["charging_station","3","Chargefox","1","2","no","Whim Creek Free Campsite","yes","camp_site"],"p":[[-9,1671,0,13142432264,0,0,1,1,2,2,3,3,4,4],[-116,1834,1,456934921,5,5,6,6,7,7,8,7,9,8]]}

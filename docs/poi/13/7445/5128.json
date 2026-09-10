@@ -1,1 +1,1 @@
-{"o":[-4124477,14717285],"k":["amenity","operator"],"v":["atm","firstpoint ATM"],"p":[[-569,4391,0,1990602662,0,0,1,1]]}
+{"o":[-4124477,14717285],"k":["amenity","operator","socket:type2","socket:type2:output"],"v":["atm","firstpoint ATM","charging_station","Chargefox","1","7 kW"],"p":[[-569,4391,0,1990602662,0,0,1,1],[-714,4377,0,10203818135,0,2,1,3,2,4,3,5]]}

@@ -1,1 +1,1 @@
-{"o":[-2922889,11764160],"k":["name","tourism"],"v":["Paynes Find Roadhouse & Tavern","camp_site"],"p":[[-3448,4307,0,1811191515,0,0,1,1]]}
+{"o":[-2922889,11764160],"k":["name","tourism","amenity","capacity","operator","socket:type2_combo"],"v":["Paynes Find Roadhouse & Tavern","camp_site","charging_station","2","Chargefox"],"p":[[-3448,4307,0,1811191515,0,0,1,1],[-3385,4394,0,13784028856,2,2,3,3,4,4,5,3]]}

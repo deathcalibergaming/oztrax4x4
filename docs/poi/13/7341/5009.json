@@ -1,1 +1,1 @@
-{"o":[-3719533,14260254],"k":["amenity","name"],"v":["toilets","Public Toilets"],"p":[[-1,758,0,3429997613,0,0,1,1]]}
+{"o":[-3719533,14260254],"k":["amenity","name","capacity","operator"],"v":["toilets","Public Toilets","charging_station","2","EVUp"],"p":[[-1,758,0,3429997613,0,0,1,1],[-21,675,0,9278772628,0,2,2,3,3,4]]}

@@ -1,1 +1,1 @@
-{"o":[-3387042,13864746],"k":["name","shop","tourism"],"v":["Pikes Winery","alcohol","winery"],"p":[[-1681,2804,0,507972659,0,0,1,1,2,2]]}
+{"o":[-3387042,13864746],"k":["name","shop","tourism","access","amenity"],"v":["Pikes Winery","alcohol","winery","customers","charging_station"],"p":[[-1681,2804,0,507972659,0,0,1,1,2,2],[-3229,1027,0,10800544064,3,3,4,4]]}

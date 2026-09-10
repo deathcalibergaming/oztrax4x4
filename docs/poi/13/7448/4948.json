@@ -1,1 +1,1 @@
-{"o":[-3503000,14730469],"k":["name","shop","tourism"],"v":["321","laundry","Carinya Caravan Park","caravan_site"],"p":[[-2785,4365,1,399631400,0,0,1,1],[-1183,4244,1,1016744274,0,2,2,3]]}
+{"o":[-3503000,14730469],"k":["amenity","operator","socket:type2_combo","name","shop","tourism"],"v":["charging_station","Exploren","2","321","laundry","Carinya Caravan Park","caravan_site"],"p":[[-2506,4347,0,12885058151,0,0,1,1,2,2],[-2785,4365,1,399631400,3,3,4,4],[-1183,4244,1,1016744274,3,5,5,6]]}

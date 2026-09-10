@@ -1,1 +1,1 @@
-{"o":[-3127855,14923828],"k":["access","amenity","name","wheelchair"],"v":["yes","toilets","Visitor Information Centre"],"p":[[-24,4078,1,369444621,0,0,1,1,2,2,3,0]]}
+{"o":[-3127855,14923828],"k":["amenity","capacity","operator","socket:chademo","socket:chademo:output","socket:type2_combo","socket:type2_combo:output","access","name","wheelchair"],"v":["charging_station","2","NRMA","1","50 kW","yes","toilets","Visitor Information Centre"],"p":[[-20,4090,0,7384135909,0,0,1,1,2,2,3,3,4,4,5,3,6,4],[-24,4078,1,369444621,7,5,0,6,8,7,9,5]]}

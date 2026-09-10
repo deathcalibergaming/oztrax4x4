@@ -1,1 +1,1 @@
-{"o":[-3232428,12361816],"k":["name","tourism"],"v":["Balladonia Roadhouse Caravan Park","caravan_site"],"p":[[-2830,32,0,2000208743,0,0,1,1]]}
+{"o":[-3232428,12361816],"k":["name","tourism","amenity","capacity","operator","socket:type2","socket:type2_combo"],"v":["Balladonia Roadhouse Caravan Park","caravan_site","charging_station","3","Chargefox","1","2"],"p":[[-2830,32,0,2000208743,0,0,1,1],[-2959,131,0,13142336268,2,2,3,3,4,4,5,5,6,6]]}

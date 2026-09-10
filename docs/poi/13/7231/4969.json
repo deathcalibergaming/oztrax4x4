@@ -1,1 +1,1 @@
-{"o":[-3578217,13776855],"k":["access","amenity","fee","operator","name","tourism"],"v":["yes","toilets","no","Kangaroo Island Council","American River Campground","camp_site"],"p":[[-525,280,1,252793241,0,0,1,1,2,2,3,3],[-539,190,1,1093221729,4,4,5,5]]}
+{"o":[-3578217,13776855],"k":["amenity","capacity","access","fee","operator","name","tourism"],"v":["charging_station","1","yes","toilets","no","Kangaroo Island Council","American River Campground","camp_site"],"p":[[-528,295,0,6110132412,0,0,1,1],[-525,280,1,252793241,2,2,0,3,3,4,4,5],[-539,190,1,1093221729,5,6,6,7]]}

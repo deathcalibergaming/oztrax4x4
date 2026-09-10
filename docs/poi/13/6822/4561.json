@@ -1,1 +1,1 @@
-{"o":[-2001465,11979492],"k":["amenity","name","tents","tourism"],"v":["fuel","Pardoo Roadhouse","yes","caravan_site"],"p":[[-3936,3257,0,2002077945,0,0],[-4022,3298,1,257215633,1,1,2,2,3,3]]}
+{"o":[-2001465,11979492],"k":["amenity","capacity","operator","socket:type2","socket:type2_combo","name","tents","tourism"],"v":["fuel","charging_station","3","Chargefox","1","2","Pardoo Roadhouse","yes","caravan_site"],"p":[[-3936,3257,0,2002077945,0,0],[-3901,3323,0,13142404451,0,1,1,2,2,3,3,4,4,5],[-4022,3298,1,257215633,5,6,6,7,7,8]]}

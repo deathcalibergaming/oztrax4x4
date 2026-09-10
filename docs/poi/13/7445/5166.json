@@ -1,1 +1,1 @@
-{"o":[-4248830,14717285],"k":["amenity","brand","name"],"v":["fuel","Ampol","Mood Food"],"p":[[-2522,1581,1,450920256,0,0,1,1,2,2]]}
+{"o":[-4248830,14717285],"k":["amenity","charge","fee","network","opening_hours","brand","name"],"v":["charging_station","1.00 AU/kWh","yes","NextCharge","24/7","fuel","Ampol","Mood Food"],"p":[[-2494,1601,0,6510436415,0,0,1,1,2,2,3,3,4,4],[-2522,1581,1,450920256,0,5,5,6,6,7]]}
