@@ -106,13 +106,17 @@ async function pooled(items, width, fn) {
 /* ------------------------------------------------- South Australia (SAFPIS) */
 
 const SA_HOST = "https://fppdirectapi-prod.safuelpricinginformation.com.au";
+/* Queensland runs the same Informed Sources platform under its own host and
+   its own subscriber token: same endpoints, same FPDAPI header, same prices
+   in tenths of a cent, same 9999 for "not sold here today". */
+const QLD_HOST = "https://fppdirectapi-prod.fuelpricesqld.com.au";
 const SA_COUNTRY = 21;        /* Australia */
 const SA_LEVEL = 3;           /* geographic region level 3 = states */
 const SA_REGION = 4;          /* South Australia */
 const SA_UNAVAILABLE = 9999;  /* the scheme's "not sold here today" price */
 
-async function saGet(path, token) {
-  const res = await fetch(SA_HOST + path, {
+async function fpdGet(host, path, token, fetchImpl = fetch) {
+  const res = await fetchImpl(host + path, {
     headers: {
       /* the scheme's own scheme: FPDAPI, then the token */
       "Authorization": "FPDAPI SubscriberToken=" + token,
@@ -142,12 +146,39 @@ function asList(json) {
   return [];
 }
 
-async function sourceSA(token) {
+/* One scheme on the Informed Sources platform - South Australia's or
+   Queensland's - described by `cfg`.
+
+   The state's region id is either given (South Australia's is 4, in the
+   scheme's own guide, and costs no extra call) or looked up by name through
+   GetCountryGeographicRegions, which returns every region with its level,
+   id, name and abbreviation. Queensland's id is not published anywhere
+   outside the guide a subscriber receives, and a guessed number that
+   happened to be another state would publish that state's prices under
+   Queensland's name - so it is found, not assumed, and a lookup that finds
+   nothing fails naming the states the scheme does offer. */
+async function fpdSource(cfg, token, fetchImpl = fetch) {
+  const get = (path) => fpdGet(cfg.host, path, token, fetchImpl);
+
+  let region = cfg.regionId;
+  if (region == null) {
+    const all = asList(await get(`/Subscriber/GetCountryGeographicRegions?countryId=${SA_COUNTRY}`));
+    const states = all.filter((r) => Number(r.GeoRegionLevel) === SA_LEVEL);
+    const norm = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().toLowerCase();
+    const hit = states.find((r) =>
+      norm(r.Name) === norm(cfg.regionName) || norm(r.Abbrev) === norm(cfg.regionAbbrev));
+    if (!hit) {
+      throw new Error(`${cfg.name}: no state-level region named ${cfg.regionName} - the scheme lists ` +
+        (states.map((r) => String(r.Name).trim()).join(", ") || "none"));
+    }
+    region = hit.GeoRegionId;
+  }
+
   const [fuelTypes, brands, siteDetails, sitePrices] = await Promise.all([
-    saGet(`/Subscriber/GetCountryFuelTypes?countryId=${SA_COUNTRY}`, token),
-    saGet(`/Subscriber/GetCountryBrands?countryId=${SA_COUNTRY}`, token),
-    saGet(`/Subscriber/GetFullSiteDetails?countryId=${SA_COUNTRY}&geoRegionLevel=${SA_LEVEL}&geoRegionId=${SA_REGION}`, token),
-    saGet(`/Price/GetSitesPrices?countryId=${SA_COUNTRY}&geoRegionLevel=${SA_LEVEL}&geoRegionId=${SA_REGION}`, token)
+    get(`/Subscriber/GetCountryFuelTypes?countryId=${SA_COUNTRY}`),
+    get(`/Subscriber/GetCountryBrands?countryId=${SA_COUNTRY}`),
+    get(`/Subscriber/GetFullSiteDetails?countryId=${SA_COUNTRY}&geoRegionLevel=${SA_LEVEL}&geoRegionId=${region}`),
+    get(`/Price/GetSitesPrices?countryId=${SA_COUNTRY}&geoRegionLevel=${SA_LEVEL}&geoRegionId=${region}`)
   ]);
 
   const fuels = {};
@@ -181,8 +212,11 @@ async function sourceSA(token) {
     const lat = Number(s.Lat), lng = Number(s.Lng);
     if (!isFinite(lat) || !isFinite(lng)) continue;
     sites.push({
+      /* the scheme's own site id - not unique across the two deployments,
+         which is fine: every site carries its state, pins are namespaced
+         per scheme, and the merge checks state/id, never the id alone */
       i: s.S,
-      s: "SA",
+      s: cfg.key,
       n: String(s.N || "").trim(),
       b: brandName[s.B] || "",
       a: String(s.A || "").trim(),
@@ -194,14 +228,33 @@ async function sourceSA(token) {
   }
 
   return {
-    key: "SA",
-    name: "SA Fuel Pricing Information Scheme",
-    url: "https://www.safuelpricinginformation.com.au",
-    state: "South Australia",
+    key: cfg.key,
+    name: cfg.name,
+    url: cfg.url,
+    state: cfg.state,
     fuels: fuels,
     sites: sites
   };
 }
+
+const sourceSA = (token, fetchImpl) => fpdSource({
+  key: "SA",
+  name: "SA Fuel Pricing Information Scheme",
+  url: "https://www.safuelpricinginformation.com.au",
+  state: "South Australia",
+  host: SA_HOST,
+  regionId: SA_REGION
+}, token, fetchImpl);
+
+const sourceQLD = (token, fetchImpl) => fpdSource({
+  key: "QLD",
+  name: "Fuel Prices Queensland",
+  url: "https://www.fuelpricesqld.com.au",
+  state: "Queensland",
+  host: QLD_HOST,
+  regionName: "Queensland",
+  regionAbbrev: "QLD"
+}, token, fetchImpl);
 
 /* ----------------------------------------------- Western Australia (FuelWatch) */
 
@@ -603,6 +656,10 @@ async function main() {
   const jobs = [sourceSA(token), sourceWA()];
   if (nswKey && nswSecret) jobs.push(sourceNSW(nswKey, nswSecret));
   else console.log("NSW_FUEL_KEY / NSW_FUEL_SECRET not set - New South Wales and Tasmania skipped");
+  /* Queensland the same way: skipped until its subscriber token exists. */
+  const qldToken = process.env.QLD_FUEL_TOKEN;
+  if (qldToken) jobs.push(sourceQLD(qldToken));
+  else console.log("QLD_FUEL_TOKEN not set - Queensland skipped");
 
   const out = merge(await Promise.all(jobs));
 
@@ -616,7 +673,7 @@ async function main() {
    is the only way to see a scheme's real output without publishing it - and
    so the merge can be tested against made-up sources, which is where a bug
    would cost a state rather than a field. */
-export { sourceSA, sourceWA, sourceNSW, merge, unxml, waId, nswId, stampToIso };
+export { sourceSA, sourceQLD, fpdSource, sourceWA, sourceNSW, merge, unxml, waId, nswId, stampToIso };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(e.message); process.exit(1); });

@@ -45,6 +45,9 @@ jobs:
           # FuelWatch needs neither, so Western Australia has no line here.
           NSW_FUEL_KEY: ${{ secrets.NSW_FUEL_KEY }}
           NSW_FUEL_SECRET: ${{ secrets.NSW_FUEL_SECRET }}
+          # Queensland, the same platform South Australia runs on with its own
+          # subscriber token. Skipped until the secret exists.
+          QLD_FUEL_TOKEN: ${{ secrets.QLD_FUEL_TOKEN }}
         run: node tools/build-fuel.mjs
 
       # Nothing is committed on a day the prices did not move, so the
