@@ -58,20 +58,30 @@ runs:
             exit 1
           fi
 
-          build=$(gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" 2>/dev/null || echo "")
-          if [ -n "$build" ]; then
-            commit=$(printf '%s' "$build" | jq -r '.commit // ""')
-            status=$(printf '%s' "$build" | jq -r '.status // ""')
+          # gh's own --jq, not the jq binary. They are not the same thing:
+          # --jq is built into gh and is wherever gh is, while the binary is
+          # a separate package. A watcher written against the binary, run on
+          # a machine that did not have it, read every field as empty,
+          # matched no branch of the case, and reported a deploy that had
+          # finished in 93 seconds as still running after twenty seven
+          # minutes. A check that cannot tell success from its own missing
+          # dependency is worse than no check at all.
+          #
+          # One call and one line, tab separated, so a build cannot be read
+          # half from this poll and half from the next.
+          line=$(gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" \
+            --jq '[.commit // "", .status // "", ((.duration // 0) / 1000 | floor), (.error.message // "no message")] | @tsv' \
+            2>/dev/null || echo "")
+          if [ -n "$line" ]; then
+            IFS=$'\t' read -r commit status secs msg <<< "$line"
             if [ "$commit" = "$SHA" ]; then
               seen_ours=1
               case "$status" in
                 built)
-                  secs=$(printf '%s' "$build" | jq -r '(.duration // 0) / 1000 | floor')
                   echo "Pages built $SHA in ${secs}s."
                   exit 0
                   ;;
                 errored|failure)
-                  msg=$(printf '%s' "$build" | jq -r '.error.message // "no message"')
                   echo "::error::The Pages build for $SHA failed: $msg"
                   echo "The commit is on main but the site is still serving the"
                   echo "version before it. Pushing again is usually enough -"

@@ -9198,15 +9198,67 @@ const Addr = {
      against street names found nothing and matching it against town names
      found nothing either - the one form most likely to be typed was the one
      form that could not work. */
+  /* A house number as G-NAF writes it, which is not always a number.
+
+     It used to read a plain one with an optional letter and nothing else,
+     and one address in five is not written that way. Of the 19,094 loaded
+     around Adelaide, 2,290 are ranges like "224-226", 1,558 begin "Lot",
+     and 56 are something else again - so a fifth of the addresses in the
+     pack could not be found by typing what is painted on the letterbox.
+     Rural blocks and subdivisions are the worst of it, which out here is
+     most of what anyone is looking for.
+
+     Ranges, lots, unit-style "1/5", and en dashes as well as hyphens,
+     because a range typed off a sign is as likely to carry one. */
+  numRe: /^((?:lot\s*)?\d+[a-z]?(?:\s*[-\u2013\u2014\/]\s*(?:lot\s*)?\d+[a-z]?)*)\s+(.+)$/i,
+
+  /* Spaces out, case down, so "Lot 2" and "lot2" are the one key. */
+  numKey: function (raw) {
+    return String(raw == null ? "" : raw).toLowerCase().replace(/\s+/g, "");
+  },
+
+  /* The numbers inside it: "36-38" is 36 and 38, "lot2" is 2. */
+  numParts: function (key) {
+    return key.match(/\d+/g) || [];
+  },
+
+  /* Whether a stored number answers what was typed.
+
+     Exact first. Then the two directions that matter: a bare number typed
+     against a stored range or lot, which is the letterbox case - "36" finds
+     "36-38", "2" finds "Lot 2" - and a stored bare number against a typed
+     range or unit, which is the sign case, where "1/5" finds "5".
+
+     Deliberately not range against range. "36-38" and "38-40" share a
+     number without being the same address, and answering one with the other
+     is a worse failure than not answering at all. */
+  numHit: function (raw, t) {
+    const n = this.numKey(raw);
+    if (n === t.num) return true;
+    if (t.numBare) return this.numParts(n).indexOf(t.numBare) >= 0;
+    const parts = this.numParts(n);
+    if (parts.length === 1 && /^\d+$/.test(n)) return t.numParts.indexOf(n) >= 0;
+    return false;
+  },
+
   terms: function (q) {
     q = (q || "").trim();
     if (q.length < CFG.SUGGEST_MIN) return null;
-    const m = q.match(/^(\d+[a-zA-Z]?)\s+(.+)$/);
+    const m = q.match(this.numRe);
     const text = (m ? m[2] : q).trim().toLowerCase();
     if (text.length < 2) return null;
     const words = text.split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8);
     if (!words.length) return null;
-    return { num: m ? m[1].toLowerCase() : "", words: words, all: (1 << words.length) - 1 };
+    const num = m ? this.numKey(m[1]) : "";
+    return {
+      num: num,
+      numParts: this.numParts(num),
+      /* set only when a plain number was typed, which is the one case
+         allowed to reach inside a stored range */
+      numBare: /^\d+$/.test(num) ? num : "",
+      words: words,
+      all: (1 << words.length) - 1
+    };
   },
 
   /* Which of the query's words a name accounts for, as a bit per word. */
@@ -9248,7 +9300,7 @@ const Addr = {
     for (let i = 0; i < tile.a.length && out.length < cap; i++) {
       const rec = tile.a[i];
       if (((sMask[rec[2]] | 0) | (tMask[rec[3]] | 0)) !== t.all) continue;
-      if (String(rec[5]).toLowerCase() !== t.num) continue;
+      if (!this.numHit(rec[5], t)) continue;
       out.push(this.row(tile, rec));
     }
   },
