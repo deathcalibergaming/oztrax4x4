@@ -6870,7 +6870,9 @@ function poiAddress(tags) {
    three on the list and a search for one misses the others. Keys are
    lower case with the spaces and full stops taken out. */
 const ATM_OWNER = {
-  cba: "Commonwealth Bank", commbank: "Commonwealth Bank",
+  cba: "Commonwealth Bank", commbank: "Commonwealth Bank", commonwealth: "Commonwealth Bank",
+  /* all 15 in greater Melbourne, and one of them named in full */
+  bom: "Bank of Melbourne",
   commonwealthbank: "Commonwealth Bank", commonwealthbankofaustralia: "Commonwealth Bank",
   banksa: "BankSA", bankofsouthaustralia: "BankSA",
   nab: "NAB", nationalaustraliabank: "NAB",
@@ -6883,11 +6885,17 @@ const ATM_OWNER = {
   boq: "BOQ", bankofqueensland: "BOQ",
   suncorp: "Suncorp", suncorpbank: "Suncorp",
   rediatm: "rediATM", atmx: "atmx", armaguard: "Armaguard",
+  /* one company, 26 spellings across 138 tags nationally - Next, NEXT,
+     NeXT, next, Next Payment, NEXT Payments, Next ATM NP230898 - and it was
+     reading as two owners on the list */
+  next: "Next Payments", nextpayments: "Next Payments", nextpayment: "Next Payments",
   peopleschoicecreditunion: "People's Choice", peopleschoice: "People's Choice"
 };
 
 function atmCanon(raw) {
-  const s = String(raw || "").trim().replace(/\s+ATM$/i, "");
+  /* a trailing "ATM", and the machine number some operators put after it -
+     "Next ATM NP230898" is Next, not a bank of its own */
+  const s = String(raw || "").trim().replace(/\s+ATM(\s+[A-Z]{0,3}\d+)?$/i, "");
   if (!s) return "";
   return ATM_OWNER[s.toLowerCase().replace(/[\s.']/g, "")] || s;
 }
