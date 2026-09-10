@@ -1,1 +1,1 @@
-{"o":[-3813456,14629395],"k":["amenity"],"v":["toilets"],"p":[[-2942,2375,0,1212462363,0,0]]}
+{"o":[-3813456,14629395],"k":["amenity","addr:housenumber","addr:street","name","operator","tourism"],"v":["toilets","166","North Shore Road","Woorabinda School Camp","Victorian Department of Education and Training","camp_site"],"p":[[-2942,2375,0,1212462363,0,0],[-2390,4168,0,10015343794,1,1,2,2,3,3,4,4,5,5]]}

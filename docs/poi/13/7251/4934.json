@@ -1,1 +1,1 @@
-{"o":[-3452466,13864746],"k":["shop","information","tourism","access","amenity","fee"],"v":["laundry","office","information","yes","toilets","no"],"p":[[-334,4066,0,2150032995,0,0],[-379,4087,0,2256456000,1,1,2,2],[-733,4149,1,204997035,3,3,4,4,5,5]]}
+{"o":[-3452466,13864746],"k":["self_service","shop","information","tourism","access","amenity","fee"],"v":["yes","laundry","office","information","toilets","no"],"p":[[-334,4066,0,2150032995,0,0,1,1],[-379,4087,0,2256456000,2,2,3,3],[-733,4149,1,204997035,4,0,5,4,6,5]]}

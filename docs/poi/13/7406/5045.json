@@ -1,1 +1,1 @@
-{"o":[-3844498,14545898],"k":["amenity","brand","name","website","shop"],"v":["fuel","Ampol","https://www.caltex.com.au/","Foodary","convenience"],"p":[[-2800,1478,0,2108368681,0,0,1,1,2,1,3,2],[-2792,1453,0,3947745448,1,1,2,3,4,4]]}
+{"o":[-3844498,14545898],"k":["amenity","brand","name","website","operator","shop"],"v":["fuel","Ampol","https://www.caltex.com.au/","atm","ANZ","Foodary","convenience"],"p":[[-2800,1478,0,2108368681,0,0,1,1,2,1,3,2],[-2782,1454,0,2108391040,0,3,4,4],[-2792,1453,0,3947745448,1,1,2,5,5,6]]}
