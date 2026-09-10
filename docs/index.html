@@ -9110,7 +9110,7 @@ const Addr = {
         const dq = (q[0] - cx) * (q[0] - cx) + (q[1] - cy) * (q[1] - cy);
         return dq - dp;
       });
-      for (const t of want) await this.fetchTile(t[0], t[1]);
+      await inParallel(want, (t) => this.fetchTile(t[0], t[1]));
     } finally {
       this.busy = false;
     }
@@ -9502,9 +9502,14 @@ const Pack = {
     const dLat = r / 111320;
     const dLng = r / (111320 * Math.max(0.2, Math.cos(a.lat * Math.PI / 180)));
     const want = this.cover(a.lat - dLat, a.lng - dLng, a.lat + dLat, a.lng + dLng);
+    /* Fetched together, read afterwards. Reading is where the order would
+       matter and it does not happen until every tile is in hand. */
+    const tiles = new Array(want.length);
+    await inParallel(want.map((t, i) => [t, i]), async (pair) => {
+      tiles[pair[1]] = await this.fetchTile(pair[0][0], pair[0][1]);
+    });
     const out = [];
-    for (const t of want) {
-      const tile = await this.fetchTile(t[0], t[1]);
+    for (const tile of tiles) {
       if (!tile) continue;
       for (const r2 of tile.p) {
         const p = this.row(tile, r2);
@@ -9584,6 +9589,40 @@ const ROAD_CLASSES = [
   "motorway", "trunk", "primary", "secondary", "tertiary", "ferry",
   "unclassified", "residential", "living_street", "service", "track", "road", "busway"
 ];
+
+/* Run fn over a list a few at a time, rather than one after the other.
+
+   Every pack loop in here used to be "for (const t of want) await fetch(t)",
+   which on a desk is invisible and on the road is the whole cost. Measured
+   cold at Port Lincoln, one position update asks for 33 tiles - 15 road, 10
+   address, 8 POI - and waits for each before starting the next. On a fast
+   connection that is three seconds. At the six hundred millisecond round
+   trip of one bar on a highway it is twenty, and at the twelve hundred of a
+   satellite handset it is forty, for a map that is meant to keep up with a
+   moving vehicle.
+
+   Sequential was never the point of it - nothing in a batch depends on the
+   one before - so they go out together and the wait becomes one round trip
+   rather than thirty three.
+
+   Eight at a time rather than all of them. HTTP/2 multiplexes over the one
+   connection so the browser will happily take the lot, but an offline area
+   hands this thousands of tiles, and a thousand in flight on a link this
+   marginal is how you turn a slow download into a failed one. */
+async function inParallel(list, fn, limit) {
+  const n = limit || 8;
+  let at = 0;
+  const workers = [];
+  for (let i = 0; i < Math.min(n, list.length); i++) {
+    workers.push((async function () {
+      while (at < list.length) {
+        const mine = list[at++];
+        await fn(mine);
+      }
+    })());
+  }
+  await Promise.all(workers);
+}
 
 /* A node is its own coordinate, packed into one number so the graph can be
    a Map keyed on it. Latitude and longitude are already integers of a
@@ -9979,12 +10018,10 @@ const Route = {
          there for the session and re-added as a duplicate after every
          eviction. */
       await this.ensureSpine();
-      for (const t of this.regionAround(a.lat, a.lng, CFG.ROUTE_REGION_RADIUS)) {
-        await this.fetchRegion(t[0], t[1]);
-      }
-      for (const t of this.around(a.lat, a.lng, CFG.ROUTE_RADIUS)) {
-        await this.fetchTile(t[0], t[1]);
-      }
+      await inParallel(this.regionAround(a.lat, a.lng, CFG.ROUTE_REGION_RADIUS),
+                       (t) => this.fetchRegion(t[0], t[1]));
+      await inParallel(this.around(a.lat, a.lng, CFG.ROUTE_RADIUS),
+                       (t) => this.fetchTile(t[0], t[1]));
     } finally {
       this.busy = false;
     }
@@ -10008,21 +10045,23 @@ const Route = {
     const regions = this.regionAround(from.lat, from.lng, CFG.ROUTE_REGION_RADIUS)
       .concat(this.regionAround(to.lat, to.lng, CFG.ROUTE_REGION_RADIUS));
     const seenR = {};
-    for (const t of regions) {
+    const wantR = regions.filter(function (t) {
       const k = t[0] + "/" + t[1];
-      if (seenR[k]) continue;
+      if (seenR[k]) return false;
       seenR[k] = 1;
-      await this.fetchRegion(t[0], t[1]);
-    }
+      return true;
+    });
+    await inParallel(wantR, (t) => this.fetchRegion(t[0], t[1]));
     const want = this.around(from.lat, from.lng, CFG.ROUTE_REACH)
       .concat(this.around(to.lat, to.lng, CFG.ROUTE_REACH));
     const seen = {};
-    for (const t of want) {
+    const once = want.filter(function (t) {
       const k = t[0] + "/" + t[1];
-      if (seen[k]) continue;
+      if (seen[k]) return false;
       seen[k] = 1;
-      await this.fetchTile(t[0], t[1]);
-    }
+      return true;
+    });
+    await inParallel(once, (t) => this.fetchTile(t[0], t[1]));
   },
 
   /* ---- the graph ---- */
