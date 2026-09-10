@@ -64,7 +64,8 @@ import { Readable } from "node:stream";
 const inflateAsync = promisify(inflate);
 
 const MIRROR = "https://download.geofabrik.de/australia-oceania/australia/";
-const OUT = "docs/poi";
+/* POI_OUT lets a test build write somewhere that is not the site's own pack. */
+const OUT = process.env.POI_OUT || "docs/poi";
 const Z = 13;                 /* the same grid the address and route packs use */
 const PRECISION = 100000;     /* five decimals, a bit over a metre */
 
@@ -187,7 +188,10 @@ const KEEP_SOCKET = /^socket:[a-z0-9_]+(:output)?$/;
 function cutStamp(source) {
   const shape = JSON.stringify(Object.keys(WANT).sort().map(function (k) {
     return [k, [...WANT[k]].sort()];
-  })) + "|" + [...KEEP].sort().join(",") + "|" + KEEP_SOCKET.source;
+  })) + "|" + [...KEEP].sort().join(",") + "|" + KEEP_SOCKET.source +
+    /* the reader, not just the tag list: mp1 is the first pack to carry
+       multipolygons, and a phone holding an older one has to fetch again */
+    "|mp1";
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
 
@@ -292,11 +296,12 @@ async function* blocks(buf) {
   }
 }
 
-/* onNode(id, lat, lng, tags), onWay(tags, refs), onWayNodes(id, lat, lng).
+/* onNode(id, lat, lng, tags), onWay(tags, refs, id), onWayNodes(id, lat, lng),
+   onRelation(tags, members, id).
    The string table is decoded lazily, but unlike the routing build both
    passes here need it: a POI is a thing with tags on it, and the tags are
    what says whether it is one. */
-function readBlock(b, onNode, onWay, onWayNodes) {
+function readBlock(b, onNode, onWay, onWayNodes, onRelation) {
   let strStart = 0, strEnd = 0;
   let granularity = 100, latOff = 0, lonOff = 0;
   const groups = [];
@@ -322,6 +327,7 @@ function readBlock(b, onNode, onWay, onWayNodes) {
   for (const [gs, ge] of groups) {
     fields(b, gs, ge, (f, w, s, e) => {
       if (f === 3 && onWay) readWay(b, s, e, str, onWay);
+      else if (f === 4 && onRelation) readRelation(b, s, e, str, onRelation);
       else if (f === 2 && (onNode || onWayNodes)) {
         readDense(b, s, e, granularity, latOff, lonOff, str, onNode, onWayNodes);
       } else if (f === 1 && (onNode || onWayNodes)) {
@@ -348,6 +354,33 @@ function readWay(b, start, end, str, onWay) {
   let id = 0;
   for (let i = 0; i < refs.length; i++) { id += refs[i]; refs[i] = id; }
   onWay(tags, refs, wid);
+}
+
+/* A relation: its tags and who is in it. Member ids are delta-coded like a
+   way's refs; types are 0 node, 1 way, 2 relation; roles are string-table
+   indices. Only multipolygons are asked for - the Lyell McEwin Hospital is
+   one, twelve outer ways and no node of its own, and so were three more of
+   South Australia's hospitals, all absent from the pack until this read. */
+function readRelation(b, start, end, str, onRelation) {
+  const keys = [], vals = [], roles = [], mems = [], types = [];
+  let rid = 0;
+  fields(b, start, end, (f, w, s, e, v) => {
+    if (f === 1) rid = v;
+    else if (f === 2) packed(b, s, e, keys, false);
+    else if (f === 3) packed(b, s, e, vals, false);
+    else if (f === 8) packed(b, s, e, roles, false);
+    else if (f === 9) packed(b, s, e, mems, true);
+    else if (f === 10) packed(b, s, e, types, false);
+  });
+  const tags = {};
+  for (let i = 0; i < keys.length && i < vals.length; i++) tags[str(keys[i])] = str(vals[i]);
+  const members = [];
+  let id = 0;
+  for (let i = 0; i < mems.length; i++) {
+    id += mems[i];
+    members.push({ id: id, type: types[i], role: str(roles[i]) });
+  }
+  onRelation(tags, members, rid);
 }
 
 /* DenseNodes. Field 10, keys_vals, is what build-routing.mjs has no use for
@@ -578,6 +611,7 @@ async function readExtract(path, pois, seen) {
   /* ---- pass one: tagged nodes, and the ways worth a second look ---- */
 
   const wantWays = [];                   /* {tags, refs} */
+  const wantRels = [];                   /* {id, tags, ways: member way ids} */
   const refsFlat = new Grow(Float64Array, 1 << 18);
   let nodePois = 0;
 
@@ -603,9 +637,37 @@ async function readExtract(path, pois, seen) {
         wantWays.push({ id: wid, tags: trim(tags), start: refsFlat.n, n: refs.length });
         for (const r of refs) refsFlat.push(r);
       },
-      null);
+      null,
+      (tags, members, rid) => {
+        if (tags.type !== "multipolygon" || !wanted(tags)) return;
+        if (seen.has("2:" + rid)) return;   /* already had from the other side */
+        const ways = members.filter((m) => m.type === 1);
+        const outer = ways.filter((m) => m.role === "outer");
+        const use = (outer.length ? outer : ways).map((m) => m.id);
+        if (use.length) wantRels.push({ id: rid, tags: trim(tags), ways: use });
+      });
   }
-  console.log(`${nodePois} tagged nodes, ${wantWays.length} tagged ways`);
+  console.log(`${nodePois} tagged nodes, ${wantWays.length} tagged ways, ` +
+              `${wantRels.length} tagged multipolygons`);
+
+  /* ---- the ways those multipolygons are made of ----
+
+     A relation comes after every way in the file, so by the time one is read
+     its members have already gone past. One more read, ways only, picks them
+     up; their refs join the rest so the coordinate pass below resolves them
+     with everything else. Skipped outright when a state has none. */
+
+  const memberAt = new Map();            /* way id -> {start, n} in refsFlat */
+  if (wantRels.length) {
+    for (const r of wantRels) for (const id of r.ways) memberAt.set(id, null);
+    for await (const block of blocks(buf)) {
+      readBlock(block, null, (tags, refs, wid) => {
+        if (!memberAt.has(wid) || memberAt.get(wid)) return;
+        memberAt.set(wid, { start: refsFlat.n, n: refs.length });
+        for (const r of refs) refsFlat.push(r);
+      }, null);
+    }
+  }
 
   /* ---- which nodes those ways stand on ---- */
 
@@ -658,6 +720,26 @@ async function readExtract(path, pois, seen) {
                lat: Math.round(sLat / c), lng: Math.round(sLng / c), tags: w.tags })) wayPois++;
   }
   console.log(`${wayPois} ways placed at their centre`);
+
+  /* ---- a multipolygon becomes the centre of its outer ways ---- */
+
+  let relPois = 0;
+  for (const r of wantRels) {
+    let sLat = 0, sLng = 0, c = 0;
+    for (const wid of r.ways) {
+      const at = memberAt.get(wid);
+      if (!at) continue;
+      for (let i = 0; i < at.n; i++) {
+        const idx = nodeIdx(refsFlat.get(at.start + i));
+        if (idx < 0 || lat[idx] === 0x7fffffff) continue;
+        sLat += lat[idx]; sLng += lon[idx]; c++;
+      }
+    }
+    if (!c) continue;
+    if (take({ id: r.id, w: 2,
+               lat: Math.round(sLat / c), lng: Math.round(sLng / c), tags: r.tags })) relPois++;
+  }
+  console.log(`${relPois} multipolygons placed at their centre`);
 }
 
 /* One tile: keys and values interned, coordinates as offsets from the
@@ -665,7 +747,8 @@ async function readExtract(path, pois, seen) {
    the coordinate runs to eight, and the tag strings repeat hard - a tile
    full of car parks is the same six strings over and over.
 
-   Row: [dLat, dLng, isWay, osmId, k,v, k,v, ...]. */
+   Row: [dLat, dLng, kind, osmId, k,v, k,v, ...], kind 0 a node, 1 a way,
+   2 a multipolygon relation. */
 function pack(list, origin) {
   const keys = [], kIdx = new Map();
   const vals = [], vIdx = new Map();
