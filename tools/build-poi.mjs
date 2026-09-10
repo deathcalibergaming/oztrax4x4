@@ -1,4 +1,4 @@
-/* Builds docs/poi/ - every POI in the state, on the phone, with no third
+/* Builds docs/poi/ - every POI in the country, on the phone, with no third
    party in the loop.
 
    The app has had two POI sources and both under-report, in different ways
@@ -32,7 +32,7 @@
    and it is one classifier rather than two. This file only has to know
    which tags are worth carrying, which is a list, not a judgement.
 
-   Source is the Geofabrik South Australia extract, read with the protobuf
+   Source is the seven Geofabrik state extracts, read with the protobuf
    reader below. That reader is a near-copy of the one in build-routing.mjs,
    deliberately: this one also has to read the tags on dense nodes, which
    routing has no use for, and the two scripts are run months apart on a
@@ -44,7 +44,12 @@
    attribution for the extract it fetches live, and the same notice covers
    this.
 
-   Usage: node tools/build-poi.mjs [--force] [--pbf path] */
+   Usage: node tools/build-poi.mjs [--force] [--only SA,NT] [--pbf path]
+
+   --only limits the build to some of the states, which is how a change gets
+   tried without waiting on nine hundred megabytes. What it writes is a
+   partial pack, so it is not something to commit. --pbf reads one local
+   extract instead of downloading, and wants --only naming the state it is. */
 
 import { createHash } from "node:crypto";
 import { writeFile, readFile, mkdir, rm, stat } from "node:fs/promises";
@@ -52,15 +57,46 @@ import { createWriteStream } from "node:fs";
 import { inflate } from "node:zlib";
 import { promisify } from "node:util";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 const inflateAsync = promisify(inflate);
 
-const PBF = "https://download.geofabrik.de/australia-oceania/australia/" +
-            "south-australia-latest.osm.pbf";
+const MIRROR = "https://download.geofabrik.de/australia-oceania/australia/";
 const OUT = "docs/poi";
 const Z = 13;                 /* the same grid the address and route packs use */
 const PRECISION = 100000;     /* five decimals, a bit over a metre */
-const STATES = ["SA"];
+
+/* The seven extracts that are Australia, smallest first, so that a build
+   which is going to fall over does it in the first minute rather than the
+   fortieth.
+
+   There is no Australian Capital Territory extract and there does not need
+   to be. Geofabrik cuts on the state boundary and the ACT is a hole inside
+   New South Wales, so Canberra arrives in the New South Wales file. ACT is
+   still named here because the manifest lists what the pack claims to
+   hold, and a driver in Canberra should find their own territory in it.
+
+   The offshore territories - Christmas, Cocos, Norfolk, Lord Howe - are in
+   none of these; Geofabrik files them under other regions and between them
+   they hold a few dozen POIs. The app falls back to the network out there,
+   exactly as it does everywhere today.
+
+   Each file is clipped to its own boundary, so a roadhouse on the Murray
+   arrives twice, once from each side. That is what the seen set in the
+   build below is for. */
+const SOURCES = [
+  { state: "NT",  slug: "northern-territory" },
+  { state: "TAS", slug: "tasmania" },
+  { state: "SA",  slug: "south-australia" },
+  { state: "WA",  slug: "western-australia" },
+  { state: "QLD", slug: "queensland" },
+  { state: "VIC", slug: "victoria" },
+  { state: "NSW", slug: "new-south-wales", also: ["ACT"] }
+];
+
+function pbfUrl(slug) { return MIRROR + slug + "-latest.osm.pbf"; }
 
 /* ---------------------------------------------------------------------
    Which tags are worth carrying.
@@ -354,10 +390,37 @@ function tileOrigin(x, y, z) {
    The build
    --------------------------------------------------------------------- */
 
-async function sourceStamp() {
-  const res = await fetch(PBF + ".md5");
-  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status} for the checksum`);
+/* One line per extract, "SA:<md5>", joined. Seven checksums rather than
+   one, and any of them moving is the pack moving, which is right: a new
+   roadhouse in Queensland has to reach a phone in Queensland even though
+   nothing in South Australia changed. */
+async function sourceStamp(slug) {
+  const res = await fetch(pbfUrl(slug) + ".md5");
+  if (!res.ok) {
+    throw new Error(`geofabrik returned HTTP ${res.status} for the ${slug} checksum`);
+  }
   return (await res.text()).trim().split(/\s+/)[0];
+}
+
+async function sourceStamps(sources) {
+  const out = [];
+  for (const src of sources) {
+    out.push(src.state + ":" + (src.pbf ? "local:" + src.pbf : await sourceStamp(src.slug)));
+  }
+  return out.join(" ");
+}
+
+/* Streamed to disk rather than held. An extract runs to 254 MB and gets
+   read twice, and Buffer.from(await res.arrayBuffer()) means two copies of
+   it alive at once, at exactly the moment the previous states' POIs are
+   also still in hand. Node's own temp directory, removed as soon as the
+   state is done, so a build never has more than one extract on the disk. */
+async function fetchExtract(slug) {
+  const res = await fetch(pbfUrl(slug));
+  if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status} for ${slug}`);
+  const path = join(tmpdir(), slug + "-" + process.pid + ".osm.pbf");
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(path));
+  return path;
 }
 
 async function builtStamp() {
@@ -378,51 +441,160 @@ async function main() {
   const force = process.argv.includes("--force");
   const pbfArg = process.argv.indexOf("--pbf");
   const local = pbfArg >= 0 ? process.argv[pbfArg + 1] : null;
+  const onlyArg = process.argv.indexOf("--only");
+  const only = onlyArg >= 0
+    ? new Set(process.argv[onlyArg + 1].toUpperCase().split(",").map((s) => s.trim()))
+    : null;
 
-  const stamp = local ? "local:" + local : await sourceStamp();
+  /* --only ACT is asking for the New South Wales extract, because that is
+     where Canberra is. Matching on `also` as well as `state` means the
+     flag takes the names a person would use rather than the names the
+     download mirror happens to file things under. */
+  const sources = SOURCES.filter(function (src) {
+    if (!only) return true;
+    if (only.has(src.state)) return true;
+    return (src.also || []).some((a) => only.has(a));
+  });
+  if (!sources.length) throw new Error("--only named no state this build knows");
+  if (local) {
+    if (sources.length !== 1) {
+      throw new Error("--pbf reads one extract, so it wants --only naming one state");
+    }
+    sources[0] = Object.assign({}, sources[0], { pbf: local });
+  }
+
+  const stamp = await sourceStamps(sources);
   const cut = cutStamp(stamp);
-  console.log(`extract: ${stamp}`);
+  console.log("extracts:");
+  for (const line of stamp.split(" ")) console.log("  " + line);
   console.log(`cut:     ${cut}`);
   const have = await builtStamp();
   if (have === cut && !force) {
-    console.log("already built from this extract and this tag list - nothing to do");
+    console.log("already built from these extracts and this tag list - nothing to do");
     return;
   }
 
-  let buf;
-  if (local) {
-    buf = await readFile(local);
-  } else {
-    console.log("downloading the extract...");
-    const res = await fetch(PBF);
-    if (!res.ok) throw new Error(`geofabrik returned HTTP ${res.status}`);
-    buf = Buffer.from(await res.arrayBuffer());
+  /* Every POI from every state, and the ids already taken.
+
+     The seen set is the one thing a seven-extract build needs that a
+     one-extract build did not. Geofabrik clips on the state boundary, but
+     a way that crosses one is written whole into both files, so the rest
+     areas on the Dukes Highway either side of Bordertown would land in the
+     pack twice - two pins on top of each other, and Hide only ever
+     covering one of them. Keyed on the OpenStreetMap id, which is the same
+     number on both sides of the border, with the node and way spaces kept
+     apart because they number independently. */
+  const pois = [];
+  const seen = new Set();
+  const held = [];                       /* one line per state, for the log */
+
+  for (const src of sources) {
+    console.log(`\n--- ${src.state} ---`);
+    let path = src.pbf, temp = false;
+    if (!path) {
+      console.log("downloading...");
+      path = await fetchExtract(src.slug);
+      temp = true;
+    }
+    const before = pois.length;
+    try {
+      await readExtract(path, pois, seen);
+    } finally {
+      if (temp) await rm(path, { force: true });
+    }
+    held.push({ state: src.state, count: pois.length - before });
   }
+
+  if (!pois.length) throw new Error("no POIs found - the extracts or the reader are wrong");
+  console.log(`\n${pois.length} POIs across ${sources.length} extracts`);
+
+  /* ---- tiles ---- */
+
+  await rm(OUT, { recursive: true, force: true });
+  const tiles = new Map();
+  for (const p of pois) {
+    const x = lngToX(p.lng / PRECISION, Z), y = latToY(p.lat / PRECISION, Z);
+    const k = x + "/" + y;
+    let t = tiles.get(k);
+    if (!t) { t = { x, y, p: [] }; tiles.set(k, t); }
+    t.p.push(p);
+  }
+
+  const index = {};
+  let bytes = 0, biggest = 0, biggestAt = "";
+  for (const t of tiles.values()) {
+    const origin = tileOrigin(t.x, t.y, Z);
+    const body = JSON.stringify(pack(t.p, origin));
+    await mkdir(join(OUT, String(Z), String(t.x)), { recursive: true });
+    await writeFile(join(OUT, String(Z), String(t.x), t.y + ".json"), body);
+    bytes += body.length;
+    if (body.length > biggest) { biggest = body.length; biggestAt = t.x + "/" + t.y; }
+    (index[t.x] || (index[t.x] = [])).push(t.y);
+  }
+  for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
+
+  const states = [];
+  for (const src of sources) {
+    states.push(src.state);
+    for (const extra of src.also || []) states.push(extra);
+  }
+
+  await writeFile(join(OUT, "index.json"), JSON.stringify({
+    source: stamp,
+    cut: cut,
+    built: new Date().toISOString().slice(0, 10),
+    z: Z,
+    states: states,
+    count: pois.length,
+    tiles: index
+  }));
+  for (const h of held) console.log(`${h.state.padEnd(4)} ${h.count}`);
+  console.log(`${tiles.size} tiles, ${(bytes / 1048576).toFixed(1)} MB on disk, ` +
+              `biggest ${(biggest / 1024).toFixed(0)} KB at ${biggestAt}`);
+  console.log(`wrote ${OUT}/`);
+}
+
+/* One extract, both passes, appended to pois. Everything the two passes
+   build - the way list, the node ids, their coordinates - belongs to this
+   file alone and is dropped on the way out, because the refs in a Victorian
+   way resolve against Victorian nodes and nothing else. Only the finished
+   POIs cross between states, which is why seven extracts cost about what
+   the largest one costs rather than the sum of them. */
+async function readExtract(path, pois, seen) {
+  const buf = await readFile(path);
   console.log(`${(buf.length / 1048576).toFixed(0)} MB`);
 
   /* ---- pass one: tagged nodes, and the ways worth a second look ---- */
 
-  const pois = [];                       /* {lat, lng, tags} */
   const wantWays = [];                   /* {tags, refs} */
   const refsFlat = new Grow(Float64Array, 1 << 18);
+  let nodePois = 0;
+
+  const take = (p) => {
+    const k = p.w + ":" + p.id;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    pois.push(p);
+    return true;
+  };
 
   for await (const block of blocks(buf)) {
     readBlock(block,
       (id, la, lo, tags) => {
         if (!wanted(tags)) return;
-        pois.push({ id: id, w: 0,
-                    lat: Math.round(la * PRECISION), lng: Math.round(lo * PRECISION),
-                    tags: trim(tags) });
+        if (take({ id: id, w: 0,
+                   lat: Math.round(la * PRECISION), lng: Math.round(lo * PRECISION),
+                   tags: trim(tags) })) nodePois++;
       },
       (tags, refs, wid) => {
         if (!wanted(tags)) return;
+        if (seen.has("1:" + wid)) return;   /* already had from the other side */
         wantWays.push({ id: wid, tags: trim(tags), start: refsFlat.n, n: refs.length });
         for (const r of refs) refsFlat.push(r);
       },
       null);
   }
-  console.log(`${pois.length} tagged nodes, ${wantWays.length} tagged ways`);
-  if (!pois.length) throw new Error("no POI nodes found - the extract or the reader is wrong");
+  console.log(`${nodePois} tagged nodes, ${wantWays.length} tagged ways`);
 
   /* ---- which nodes those ways stand on ---- */
 
@@ -471,49 +643,10 @@ async function main() {
       sLat += lat[idx]; sLng += lon[idx]; c++;
     }
     if (!c) continue;
-    pois.push({ id: w.id, w: 1,
-                lat: Math.round(sLat / c), lng: Math.round(sLng / c), tags: w.tags });
-    wayPois++;
+    if (take({ id: w.id, w: 1,
+               lat: Math.round(sLat / c), lng: Math.round(sLng / c), tags: w.tags })) wayPois++;
   }
-  console.log(`${wayPois} ways placed at their centre, ${pois.length} POIs in all`);
-
-  /* ---- tiles ---- */
-
-  await rm(OUT, { recursive: true, force: true });
-  const tiles = new Map();
-  for (const p of pois) {
-    const x = lngToX(p.lng / PRECISION, Z), y = latToY(p.lat / PRECISION, Z);
-    const k = x + "/" + y;
-    let t = tiles.get(k);
-    if (!t) { t = { x, y, p: [] }; tiles.set(k, t); }
-    t.p.push(p);
-  }
-
-  const index = {};
-  let bytes = 0, biggest = 0, biggestAt = "";
-  for (const t of tiles.values()) {
-    const origin = tileOrigin(t.x, t.y, Z);
-    const body = JSON.stringify(pack(t.p, origin));
-    await mkdir(join(OUT, String(Z), String(t.x)), { recursive: true });
-    await writeFile(join(OUT, String(Z), String(t.x), t.y + ".json"), body);
-    bytes += body.length;
-    if (body.length > biggest) { biggest = body.length; biggestAt = t.x + "/" + t.y; }
-    (index[t.x] || (index[t.x] = [])).push(t.y);
-  }
-  for (const x of Object.keys(index)) index[x].sort((a, b) => a - b);
-
-  await writeFile(join(OUT, "index.json"), JSON.stringify({
-    source: stamp,
-    cut: cut,
-    built: new Date().toISOString().slice(0, 10),
-    z: Z,
-    states: STATES,
-    count: pois.length,
-    tiles: index
-  }));
-  console.log(`${tiles.size} tiles, ${(bytes / 1048576).toFixed(1)} MB on disk, ` +
-              `biggest ${(biggest / 1024).toFixed(0)} KB at ${biggestAt}`);
-  console.log(`wrote ${OUT}/`);
+  console.log(`${wayPois} ways placed at their centre`);
 }
 
 /* One tile: keys and values interned, coordinates as offsets from the

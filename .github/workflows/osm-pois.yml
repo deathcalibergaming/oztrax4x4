@@ -1,9 +1,9 @@
 name: POI pack
 
-# Every POI in the state, carried on the phone. Same Geofabrik extract the
+# Every POI in the country, carried on the phone. Same Geofabrik extracts the
 # road packs are cut from, and the same reasoning about how often: Geofabrik
 # rebuilds daily, and a new bakery in Adelaide is not worth a commit that
-# rewrites two thousand tiles. Once a month keeps it current to within a few
+# rewrites ten thousand tiles. Once a month keeps it current to within a few
 # weeks, which is far fresher than a bore or a rest area changes.
 #
 # The 19th, so it lands on neither the G-NAF job on the 5th nor the roads on
@@ -37,13 +37,19 @@ jobs:
         with:
           node-version: "20"
 
-      # Lighter than the road build: only tagged elements are held, and the
-      # second pass wants coordinates for a hundred and fifty thousand way
-      # nodes rather than two million. The headroom is there because the
-      # extract itself is 64 MB in a Buffer and read twice.
+      # Seven extracts, largest 254 MB, taken one at a time: each is streamed
+      # to the runner's disk, read twice, and deleted before the next starts,
+      # so the peak is one extract in a Buffer plus the POIs gathered so far -
+      # about what the single-state build peaked at, not seven times it. The
+      # headroom is for New South Wales, which is four times South Australia.
+      #
+      # The download is the long pole rather than the parsing: 911 MB off
+      # Geofabrik, sequentially, because seven at once is not a polite way to
+      # treat somebody giving the data away. Allow the better part of an hour.
       - name: Build the POI pack
+        timeout-minutes: 90
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=6144
         run: node tools/build-poi.mjs ${{ inputs.force && '--force' || '' }}
 
       - name: Commit if the extract moved
