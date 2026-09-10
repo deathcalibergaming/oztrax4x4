@@ -3731,6 +3731,32 @@ function haversine(a, b) {
             Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(s)));
 }
+/* The closest point on the segment a-b to p: how far along it lies, where
+   that is, and how far off it is in metres.
+
+   Everything that asked "how far am I from this road" used to answer with
+   the nearest of the road's own corners, which is a different question and
+   on a straight road a much worse one. A road drawn with a corner at each
+   end and nothing between is still a road you can be one metre from, but
+   the nearest corner might be four hundred metres back.
+
+   Flat maths rather than spherical. Over a segment - metres to a few
+   kilometres - the error is millimetres, and the distance actually returned
+   is a haversine to the projected point, so what comes out is on the same
+   footing as every other distance in here. */
+function segNear(p, a, b) {
+  const kx = Math.cos(rad(p.lat));          /* longitude shrinks toward the poles */
+  const ax = (a.lng - p.lng) * kx, ay = a.lat - p.lat;
+  const bx = (b.lng - p.lng) * kx, by = b.lat - p.lat;
+  const dx = bx - ax, dy = by - ay;
+  const L = dx * dx + dy * dy;
+  /* t is where the foot of the perpendicular falls, clamped to the segment
+     so a point off the end snaps to the end rather than off into space */
+  let t = L > 0 ? -(ax * dx + ay * dy) / L : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const at = { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t };
+  return { t: t, d: haversine(p, at), lat: at.lat, lng: at.lng };
+}
 function bearing(a, b) {
   const dl = rad(b.lng - a.lng);
   const y = Math.sin(dl) * Math.cos(rad(b.lat));
@@ -10246,16 +10272,21 @@ const Route = {
         for (; at >= 0; at = this.binNext[at]) {
           const i = this.binEdge[at];
           if (near.has(i)) continue;
-          const off = this.eOff[i], n = this.eNp[i];
-          let bd = Infinity, bp = 0;
-          for (let p = 0; p < n; p++) {
-            const d = haversine({ lat: lat, lng: lng }, {
-              lat: this.geo[off + p * 2] / 1e5,
-              lng: this.geo[off + p * 2 + 1] / 1e5
-            });
-            if (d < bd) { bd = d; bp = p; }
+          const n = this.eNp[i];
+          const here = { lat: lat, lng: lng };
+          /* u is a position along the edge measured in vertices: 3 is the
+             fourth corner, 3.5 halfway from it to the next. Segments rather
+             than corners, so a long straight counts as the road it is. */
+          let bd = Infinity, bu = 0;
+          if (n < 2) {
+            bd = haversine(here, this.pointAt(i, 0));
+          } else {
+            for (let seg = 0; seg + 1 < n; seg++) {
+              const r = segNear(here, this.pointAt(i, seg), this.pointAt(i, seg + 1));
+              if (r.d < bd) { bd = r.d; bu = seg + r.t; }
+            }
           }
-          if (bd <= CFG.ROUTE_SNAP_MAX) near.set(i, { i: i, p: bp, d: bd });
+          if (bd <= CFG.ROUTE_SNAP_MAX) near.set(i, { i: i, u: bu, d: bd });
         }
       }
     }
@@ -10268,21 +10299,42 @@ const Route = {
   /* What that gap costs to cross, in seconds. */
   gapCost: function (d) { return d / (CFG.ROUTE_SNAP_KMH / 3.6); },
 
-  /* The geometry of an edge from one of its ends up to a point on it, and
-     what that stretch costs. Used for the two stubs a route begins and ends
-     with, and for stitching them into the drawn line. */
+  /* A point on an edge at position u - see snapAll for what u means. Whole
+     numbers are the corners the pack shipped; anything between is worked out
+     along the segment. */
+  pointAt: function (i, u) {
+    const off = this.eOff[i], n = this.eNp[i];
+    if (!(u > 0)) return { lat: this.geo[off] / 1e5, lng: this.geo[off + 1] / 1e5 };
+    if (u >= n - 1) return { lat: this.geo[off + (n - 1) * 2] / 1e5,
+                             lng: this.geo[off + (n - 1) * 2 + 1] / 1e5 };
+    const seg = Math.floor(u), t = u - seg;
+    const a0 = this.geo[off + seg * 2], a1 = this.geo[off + seg * 2 + 1];
+    const b0 = this.geo[off + seg * 2 + 2], b1 = this.geo[off + seg * 2 + 3];
+    return { lat: (a0 + (b0 - a0) * t) / 1e5, lng: (a1 + (b1 - a1) * t) / 1e5 };
+  },
+
+  /* The geometry of an edge between two positions on it, and what that
+     stretch costs. Used for the two stubs a route begins and ends with, and
+     for stitching them into the drawn line.
+
+     Both ends are u rather than corner numbers, because where a route joins
+     the road is now wherever the driver actually is beside it and not the
+     nearest corner. The whole edge is still part(i, 0, eNp - 1). */
   part: function (i, from, to) {
-    const off = this.eOff[i];
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    const us = [lo];
+    for (let v = Math.floor(lo) + 1; v <= Math.ceil(hi) - 1; v++) us.push(v);
+    us.push(hi);
+    if (from > to) us.reverse();
     const pts = [];
-    let m = 0;
-    const step = from <= to ? 1 : -1;
-    for (let p = from; ; p += step) {
-      pts.push([this.geo[off + p * 2] / 1e5, this.geo[off + p * 2 + 1] / 1e5]);
-      if (p === to) break;
-      m += haversine(
-        { lat: this.geo[off + p * 2] / 1e5, lng: this.geo[off + p * 2 + 1] / 1e5 },
-        { lat: this.geo[off + (p + step) * 2] / 1e5,
-          lng: this.geo[off + (p + step) * 2 + 1] / 1e5 });
+    let m = 0, prev = null;
+    for (const u of us) {
+      const q = this.pointAt(i, u);
+      /* a u that lands exactly on a corner would otherwise repeat it */
+      if (prev && q.lat === prev.lat && q.lng === prev.lng) continue;
+      if (prev) m += haversine(prev, q);
+      pts.push([q.lat, q.lng]);
+      prev = q;
     }
     return { pts: pts, m: m, cost: this.eM[i] ? this.eCost[i] * (m / this.eM[i]) : 0 };
   },
@@ -10328,8 +10380,8 @@ const Route = {
     const finish = new Map();
     for (const c of dest) {
       const gap = this.gapCost(c.d);
-      const ends = [[this.eA[c.i], this.part(c.i, 0, c.p)],
-                    [this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.p)]];
+      const ends = [[this.eA[c.i], this.part(c.i, 0, c.u)],
+                    [this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.u)]];
       for (const [node, stub] of ends) {
         const held = finish.get(node);
         if (held && held.cost + held.gap <= stub.cost + gap) continue;
@@ -10345,14 +10397,14 @@ const Route = {
     const seeds = [];
     for (const c of near) {
       const gap = this.gapCost(c.d);
-      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, stub: this.part(c.i, c.p, 0) });
+      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, stub: this.part(c.i, c.u, 0) });
       seeds.push({ node: this.eB[c.i], d: c.d, gap: gap,
-                   stub: this.part(c.i, c.p, this.eNp[c.i] - 1) });
+                   stub: this.part(c.i, c.u, this.eNp[c.i] - 1) });
     }
 
     /* Standing on the destination's own edge, with nothing to search. */
     if (a.i === b.i) {
-      const one = this.part(a.i, a.p, b.p);
+      const one = this.part(a.i, a.u, b.u);
       return this.route([[from.lat, from.lng]].concat(one.pts, [[to.lat, to.lng]]),
                         one.m, one.cost, a.d, b.d);
     }
@@ -12338,20 +12390,27 @@ async function navigateTo(dest, quiet) {
 function navNearestIdx() {
   const p = navFrom();
   const n = Nav.coords.length;
-  let best = Infinity, bestI = Nav.idx;
-  const lo = Math.max(0, Nav.idx - 20), hi = Math.min(n - 1, Nav.idx + 200);
-  for (let i = lo; i <= hi; i++) {
-    const d = haversine(p, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
-    if (d < best) { best = d; bestI = i; }
-  }
-  /* if the window did not find anything close, fall back to a full scan */
-  if (best > CFG.NAV_OFF_ROUTE) {
-    for (let i = 0; i < n; i++) {
-      const d = haversine(p, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
-      if (d < best) { best = d; bestI = i; }
+  const co = (i) => ({ lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
+  if (n < 2) return { i: 0, t: 0, off: n ? haversine(p, co(0)) : Infinity };
+
+  /* Distance to the drawn line, not to the corners of it. Measured against
+     the shipped packs, 3.82% of the gaps between corners on the spine are
+     over four hundred metres, so the middle of one reads as more than two
+     hundred metres off a road the vehicle is driving straight down - and two
+     hundred is where this calls a wrong turn. That is a false recalculation
+     on the long outback straights, which is exactly where the gaps are
+     widest and where being told to turn around is least welcome. */
+  let best = Infinity, bestI = Nav.idx, bestT = 0;
+  const scan = (from, to) => {
+    for (let i = from; i < to; i++) {         /* the segment i -> i + 1 */
+      const r = segNear(p, co(i), co(i + 1));
+      if (r.d < best) { best = r.d; bestI = i; bestT = r.t; }
     }
-  }
-  return { i: bestI, off: best };
+  };
+  scan(Math.max(0, Nav.idx - 20), Math.min(n - 1, Nav.idx + 200));
+  /* if the window did not find anything close, fall back to a full scan */
+  if (best > CFG.NAV_OFF_ROUTE) { best = Infinity; scan(0, n - 1); }
+  return { i: bestI, t: bestT, off: best };
 }
 
 function navProgress() {
@@ -12360,7 +12419,12 @@ function navProgress() {
   Nav.idx = near.i;
 
   const total = Nav.cum[Nav.cum.length - 1] || 0;
-  const remain = Math.max(0, total - Nav.cum[near.i]);
+  /* part of the way along the segment as well as up to it - free now that
+     the off-route check has to work out where on it we are anyway */
+  const at = Nav.cum[near.i + 1] === undefined
+    ? Nav.cum[near.i]
+    : Nav.cum[near.i] + (Nav.cum[near.i + 1] - Nav.cum[near.i]) * near.t;
+  const remain = Math.max(0, total - at);
   /* scale the routed duration by how much of the route is left */
   const secs = total > 0 ? Nav.duration * (remain / total) : 0;
 
