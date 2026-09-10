@@ -10197,23 +10197,47 @@ const Route = {
     if (!(f & 2)) this.slot(this.eA[i], i * 2);
     if (!(f & 1)) this.slot(this.eB[i], i * 2 + 1);
     /* Binned by every tile the edge touches, so snapping to the road under
-       the vehicle looks at a few dozen edges rather than a hundred thousand. */
+       the vehicle looks at a few dozen edges rather than a hundred thousand.
+
+       Every tile it touches, rather than every tile one of its corners
+       lands in. Those are not the same set and the difference is the bug:
+       a road crossing a tile without happening to bend inside it was
+       missing from that tile entirely, so a vehicle in the middle of a long
+       straight could fail to find the road it was driving on. Measured on
+       the shipped packs, 238 of the first 60,000 edges were absent from
+       891 tiles they run straight through.
+
+       It matters more now than it did. Thinning the geometry drops exactly
+       the corners that carry no shape, which are the ones out in the middle
+       of a straight - the same simulation over simplified geometry doubles
+       the gap to 506 edges and 1,273 tiles. Walking the segment closes it
+       either way, and costs about one percent more bins. */
     let last = -1;
-    for (let p = 0; p < n; p++) {
-      const la = this.geo[off + p * 2] / 1e5, lng = this.geo[off + p * 2 + 1] / 1e5;
-      const k = this.binKey(lon2tile(lng, CFG.ROUTE_Z), lat2tile(la, CFG.ROUTE_Z));
-      if (k === last) continue;
+    const self = this;
+    const put = function (x, y) {
+      const k = self.binKey(x, y);
+      if (k === last) return;
       last = k;
       /* The old array kept this edge out of the same bin twice by looking
          at the tail; the thread runs newest first, so its head is the same
          check. */
-      const head = this.binHead.get(k);
-      if (head !== undefined && this.binEdge[head] === i) continue;
-      this.binRoom();
-      const at = this.binN++;
-      this.binEdge[at] = i;
-      this.binNext[at] = head === undefined ? -1 : head;
-      this.binHead.set(k, at);
+      const head = self.binHead.get(k);
+      if (head !== undefined && self.binEdge[head] === i) return;
+      self.binRoom();
+      const at = self.binN++;
+      self.binEdge[at] = i;
+      self.binNext[at] = head === undefined ? -1 : head;
+      self.binHead.set(k, at);
+    };
+    if (n === 1) {
+      put(lon2tile(this.geo[off + 1] / 1e5, CFG.ROUTE_Z),
+          lat2tile(this.geo[off] / 1e5, CFG.ROUTE_Z));
+    } else {
+      for (let p = 0; p + 1 < n; p++) {
+        tileWalk(this.geo[off + p * 2] / 1e5, this.geo[off + p * 2 + 1] / 1e5,
+                 this.geo[off + p * 2 + 2] / 1e5, this.geo[off + p * 2 + 3] / 1e5,
+                 CFG.ROUTE_Z, put);
+      }
     }
   },
 
@@ -11622,7 +11646,45 @@ window.goToPoi = goToPoi;
 /* =====================================================================
    Offline area download
    ===================================================================== */
-function lon2tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+function lon2tile(lon, z) { return Math.floor(lon2tileF(lon, z)); }
+/* The same, unrounded - where inside the tile the point falls, which is what
+   a walk from one tile to the next has to know. */
+function lon2tileF(lon, z) { return (lon + 180) / 360 * Math.pow(2, z); }
+function lat2tileF(lat, z) {
+  const r = rad(clamp(lat, -85.05112878, 85.05112878));
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+}
+
+/* Every tile the segment a-b passes through, not just the two it ends in.
+
+   Straight grid traversal: step to whichever of the next vertical or
+   horizontal tile edge comes first, and keep going until the far end's tile
+   is reached. Mercator turns a road into a curve rather than a line, but
+   only over hundreds of kilometres; between two corners of a road it is a
+   line to well under a tile.
+
+   The guard is for the one edge in the packs that would otherwise spin: a
+   ferry crossing drawn as two points 452 km apart. Stopping early bins less
+   of it than it deserves, which is the same failure this is fixing and no
+   worse than what it replaces - and it cannot hang the phone. */
+function tileWalk(aLat, aLng, bLat, bLng, z, add) {
+  const x0 = lon2tileF(aLng, z), y0 = lat2tileF(aLat, z);
+  const x1 = lon2tileF(bLng, z), y1 = lat2tileF(bLat, z);
+  let x = Math.floor(x0), y = Math.floor(y0);
+  const xe = Math.floor(x1), ye = Math.floor(y1);
+  add(x, y);
+  const dx = x1 - x0, dy = y1 - y0;
+  const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+  const tdx = dx === 0 ? Infinity : 1 / Math.abs(dx);
+  const tdy = dy === 0 ? Infinity : 1 / Math.abs(dy);
+  let tx = dx === 0 ? Infinity : (dx > 0 ? x + 1 - x0 : x0 - x) * tdx;
+  let ty = dy === 0 ? Infinity : (dy > 0 ? y + 1 - y0 : y0 - y) * tdy;
+  let guard = 0;
+  while ((x !== xe || y !== ye) && guard++ < 512) {
+    if (tx < ty) { tx += tdx; x += sx; } else { ty += tdy; y += sy; }
+    add(x, y);
+  }
+}
 function lat2tile(lat, z) {
   const r = rad(clamp(lat, -85.05112878, 85.05112878));
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));

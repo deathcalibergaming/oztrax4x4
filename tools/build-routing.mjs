@@ -87,6 +87,28 @@ const REGION_Z = 9;           /* the coarse grid the tertiary roads are cut on, 
                                  the same roads. The worst tile is the one that hurts. */
 const PRECISION = 100000;     /* five decimals, a bit over a metre */
 
+/* How far the drawn road may stray from the surveyed one, in metres, when
+   corners that carry no shape are dropped.
+
+   OSM traces roads at whatever density the mapper happened to click, and
+   splitByTile then adds a point every 200 m along anything crossing a tile
+   edge. Most of those corners say nothing: they sit on the straight line
+   between their neighbours. Measured over the whole country at five metres,
+   46% of the corners on the spine carry no shape at all.
+
+   Five rather than ten. Ten only saves another 14 MB and triples what it
+   does to the length of the local roads. Five costs 0.060% of the spine's
+   length and 0.167% of the local network's - on Perth to Sydney, about two
+   kilometres in 3,853 and under two minutes in forty hours - and stays under
+   a screen pixel until roughly zoom 18, which is past where anyone reads a
+   road shape.
+
+   This is only safe because snapping projects onto the segment between
+   corners rather than onto the corners themselves. While it went corner to
+   corner, thinning them took the 99th percentile snap error from 155 m to
+   791 m. See segNear in index.html. */
+const SIMPLIFY_M = 5;
+
 /* Smallest first, so a build that is going to fall over does it in the
    first minute rather than the fortieth. */
 const SOURCES = [
@@ -430,7 +452,7 @@ function cutStamp(source) {
   const shape = JSON.stringify([
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
-    [...PAVED].sort(), Z, PRECISION
+    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M
   ]);
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -667,17 +689,29 @@ async function main() {
      tertiary is cut on the coarse grid and everything else on z13, both of
      them split at the tile boundary at a vertex the two sides share, so the
      halves rejoin without being told they are joined. */
-  const tally = { edges: 0, spine: 0, region: 0, local: 0 };
+  const tally = { edges: 0, spine: 0, region: 0, local: 0, pts: 0, kept: 0 };
   function emit(edge) {
     const name = CLASSES[edge.cls];
     if (SPINE.has(name)) {
-      spine([edge.cls, edge.f, edge.v, edge.name, edge.pts]);
+      const pts = simplify(edge.pts, SIMPLIFY_M);
+      tally.pts += edge.pts.length / 2;
+      tally.kept += pts.length / 2;
+      spine([edge.cls, edge.f, edge.v, edge.name, pts]);
       tally.spine++;
       return;
     }
     const coarse = REGION.has(name);
     const z = coarse ? REGION_Z : Z;
-    for (const piece of splitByTile(edge.pts, z)) {
+    /* Split first, then thin. The other way round would drop the corners
+       that splitByTile goes on to re-add - it densifies anything crossing a
+       tile edge so the two halves meet at a point they both hold - and the
+       thinning would have bought nothing. Done in this order the densified
+       run is exactly what gets thinned, and the boundary points survive
+       because they are each piece's ends. */
+    for (const dense of splitByTile(edge.pts, z)) {
+      const piece = simplify(dense, SIMPLIFY_M);
+      tally.pts += dense.length / 2;
+      tally.kept += piece.length / 2;
       const x = lngToX(piece[1] / PRECISION, z), y = latToY(piece[0] / PRECISION, z);
       const row = [edge.cls, edge.f, edge.v, edge.name, piece];
       if (coarse) { region.add(x + "_" + y, row); tally.region++; }
@@ -695,6 +729,8 @@ async function main() {
       await rm(path, { force: true });
     }
     console.log(`  running total: ${tally.spine} spine, ${tally.region} tertiary, ${tally.local} local`);
+    console.log(`  corners: ${tally.kept} kept of ${tally.pts} ` +
+                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m)`);
   }
   region.flush();
   local.flush();
@@ -816,6 +852,54 @@ function lineKm(pts) {
                 pts[i] / PRECISION, pts[i + 1] / PRECISION);
   }
   return m / 1000;
+}
+
+/* Perpendicular distance from p to the segment a-b, in metres, on a flat
+   [lat, lng, ...] run in PRECISION units. Flat maths: over a segment the
+   error is millimetres against the haversine the rest of this file uses. */
+function perpM(pLat, pLng, aLat, aLng, bLat, bLng, kx) {
+  const px = (pLng - aLng) * kx, py = pLat - aLat;
+  const bx = (bLng - aLng) * kx, by = bLat - aLat;
+  const L = bx * bx + by * by;
+  let t = L > 0 ? (px * bx + py * by) / L : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const dx = px - bx * t, dy = py - by * t;
+  return Math.hypot(dx, dy) / PRECISION * 111320;
+}
+
+/* Douglas-Peucker over a flat [lat, lng, ...] run.
+
+   The first and last points are kept whatever happens, which is the whole
+   reason this is safe to do here: they are the graph's nodes, and for a
+   piece that came out of splitByTile they are the tile-boundary points the
+   neighbouring piece also holds. Keep the ends and the network is exactly
+   the network it was - same junctions, same tiles rejoining - with fewer
+   corners drawn between them.
+
+   Iterative rather than recursive; some of these runs are thousands of
+   points long and a recursive one can bottom out the stack on a bad split. */
+function simplify(pts, tol) {
+  const n = pts.length / 2;
+  if (n <= 2 || !(tol > 0)) return pts;
+  const kx = Math.cos(rad(pts[0] / PRECISION));
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    if (j - i < 2) continue;
+    let worst = -1, at = -1;
+    for (let k = i + 1; k < j; k++) {
+      const d = perpM(pts[k * 2], pts[k * 2 + 1],
+                      pts[i * 2], pts[i * 2 + 1],
+                      pts[j * 2], pts[j * 2 + 1], kx);
+      if (d > worst) { worst = d; at = k; }
+    }
+    if (worst > tol) { keep[at] = 1; stack.push([i, at], [at, j]); }
+  }
+  const out = [];
+  for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
+  return out;
 }
 
 function splitByTile(pts, z) {
