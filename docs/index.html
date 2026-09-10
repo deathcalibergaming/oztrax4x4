@@ -7556,7 +7556,7 @@ function parseOsmXml(text, a, radius) {
     if (pts.length < 2) return;
     roads.push({ v: lim.v, mph: lim.mph, pts: pts });
   }
-  function collect(el, type) {
+  function collect(el, type, wayById) {
     const tags = {};
     const kids = el.children;
     for (let j = 0; j < kids.length; j++) {
@@ -7567,13 +7567,37 @@ function parseOsmXml(text, a, radius) {
     let lat, lng;
     if (type === "node") {
       lat = +el.getAttribute("lat"); lng = +el.getAttribute("lon");
-    } else {
+    } else if (type === "way") {
       let sla = 0, slo = 0, c = 0;                 /* a way's centre is good enough to pin */
       for (let j = 0; j < kids.length; j++) {
         if (kids[j].tagName !== "nd") continue;
         const p = coords[kids[j].getAttribute("ref")];
         if (p) { sla += p.lat; slo += p.lng; c++; }
       }
+      if (!c) return;
+      lat = sla / c; lng = slo / c;
+    } else {
+      /* A multipolygon: its centre is the average of its outer ways' points,
+         which the extract has already handed over - it carries every way a
+         relation in the box is made of. Lyell McEwin Hospital is one of
+         these, twelve outer ways and no node of its own. */
+      if (tags.type !== "multipolygon") return;
+      const members = [];
+      for (let j = 0; j < kids.length; j++) {
+        if (kids[j].tagName === "member" && kids[j].getAttribute("type") === "way") members.push(kids[j]);
+      }
+      const outer = members.filter(function (m) { return m.getAttribute("role") === "outer"; });
+      let sla = 0, slo = 0, c = 0;
+      (outer.length ? outer : members).forEach(function (m) {
+        const w = wayById[m.getAttribute("ref")];
+        if (!w) return;
+        const nds = w.children;
+        for (let j = 0; j < nds.length; j++) {
+          if (nds[j].tagName !== "nd") continue;
+          const p = coords[nds[j].getAttribute("ref")];
+          if (p) { sla += p.lat; slo += p.lng; c++; }
+        }
+      });
       if (!c) return;
       lat = sla / c; lng = slo / c;
     }
@@ -7595,11 +7619,19 @@ function parseOsmXml(text, a, radius) {
   }
   for (let i = 0; i < nodes.length; i++) collect(nodes[i], "node");
   const ways = doc.getElementsByTagName("way");
-  /* Nodes and ways only. Anything mapped as a multipolygon relation is
-     skipped: its centre would have to be assembled from member ways, and
-     across the sample areas checked, relations here were roads, trails and
-     boundaries rather than places worth pinning. */
   for (let i = 0; i < ways.length; i++) collect(ways[i], "way");
+  /* And places mapped as multipolygon relations. These used to be skipped
+     on the strength of a sample in which every relation was a road, a trail
+     or a boundary - and that sample missed the Lyell McEwin, one of
+     Adelaide's major hospitals, which is a multipolygon with no node of its
+     own. Across South Australia four hospitals are mapped that way. The
+     same goes for the odd servo, surgery and caravan park. */
+  const rels = doc.getElementsByTagName("relation");
+  if (rels.length) {
+    const wayById = {};
+    for (let i = 0; i < ways.length; i++) wayById[ways[i].getAttribute("id")] = ways[i];
+    for (let i = 0; i < rels.length; i++) collect(rels[i], "relation", wayById);
+  }
   for (let i = 0; i < ways.length; i++) collectRoad(ways[i]);
   return { pois: out, roads: roads };
 }
@@ -10000,7 +10032,9 @@ const Pack = {
     if (!kind) return null;
     const title = poiTitle(tags, kind);
     return {
-      id: (r[2] ? "way" : "node") + "/" + r[3],
+      /* 2 is a multipolygon relation (see build-poi.mjs), named the way the
+         live extract names it so the two copies of a place fold together */
+      id: (r[2] === 2 ? "relation" : r[2] ? "way" : "node") + "/" + r[3],
       kind: kind,
       lat: (tile.o[0] + r[0]) / 1e5,
       lng: (tile.o[1] + r[1]) / 1e5,
