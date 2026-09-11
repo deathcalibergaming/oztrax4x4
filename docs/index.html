@@ -845,17 +845,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --topH:calc(50px * var(--uiScale));
-  --statsH:calc(56px * var(--uiScale));
-  /* The action bar stands the same height as the stats row rather than the
-     76px it was given for a gloved thumb. Kept as its own name because the
-     speed sign and the panel stack both measure up from it, and should
-     follow it, not the stats row, if the two ever part again. */
-  --actH:var(--statsH);
-  /* The width of the two instrument bars where they stand on end, which is
-     both of them in landscape. One number so the stats column and the
-     action rail cannot drift apart, and so everything that has to clear
-     the rail moves when it does. */
-  --railW:calc(80px * var(--uiScale));
+  /* Where the heads-up display ends, published by layoutHud: --hudBottom in
+     the viewport, for the toast, and --hudStage within the map, for the
+     chips. The values here only hold until the first measure. */
+  --hudBottom:calc(var(--topH) + 100px);
+  --hudStage:100px;
   --maprot:0deg;
   --safeT:env(safe-area-inset-top,0px);
   --safeB:env(safe-area-inset-bottom,0px);
@@ -937,7 +931,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #app{position:fixed;inset:0;display:flex;flex-direction:column}
 
 #topbar{height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);flex:0 0 auto;
-  display:flex;align-items:center;gap:10px;padding-left:6px;padding-right:6px;
+  display:flex;align-items:center;gap:10px;padding-left:10px;padding-right:6px;
   background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
 .brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:.32em;letter-spacing:.16em;
@@ -983,22 +977,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    been, so the gap a fuel table used to fill is explained rather than blank. */
 .card-n.stale{color:var(--dim)}
 .icon-btn svg{width:22px;height:22px;stroke:var(--sand);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-/* The three lines are three paths rather than one, so they can take up the
-   press in sequence. Held down, they draw two pixels toward the left edge -
-   top first, then middle, then bottom, forty milliseconds end to end - the
-   way a linkage takes up its slack before the thing at the far end moves.
-   What is at the far end is the drawer, which arrives from that edge.
-
-   It is not a hamburger that turns into a cross, and it cannot be: this
-   button sits at the top left and the drawer opens over 84% of the width
-   from the same edge, so by the time there is an X to see, the drawer is
-   sitting on top of it. A morph here would animate something nobody can
-   look at. The press is the only moment this button is both visible and
-   doing something, so the press is where the character goes. */
-#btnMenu svg path{transition:transform .12s cubic-bezier(.3,.7,.3,1)}
-#btnMenu svg path:nth-child(2){transition-delay:.02s}
-#btnMenu svg path:nth-child(3){transition-delay:.04s}
-#btnMenu:active svg path{transform:translateX(-2px)}
+/* The menu button wears the start screen's compass badge: the splash mark in
+   its finished state - the rust ring closed, sand major ticks, dim minor
+   ticks, the rust arrow - with the strokes thickened so they hold at 30px
+   and the viewBox cropped to the ticks so the badge fills its box. The bar's
+   left padding equals the gap before the wordmark and the badge is centred
+   in its button, so screen edge to badge and badge to wordmark measure the
+   same at either tap size: 17 and 17 on a phone, 12 and 12 with a mouse.
+   The press is the button lighting under the thumb, as every icon button. */
+#btnMenu svg.mark{width:30px;height:30px;overflow:visible}
+#btnMenu .m-ring{fill:none;stroke:var(--rust2);stroke-width:6}
+#btnMenu .m-maj{fill:none;stroke:var(--sand);stroke-width:7;stroke-linecap:round}
+#btnMenu .m-min{fill:none;stroke:var(--dim);stroke-width:4;stroke-linecap:round}
+#btnMenu .m-arrow{fill:var(--rust);stroke:none}
 .icon-btn.on{border-color:var(--rust);background:rgba(204,90,46,.16)}
 .icon-btn.on svg{stroke:var(--rust)}
 /* The header carries two lamps rather than a sentence. GPS is a glyph and a
@@ -1042,50 +1033,105 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   paint-order:stroke fill}
 #battPill.chg .bolt{display:block}
 
-/* The lower edge is cut rather than drawn. A hairline only says where the
-   panel stops; three pixels of facet brightening toward the edge, the way
-   a milled fascia does, say the panel has a thickness - and the map then
-   reads as a well between two solid things rather than a picture with two
-   labels laid over it.
+/* ---------- the heads-up display ----------
+   The stats lie over the top of the map rather than stacking above it: a
+   straight heading tape slid along under a rust lubber line, speed in large
+   figures, altitude, distance and time, and the heading itself in a chip
+   hung under the lubber line. The map runs up under all of it; a fade
+   behind keeps the figures readable.
 
-   Depth and brightness were traded off in full sun, which is the only
-   condition that settles anything here. Five pixels smudged the edge and
-   softened the panel with it; dropping the outer stop to #2A322C to
-   compensate put the whole facet back under what a washed out screen can
-   hold, which is the same way the FOLLOW PAUSED chip and the 20% amber
-   Sim wash were lost. Three pixels at full brightness survives the wash
-   and still reads as a line rather than a haze. */
-#statsbar{height:var(--statsH);flex:0 0 auto;display:flex;
-  background:linear-gradient(180deg,#111513 0,#111513 calc(100% - 3px),
-             #1B221D calc(100% - 3px),#333D36 100%);
-  box-shadow:0 1px 0 rgba(0,0,0,.65),0 6px 12px -6px rgba(0,0,0,.55);
-  z-index:600;position:relative}
-.stat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-  border-right:1px solid var(--line);padding:0 2px}
-.stat:last-child{border-right:none}
-/* A divider runs down the panel face and stops where the face does. Left
-   alone it carried on across the facet and read as a scratch through it.
-   border-image paints the very same line the border already was and
-   simply runs out three pixels early. */
-.stat{border-image:linear-gradient(180deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}
-/* Five equal columns meant the widest reading in each got a different
-   amount of room. SPEED sat in 42px of spare while TIME overflowed its
-   cell by 5, and HEADING was down to 7px with a three letter cardinal
-   showing. The basis below is each column's widest real reading, measured
-   at its own font, so what is left over is shared equally by flex-grow
-   and the gap either side of every divider comes out the same. */
-.stat:nth-child(1){flex-basis:44px}   /* SPEED, wider than the 188 it holds:
-                                         this is the one column whose label is
-                                         the widest thing in it, so matching the
-                                         reading would crowd the word above it */
-.stat:nth-child(2){flex-basis:63px}   /* WSW 241 */
-.stat:nth-child(3){flex-basis:47px}   /* -1234, or -4046 in feet */
-.stat:nth-child(4){flex-basis:65px}   /* 1234.56 */
-.stat:nth-child(5){flex-basis:50px}   /* 00:00, now the seconds have gone. A
-                                         third digit of hours arrives after
-                                         four days recording and still fits:
-                                         what flex-grow hands this column back
-                                         is wider than its basis on any phone */
+   Two arrangements. Wherever there is width - a tablet either way up, a
+   phone on its side - it is one band: speed at the left, the readouts
+   stacked at the right, the tape in the clear stretch between. An upright
+   phone is too narrow for that, so there the tape takes the width and
+   speed and the readouts sit under it. The band's height, its fade and the
+   tape's mask are measured from what is in it by layoutHud; the upright
+   arrangement is fixed enough to be set here.
+
+   The fade is the panel colour, set against the content rather than the
+   box: 85% behind the tape, never under 58% behind a figure - over the 55%
+   the small ones need on the palest terrain in sun - then eased out over
+   the 20px below the last of them. A straight ramp to nothing read as an
+   edge, and a fade that ran on past the text read as a slab.
+
+   Nothing in it takes a tap, so the map under it still pans. */
+#statsbar{position:absolute;top:calc(var(--topH) + var(--safeT));left:0;right:0;z-index:600;
+  pointer-events:none;padding:0}
+#statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
+  text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.6)}
+/* speed: the figure, with its label and unit stacked beside it */
+#statsbar .stat:nth-child(1){display:grid;grid-template-columns:auto auto;grid-template-areas:"v l" "v u";
+  justify-content:start;align-items:end;column-gap:9px;row-gap:3px;left:24px;top:4px}
+#statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(68px * var(--uiScale));line-height:.84;letter-spacing:-.05em}
+#statsbar .stat:nth-child(1) .lbl{grid-area:l;align-self:end;color:var(--rust2);letter-spacing:.2em}
+#statsbar .stat:nth-child(1) i{grid-area:u;align-self:start;font-size:calc(12px * var(--uiScale));letter-spacing:.14em;font-weight:700}
+/* the heading, in a chip under the lubber line, 8px below the tape's letters */
+#statsbar .stat:nth-child(2){left:50%;top:56px;transform:translateX(-50%);z-index:2;background:#111513;
+  border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;
+  box-shadow:0 0 0 3px rgba(17,21,19,.7),0 6px 14px rgba(0,0,0,.5)}
+#statsbar .stat:nth-child(2) .lbl{display:none}
+#statsbar .stat:nth-child(2) b{font-size:calc(18px * var(--uiScale))}
+#statsbar .stat:nth-child(2) b em{color:var(--rust2)}
+/* the readouts, stacked at the right of the band */
+#statsbar .stat:nth-child(n+3){right:24px;justify-content:flex-end}
+#statsbar .stat:nth-child(3){top:6px}
+#statsbar .stat:nth-child(4){top:calc(6px + 24px * var(--uiScale))}
+#statsbar .stat:nth-child(5){top:calc(6px + 48px * var(--uiScale))}
+#statsbar .stat:nth-child(n+3) b{font-size:calc(17px * var(--uiScale))}
+#statsbar .stat:nth-child(n+3) .lbl{opacity:.75}
+/* The tape: built once by buildTape, slid by moveTape, masked by layoutHud.
+   Its ticks carry classes rather than being styled as bare lines, so the
+   rule for a tick does not also repaint the rust lubber line white. */
+#hudTape{position:absolute;left:0;top:0;width:100%;height:64px;overflow:hidden;z-index:1;transition:opacity .2s}
+#hudTape svg{display:block}
+#hudTape .tk{stroke:#FFFFFF;stroke-linecap:round}
+#hudTape .tk.mn{stroke:rgba(255,255,255,.55)}
+#hudTape text{fill:#FFFFFF;font:700 12px var(--ui);letter-spacing:.1em;text-anchor:middle}
+#hudTape .nm{fill:rgba(255,255,255,.6);font-size:10px;font-weight:600}
+#hudTape .nn{fill:var(--rust2)}
+/* no fix: dimmed, so a heading held over from the last one does not read as live */
+#hudTape.idle{opacity:.35}
+
+/* A phone on its side: the same band, smaller. */
+@media (orientation: landscape) and (max-height: 520px) {
+  #statsbar .stat:nth-child(1){left:16px}
+  #statsbar .stat:nth-child(1) b{font-size:calc(52px * var(--uiScale))}
+  #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
+  #statsbar .stat:nth-child(2){padding:3px 9px}
+  #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
+  #statsbar .stat:nth-child(n+3){right:16px}
+  #statsbar .stat:nth-child(4){top:calc(6px + 19px * var(--uiScale))}
+  #statsbar .stat:nth-child(5){top:calc(6px + 38px * var(--uiScale))}
+  #statsbar .stat:nth-child(n+3) b{font-size:calc(14px * var(--uiScale))}
+  #hudTape text{font-size:10px}
+  #hudTape .nm{font-size:8.5px}
+}
+
+/* An upright phone: the tape across the top, speed under it, the readouts on
+   one line under that with a hairline over them. */
+@media (orientation: portrait) and (max-width: 599px) {
+  #statsbar{display:grid;grid-template-columns:auto auto auto 1fr;grid-template-rows:84px auto auto;
+    column-gap:16px;padding:0 16px 20px;
+    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 84px,
+      rgba(17,21,19,.58) calc(100% - 20px),rgba(17,21,19,.34) calc(100% - 13px),
+      rgba(17,21,19,.14) calc(100% - 6px),rgba(17,21,19,0) 100%)}
+  #statsbar .stat{position:static}
+  #statsbar .stat:nth-child(1){grid-column:1/4;grid-row:2}
+  #statsbar .stat:nth-child(1) b{font-size:calc(74px * var(--uiScale))}
+  #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
+  #statsbar .stat:nth-child(2){position:absolute;padding:3px 9px}
+  #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
+  #statsbar .stat:nth-child(n+3){grid-row:3;justify-content:flex-start;margin-top:11px;padding-top:8px;
+    border-top:1px solid rgba(216,203,170,.28)}
+  #statsbar .stat:nth-child(3){grid-column:1}
+  #statsbar .stat:nth-child(4){grid-column:2}
+  #statsbar .stat:nth-child(5){grid-column:3}
+  #statsbar .stat:nth-child(n+3) b{font-size:calc(15px * var(--uiScale))}
+  #hudTape{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);
+                  mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%)}
+  #hudTape text{font-size:10px}
+  #hudTape .nm{font-size:8.5px}
+}
 /* 1.15 rather than the prose 1.4 body sets: the cell is 56px and the three
    lines in it have about two to spare, so leading a gauge like a paragraph
    pushes the unit through the floor of the bar. */
@@ -1138,7 +1184,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    the addresses are not verified for mail delivery. The map only ever
    carried the short form of the same thing, in 8.5px, across the terrain.
    Attribution is still shown; it is shown properly, one tap away. */
-#zoomCtl{position:absolute;right:8px;top:12px;z-index:450;display:flex;flex-direction:column;gap:6px}
+/* On the right edge, centred in the clear stretch between the heads-up
+   display and the top of the open dial - layoutDial works that out and sets
+   the top. Centred on the map, which is what this rule does before it runs.
+   Where the stretch is too short it becomes a row - see the thumb dial. */
+#zoomCtl{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:450;display:flex;flex-direction:column;gap:6px}
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
@@ -1149,12 +1199,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #zoomCtl #btnOrient{flex-direction:column;gap:1px;line-height:1}
 #zoomCtl #btnOrient svg{width:19px;height:19px;stroke:var(--sand);fill:none;
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-/* Label-sm, not micro. Micro is the step for a word sitting above a big
-   number, where the number is the reading and the word only names it. Here the
-   word is half the reading - the needle points at true north in both states -
-   so it takes the step above, which is the one named for labels. It still fits
-   the 34px button a fine pointer gets. */
-#zoomCtl #btnOrient span{font-size:10px;font-weight:700;letter-spacing:.09em;
+/* Micro. At 10px N UP crowded its button, the 34px one a mouse gets most of
+   all; micro is the app's own size for a word under a glyph, and it leaves
+   the label 5px clear each side at 34px and 10px at 44. */
+#zoomCtl #btnOrient span{font-size:var(--t-micro);font-weight:700;letter-spacing:.1em;
   text-transform:uppercase;color:var(--dim)}
 #zoomCtl #btnOrient.on span{color:var(--rust2)}
 /* The simulated drive sits under the zoom buttons and takes their size and
@@ -1209,10 +1257,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    chip on a phone-width screen; stacking them makes that impossible. */
 /* The Australian regulatory speed sign: black numerals inside a red ring
    on a white plate. Drawn rather than fetched, so it costs nothing and
-   works with no signal. It sits bottom right, the side the driver sits on
-   and the near hand can reach without crossing the wheel. The bottom left
-   it used to hold is map now. Clear of the chips at the top either way. */
-#speedSign{position:absolute;right:8px;bottom:calc(var(--actH) + var(--safeB) + 14px);
+   works with no signal. It sits bottom left, because the thumb dial holds
+   the bottom right, and it stands on the same line as the nav and record
+   panels - the bottom edge, or the zoom row where the buttons have had to
+   become one - so liftSpeedSign still lifts it clear of them by their height. */
+#speedSign{position:absolute;left:14px;bottom:var(--stackB);
   z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
   box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
   justify-content:center;pointer-events:none;
@@ -1228,7 +1277,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* three digits have to give a little back to keep the ring clear */
 #speedSign.wide b{font-size:17px;letter-spacing:-1px}
 
-#mapChips{position:absolute;left:8px;top:12px;z-index:450;display:flex;flex-direction:column;
+#mapChips{position:absolute;left:8px;top:calc(var(--hudStage) + 10px);z-index:450;display:flex;flex-direction:column;
   align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
 #mapChips > *{pointer-events:auto;max-width:100%}
 /* Rust lived on the base rule, which meant a chip wore the accent by
@@ -1374,56 +1423,69 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    its full height and no ground is given away for the look. The bottom
    inset moves into the padding, which is what keeps the labels clear of a
    gesture bar now that the bar reaches the edge of the screen. */
-#actionbar{position:absolute;left:0;right:0;bottom:0;
-  height:calc(var(--actH) + var(--safeB));padding:0 0 var(--safeB) 0;
-  display:flex;gap:0;z-index:500;
-  /* the same cut as the stats bar, mirrored: facet on the upper edge and
-     the shadow thrown the other way */
-  background:linear-gradient(0deg,#111513 0,#111513 calc(100% - 3px),
-             #1B221D calc(100% - 3px),#333D36 100%);
-  box-shadow:0 -1px 0 rgba(0,0,0,.65),0 -6px 12px -6px rgba(0,0,0,.55)}
-/* Cells rather than chips, divided by the same hairline the stats use and
-   squared off to meet it.
+/* ---------- the thumb dial ----------
+   The actions sit on a dial in the bottom-right corner, around a big
+   Navigate button in the app's Primary. Folded, only Navigate shows. The
+   first tap unfolds the other four onto a curved plate, each the same
+   thumb-reach from Navigate; a second tap on Navigate navigates, and folds
+   the dial. A tap on one of the four runs it and folds; a tap anywhere else
+   only folds - it is swallowed, so dismissing the dial cannot also drop a
+   pin or open a place.
 
-   The glyphs are the size they were in the 76px bar. Losing twenty pixels
-   of height cost no content: at 76 the icon and its label filled 39px and
-   the rest was air, and 39 still sits inside 56 with nine pixels clear top
-   and bottom - against the seven the stats cell keeps, so the two bars read
-   at the same density. Scaling the glyphs by the same ratio as the bar
-   would have taken the labels under 7px, which is not a size this app can
-   use: these are read at a glance, in open sun, through sunglasses. */
-/* flex-basis 0, not auto. With auto each button started at the width of
-   its own label and shared out only what was left, so in portrait at 375px
-   FAVOURITES was 90px and POI 53px - five targets of five different sizes
-   on the one row a driver hits without looking. From zero they all get the
-   same share. Measured to still fit the longest label, FAVOURITES at 60px,
-   down to a 320px-wide phone. */
-.act{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  border-radius:0;border:none;border-right:1px solid var(--line);padding:0 2px;transition:background .12s}
-.act:last-child{border-right:none}
-/* stopped short of the facet for the same reason the stats dividers are */
-.act{border-image:linear-gradient(0deg,rgba(216,203,170,.22) calc(100% - 3px),transparent 0) 1}
+   #actionbar is a zero-height strip on the bottom edge with the dial hung
+   above it. The map measures the bar's box to keep the vehicle clear of
+   it, and a box the size of the dial would read as an inset the height of
+   the map. layoutDial places everything from the sizes below. */
+:root{--dial-r:176px;--dial-rec:50px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
+  --dial-ico:25px;--dial-lab:8.5px;--dial-nico:32px;--dial-nlab:9.5px;
+  /* The nav and record panels sit on the bottom edge beside Navigate, level
+     with its foot and stopping 12px short of it, and the speed sign stands
+     on the same line at the left. */
+  --stackB:calc(var(--dial-m) + var(--safeB));
+  --stackR:calc(var(--dial-m) + var(--dial-rec) * 2 + 12px)}
+@media (orientation: portrait) and (max-width: 599px) {
+  :root{--dial-r:136px;--dial-rec:40px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
+    --dial-ico:21px;--dial-lab:7.5px;--dial-nico:26px;--dial-nlab:8px}
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  :root{--dial-r:100px;--dial-rec:34px;--dial-band:60px;--dial-b:50px;--dial-m:14px;
+    --dial-ico:18px;--dial-lab:7px;--dial-nico:22px;--dial-nlab:7px}
+}
+/* Where the map is too short for the zoom column to stand clear between the
+   heads-up display and the open dial - a phone on its side, a short window -
+   layoutDial sets .zoom-row and the buttons become a row in the bottom-left
+   corner, balancing the dial, with the panels and the speed sign standing on
+   it. Everywhere else, either way up, they keep the tablet's arrangement.
+   Decided by measuring rather than by orientation, because a tablet or a
+   desktop window on its side has the room and a phone on its side does not. */
+.zoom-row{--stackB:calc(var(--dial-m) + var(--tap) + 10px + var(--safeB))}
+.zoom-row #zoomCtl{top:auto;bottom:calc(var(--dial-m) + var(--safeB));left:var(--dial-m);right:auto;
+  transform:none;flex-direction:row}
+/* With a zoom row the panels stand between it and Navigate, level with the
+   disc as everywhere else; the speed sign stays on the row. */
+.zoom-row #panelStack{left:calc(var(--dial-m) + 5 * var(--tap) + 34px);bottom:calc(var(--dial-m) + var(--safeB))}
+#actionbar{position:absolute;left:0;right:0;bottom:var(--safeB);height:0;z-index:500;pointer-events:none}
+#arcPlate{position:absolute;left:0;bottom:0;pointer-events:none;filter:drop-shadow(0 -4px 12px rgba(0,0,0,.6))}
+/* the plate takes a tap itself, so pressing between two buttons does not reach the map */
+#arcPlate path{pointer-events:visibleStroke}
+#actionbar.shut #arcPlate,#actionbar.shut .act:not(#btnNavTo){visibility:hidden;pointer-events:none}
+.act{position:absolute;width:var(--dial-b);height:var(--dial-b);border:none;border-radius:50%;padding:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:auto;
+  transition:background .12s}
 .act:active{background:rgba(216,203,170,.15)}
-.act svg{width:23px;height:23px;stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-/* Micro, at the stat bar's exact size and tracking. These two rows are the
-   only text in the app read at 80km/h, and they were disagreeing about how
-   big that is - 9px here against 8.5 above, .11em against .14em - which is
-   a difference nobody can see and every future label had to guess at. */
-.act span{font-size:var(--t-micro);letter-spacing:.14em;line-height:1.15;color:var(--hud);
+.act svg{width:var(--dial-ico);height:var(--dial-ico);stroke:var(--hud);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.act span{font-size:var(--dial-lab);letter-spacing:.07em;line-height:1.15;color:var(--hud);
   text-transform:uppercase;font-weight:600}
-/* The rust border went with the radius, and the tint took its place: with
-   nothing rounding it off it fills the cell corner to corner and lights up
-   like a segment on a dash panel, which says it louder than the chip did.
-
-   .on is shared by two buttons that used to mean two different things in
-   the same colour. Heading Up keeps it - the mode a driver actually chose,
-   the one thing in this view rust is still spent on. Paused gets its own
-   rule instead: amber, the same colour the recording dot and the panel's
-   own PAUSED label already turn, because right here rust was answering
-   "were you the one who set this" for a state that isn't a choice, it's a
-   pause you fall into mid-task. A refuel stop already made this cell and
-   Heading Up's needle read as the identical thing on the same bar; now
-   only one of the two still is. */
+/* Navigate is the Primary: Burnt Orange with near-black ink, collared in the
+   panel colour so it sits in the dial rather than on the map */
+#btnNavTo{width:calc(var(--dial-rec) * 2);height:calc(var(--dial-rec) * 2);background:var(--rust);
+  box-shadow:0 0 0 6px #111513,0 0 0 7.5px #333D36,0 10px 20px rgba(0,0,0,.6)}
+#btnNavTo:active{background:var(--rust);filter:brightness(1.25)}
+#btnNavTo svg{width:var(--dial-nico);height:var(--dial-nico);stroke:#12100E;stroke-width:2}
+#btnNavTo span{font-size:var(--dial-nlab);letter-spacing:.14em;color:#12100E;font-weight:700}
+/* States, as they were on the bar: a rust tint for a mode chosen; amber for
+   a pause, the colour the recording dot and the panel's PAUSED already turn;
+   red while recording. */
 .act.on{background:rgba(204,90,46,.18)}
 .act.on svg{stroke:var(--rust)}
 .act.on span{color:var(--rust2)}
@@ -1437,21 +1499,94 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Navigating while recording used to cost two stacked panels and most of the
    lower half of the screen. They sit side by side instead, each taking half
    the width, and a single panel still spans the full width on its own. */
-#panelStack{position:absolute;left:8px;right:8px;bottom:calc(var(--actH) + var(--safeB) + 12px);z-index:500;
+#panelStack{position:absolute;left:8px;right:var(--stackR);bottom:var(--stackB);z-index:500;
+  height:calc(var(--dial-rec) * 2);   /* the Navigate disc's height: top and bottom level with it */
   display:flex;flex-direction:row;align-items:stretch;gap:7px;pointer-events:none}
 #panelStack > *{pointer-events:auto;flex:1 1 0;min-width:0}
-/* Half a phone width is not much, so when both are up the type and the
-   buttons tighten rather than the content wrapping or spilling. */
-#panelStack.pair .np-name,#panelStack.pair .rp-name{font-size:var(--t-note);letter-spacing:.03em}
-#panelStack.pair .np-figs b{font-size:var(--t-read-sm)}
-#panelStack.pair .np-figs i{font-size:var(--t-micro-tight);letter-spacing:.06em}
-#panelStack.pair .np-figs > div{gap:0}
-#panelStack.pair .np-btns .btn,#panelStack.pair .rp-btns .btn{
-  padding:9px 4px;font-size:var(--t-micro);letter-spacing:.04em;min-height:var(--tap)}
-#panelStack.pair .np-note{font-size:var(--t-micro);letter-spacing:.02em}
-#panelStack.pair .np-ico{width:13px;height:13px}
-#navPanel,#recPanel{display:flex;flex-direction:column}
-#panelStack.pair .np-btns,#panelStack.pair .rp-btns{margin-top:auto}
+/* Its right edge is a token and not a landscape override: the override sat
+   above this rule in the file and lost to it, so on its side the record
+   panel ran under the Navigate disc and hid Stop & Save. */
+/* The dial opens over this corner, so while it is open the panels step
+   aside rather than sitting under its plate, and come back as it folds. */
+#panelStack{transition:opacity .15s,transform .15s}
+#stage.dial-open #panelStack{opacity:0;transform:translateY(8px);pointer-events:none}
+#stage.dial-open #panelStack > *{pointer-events:none}
+/* ---------- the panels, docked ----------
+   The nav and record panels stand beside Navigate at exactly its height -
+   top and bottom level with the disc - so the corner reads as one console
+   rather than a stack of cards beside a button: 80px on an upright phone,
+   100 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
+
+   - Navigation: the destination on one line, the three readings under it on
+     short labels, and Cancel down the right as one word.
+   - Recording: the dot, the track and its state on one line, and Pause and
+     Stop & Save side by side under it.
+
+   The id-and-id selectors are for the #navPanel and #recPanel rules further
+   down, which would otherwise win on order. */
+#panelStack #navPanel,#panelStack #recPanel{padding:6px 10px;min-width:0;overflow:hidden}
+#navPanel{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
+  column-gap:10px;row-gap:2px;align-content:center;align-items:center}
+#navPanel .np-top{grid-column:1;grid-row:1;min-width:0;gap:6px}
+#navPanel .np-ico{width:13px;height:13px}
+#navPanel .np-name{font-size:var(--t-note);letter-spacing:.04em}
+#navPanel .np-figs{grid-column:1;grid-row:2;margin-top:0;min-width:0}
+#navPanel .np-figs > div{min-width:0;gap:0}
+#navPanel .np-figs b{font-size:var(--t-read-sm)}
+#navPanel .np-figs i{font-size:0;letter-spacing:0}
+#navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT"}
+#navPanel .np-figs > div:nth-child(2) i::after{content:"TIME"}
+#navPanel .np-figs > div:nth-child(3) i::after{content:"ETA"}
+#navPanel .np-figs i::after{font-size:var(--t-micro-tight);letter-spacing:.1em}
+/* off route, the note takes the destination's line rather than adding one */
+#navPanel .np-note{grid-column:1;grid-row:1;margin:0;text-align:left;font-size:var(--t-micro);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#navPanel:has(.np-note:not(:empty)) .np-top{visibility:hidden}
+#navPanel .np-btns{grid-column:2;grid-row:1 / 3;margin:0}
+#navPanel .np-btns .btn{font-size:0;padding:6px 12px;min-height:var(--tap-sm)}
+#navPanel .np-btns .btn::after{content:"CANCEL";font-size:var(--t-micro);letter-spacing:.08em}
+#recPanel{display:flex;flex-direction:column;justify-content:center;gap:5px}
+#recPanel .rp-top{margin:0;gap:6px}
+#recPanel .rp-name{font-size:var(--t-note);letter-spacing:.04em}
+#recPanel .rp-btns{gap:6px}
+#recPanel .rp-btns .btn{flex:1 1 0;min-width:0;padding:6px 8px;min-height:var(--tap-sm);
+  font-size:var(--t-micro);letter-spacing:.06em;white-space:nowrap}
+/* the navigation side carries three readings and a button, the recording side two buttons */
+#panelStack.pair #navPanel{flex:3 1 0}
+#panelStack.pair #recPanel{flex:2 1 0}
+/* An upright phone pairs them at about 126px each, too narrow for all of
+   that inside 80px, so there each keeps to the essentials: the destination
+   with Cancel as a cross beside it, the distance left in full, travel time
+   and arrival under it; the dot and the state, and Pause and Stop as drawn
+   glyphs. The words are still on the buttons, for a screen reader - they
+   are only not drawn. Resume shows as a play glyph: the button turns .go. */
+@media (orientation: portrait) and (max-width: 599px) {
+  #panelStack.pair{gap:6px}
+  #panelStack.pair #navPanel,#panelStack.pair #recPanel{flex:1 1 0;padding:6px 8px}
+  #panelStack.pair #navPanel{row-gap:1px;column-gap:4px}
+  #panelStack.pair .np-top{gap:4px}
+  #panelStack.pair .np-ico{width:11px;height:11px}
+  #panelStack.pair .np-name,#panelStack.pair .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
+  #panelStack.pair .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
+  #panelStack.pair .np-figs{grid-column:1 / 3;display:grid;grid-template-columns:auto auto;
+    justify-content:start;gap:0 8px}
+  #panelStack.pair .np-figs > div{border-right:none;align-items:flex-start}
+  #panelStack.pair .np-figs > div:first-child{grid-column:1 / 3}
+  #panelStack.pair .np-figs > div:first-child b{font-size:var(--t-read-sm)}
+  #panelStack.pair .np-figs > div:nth-child(n+2) b{font-size:calc(11px * var(--uiScale))}
+  #panelStack.pair .np-figs i{display:none}
+  #panelStack.pair .np-btns{grid-row:1}
+  #panelStack.pair .np-btns .btn,#panelStack.pair .rp-btns .btn{font-size:0;padding:0;min-width:0}
+  #panelStack.pair .np-btns .btn{width:32px;height:32px;min-height:0}
+  #panelStack.pair .rp-btns .btn{min-height:40px}
+  #panelStack.pair .np-btns .btn::after,#panelStack.pair .rp-btns .btn::after{content:"";display:block;margin:auto;
+    width:14px;height:14px;background:currentColor;
+    -webkit-mask:var(--glyph) center/contain no-repeat;mask:var(--glyph) center/contain no-repeat}
+  #btnNavCancel{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 3.5l9 9M12.5 3.5l-9 9' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")}
+  #btnRecPause{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='2' width='3.6' height='12' rx='1'/%3E%3Crect x='9.4' y='2' width='3.6' height='12' rx='1'/%3E%3C/svg%3E")}
+  #btnRecPause.go{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 2.3v11.4c0 .5.5.8.9.5l8.6-5.7a.6.6 0 0 0 0-1L5.4 1.8c-.4-.3-.9 0-.9.5z'/%3E%3C/svg%3E")}
+  #btnRecStop{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='1.6'/%3E%3C/svg%3E")}
+}
 /* These two panels sit over the map while it is moving, and both used to
    carry backdrop-filter:blur(8px) behind a background that was already 96%
    opaque - so the blur was sampling the terrain in order to show you four
@@ -2235,7 +2370,7 @@ input[type=date],input[type=time]{color-scheme:dark}
    where a hand rests. Stays fixed and above the drawer and the modals, so a
    message raised from either is not hidden behind it. */
 #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(-14px);
-  top:calc(var(--topH) + var(--safeT) + var(--statsH) + 12px);
+  top:calc(var(--hudBottom) + 8px);
   z-index:1100;background:#0E1210;border:1px solid var(--line2);border-radius:7px;padding:10px 15px;
   font-size:var(--t-note);letter-spacing:.03em;box-shadow:0 8px 22px rgba(0,0,0,.6);opacity:0;pointer-events:none;
   transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center}
@@ -2256,132 +2391,23 @@ input[type=date],input[type=time]{color-scheme:dark}
    Bounded by height so a tablet or a desktop window keeps the portrait
    arrangement it is already suited to. */
 @media (orientation: landscape) and (max-height: 520px) {
-  #app{display:grid;
-    grid-template-columns:var(--railW) 1fr;
-    /* The row follows the tap size rather than a number, because the menu
-       button is the only way into the drawer and a fixed 40 clipped it the
-       moment a thumb-sized button went in. max() so a mouse never shrinks
-       the bar below the 40 it has always been. It costs four pixels of a
-       360px-tall map, once, in the orientation where the rail carries the
-       controls you actually use while moving. */
+  /* The heads-up display lies over the map here as it does upright, so the
+     rails the two bars used to stand on end in are gone and the map takes
+     the full width under the title bar. The row follows the tap size rather
+     than a number, because the menu button is the only way into the drawer
+     and a fixed 40 clipped it the moment a thumb-sized button went in. */
+  #app{display:grid;grid-template-columns:1fr;
     grid-template-rows:calc(max(40px, var(--tap)) + var(--safeT) + 1px) 1fr;   /* +1 for the bar's own bottom hairline */
-    grid-template-areas:"top top" "stats stage"}
+    grid-template-areas:"top" "stage"}
   #topbar{grid-area:top;height:auto}
   #stage{grid-area:stage}
+  #statsbar{top:calc(max(40px, var(--tap)) + var(--safeT) + 1px)}
 
-  /* The instrument column, at half the width it started out. Too narrow now
-     for a label and its reading side by side, so each stat stacks the way it
-     does in portrait, just smaller. */
-  /* Turned sideways the facet moves to whichever edge faces the map. The
-     dividers cross it the short way here rather than running down it, so
-     they are left to span the full width. */
-  #statsbar{grid-area:stats;height:auto;flex-direction:column;
-    background:linear-gradient(90deg,#111513 0,#111513 calc(100% - 3px),
-               #1B221D calc(100% - 3px),#333D36 100%);
-    box-shadow:1px 0 0 rgba(0,0,0,.65),6px 0 12px -6px rgba(0,0,0,.55)}
-  .stat,.act{border-image:none}
-  .stat{flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:0;
-    padding:0 3px;border-right:none;border-bottom:1px solid var(--line)}
-  /* the widths above are widths, and down here the axis is vertical */
-  .stat:nth-child(n){flex-basis:0}
-  .stat:last-child{border-bottom:none}
-  /* Tracking widens as the type comes down, which is the way round this
-     system has it everywhere else - these two went the other way when the
-     column was first cut to 80px and there was no room for anything. There
-     is room now: HEADING sets 38px of a 74px cell at the sizes below, and
-     KM/H 21. */
-  .stat .lbl{font-size:var(--t-micro-tight);letter-spacing:.16em}
-  .stat b{font-size:var(--t-read-tight)}
-  .stat b em{margin-right:3px}
-  .stat i{font-size:var(--t-micro-tight);letter-spacing:.10em}
 
-  /* the action bar becomes a rail down the right of the map, docked to the
-     edge like the instrument column it now bookends. The clearances below
-     are measured from the screen edge and already sat 8px clear of the
-     floating rail, so losing the float only makes them roomier. */
-  #actionbar{left:auto;right:0;top:0;bottom:0;padding:0 0 var(--safeB) 0;
-    height:auto;width:var(--railW);flex-direction:column;gap:0;
-    background:linear-gradient(270deg,#111513 0,#111513 calc(100% - 3px),
-               #1B221D calc(100% - 3px),#333D36 100%);
-    box-shadow:-1px 0 0 rgba(0,0,0,.65),-6px 0 12px -6px rgba(0,0,0,.55)}
-  .act{gap:3px;border-right:none;border-bottom:1px solid var(--line)}
-  .act:last-child{border-bottom:none}
-  /* Sized for the rail it is in. At 56px wide these were 18px and 7.5px,
-     which was as much as fitted; at the stats column width there is room
-     to come back toward the portrait 23 and 9 without crowding the sides.
-     WAYPOINT is the longest label and still clears them. */
-  .act svg{width:21px;height:21px}
-  /* No override here any more. These labels and the stat bar's are one size
-     in both orientations now - the same reading, in the same light, at the
-     same speed - and the rail is the roomier of the two: WAYPOINT is the
-     longest and sets 52px of the 80px rail, 60 at Large. */
-
-  /* Half height, by laying each panel out along its width instead of down
-     its height: name, readings and buttons on one line, the pair spanning
-     the map. Flex bases are kept small enough that the line holds together
-     on a phone-width landscape, so wrapping only happens on a genuinely
-     narrow screen - or when the off-route note appears, which takes the
-     second row to itself. The row gap is the padding above the buttons when
-     they do drop. */
-  #panelStack{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB));gap:6px}
-  #navPanel,#recPanel{padding:5px 8px;flex-direction:row;align-items:center;
-    flex-wrap:wrap;column-gap:9px;row-gap:4px}
-  /* A destination reads longer than a track name, and a 12 hour ETA is wider
-     than a 24 hour one, so the two are not made to share the width equally
-     - the navigation side gets the room it needs to spell its name out. */
-  #panelStack #navPanel{flex:63 1 0}
-  #panelStack #recPanel{flex:37 1 0}
-  /* The name keeps its place on the left and wraps to a second line there
-     rather than being cut to three letters with an ellipsis. Two lines of it
-     at this size still sit inside the height the buttons already take, so
-     the panel does not grow to accommodate a long destination. */
-  #panelStack #navPanel .np-top,#panelStack #recPanel .rp-top{margin-bottom:0;
-    min-width:0;align-items:center}
-  /* the navigation side carries three readings and a button, so its name
-     column starts wider; the recording side has only its buttons */
-  #panelStack #navPanel .np-top{flex:1 1 92px}
-  #panelStack #recPanel .rp-top{flex:1 1 64px}
-  #panelStack #navPanel .np-name,#panelStack #recPanel .rp-name{
-    font-size:var(--t-micro);line-height:1.2;letter-spacing:.03em;white-space:normal;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  #panelStack #navPanel .np-ico{width:12px;height:12px}
-  /* The three readings are given equal columns and spread across the space
-     up to the button, rather than bunching against the name. Nudged down by
-     the half of the label sitting under each number, so the numbers line up
-     with the arrow beside the destination instead of floating above it. */
-  #panelStack #navPanel .np-figs{margin-top:0;flex:1 1 auto;min-width:0;
-    position:relative;top:4px}
-  #panelStack #navPanel .np-figs > div{flex:1 1 0;min-width:0;padding:0 7px}
-  #panelStack #navPanel .np-figs b{font-size:var(--t-read-sm)}
-  /* Shorter words for the same meaning, so the numbers keep their room and
-     stay the size they need to be read at a glance. */
-  #panelStack #navPanel .np-figs i{font-size:0;letter-spacing:0}
-  #panelStack #navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT"}
-  #panelStack #navPanel .np-figs > div:nth-child(2) i::after{content:"TIME"}
-  #panelStack #navPanel .np-figs > div:nth-child(3) i::after{content:"ETA"}
-  #panelStack #navPanel .np-figs i::after{font-size:var(--t-micro-tight);letter-spacing:.1em}
-  #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{margin-top:0;flex:0 0 auto}
-  /* The readings ran up against the cancel button and read as sitting on it,
-     so the button is pushed off them by more than the column gap alone. */
-  #panelStack #navPanel .np-btns{margin-left:10px}
-  #panelStack #navPanel .np-btns .btn{font-size:0;padding:7px 12px;min-height:var(--tap-sm)}
-  #panelStack #navPanel .np-btns .btn::after{content:"CANCEL";font-size:var(--t-label-xs);letter-spacing:.08em}
-  #panelStack #recPanel .rp-btns .btn{font-size:var(--t-micro);padding:7px 9px;min-height:var(--tap-sm);white-space:nowrap;flex:0 0 auto}
-  #panelStack #navPanel .np-note{font-size:var(--t-micro);margin-top:0;flex:1 1 100%;text-align:left}
-
-  /* the sign changes sides in landscape, so here it has the rail to clear as
-     well as the bottom edge */
-  #speedSign{right:calc(var(--railW) + 8px);bottom:calc(8px + var(--safeB))}
-  #zoomCtl{right:calc(var(--railW) + 8px);flex-direction:row}
-  /* the zoom row is four buttons wide now, so the chips have to stop sooner:
-     126px of buttons plus the 71 they already kept clear of them, on top of
-     whatever the rail itself takes */
-  #mapChips{max-width:calc(100% - var(--railW) - 197px)}
-
-  /* In landscape the stats are a column down the left and the map starts
-     below the title bar, so the toast follows the map: under the bar, and
-     centred on the map rather than on the screen. */
-  #toast{top:calc(40px + var(--safeT) + 12px);left:calc(50% + 40px)}
+  /* The panels on a phone on its side are the docked panels every size has
+     now - see "the panels, docked" - so only the gap between them is set
+     here. */
+  #panelStack{gap:6px}
 
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
@@ -2392,14 +2418,6 @@ input[type=date],input[type=time]{color-scheme:dark}
   summary{padding:12px 14px}
 }
 
-/* A small landscape screen cannot hold name, readings and buttons on one
-   line without clipping something, so there the buttons take a row of their
-   own and stretch across it rather than being squeezed to nothing. */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 720px) {
-  #panelStack #navPanel .np-btns,#panelStack #recPanel .rp-btns{flex:1 1 100%}
-  #panelStack #navPanel .np-btns .btn,#panelStack #recPanel .rp-btns .btn{flex:1 1 auto}
-  #panelStack #navPanel .np-top,#panelStack #recPanel .rp-top{flex:1 1 auto}
-}
 
 /* ---------- the desk ----------
    The only query in this file that asks about the hand rather than the
@@ -2770,13 +2788,11 @@ input[type=date],input[type=time]{color-scheme:dark}
   /* Recording: a ring instead of a pulse. */
   .rec-dot{animation:none;box-shadow:0 0 0 3px rgba(207,83,61,.4)}
   .rec-dot.pause{box-shadow:none}
-  /* The menu lines stop taking up their slack. The button still lights
-     under the thumb, which is the part that says the press landed; the
-     two pixels of travel were character, not confirmation. Sections stop
-     travelling too, in discloseToggle - the body is still uncovered, it
-     just does not take a fifth of a second about it. */
-  #btnMenu svg path{transition:none}
-  #btnMenu:active svg path{transform:none}
+  /* The thumb dial unfolds by appearing: openDial and closeDial read this
+     same query and skip the spring. Sections stop travelling too, in
+     discloseToggle - the body is still uncovered, it just does not take a
+     fifth of a second about it. */
+  #hudTape{transition:none}
   /* The splash keeps its six seconds and loses its travel. What goes is
      the turning, the rising and the drift - movement that was character.
      What stays is the arc closing around the dial, because that is not
@@ -2908,7 +2924,12 @@ input[type=date],input[type=time]{color-scheme:dark}
 
   <header id="topbar">
     <button id="btnMenu" class="icon-btn" aria-label="Open menu">
-      <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+      <svg class="mark" viewBox="17 17 94 94" aria-hidden="true">
+        <circle class="m-ring" cx="64" cy="64" r="46"/>
+        <path class="m-maj" d="M64 28L64 20M100 64L108 64M64 100L64 108M28 64L20 64"/>
+        <path class="m-min" d="M79.12 27.51L80.84 23.35M91.93 36.07L95.11 32.89M100.49 48.88L104.65 47.16M100.49 79.12L104.65 80.84M91.93 91.93L95.11 95.11M79.12 100.49L80.84 104.65M48.88 100.49L47.16 104.65M36.07 91.93L32.89 95.11M27.51 79.12L23.35 80.84M27.51 48.88L23.35 47.16M36.07 36.07L32.89 32.89M48.88 27.51L47.16 23.35"/>
+        <path class="m-arrow" d="M64 41.9L80.2 86.1L64 76.6L47.9 86.1Z"/>
+      </svg>
     </button>
     <div class="brand"><span class="b1">OZTRAX</span><span class="b2">RECON</span></div>
     <div id="statusPill">
@@ -2937,6 +2958,10 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="stat" role="group" aria-label="Altitude"><span class="lbl">Alt</span><b id="stAlt">--</b><i id="uAlt">m</i></div>
     <div class="stat" id="stDistBox" role="group" aria-label="Distance"><span class="lbl">Dist</span><b id="stDist">0.00</b><i id="uDist">km</i></div>
     <div class="stat" id="stTimeBox" role="group" aria-label="Elapsed time"><span class="lbl">Time</span><b id="stTime">00:00</b><i>h:m</i></div>
+    <!-- The heading tape. Last, so it shifts none of the cells' nth-child
+         rules; hidden from screen readers because the heading cell already
+         says the same thing in figures. -->
+    <div id="hudTape" aria-hidden="true"></div>
   </div>
 
   <div id="stage" role="main">
@@ -4300,8 +4325,8 @@ let mapReady = false;
    about, and what a screen point converts back to - or the vehicle sits low
    by half a bar, and swings a half-bar arc every time the heading changes.
 
-   Measured off the two boxes rather than worked out from --actH and
-   --railW, so it holds whichever edge the bar is docked to and whatever
+   Measured off the two boxes rather than worked out from any token, so it
+   holds whichever edge the bar is docked to and whatever
    those are set to. Cached, because it only moves when the stage does. */
 let viewInsX = 0, viewInsY = 0;
 
@@ -4322,6 +4347,207 @@ function measureViewInset(st) {
 function viewCenter() {
   return { x: stageW / 2 - viewInsX / 2, y: stageH / 2 - viewInsY / 2 };
 }
+
+/* ---------- the heads-up display ----------
+   The heading tape is one strip of ticks built once and slid along under
+   the lubber line - one transform per quarter degree of change, never a
+   redraw. It runs from -180 to 540 degrees so any heading has at least 180
+   either side of it, and it repeats, so crossing north jumps a whole turn of
+   strip onto an identical picture. 4.2px a degree, 21px between five-degree
+   ticks, on every size, so the scale reads the same upright or on its side.
+   Rebuilt only when the width changes. */
+const TAPE_PX = 4.2, TAPE_TOP = 16;
+let tapeW = 0, tapeLast = null;
+function buildTape() {
+  const box = $("#hudTape"), W = Math.round($("#statsbar").clientWidth);
+  if (!box || !W || W === tapeW) return;
+  tapeW = W;
+  const cx = W / 2;
+  const NAMES = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
+  let s = "";
+  for (let a = -180; a < 540; a += 5) {
+    const n = ((a % 360) + 360) % 360, major = n % 10 === 0, name = NAMES[n], num = !name && n % 30 === 0;
+    const len = name ? 15 : major ? 10 : 5, x = cx + a * TAPE_PX;
+    s += '<line class="tk' + (major ? "" : " mn") + '" x1="' + x + '" y1="' + TAPE_TOP + '" x2="' + x +
+         '" y2="' + (TAPE_TOP + len) + '" stroke-width="' + (name ? 2 : 1.2) + '"/>';
+    if (name) s += '<text class="' + (n === 0 ? "nn" : "") + '" x="' + x + '" y="' + (TAPE_TOP + 29) + '">' + name + "</text>";
+    if (num) s += '<text class="nm" x="' + x + '" y="' + (TAPE_TOP + 25) + '">' + String(n / 10).padStart(2, "0") + "</text>";
+  }
+  box.innerHTML = '<svg width="' + W + '" height="64" viewBox="0 0 ' + W + ' 64">' +
+    '<line x1="0" y1="' + TAPE_TOP + '" x2="' + W + '" y2="' + TAPE_TOP + '" stroke="rgba(255,255,255,.8)" stroke-width="1.5"/>' +
+    '<g id="tapeG">' + s + "</g>" +
+    '<path d="M' + (cx - 8) + " 3H" + (cx + 8) + "L" + cx + ' 14Z" fill="#CC5A2E"/>' +
+    '<line x1="' + cx + '" y1="14" x2="' + cx + '" y2="56" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
+  tapeLast = null;
+}
+/* With no fix it dims and holds where it was, or on north before the first. */
+function moveTape(hdg) {
+  const box = $("#hudTape"), g = document.getElementById("tapeG");
+  if (!box || !g) return;
+  box.classList.toggle("idle", hdg == null);
+  const d = hdg == null ? (tapeLast == null ? 0 : tapeLast) : Math.round((((hdg % 360) + 360) % 360) * 4) / 4;
+  if (d === tapeLast) return;
+  tapeLast = d;
+  g.setAttribute("transform", "translate(" + (-d * TAPE_PX).toFixed(1) + " 0)");
+}
+
+/* Measures what the display holds and fits the rest to it. An upright phone
+   is laid out in CSS, so there this only clears what a band left behind. In
+   the band, the fade ends 20px below the lowest of the speed, the readouts
+   and the tape's letters, and the tape is masked away behind the speed and
+   the readouts - measured at their widest, a three-figure speed and a
+   four-figure distance, so a reading that grows never runs under it. Then
+   it publishes where the display ends, for the toast and the map chips,
+   and places the thumb dial. */
+const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
+function layoutHud() {
+  const sb = $("#statsbar"), tape = $("#hudTape");
+  if (!sb || !tape) return;
+  buildTape();
+  sb.style.height = ""; sb.style.background = "";
+  tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
+  const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
+  if (!HUD_UPRIGHT.matches) {
+    const held = [["#stSpeed", "188"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
+      .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
+    const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
+    const spd = r(cells[0]), outs = cells.slice(2).map(r);
+    const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
+    const foot = Math.ceil(Math.max(spd.bottom, ...outs.map(function (b) { return b.bottom; }),
+      ...letters.map(function (b) { return b.bottom; })) - box.top);
+    const l = Math.round(spd.right - box.left) + 10;
+    const rr = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left) - 10;
+    held.forEach(function (p) { p[0].textContent = p[1]; });
+    sb.style.height = (foot + 20) + "px";
+    sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.6) " + foot + "px," +
+      "rgba(17,21,19,.34) " + (foot + 7) + "px,rgba(17,21,19,.14) " + (foot + 14) + "px,rgba(17,21,19,0) 100%)";
+    const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
+      (rr - 60) + "px,transparent " + rr + "px,transparent 100%)";
+    tape.style.webkitMaskImage = m; tape.style.maskImage = m;
+  }
+  const bottom = Math.max(sb.getBoundingClientRect().bottom, cells[1].getBoundingClientRect().bottom);
+  const root = document.documentElement.style;
+  root.setProperty("--hudBottom", Math.round(bottom) + "px");
+  root.setProperty("--hudStage", Math.round(bottom - stageEl.getBoundingClientRect().top) + "px");
+  layoutDial();
+}
+
+/* ---------- the thumb dial ----------
+   How it behaves is set out beside its CSS. Record, POI, Waypoint and
+   Favourites sit on the arc at 180, 150, 120 and 90 degrees from Navigate;
+   the plate runs exactly that far, so its rounded ends wrap the end buttons
+   and none of it leaves the screen. Sizes come from the --dial-* tokens,
+   which change with the screen, so this reads them each time it runs. */
+const DIAL_SPOTS = [["btnRec", 180], ["btnPoi", 150], ["btnWpt", 120], ["btnFav", 90]];
+const DIAL_STILL = window.matchMedia("(prefers-reduced-motion: reduce)");
+const HUD_SPRING = "linear(0, 0.063, 0.22 7.5%, 0.656 17.4%, 0.868, 0.992 30%, 1.041 35.5%, 1.056 40.2%, 1.047 45.5%, 1.008 58.5%, 0.996 67%, 1)";
+const Dial = { open: false, anims: [], geo: null };
+function layoutDial() {
+  const bar = $("#actionbar"), cs = getComputedStyle(document.documentElement);
+  const tok = function (n) { return parseFloat(cs.getPropertyValue(n)) || 0; };
+  const R = tok("--dial-r"), rec = tok("--dial-rec"), band = tok("--dial-band"), B = tok("--dial-b"), M = tok("--dial-m");
+  const st = stageEl.getBoundingClientRect();
+  const W = Math.round(st.width), H = Math.round(bar.getBoundingClientRect().top - st.top);
+  if (!W || !H) return;
+  const cx = W - M - rec, cy = H - M - rec;
+  const P = function (deg, r) { return [cx + r * Math.cos(deg * Math.PI / 180), cy - r * Math.sin(deg * Math.PI / 180)]; };
+  const arc = function (r) { const a = P(180, r), b = P(90, r); return "M" + a[0] + " " + a[1] + "A" + r + " " + r + " 0 0 1 " + b[0] + " " + b[1]; };
+  let plate = document.getElementById("arcPlate");
+  if (!plate) { bar.insertAdjacentHTML("afterbegin", '<svg id="arcPlate" aria-hidden="true"></svg>'); plate = document.getElementById("arcPlate"); }
+  plate.setAttribute("width", W); plate.setAttribute("height", H); plate.setAttribute("viewBox", "0 0 " + W + " " + H);
+  plate.innerHTML = '<path d="' + arc(R) + '" fill="none" stroke="#111513" stroke-width="' + band + '" stroke-linecap="round"/>' +
+    '<path d="' + arc(R + band / 2 - 1.5) + '" fill="none" stroke="#333D36" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="' + arc(R - band / 2 + 1) + '" fill="none" stroke="rgba(216,203,170,.22)" stroke-width="1"/>';
+  /* tops are measured from the zero-height bar, which is at the foot of the dial */
+  DIAL_SPOTS.forEach(function (s) {
+    const p = P(s[1], R), b = $("#" + s[0]);
+    b.style.left = (p[0] - B / 2) + "px"; b.style.top = (p[1] - B / 2 - H) + "px";
+  });
+  const nav = $("#btnNavTo");
+  nav.style.left = (cx - rec) + "px"; nav.style.top = (cy - rec - H) + "px";
+  /* The zoom buttons: a column on the right edge, centred in the clear
+     stretch between the display and the top of the open dial, wherever that
+     stretch holds it with 10px to spare each end; where it does not, a row
+     in the bottom-left corner. The column's height is worked out from the
+     tap size, since in a row it cannot be measured. */
+  const zc = $("#zoomCtl"), tap = tok("--tap"), nz = zc.children.length;
+  const colH = nz * tap + (nz - 1) * 6;
+  const hud = parseFloat(document.documentElement.style.getPropertyValue("--hudStage")) || 0;
+  const room = (cy - R - band / 2) - hud;
+  const row = room < colH + 20;
+  document.documentElement.classList.toggle("zoom-row", row);
+  zc.style.top = row ? "" : Math.round(hud + (room - colH) / 2) + "px";
+  zc.style.transform = row ? "" : "none";
+  /* the row decides whether the panels stand over the speed sign */
+  liftSpeedSign();
+  Dial.geo = { cx: cx, cy: cy, P: P, R: R };
+  if (!Dial.open) bar.classList.add("shut");
+  nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
+}
+/* No spring for anyone who asked for less motion, and none while the page is
+   hidden: a hidden page runs no frames, so a fold started as the screen goes
+   off would sit waiting for animations that cannot play, and the dial would
+   come back half open. Without them the dial simply changes state. */
+function dialAnim(el, frames, opts) {
+  if (!DIAL_STILL.matches && document.visibilityState === "visible") Dial.anims.push(el.animate(frames, opts));
+}
+function openDial() {
+  if (Dial.open || !Dial.geo) return;
+  Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
+  Dial.open = true;
+  const g = Dial.geo, o = g.cx + "px " + g.cy + "px", nav = $("#btnNavTo");
+  $("#actionbar").classList.remove("shut"); nav.setAttribute("aria-expanded", "true");
+  stageEl.classList.add("dial-open");      /* the panels step aside */
+  dialAnim($("#arcPlate"), [{ opacity: 0, transform: "scale(.55)", transformOrigin: o },
+    { opacity: 1, transform: "none", transformOrigin: o }], { duration: 480, easing: HUD_SPRING });
+  DIAL_SPOTS.forEach(function (s, i) {
+    const p = g.P(s[1], g.R);
+    dialAnim($("#" + s[0]), [{ transform: "translate(" + (g.cx - p[0]) + "px," + (g.cy - p[1]) + "px) scale(.3)", opacity: 0 },
+      { transform: "none", opacity: 1 }], { duration: 560, delay: 40 + i * 55, easing: HUD_SPRING, fill: "backwards" });
+  });
+  dialAnim(nav, [{ transform: "scale(.88)" }, { transform: "none" }], { duration: 460, easing: HUD_SPRING });
+}
+function closeDial() {
+  if (!Dial.open) return;
+  Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
+  Dial.open = false;
+  const g = Dial.geo, o = g.cx + "px " + g.cy + "px", bar = $("#actionbar");
+  $("#btnNavTo").setAttribute("aria-expanded", "false");
+  stageEl.classList.remove("dial-open");   /* and come back as it folds */
+  const out ={ duration: 200, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" };
+  dialAnim($("#arcPlate"), [{ opacity: 1, transform: "none", transformOrigin: o },
+    { opacity: 0, transform: "scale(.6)", transformOrigin: o }], Object.assign({}, out, { delay: 60 }));
+  DIAL_SPOTS.forEach(function (s, i) {
+    const p = g.P(s[1], g.R);
+    dialAnim($("#" + s[0]), [{ transform: "none", opacity: 1 },
+      { transform: "translate(" + (g.cx - p[0]) + "px," + (g.cy - p[1]) + "px) scale(.3)", opacity: 0 }],
+      Object.assign({}, out, { delay: (DIAL_SPOTS.length - 1 - i) * 25 }));
+  });
+  const done = function () {
+    if (Dial.open) return;
+    bar.classList.add("shut");
+    Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
+  };
+  if (!Dial.anims.length) done();
+  else Promise.all(Dial.anims.map(function (a) { return a.finished; })).then(done, function () {});
+}
+/* Caught on the way down, before anything else hears the tap, so a tap that
+   only folds the dial can be kept from the map and the buttons under it. */
+document.addEventListener("click", function (e) {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest("#btnNavTo")) {
+    e.stopPropagation();
+    if (!Dial.open) openDial();
+    else { closeDial(); openNavModal(); }
+    return;
+  }
+  if (!Dial.open) return;
+  if (t.closest("#actionbar .act")) { setTimeout(closeDial, 120); return; }
+  if (t.closest("#arcPlate")) { e.stopPropagation(); return; }
+  e.stopPropagation(); e.preventDefault(); closeDial();
+}, true);
+document.addEventListener("keydown", function (e) { if (e.key === "Escape" && Dial.open) closeDial(); });
 
 function sizeMap() {
   const r = stageEl.getBoundingClientRect();
@@ -4344,6 +4570,7 @@ function sizeMap() {
      up would walk the vehicle round a circle as the map came round */
   const vc = viewCenter();
   rotWrap.style.transformOrigin = vc.x.toFixed(1) + "px " + vc.y.toFixed(1) + "px";
+  layoutHud();
   if (mapReady) map.invalidateSize({ animate: false, pan: false });
 }
 sizeMap();
@@ -5214,13 +5441,21 @@ function updateSpeedSign() {
    rather than a fixed offset: the panels change height when a second one
    joins the first, and again when a long destination name wraps. A stack
    with nothing open measures zero, which is the resting position. */
+/* Only when the sign is under the panels. With a zoom row the panels stand
+   beside the sign rather than over it, and lifting it would float it up for
+   nothing. Where it stands comes from its CSS, not its box, so this is
+   right while the sign is hidden too - it can appear later without a call. */
 function liftSpeedSign() {
-  const h = $("#panelStack").getBoundingClientRect().height;
-  const lift = h > 0 ? Math.round(h) + 8 : 0;
-  $("#speedSign").style.transform = lift ? "translateY(-" + lift + "px)" : "";
+  const sg = $("#speedSign"), ps = $("#panelStack").getBoundingClientRect(), st = stageEl.getBoundingClientRect();
+  const cs = getComputedStyle(sg);
+  const left = st.left + parseFloat(cs.left), right = left + 56, bottom = st.bottom - parseFloat(cs.bottom);
+  const under = ps.height > 0 && right > ps.left && left < ps.right;
+  const lift = under ? Math.max(0, Math.round(bottom - ps.top) + 8) : 0;
+  sg.style.transform = lift ? "translateY(-" + lift + "px)" : "";
 }
 
 function updateStats() {
+  moveTape(view.has ? view.hdgCur : null);
   $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
@@ -14130,7 +14365,7 @@ $("#tkName").addEventListener("keydown", function (e) { if (e.key === "Enter") s
 $("#tkTotal").addEventListener("input", recalcAvg);
 $("#tkDist").addEventListener("input", recalcAvg);
 $("#btnRec").addEventListener("click", function () {
-  if (Rec.state !== "idle") { toast("Use the panel above to pause or stop", "warn"); return; }
+  if (Rec.state !== "idle") { toast("Use the recording panel to pause or stop", "warn"); return; }
   Rec.start();                    /* naming happens at the end, not the start */
 });
 $("#tkDiff").addEventListener("click", function (e) {
@@ -14194,7 +14429,8 @@ $("#nmList").addEventListener("click", function (e) {
   geoAction(b.dataset.act, b.closest(".card"));
   if (b.dataset.act === "nav" || b.dataset.act === "go") closeNavModal();
 });
-$("#btnNavTo").addEventListener("click", openNavModal);
+/* Navigate opens the thumb dial first; the dial's own click handler, with
+   layoutDial, calls openNavModal on the second tap. */
 $("#nmClose").addEventListener("click", closeNavModal);
 $("#nmCancel").addEventListener("click", closeNavModal);
 $("#nmSearch").addEventListener("click", navModalSearch);
@@ -14289,6 +14525,7 @@ function setUnits(u) {
   saveSettings();
   syncUnitButtons();
   updateStats();
+  layoutHud();       /* the units change how wide the widest readings are */
   if (poiStatusNote != null) setPoiStatus(poiStatusText());
   renderPois();
   renderWaypoints();

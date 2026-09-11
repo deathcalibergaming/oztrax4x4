@@ -493,10 +493,11 @@ like prose pushes the unit through the floor of the bar.
 A fixed, full-screen app shell that never scrolls as a page. `body` is
 `overflow:hidden`; only panel bodies scroll, with overscroll contained.
 
-The vertical stack is a 50px top bar (`--topH`), a 56px instrument row
-(`--statsH`), the map stage, and an action bar that matches the instrument
-row's height (`--actH: var(--statsH)`). In landscape both bars stand on end
-at a shared 80px width (`--railW`) so the columns cannot drift apart.
+The stack is a 50px top bar (`--topH`) over the map stage, which runs to the
+bottom edge. The instruments lie over the top of the map as a heads-up
+display, and the actions are a thumb dial hung in the bottom-right corner
+(see Heads-Up Display and Thumb Dial). Landscape keeps the same arrangement;
+there are no rails.
 Safe-area insets are added to the top bar and every bottom-anchored element,
 never ignored.
 
@@ -869,15 +870,77 @@ origin — takes Alert Red Lit and stays a note.
 - **Caret:** Burnt Orange Lit, so the insertion point belongs to the palette
   rather than to the browser
 
-### Instrument Gauge
+### Heads-Up Display
 
 The signature component, and one of the two places in the app that keeps the
-monospaced face — the navigation panel's figures being the other. A column
-carrying an uppercase micro label, a monospaced value in Instrument White,
-and a unit beneath it, separated from its neighbour by a hairline that stops
-short of the panel's bevel. Columns
-are sized to their content rather than split equally, because a three-letter
-cardinal and a five-character clock do not need the same room.
+monospaced face — the navigation panel's figures being the other. The five
+readings lie over the top of the map in Instrument White, with a text shadow
+and a fade behind them:
+
+- **Heading tape:** straight, across the top, at 4.2px a degree (21px between
+  five-degree ticks) on every size, slid along under a rust lubber line.
+  Cardinals in white, N in rust, tens of degrees as small numerals. Dimmed to
+  35% with no fix.
+- **Heading chip:** the heading in figures, hung under the lubber line on a
+  panel-colour plate with a rust hairline, 8px below the tape's letters.
+- **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
+  74px on an upright phone — with its label in rust and its unit beside it.
+- **Readouts:** altitude, distance and time.
+- **Two arrangements:** wherever there is width (a tablet either way up, a
+  phone on its side) it is one band — speed at the left, the readouts
+  stacked at the right, the tape in the clear stretch between, masked away
+  behind them at their widest readings. An upright phone is too narrow for
+  that, so there the tape takes the width, speed sits under it and the
+  readouts run in a row under a hairline.
+- **Fade:** the panel colour, set against the content — 85% behind the
+  tape, never under 58% behind a figure (the small ones need 55% over the
+  palest terrain in sun), eased out over the 20px below the last of them.
+
+Nothing in it takes a tap, so the map under it still pans.
+
+### Thumb Dial
+
+The actions sit on a dial in the bottom-right corner, around a big Navigate
+button in Primary (Burnt Orange, near-black ink, collared in the panel
+colour). Folded, only Navigate shows:
+
+- **Open:** the first tap unfolds Record, POI, Waypoint and Favourites onto a
+  curved panel-colour plate, each the same thumb-reach from Navigate. The
+  plate runs exactly 180 to 90 degrees, so its rounded ends wrap the end
+  buttons and none of it leaves the screen.
+- **Navigate:** a second tap navigates, and folds the dial.
+- **Actions:** a tap on one of the four runs it, then folds.
+- **Dismiss:** a tap anywhere else only folds; it is swallowed, so dismissing
+  the dial cannot also drop a pin or open a place. Escape folds it too.
+- **Sizes:** a 136px radius on an upright phone, 176px on a tablet, 100px on
+  a phone on its side.
+- **States:** Record keeps red while recording and amber while paused.
+
+The zoom buttons stand on the right edge, centred in the clear stretch
+between the heads-up display and the top of the open dial. Where that
+stretch is too short for them - a phone on its side, a short window - they
+become a row in the bottom-left corner instead. It is measured, not keyed to
+orientation: a tablet or a desktop window on its side keeps the tablet's
+arrangement. The nav and record panels stand beside Navigate, stopping 12px
+short of it, at exactly its height - top and bottom level with the disc, 80px
+on an upright phone, 100 on a tablet, 68 on a phone on its side - so the
+corner reads as one console. Where there is a zoom row they stand between it
+and Navigate. Navigation carries the destination, three readings on short
+labels (LEFT, TIME, ETA) and Cancel down the right; recording carries the
+dot, the track and its state, and Pause and Stop & Save side by side. On an
+upright phone a pair sits side by side at about 126px each, keeping to the
+destination, the distance left, travel time and arrival, with Cancel as a
+drawn cross and Pause, Resume and Stop as drawn glyphs whose words stay on
+the buttons for screen readers. The speed sign stands on the
+same line at the left. While the dial is open the panels step aside, so its
+plate never lands on them.
+
+### Menu Badge
+
+The menu button wears the start screen's compass badge in its finished
+state, 30px, with its strokes thickened for the size. The bar's left padding
+equals the gap before the wordmark, so the edge-to-badge and
+badge-to-wordmark gaps match: 17px each on a phone, 12px with a mouse.
 
 ### Speed Sign
 
