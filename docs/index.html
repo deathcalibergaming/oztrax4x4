@@ -1433,78 +1433,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act.rec svg{stroke:var(--danger);fill:var(--danger)}
 .act.rec span{color:var(--danger2)}
 
-/* ---------- the portrait cluster ----------
-   In portrait the stats bar is laid out like a gauge cluster: speed large in
-   the middle, altitude and heading to its left, distance and time to its
-   right, and a compass tape across the foot for heading. The action bar is
-   built around a raised Record boss in its middle. Landscape keeps its two
-   rails as they were, so all of this is scoped away from them.
-
-   The flank readings stack their label over the figure. On one line
-   "DIST 1234.56 KM" needs about 135px, and a flank on a 375px phone has 125.
-   The speed column is sized by its own figure, not a fixed width, so the
-   flanks get whatever it leaves - 110px each on a 320px phone. */
-#hdgTape{display:none}
-@media not all and (orientation: landscape) and (max-height: 520px) {
-  :root{--clusterH:calc(98px * var(--uiScale))}
-  #statsbar{height:var(--clusterH);display:grid;grid-template-columns:1fr auto 1fr;
-    grid-template-rows:calc(33px * var(--uiScale)) calc(33px * var(--uiScale)) 1fr;
-    grid-template-areas:"alt spd dist" "hdg spd time" "tape tape tape"}
-  #statsbar .stat{border:none;border-image:none;flex:none;min-width:0;padding:0 10px;
-    display:grid;grid-template-columns:auto auto;column-gap:4px;align-items:baseline;align-content:center;gap:1px 4px}
-  #statsbar .stat .lbl{grid-column:1 / 3}
-  #statsbar .stat:nth-child(1){grid-area:spd;grid-template-columns:auto;justify-items:center;
-    min-width:calc(96px * var(--uiScale));padding:5px 14px 0;
-    border-left:1px solid var(--line);border-right:1px solid var(--line)}
-  #statsbar .stat:nth-child(1) .lbl{grid-column:auto}
-  #statsbar .stat:nth-child(1) b{font-size:calc(46px * var(--uiScale));line-height:.95;letter-spacing:-.03em}
-  /* the tape underneath says which reading this is */
-  #statsbar .stat:nth-child(2){grid-area:hdg;justify-content:end}
-  #statsbar .stat:nth-child(2) .lbl{display:none}
-  #statsbar .stat:nth-child(3){grid-area:alt;justify-content:end}
-  #statsbar .stat:nth-child(4){grid-area:dist;justify-content:start}
-  #statsbar .stat:nth-child(5){grid-area:time;justify-content:start}
-
-  #hdgTape{display:block;grid-area:tape;position:relative;overflow:hidden;margin-bottom:3px;transition:opacity .2s;
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);
-            mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent)}
-  /* no fix: dimmed, so a heading held from the last one does not read as live */
-  #hdgTape.idle{opacity:.35}
-  #hdgStrip{position:absolute;left:50%;top:3px;will-change:transform}
-  #hdgStrip svg{display:block}
-  #hdgStrip .mj{stroke:rgba(216,203,170,.7);stroke-width:1}
-  #hdgStrip .mn{stroke:rgba(216,203,170,.4);stroke-width:1}
-  #hdgStrip text{text-anchor:middle;font-family:var(--ui);font-weight:700;letter-spacing:.08em}
-  #hdgStrip .c1{fill:var(--hud);font-size:10.5px}
-  #hdgStrip .c2{fill:var(--sand);font-size:9px}
-  /* the lubber line: a rust caret over the centre, stopping short of the letters */
-  #hdgTape::after{content:"";position:absolute;left:50%;top:0;width:10px;height:13px;margin-left:-5px;
-    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='13'%3E%3Cpath d='M0 0h10L5 7z' fill='%23CC5A2E'/%3E%3Cpath d='M5 0v13' stroke='%23CC5A2E' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat}
-
-  /* The toast sits under whatever height the stats bar is. */
-  #toast{top:calc(var(--topH) + var(--safeT) + var(--clusterH) + 12px)}
-
-  /* Record, raised out of the bar. The collar is the bar's own colour, so
-     the boss reads as set into the bar rather than laid on top of it. It
-     stands 24px proud, so the nav and record panels above the bar are
-     lifted 20px further to keep 8px clear of it. */
-  #panelStack{bottom:calc(var(--actH) + var(--safeB) + 32px)}
-  #btnRec{flex:0 0 calc(74px * var(--uiScale));height:calc(74px * var(--uiScale));
-    margin:calc(-24px * var(--uiScale)) 6px 0;align-self:flex-start;border-radius:50%;border:none;border-image:none;
-    background:#111513;box-shadow:0 0 0 1.5px var(--danger),0 0 0 7px #111513,0 -7px 14px rgba(0,0,0,.45)}
-  #btnRec svg{width:27px;height:27px;stroke:var(--danger)}
-  #btnRec span{color:var(--danger2)}
-  /* Paused keeps its amber, laid over the opaque face: the shared 18% tint
-     on its own would let the map show through the part above the bar. */
-  #btnRec.on{background:linear-gradient(rgba(232,185,35,.18),rgba(232,185,35,.18)),#111513;
-    box-shadow:0 0 0 1.5px var(--warn),0 0 0 7px #111513,0 -7px 14px rgba(0,0,0,.45)}
-  /* .act:active is outranked by the id above, so the press is restated
-     here in the system's own terms */
-  #btnRec:active{filter:brightness(1.25)}
-  /* no divider runs into the collar */
-  #btnPoi{border-right:none;border-image:none}
-}
-
 /* ---------- recording panel ---------- */
 /* Navigating while recording used to cost two stacked panels and most of the
    lower half of the screen. They sit side by side instead, each taking half
@@ -3009,10 +2937,6 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="stat" role="group" aria-label="Altitude"><span class="lbl">Alt</span><b id="stAlt">--</b><i id="uAlt">m</i></div>
     <div class="stat" id="stDistBox" role="group" aria-label="Distance"><span class="lbl">Dist</span><b id="stDist">0.00</b><i id="uDist">km</i></div>
     <div class="stat" id="stTimeBox" role="group" aria-label="Elapsed time"><span class="lbl">Time</span><b id="stTime">00:00</b><i>h:m</i></div>
-    <!-- The compass tape under the speed, portrait only. It repeats the
-         heading the cell beside it states in figures, so it is hidden from
-         screen readers rather than read twice. -->
-    <div id="hdgTape" aria-hidden="true"><div id="hdgStrip"></div></div>
   </div>
 
   <div id="stage" role="main">
@@ -3109,11 +3033,6 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button class="act" id="btnPoi" aria-label="Nearby POIs">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.1 3.1"/><circle class="solid" cx="12" cy="12" r="2.6"/></svg><span>POI</span>
       </button>
-      <!-- Record sits in the middle: in portrait it is the raised boss the
-           bar is built around, the one control here that starts something. -->
-      <button class="act" id="btnRec">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
-      </button>
       <button class="act" id="btnWpt">
         <svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Waypoint</span>
       </button>
@@ -3123,6 +3042,9 @@ input[type=date],input[type=time]{color-scheme:dark}
            than in a menu two taps away. -->
       <button class="act" id="btnFav" aria-label="Favourites">
         <svg></svg><span>Favourites</span>
+      </button>
+      <button class="act" id="btnRec">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
       </button>
     </nav>
   </div>
@@ -5298,41 +5220,7 @@ function liftSpeedSign() {
   $("#speedSign").style.transform = lift ? "translateY(-" + lift + "px)" : "";
 }
 
-/* The compass tape under the speed. Built once, as a strip running from -180
-   to 540 degrees so any heading has at least 180 either side of it, and then
-   moved rather than redrawn - one transform per whole degree of change. The
-   strip repeats, so crossing north jumps 360 degrees of strip and lands on an
-   identical picture. With no fix it dims and holds where it was, or on north
-   before the first one. */
-const TAPE_PX = 1.9;
-let tapeLast = null;
-function buildTape() {
-  const el = $("#hdgStrip");
-  if (!el || el.firstChild) return;
-  const W = 720 * TAPE_PX;
-  const NAMES = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
-  let s = "";
-  for (let a = -180; a <= 540; a += 5) {
-    const x = (a + 180) * TAPE_PX, n = ((a % 360) + 360) % 360, major = n % 10 === 0;
-    s += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + (major ? 7 : 4) + '" class="' + (major ? "mj" : "mn") + '"/>';
-    const name = NAMES[n];
-    if (name) s += '<text x="' + x + '" y="19" class="' + (name.length === 1 ? "c1" : "c2") + '">' + name + "</text>";
-  }
-  el.innerHTML = '<svg width="' + W + '" height="24" viewBox="0 0 ' + W + ' 24">' + s + "</svg>";
-}
-function moveTape(hdg) {
-  const tape = $("#hdgTape");
-  if (!tape) return;
-  buildTape();
-  tape.classList.toggle("idle", hdg == null);
-  const d = hdg == null ? (tapeLast == null ? 0 : tapeLast) : Math.round(hdg) % 360;
-  if (d === tapeLast && hdg != null) return;
-  tapeLast = d;
-  $("#hdgStrip").style.transform = "translateX(" + (-(d + 180) * TAPE_PX) + "px)";
-}
-
 function updateStats() {
-  moveTape(view.has ? view.hdgCur : null);
   $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
