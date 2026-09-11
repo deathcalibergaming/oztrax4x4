@@ -771,6 +771,10 @@ cursor in a moving vehicle.
 - **Go / Warn / Danger:** the same shape in Signal Green, Caution Yellow or
   Alert Red, each with a matched near-black text colour
 - **Ghost:** transparent fill, hairline-strong border, sand text
+- **Ghost Delete on a grid:** saved track and waypoint cards lay their
+  buttons on a grid, where Delete cannot be pushed to its own end of the
+  row, so it wears Alert Red at 70% on the border and a white-lifted tint
+  (72% red) on the label: 6.3:1 on the card, where the raw red is 4.1:1
 - **Selected:** the chosen half of a segmented pair — Metric against
   Imperial, Normal against Large, On against Off — is filled exactly as
   Primary is, and its unchosen twin stays Ghost. A tint was tried here and

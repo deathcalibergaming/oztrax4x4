@@ -1618,6 +1618,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    and their Delete has nothing to be the last of. */
 .trk-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}
 .trk-acts .btn{min-width:0}
+/* On a grid Delete cannot be pushed to its own end of the row the way
+   .card-acts does it, so it sits a gap from Edit and has to be told apart
+   by colour instead. Alert Red on the border, and a lifted tint of it on
+   the label: the red itself is 4.1:1 on the card, short of text contrast
+   at this size, the tint measures 6.3:1. Still Ghost - a filled red button on
+   every card would shout louder than Resume. */
+.trk-acts .btn[data-act="del"]{border-color:color-mix(in srgb,var(--danger) 70%,transparent);
+  color:color-mix(in srgb,var(--danger) 72%,#fff)}
 /* Saved tracks carry five: three across the top in thirds, two below in
    halves. Six columns divide both. */
 .trk-acts-5{grid-template-columns:repeat(6,minmax(0,1fr))}
