@@ -4472,6 +4472,8 @@ const DIAL_SPOTS = [["btnRec", 180], ["btnPoi", 150], ["btnWpt", 120], ["btnFav"
 const DIAL_STILL = window.matchMedia("(prefers-reduced-motion: reduce)");
 const HUD_SPRING = "linear(0, 0.063, 0.22 7.5%, 0.656 17.4%, 0.868, 0.992 30%, 1.041 35.5%, 1.056 40.2%, 1.047 45.5%, 1.008 58.5%, 0.996 67%, 1)";
 const Dial = { open: false, anims: [], geo: null };
+/* the tallest the stage has been at this width - see the zoom buttons below */
+const zoomBase = { w: 0, h: 0 };
 function layoutDial() {
   const bar = $("#actionbar"), cs = getComputedStyle(document.documentElement);
   const tok = function (n) { return parseFloat(cs.getPropertyValue(n)) || 0; };
@@ -4499,11 +4501,23 @@ function layoutDial() {
      stretch between the display and the top of the open dial, wherever that
      stretch holds it with 10px to spare each end; where it does not, a row
      in the bottom-left corner. The column's height is worked out from the
-     tap size, since in a row it cannot be measured. */
+     tap size, since in a row it cannot be measured.
+
+     Android's system bars slide up over the bottom of the screen on a swipe
+     and shrink the page while they are there. The dial rides up with the
+     bottom edge, as it has to, but the zoom buttons must not move: where
+     they stand, and whether they are a column or a row, are worked out from
+     the tallest the stage has been at this width rather than from the
+     height of the moment. Measured the other way, a swipe on a 740px-tall
+     phone tipped the column into the row and dropped the buttons to the
+     bottom. A width change, or a drop of more than 120px - a window made
+     shorter, not a bar - is a real resize and starts again. */
+  if (W !== zoomBase.w || H < zoomBase.h - 120) { zoomBase.w = W; zoomBase.h = H; }
+  else if (H > zoomBase.h) zoomBase.h = H;
   const zc = $("#zoomCtl"), tap = tok("--tap"), nz = zc.children.length;
   const colH = nz * tap + (nz - 1) * 6;
   const hud = parseFloat(document.documentElement.style.getPropertyValue("--hudStage")) || 0;
-  const room = (cy - R - band / 2) - hud;
+  const room = (zoomBase.h - M - rec - R - band / 2) - hud;
   const row = room < colH + 20;
   document.documentElement.classList.toggle("zoom-row", row);
   zc.style.top = row ? "" : Math.round(hud + (room - colH) / 2) + "px";
