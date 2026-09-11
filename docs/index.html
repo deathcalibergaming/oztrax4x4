@@ -1600,8 +1600,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    height to say something nobody reads twice. */
 .dr-foot{margin-top:auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
   font-size:var(--t-meta);color:var(--dim);line-height:1.5}
-/* A saved track carries six controls, which is two too many for a row and
-   an awkward number for a wrap. They go on a grid of thirds instead: every
+/* Card buttons go on a grid of thirds rather than a wrap: every
    button the same width, every row full to both edges, and the columns
    lining up down the card as well as across it. minmax(0,1fr) rather than
    1fr because a grid column will not shrink below its content otherwise,
@@ -1619,6 +1618,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    and their Delete has nothing to be the last of. */
 .trk-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:9px}
 .trk-acts .btn{min-width:0}
+/* Saved tracks carry five: three across the top in thirds, two below in
+   halves. Six columns divide both. */
+.trk-acts-5{grid-template-columns:repeat(6,minmax(0,1fr))}
+.trk-acts-5 .btn{grid-column:span 2}
+.trk-acts-5 .btn:nth-child(n+4){grid-column:span 3}
+/* The section's own control, under the cards and on their right edge. */
+.sec-acts{display:flex;justify-content:flex-end;margin-top:10px}
 details{border-bottom:1px solid var(--line)}
 summary{list-style:none;padding:15px 14px;display:flex;align-items:center;gap:9px;font-size:var(--t-label);
   font-weight:700;letter-spacing:.15em;text-transform:uppercase;cursor:pointer}
@@ -3052,6 +3058,13 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="trackList" class="list"></div>
+        <!-- One section-level control, not one per card: it clears the line
+             currently drawn on the map, which is one thing, not one thing
+             per saved track. Repeating it on every card read as if it
+             cleared that card's track. -->
+        <div class="sec-acts">
+          <button class="btn xs ghost" id="btnClearTrail">Clear Trail Line</button>
+        </div>
       </div>
     </details>
 
@@ -5761,24 +5774,16 @@ async function renderTracks() {
           return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
         }).join("") +
       "</div>" +
-      /* Two rows of three, on a grid rather than a wrap, so every button is
-         a third of the card and no row ends in a gap. A flex row sized each
-         button to its own label and left whatever was over at the end;
-         thirds mean the columns line up down the card as well as across it.
-
-         Clear Trail Line rides in the second row. It is the one control
-         here that is not about this track - it clears the line drawn on the
-         map - so it takes the last cell, furthest from Resume. */
-      '<div class="trk-acts">' +
-      /* Resume takes the primary slot Export GPX held. Exporting reads a
-         track; resuming changes what the app is doing, and the one that
-         changes something should be the one that looks like it does. */
+      /* Resume, Edit, Delete across the top in thirds; Export GPX and Show
+         below in halves, so both rows run full to the card's edges.
+         Resume is the primary: it changes what the app is doing, and the
+         one that changes something should look like it does. */
+      '<div class="trk-acts trk-acts-5">' +
       '<button class="btn xs primary" data-act="resume">Resume</button>' +
       '<button class="btn xs ghost" data-act="edit">Edit</button>' +
+      '<button class="btn xs ghost" data-act="del">Delete</button>' +
       '<button class="btn xs ghost" data-act="gpx">Export GPX</button>' +
       '<button class="btn xs ghost" data-act="show">' + (shownTrackId === t.id ? "Hide" : "Show") + "</button>" +
-      '<button class="btn xs ghost" data-act="del">Delete</button>' +
-      '<button class="btn xs ghost" data-act="clear">Clear Trail Line</button>' +
       "</div></div>";
   }).join("");
 }
@@ -14130,10 +14135,8 @@ $("#btnRecPause").addEventListener("click", function () {
 });
 $("#btnRecStop").addEventListener("click", function () { Rec.stop(); });
 
-/* Clear Trail Line sits on every saved track card, so this is a function
-   the delegated list handler calls rather than one button's listener. What
-   it clears is the same either way - the line drawn on the map, not the
-   card it was pressed from - and no saved track is touched by it. */
+/* Clears the line drawn on the map. No saved track is touched by it. */
+$("#btnClearTrail").addEventListener("click", function () { clearTrailLine(); });
 async function clearTrailLine() {
   const msg = Rec.state !== "idle"
     ? "The line on the map will clear, and the points recorded so far in this track will be lost for good."
@@ -14447,8 +14450,6 @@ $("#trackList").addEventListener("click", async function (e) {
   else if (b.dataset.act === "resume") resumeTrack(id);
   else if (b.dataset.act === "show") showTrackOnMap(id);
   else if (b.dataset.act === "edit") openEditTrack(id);
-  /* The one action on the card that is not about the card's own track. */
-  else if (b.dataset.act === "clear") clearTrailLine();
   else if (b.dataset.act === "del") {
     if (!(await ask("This track will be deleted for good, and its GPX can no longer be exported."))) return;
     if (shownTrackId === id) { ghostLayer.clearLayers(); shownTrackId = null; }
