@@ -493,9 +493,10 @@ like prose pushes the unit through the floor of the bar.
 A fixed, full-screen app shell that never scrolls as a page. `body` is
 `overflow:hidden`; only panel bodies scroll, with overscroll contained.
 
-The vertical stack is a 50px top bar (`--topH`), a 56px instrument row
-(`--statsH`), the map stage, and an action bar that matches the instrument
-row's height (`--actH: var(--statsH)`). In landscape both bars stand on end
+The vertical stack is a 50px top bar (`--topH`), the instrument cluster
+(`--clusterH`, 98px in portrait), the map stage, and a 56px action bar
+(`--actH: var(--statsH)`), with Record raised 24px out of its middle. In
+landscape both bars stand on end
 at a shared 80px width (`--railW`) so the columns cannot drift apart.
 Safe-area insets are added to the top bar and every bottom-anchored element,
 never ignored.
@@ -878,6 +879,32 @@ and a unit beneath it, separated from its neighbour by a hairline that stops
 short of the panel's bevel. Columns
 are sized to their content rather than split equally, because a three-letter
 cardinal and a five-character clock do not need the same room.
+
+In portrait the five gauges are laid out as a cluster, like a dashboard:
+- **Speed** sits in the middle at 46px, in a column sized to its figure.
+- **Altitude and heading** sit to its left, right-aligned toward it.
+- **Distance and time** sit to its right, left-aligned toward it.
+- **Label placement:** each flank reading stacks its label over the figure,
+  because a one-line "DIST 1234.56 KM" does not fit a flank.
+- **Compass tape:** runs across the foot of the cluster at 1.9px per degree,
+  with ticks every 5°, cardinals in Instrument White and intercardinals in
+  sand. A rust lubber line marks the centre. The tape is dimmed to 35% with
+  no fix. It carries the word the heading gauge drops. It is one prebuilt
+  strip that is moved, never redrawn.
+
+Landscape keeps the single column of five.
+
+### Record Boss
+
+In portrait, Record is a 74px disc raised 24px out of the middle of the action
+bar:
+- **Ring:** Alert Red; amber when paused.
+- **Collar:** a 7px collar in the bar's own colour, so the disc sits in the bar
+  rather than on top of it.
+- **Face:** always opaque, because the part above the bar is over the map.
+- **Clearance:** the nav and record panels are lifted to stay 8px clear of it.
+
+In landscape it is an ordinary cell in the middle of the rail.
 
 ### Speed Sign
 
