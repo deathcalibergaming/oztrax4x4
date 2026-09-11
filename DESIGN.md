@@ -884,7 +884,12 @@ and a fade behind them:
 - **Heading chip:** the heading in figures, hung under the lubber line on a
   panel-colour plate with a rust hairline, 8px below the tape's letters.
 - **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
-  74px on an upright phone — with its label in rust and its unit beside it.
+  74px on an upright phone — lettered the way a gauge is: its label in rust
+  level with the top of the digits, its unit on their baseline, 10px off them.
+- **Speed limit:** the regulatory roundel — black numerals in a red ring on
+  white, without the roadside plate — collared in the panel colour. At the
+  far end of the speed's row on an upright phone; 12px past the speed's unit
+  in the band, where the tape is masked past it. Hidden, it keeps its place.
 - **Readouts:** altitude, distance and time.
 - **Two arrangements:** wherever there is width (a tablet either way up, a
   phone on its side) it is one band — speed at the left, the readouts
@@ -894,7 +899,9 @@ and a fade behind them:
   readouts run in a row under a hairline.
 - **Fade:** the panel colour, set against the content — 85% behind the
   tape, never under 58% behind a figure (the small ones need 55% over the
-  palest terrain in sun), eased out over the 20px below the last of them.
+  palest terrain in sun), eased out over the 14px below the last of them.
+- **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
+  heading chip 8px under them, the speed's digits 9px under the chip.
 
 Nothing in it takes a tap, so the map under it still pans.
 
@@ -944,11 +951,14 @@ badge-to-wordmark gaps match: 17px each on a phone, 12px with a mouse.
 
 ### Speed Sign
 
-A literal Australian speed-limit sign: a 56px white rounded square holding a
-47px circle with a 5.5px `#C8102E` ring and near-black numerals. It is not
-themed and does not follow the palette — it is a road sign, and it is
-recognisable because it looks exactly like one. Three digits drop the type
-size to keep the ring clear.
+The Australian regulatory roundel, in the heads-up display beside the speed:
+a white disc with an `#C8102E` ring 11% of its diameter and near-black
+numerals, 46px on an upright phone, 48 on a tablet, 38 on a phone on its
+side, with a 2px panel-colour collar. It is not themed and does not follow
+the palette — it is a road sign, and it is recognisable because it keeps the
+sign's colours. The roadside plate is gone: floating over the map it read as
+a sticker. Three digits drop the type size to keep the ring clear, and it is
+never shown empty.
 
 ### Popups
 

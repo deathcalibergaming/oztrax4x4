@@ -1056,17 +1056,45 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
    Nothing in it takes a tap, so the map under it still pans. */
 #statsbar{position:absolute;top:calc(var(--topH) + var(--safeT));left:0;right:0;z-index:600;
-  pointer-events:none;padding:0}
+  pointer-events:none;padding:0;
+  --spd:68px;       /* the speed figure */
+  --sign-d:48px}    /* the limit roundel's diameter */
 #statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
   text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.6)}
-/* speed: the figure, with its label and unit stacked beside it */
-#statsbar .stat:nth-child(1){display:grid;grid-template-columns:auto auto;grid-template-areas:"v l" "v u";
-  justify-content:start;align-items:end;column-gap:9px;row-gap:3px;left:24px;top:4px}
-#statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(68px * var(--uiScale));line-height:.84;letter-spacing:-.05em}
-#statsbar .stat:nth-child(1) .lbl{grid-area:l;align-self:end;color:var(--rust2);letter-spacing:.2em}
-#statsbar .stat:nth-child(1) i{grid-area:u;align-self:start;font-size:calc(12px * var(--uiScale));letter-spacing:.14em;font-weight:700}
+/* Speed: the figure, lettered the way a gauge is - its label level with the
+   top of the digits and its unit on their baseline, 10px off them. They sat
+   1px apart in the upper middle of the digits before, reading as a caption
+   that had drifted rather than as part of the figure. */
+#statsbar .stat:nth-child(1){display:grid;grid-template-columns:auto auto;grid-template-rows:auto 1fr auto;
+  grid-template-areas:"v l" "v ." "v u";justify-content:start;column-gap:10px;left:24px;top:4px}
+#statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;letter-spacing:-.05em}
+/* The two margins are measured, not reasoned: they put the label's cap
+   height on the digits' and the unit's baseline on theirs, to within half a
+   pixel, at each size - a smaller unit sits differently in its box, so an
+   upright phone, whose unit is 11px, carries its own. */
+#statsbar .stat:nth-child(1) .lbl{grid-area:l;align-self:start;color:var(--rust2);letter-spacing:.2em;
+  margin-top:calc(var(--spd) * var(--uiScale) * .098)}
+#statsbar .stat:nth-child(1) i{grid-area:u;align-self:end;font-size:calc(12px * var(--uiScale));letter-spacing:.14em;
+  font-weight:700;margin-bottom:calc(var(--spd) * var(--uiScale) * .044)}
+/* The limit: the Australian regulatory roundel - black numerals in a red
+   ring on white - without the square plate it stands on at the roadside,
+   which floating over the map read as a sticker rather than part of the
+   instrument. It keeps the sign's own colours because it is a sign; the
+   collar is the panel colour, so it sits in the display rather than on it.
+   Hidden - no limit known - it keeps its place, so the tape's mask does not
+   move when a limit comes and goes. Never shown empty: an empty ring is a
+   real sign in places, the end of a restriction. */
+#speedSign{position:absolute;z-index:2;width:var(--sign-d);height:var(--sign-d);border-radius:50%;
+  box-sizing:border-box;background:#FFFFFF;border:calc(var(--sign-d) * .11) solid #C8102E;
+  display:flex;align-items:center;justify-content:center;pointer-events:none;text-shadow:none;
+  box-shadow:0 0 0 2px rgba(17,21,19,.9),0 3px 10px rgba(0,0,0,.5)}
+#speedSign b{font-family:var(--ui);font-weight:800;color:#0B0B0B;font-size:calc(var(--sign-d) * .42);
+  line-height:1;letter-spacing:-.02em}
+/* three digits give a little back to keep the ring clear */
+#speedSign.wide b{font-size:calc(var(--sign-d) * .34);letter-spacing:-.04em}
+#statsbar #speedSign.hidden{display:flex !important;visibility:hidden}
 /* the heading, in a chip under the lubber line, 8px below the tape's letters */
-#statsbar .stat:nth-child(2){left:50%;top:56px;transform:translateX(-50%);z-index:2;background:#111513;
+#statsbar .stat:nth-child(2){left:50%;top:50px;transform:translateX(-50%);z-index:2;background:#111513;
   border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;
   box-shadow:0 0 0 3px rgba(17,21,19,.7),0 6px 14px rgba(0,0,0,.5)}
 #statsbar .stat:nth-child(2) .lbl{display:none}
@@ -1094,8 +1122,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
 /* A phone on its side: the same band, smaller. */
 @media (orientation: landscape) and (max-height: 520px) {
+  #statsbar{--spd:52px;--sign-d:38px}
   #statsbar .stat:nth-child(1){left:16px}
-  #statsbar .stat:nth-child(1) b{font-size:calc(52px * var(--uiScale))}
+  #statsbar .stat:nth-child(1) .lbl{margin-top:calc(var(--spd) * var(--uiScale) * .08)}
   #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
   #statsbar .stat:nth-child(2){padding:3px 9px}
   #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
@@ -1110,18 +1139,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* An upright phone: the tape across the top, speed under it, the readouts on
    one line under that with a hairline over them. */
 @media (orientation: portrait) and (max-width: 599px) {
-  #statsbar{display:grid;grid-template-columns:auto auto auto 1fr;grid-template-rows:84px auto auto;
-    column-gap:16px;padding:0 16px 20px;
-    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 84px,
-      rgba(17,21,19,.58) calc(100% - 20px),rgba(17,21,19,.34) calc(100% - 13px),
-      rgba(17,21,19,.14) calc(100% - 6px),rgba(17,21,19,0) 100%)}
+  /* The first row ends where the speed starts: its digits 9px under the
+     heading chip, which stands 8px under the tape's letters. The fade eases
+     out over the 14px below the readouts. Both were looser - 84px and 20 -
+     and the display gave the map back about 15px for it. */
+  #statsbar{display:grid;grid-template-columns:auto auto auto 1fr;grid-template-rows:76px auto auto;
+    column-gap:16px;padding:0 16px 14px;--spd:74px;--sign-d:46px;
+    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 76px,
+      rgba(17,21,19,.58) calc(100% - 14px),rgba(17,21,19,.34) calc(100% - 9px),
+      rgba(17,21,19,.14) calc(100% - 4px),rgba(17,21,19,0) 100%)}
   #statsbar .stat{position:static}
   #statsbar .stat:nth-child(1){grid-column:1/4;grid-row:2}
-  #statsbar .stat:nth-child(1) b{font-size:calc(74px * var(--uiScale))}
+  #statsbar .stat:nth-child(1) .lbl{margin-top:calc(var(--spd) * var(--uiScale) * .08)}
+  #statsbar .stat:nth-child(1) i{margin-bottom:calc(var(--spd) * var(--uiScale) * .063)}
+  /* the limit at the far end of the speed's row, the way a car's cluster pairs them */
+  #statsbar #speedSign{position:static;grid-column:4;grid-row:2;justify-self:end;align-self:center}
   #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
   #statsbar .stat:nth-child(2){position:absolute;padding:3px 9px}
   #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
-  #statsbar .stat:nth-child(n+3){grid-row:3;justify-content:flex-start;margin-top:11px;padding-top:8px;
+  #statsbar .stat:nth-child(n+3){grid-row:3;justify-content:flex-start;margin-top:8px;padding-top:7px;
     border-top:1px solid rgba(216,203,170,.28)}
   #statsbar .stat:nth-child(3){grid-column:1}
   #statsbar .stat:nth-child(4){grid-column:2}
@@ -1255,27 +1291,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Every floating label on the map lives in this one column. They used to be
    positioned independently and the follow badge landed on top of the POI
    chip on a phone-width screen; stacking them makes that impossible. */
-/* The Australian regulatory speed sign: black numerals inside a red ring
-   on a white plate. Drawn rather than fetched, so it costs nothing and
-   works with no signal. It sits bottom left, because the thumb dial holds
-   the bottom right, and it stands on the same line as the nav and record
-   panels - the bottom edge, or the zoom row where the buttons have had to
-   become one - so liftSpeedSign still lifts it clear of them by their height. */
-#speedSign{position:absolute;left:14px;bottom:var(--stackB);
-  z-index:450;width:56px;height:56px;border-radius:7px;background:#FFFFFF;
-  box-shadow:0 2px 10px rgba(0,0,0,.55);display:flex;align-items:center;
-  justify-content:center;pointer-events:none;
-  transition:transform .24s cubic-bezier(.3,.7,.3,1)}
-#speedSign .ring{width:47px;height:47px;border-radius:50%;border:5.5px solid #C8102E;
-  display:flex;align-items:center;justify-content:center;box-sizing:border-box}
-/* Literal, not a scale token. The plate is 56px and the ring inside it is
-   47px with a 5.5px stroke; the numerals are cut to sit inside that ring. A
-   road sign is a road sign at one size, and growing the number with a text
-   setting would push it into the red. */
-#speedSign b{font-family:var(--ui);font-weight:800;color:#0B0B0B;
-  font-size:21px;line-height:1;letter-spacing:-.5px}
-/* three digits have to give a little back to keep the ring clear */
-#speedSign.wide b{font-size:17px;letter-spacing:-1px}
+/* The speed limit lives in the heads-up display, beside the speed it
+   governs - see the display. */
 
 #mapChips{position:absolute;left:8px;top:calc(var(--hudStage) + 10px);z-index:450;display:flex;flex-direction:column;
   align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
@@ -2776,8 +2793,6 @@ input[type=date],input[type=time]{color-scheme:dark}
      present for the length of a slide that no longer happens. */
   #drawer,#poiPanel,#wptPanel,#favPanel{transition:transform .01s linear,visibility 0s linear .01s}
   #drawer.open,#poiPanel.open,#wptPanel.open,#favPanel.open{transition:transform .01s linear,visibility 0s}
-  /* The sign shifting up to clear a panel is pure travel. */
-  #speedSign{transition:none}
   /* The knob stops sliding; its colour still changes, which is the state. */
   .sw::after{transition:background .16s}
   /* A determinate bar jumping to its value still reads as progress. */
@@ -2962,6 +2977,9 @@ input[type=date],input[type=time]{color-scheme:dark}
          rules; hidden from screen readers because the heading cell already
          says the same thing in figures. -->
     <div id="hudTape" aria-hidden="true"></div>
+    <!-- The posted limit, beside the speed it governs. After the tape, so it
+         shifts none of the cells' nth-child rules. -->
+    <div id="speedSign" class="hidden" role="group" aria-label="Speed limit"><b id="speedLimit">--</b></div>
   </div>
 
   <div id="stage" role="main">
@@ -2990,7 +3008,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
       </button>
     </div>
-    <div id="speedSign" class="hidden" aria-label="Speed limit"><div class="ring"><b id="speedLimit">--</b></div></div>
     <div id="mapChips">
       <button id="poiFilterChip" class="mapchip hidden">
         <span id="poiFilterText">FILTER</span>
@@ -4356,7 +4373,7 @@ function viewCenter() {
    strip onto an identical picture. 4.2px a degree, 21px between five-degree
    ticks, on every size, so the scale reads the same upright or on its side.
    Rebuilt only when the width changes. */
-const TAPE_PX = 4.2, TAPE_TOP = 16;
+const TAPE_PX = 4.2, TAPE_TOP = 10;
 let tapeW = 0, tapeLast = null;
 function buildTape() {
   const box = $("#hudTape"), W = Math.round($("#statsbar").clientWidth);
@@ -4376,8 +4393,9 @@ function buildTape() {
   box.innerHTML = '<svg width="' + W + '" height="64" viewBox="0 0 ' + W + ' 64">' +
     '<line x1="0" y1="' + TAPE_TOP + '" x2="' + W + '" y2="' + TAPE_TOP + '" stroke="rgba(255,255,255,.8)" stroke-width="1.5"/>' +
     '<g id="tapeG">' + s + "</g>" +
-    '<path d="M' + (cx - 8) + " 3H" + (cx + 8) + "L" + cx + ' 14Z" fill="#CC5A2E"/>' +
-    '<line x1="' + cx + '" y1="14" x2="' + cx + '" y2="56" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
+    /* the caret rests on the tape's line, and the lubber line runs down to the chip */
+    '<path d="M' + (cx - 7) + " 0H" + (cx + 7) + "L" + cx + " " + (TAPE_TOP - 1) + 'Z" fill="#CC5A2E"/>' +
+    '<line x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="50" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
   tapeLast = null;
 }
 /* With no fix it dims and holds where it was, or on north before the first. */
@@ -4400,27 +4418,39 @@ function moveTape(hdg) {
    it publishes where the display ends, for the toast and the map chips,
    and places the thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
+let hudSpeedLen = 0;
 function layoutHud() {
-  const sb = $("#statsbar"), tape = $("#hudTape");
+  const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
   if (!sb || !tape) return;
   buildTape();
   sb.style.height = ""; sb.style.background = "";
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
+  sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
   if (!HUD_UPRIGHT.matches) {
-    const held = [["#stSpeed", "188"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
+    /* The readouts are measured at their widest so a growing one never runs
+       under the tape. The speed is measured as it stands - this runs again
+       when it gains or loses a digit - and the limit roundel follows it,
+       12px off its unit and centred on the digits, so neither leaves a gap
+       beside the other. The tape's mask starts past the roundel whether or
+       not a limit is showing, since the roundel keeps its place. */
+    const held = [["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
       .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
-    const spd = r(cells[0]), outs = cells.slice(2).map(r);
+    const spd = r(cells[0]), digits = r($("#stSpeed")), outs = cells.slice(2).map(r), d = sign.offsetWidth;
+    const sx = Math.round(spd.right - box.left) + 12;
+    const sy = Math.round((digits.top + digits.bottom) / 2 - box.top - d / 2);
+    sign.style.left = sx + "px"; sign.style.top = sy + "px";
     const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
-    const foot = Math.ceil(Math.max(spd.bottom, ...outs.map(function (b) { return b.bottom; }),
-      ...letters.map(function (b) { return b.bottom; })) - box.top);
-    const l = Math.round(spd.right - box.left) + 10;
+    const foot = Math.ceil(Math.max(spd.bottom - box.top, sy + d, ...outs.map(function (b) { return b.bottom - box.top; }),
+      ...letters.map(function (b) { return b.bottom - box.top; })));
+    const l = sx + d + 10;
     const rr = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left) - 10;
     held.forEach(function (p) { p[0].textContent = p[1]; });
-    sb.style.height = (foot + 20) + "px";
+    /* eased out over the 14px below the lowest of them */
+    sb.style.height = (foot + 14) + "px";
     sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.6) " + foot + "px," +
-      "rgba(17,21,19,.34) " + (foot + 7) + "px,rgba(17,21,19,.14) " + (foot + 14) + "px,rgba(17,21,19,0) 100%)";
+      "rgba(17,21,19,.34) " + (foot + 5) + "px,rgba(17,21,19,.14) " + (foot + 10) + "px,rgba(17,21,19,0) 100%)";
     const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
       (rr - 60) + "px,transparent " + rr + "px,transparent 100%)";
     tape.style.webkitMaskImage = m; tape.style.maskImage = m;
@@ -4478,8 +4508,6 @@ function layoutDial() {
   document.documentElement.classList.toggle("zoom-row", row);
   zc.style.top = row ? "" : Math.round(hud + (room - colH) / 2) + "px";
   zc.style.transform = row ? "" : "none";
-  /* the row decides whether the panels stand over the speed sign */
-  liftSpeedSign();
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
   if (!Dial.open) bar.classList.add("shut");
   nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
@@ -5060,7 +5088,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, liftTick = 0, nearTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0;
 let nearAnchor = null;   /* where the waypoint list was last drawn from */
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -5111,9 +5139,6 @@ function frame(ts) {
   /* a posted limit changes at a sign, not at 60 fps */
   if (ts - spdTick > CFG.SPEED_TICK) { spdTick = ts; updateSpeedSign(); }
 
-  /* Followed here rather than hooked onto each panel opening and closing,
-     so a path added later cannot forget to move the sign. One rect read. */
-  if (ts - liftTick > 100) { liftTick = ts; liftSpeedSign(); }
 
   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
@@ -5436,27 +5461,13 @@ function updateSpeedSign() {
   sign.classList.remove("hidden");
 }
 
-/* The nav and record panels take the same strip above the action bar that
-   the sign sits in. It is lifted by whatever the stack actually measures
-   rather than a fixed offset: the panels change height when a second one
-   joins the first, and again when a long destination name wraps. A stack
-   with nothing open measures zero, which is the resting position. */
-/* Only when the sign is under the panels. With a zoom row the panels stand
-   beside the sign rather than over it, and lifting it would float it up for
-   nothing. Where it stands comes from its CSS, not its box, so this is
-   right while the sign is hidden too - it can appear later without a call. */
-function liftSpeedSign() {
-  const sg = $("#speedSign"), ps = $("#panelStack").getBoundingClientRect(), st = stageEl.getBoundingClientRect();
-  const cs = getComputedStyle(sg);
-  const left = st.left + parseFloat(cs.left), right = left + 56, bottom = st.bottom - parseFloat(cs.bottom);
-  const under = ps.height > 0 && right > ps.left && left < ps.right;
-  const lift = under ? Math.max(0, Math.round(bottom - ps.top) + 8) : 0;
-  sg.style.transform = lift ? "translateY(-" + lift + "px)" : "";
-}
-
 function updateStats() {
   moveTape(view.has ? view.hdgCur : null);
   $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
+  /* In the band the limit roundel stands just past the speed, so a speed that
+     gains or loses a digit - 99 to 100 - lays the band out again. Rare. */
+  const spdLen = $("#stSpeed").textContent.length;
+  if (spdLen !== hudSpeedLen) { hudSpeedLen = spdLen; if (!HUD_UPRIGHT.matches) layoutHud(); }
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
   $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";
@@ -14625,7 +14636,6 @@ function applyTextScale() {
   /* The bars changed height, so everything measured off them is stale -
      the map's own size most of all, or it keeps the rows it had before. */
   if (typeof sizeMap === "function") sizeMap();
-  if (typeof liftSpeedSign === "function") liftSpeedSign();
 }
 
 function syncTextButtons() {
