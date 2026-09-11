@@ -928,7 +928,10 @@ between the heads-up display and the top of the open dial. Where that
 stretch is too short for them - a phone on its side, a short window - they
 become a row in the bottom-left corner instead. It is measured, not keyed to
 orientation: a tablet or a desktop window on its side keeps the tablet's
-arrangement. The nav and record panels stand beside Navigate, stopping 12px
+arrangement. It is measured against the tallest the screen has been at its
+width, so Android's system bars sliding up on a swipe move the dial with the
+bottom edge but leave the zoom buttons where they are; a width change or a
+drop of more than 120px is a real resize and starts again. The nav and record panels stand beside Navigate, stopping 12px
 short of it, at exactly its height - top and bottom level with the disc, 80px
 on an upright phone, 100 on a tablet, 68 on a phone on its side - so the
 corner reads as one console. Where there is a zoom row they stand between it
