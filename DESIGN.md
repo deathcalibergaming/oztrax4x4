@@ -969,6 +969,14 @@ Panel fill, hairline-strong border, 6px radius, popup shadow. An uppercase
 title in the category's colour lifted to ink, an optional second line for a
 place that has one, then a Meta line of category, source and distance.
 
+**A popup is built when it opens, not when the map is drawn.** The same rule
+the favourites list keeps — see Favourites — and for the same reason: the star
+and the fuel prices on a pin's card are read at the moment a thumb opens it,
+so a price that arrived since the last redraw is on the card. It is also what
+makes a dense town cheap to draw. A screenful of Adelaide is five hundred and
+sixty-eight pins, and building all five hundred and sixty-eight cards for the
+one that gets tapped was 17ms of every redraw.
+
 ### Dialogs
 
 Panel fill in a 10px box on a near-black scrim, capped at 360px wide and at

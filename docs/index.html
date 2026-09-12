@@ -9205,11 +9205,18 @@ window.showPoi = showPoi;
    took 213ms; the same five hundred with the options computed once took
    10.3. The number is not the read, it is the alternation.
 
+   Even once was not free, because of where the once falls: renderPois has
+   just emptied the marker pane, so the read has a torn-up document to settle
+   and settles the whole of it. In Adelaide that single read measured 13.5ms
+   of the 81ms a render cost. So it is not read at all now - stageW is the
+   same number, taken by sizeMap whenever the stage actually changes size,
+   and nothing else can move it.
+
    Once per render is also all the correctness that is needed. The width only
    changes when the phone is turned or the rail appears, and a render follows
    every map move, so the value is never more than one pan stale. */
 function popOpts() {
-  const w = stageEl ? stageEl.clientWidth : window.innerWidth;
+  const w = stageW || window.innerWidth;
   return { className: "tt-pop", closeButton: false,
            maxWidth: Math.max(180, Math.min(300, w - 44)) };
 }
@@ -9219,8 +9226,16 @@ function renderPois() {
   const popo = popOpts();      /* once for the whole render - see popOpts */
   const vis = visiblePois();
   const here = (view.has ? view.cur : poiAnchor());
+  /* Measured once, then sorted - not measured inside the comparison. A sort
+     asks its comparator about a pair some n log n times, so the plain
+     version worked out the great-circle distance from here to the same POI
+     about twenty times over: 43,648 haversines for the 1,604 POIs loaded in
+     Adelaide, 4.3ms of a render. Measuring first is 1,604 of them, 0.7ms,
+     and the order is identical - same key, and sorts are stable. */
   const hits = vis.filter(function (p) { return poiMatches(p, poiQuery); })
-                  .sort(function (a, b) { return haversine(here, a) - haversine(here, b); });
+                  .map(function (p) { return { p: p, d: haversine(here, p) }; });
+  hits.sort(function (a, b) { return a.d - b.d; });
+  for (let i = 0; i < hits.length; i++) hits[i] = hits[i].p;
 
   /* A search narrows the map as well as the list, which is the only sane way
      to find one thing among the eighty car parks a town centre returns - but
@@ -9228,34 +9243,59 @@ function renderPois() {
      nothing nearby, and blanking the map for that is no help to anyone, so a
      filter with no hits leaves the pins alone. */
   const filtering = !!poiQuery && hits.length > 0;
-  fanOut(clusterPois(filtering ? hits : vis)).forEach(function (spot) {
-    const group = spot.group;
-    const at = spot.at ? [spot.at.lat, spot.at.lng] : [group[0].lat, group[0].lng];
-    /* Drawn before the marker, though the order does not decide it: Leaflet
-       keeps every line in the overlay pane and every marker in the one
-       above, so a leader can never cover the pin it points at. */
-    if (spot.lead) {
-      /* Dark, like the casings under the route and the trail. Esri's topo
-         is a pale sheet and the sand the rest of the interface is drawn in
-         disappears into it - the first version of this line was in the DOM
-         and invisible on the map, which is no use at all when the line is
-         the thing that says where the place really is. */
-      L.polyline([[group[0].lat, group[0].lng], at], {
-        className: "poi-leader", color: "#14181B", weight: 1.2,
-        opacity: 0.5, interactive: false
-      }).addTo(poiLayer);
-    }
-    if (group.length === 1) {
-      const p = group[0], m = POI_META[p.kind];
-      L.marker(at, { icon: pinIcon(m.color, poiIcon(p.kind), true), keyboard: false })
-        .bindPopup(poiPopupHtml(p, here), popo)
-        .addTo(poiLayer);
-    } else {
-      L.marker(at, { icon: clusterIcon(group), keyboard: false })
-        .bindPopup(clusterPopupHtml(group, here), popo)
-        .addTo(poiLayer);
-    }
-  });
+  const spots = fanOut(clusterPois(filtering ? hits : vis));
+
+  /* Every pin is appended to the marker pane the moment it is made, and a
+     document that is on screen has to account for each one as it lands.
+     Lifting the pane out of the document for the length of the loop makes
+     those five hundred and sixty-eight appends happen somewhere nothing can
+     see, and it goes back in the same turn of the event loop, so no frame is
+     ever drawn without it. try/finally because a pane left out is a map with
+     no pins on it - the one failure that must not survive an exception.
+
+     Worth about 3ms of a 48ms render here; more on a phone, where a live
+     document is dearer to disturb. Doing the same for the clear at the top
+     of the function measured nothing, so it was left where it reads. */
+  const pane = map.getPane("markerPane"), paneAt = pane.nextSibling, paneIn = pane.parentNode;
+  if (paneIn) paneIn.removeChild(pane);
+  try {
+    spots.forEach(function (spot) {
+      const group = spot.group;
+      const at = spot.at ? [spot.at.lat, spot.at.lng] : [group[0].lat, group[0].lng];
+      /* Drawn before the marker, though the order does not decide it: Leaflet
+         keeps every line in the overlay pane and every marker in the one
+         above, so a leader can never cover the pin it points at. */
+      if (spot.lead) {
+        /* Dark, like the casings under the route and the trail. Esri's topo
+           is a pale sheet and the sand the rest of the interface is drawn in
+           disappears into it - the first version of this line was in the DOM
+           and invisible on the map, which is no use at all when the line is
+           the thing that says where the place really is. */
+        L.polyline([[group[0].lat, group[0].lng], at], {
+          className: "poi-leader", color: "#14181B", weight: 1.2,
+          opacity: 0.5, interactive: false
+        }).addTo(poiLayer);
+      }
+      /* The popup is handed over as a function, so Leaflet builds the card
+         when a thumb opens it rather than for all five hundred and sixty-eight
+         pins nobody taps - 17ms of a render, spent on markup thrown away.
+         It reads better as well as faster: the star and the fuel prices are
+         now gathered at the moment the card appears, not at the moment the
+         map was last drawn. */
+      if (group.length === 1) {
+        const p = group[0], m = POI_META[p.kind];
+        L.marker(at, { icon: pinIcon(m.color, poiIcon(p.kind), true), keyboard: false })
+          .bindPopup(function () { return poiPopupHtml(p, here); }, popo)
+          .addTo(poiLayer);
+      } else {
+        L.marker(at, { icon: clusterIcon(group), keyboard: false })
+          .bindPopup(function () { return clusterPopupHtml(group, here); }, popo)
+          .addTo(poiLayer);
+      }
+    });
+  } finally {
+    if (paneIn) paneIn.insertBefore(pane, paneAt);
+  }
   $("#cntPois").textContent = poiQuery ? hits.length + "/" + vis.length : vis.length;
 
   renderPoiFilters();
