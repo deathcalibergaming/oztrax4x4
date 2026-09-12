@@ -22,3 +22,11 @@
 .env
 .env.*
 *.token
+
+# Account recovery codes. GitHub hands these over as a plain .txt on the way
+# through two-factor setup, and it lands in whatever directory the browser was
+# pointed at - which was this one. They are one-shot passwords for the account
+# that owns this repo, so a single `git add -A` would publish the keys to the
+# house. Named by pattern rather than by file, because the download comes back
+# under the same name every time it is regenerated.
+*recovery-codes*.txt
