@@ -1143,47 +1143,71 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   #hudTape .nm{font-size:8.5px}
 }
 
-/* An upright phone: the tape across the top, speed under it, the readouts on
-   one line under that with a hairline over them. */
+/* An upright phone: the same band, with the tape lifted over it. Speed and
+   its limit at the left, the three readouts stacked at the right, as on a
+   tablet or a phone on its side; the tape, which has no room between them on
+   a screen this narrow, runs across the top instead, and the heading chip
+   hangs from its lubber line between the two. It replaced a stack of three
+   rows - tape, speed, readouts under a hairline - and gives the map back
+   about 50px.
+
+   The chip stands 8px under the tape's letters, as it always has, and the
+   band starts 84px down - 8px lower than the old speed row, because the
+   limit roundel now stands beside the speed, under the chip, and at 76 the
+   two rings all but touched and read as one object hung off the tape. The
+   readouts step at 19px, the phone-on-its-side size.
+
+   The speed is sized to fit by layoutHud, measured with a three-figure speed
+   and the widest readouts, from 64px down to 48; the limit roundel follows
+   it, 12px off its unit. Where even 48 will not fit - a 320px phone - the
+   bar goes back to the three rows (.hud-stack, below), which keep a large
+   speed on any width. */
 @media (orientation: portrait) and (max-width: 599px) {
-  /* The first row ends where the speed starts: its digits 9px under the
-     heading chip, which stands 8px under the tape's letters. The fade eases
-     out over the 14px below the readouts. Both were looser - 84px and 20 -
-     and the display gave the map back about 15px for it. */
-  /* The speed and the limit share the width of the whole bar between them,
-     and the three readouts share it between themselves. They used to share
-     the same columns, so a three-figure speed widened the first two and
-     pushed the third readout into the limit's column - on a 320px phone at
-     Large text the distance ran into TIME. Spanning the bar, the speed and
-     the roundel ask only that the bar be wider than the two of them, which
-     every phone is, and the readouts keep the positions they had. */
-  #statsbar{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:76px auto auto;
+  #statsbar{--spd:64px;--sign-d:40px;--bandT:84px}
+  #statsbar .stat:nth-child(1){left:16px;top:var(--bandT)}
+  /* The label's cap height on the digits' and the unit's baseline on
+     theirs. The label's offset grows with the figure; the unit's is the
+     digits' offset less the unit's own, which does not - a fraction of the
+     speed alone was right at one size and a pixel out at the next, and the
+     size moves now. Fitted to the 74px and 52px measurements. */
+  #statsbar .stat:nth-child(1) .lbl{margin-top:calc(var(--spd) * var(--uiScale) * .08)}
+  #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale));
+    margin-bottom:calc(var(--uiScale) * (var(--spd) * .1077 - 3.31px))}
+  #statsbar .stat:nth-child(2){padding:3px 9px}
+  #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
+  #statsbar .stat:nth-child(n+3){right:16px}
+  #statsbar .stat:nth-child(3){top:calc(var(--bandT) + 2px)}
+  #statsbar .stat:nth-child(4){top:calc(var(--bandT) + 2px + 19px * var(--uiScale))}
+  #statsbar .stat:nth-child(5){top:calc(var(--bandT) + 2px + 38px * var(--uiScale))}
+  #statsbar .stat:nth-child(n+3) b{font-size:calc(14px * var(--uiScale))}
+  #hudTape{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);
+                  mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%)}
+  #hudTape text{font-size:10px}
+  #hudTape .nm{font-size:8.5px}
+
+  /* .hud-stack: the three rows, for a phone too narrow for the band. The
+     speed and the limit share the whole width between them and the readouts
+     share theirs, so a three-figure speed never pushes a readout along. */
+  #statsbar.hud-stack{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:76px auto auto;
     column-gap:clamp(10px, calc((100vw - 272px) / 4), 16px);   /* 16 from 336px; 12 at 320, where Large text needs it */
     padding:0 16px 14px;--spd:74px;--sign-d:46px;
     background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 76px,
       rgba(17,21,19,.58) calc(100% - 14px),rgba(17,21,19,.34) calc(100% - 9px),
       rgba(17,21,19,.14) calc(100% - 4px),rgba(17,21,19,0) 100%)}
-  #statsbar .stat{position:static}
-  #statsbar .stat:nth-child(1){grid-column:1/-1;grid-row:2;justify-self:start}
-  #statsbar .stat:nth-child(1) .lbl{margin-top:calc(var(--spd) * var(--uiScale) * .08)}
-  #statsbar .stat:nth-child(1) i{margin-bottom:calc(var(--spd) * var(--uiScale) * .063)}
+  #statsbar.hud-stack .stat{position:static}
+  #statsbar.hud-stack .stat:nth-child(1){grid-column:1/-1;grid-row:2;justify-self:start}
+  #statsbar.hud-stack .stat:nth-child(1) i{margin-bottom:calc(var(--spd) * var(--uiScale) * .063)}
   /* the limit at the far end of the speed's row, the way a car's cluster pairs them */
-  #statsbar #speedSign{position:static;grid-column:1/-1;grid-row:2;justify-self:end;align-self:center}
-  #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
-  #statsbar .stat:nth-child(2){position:absolute;padding:3px 9px}
-  #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
+  #statsbar.hud-stack #speedSign{position:static;grid-column:1/-1;grid-row:2;justify-self:end;align-self:center}
+  #statsbar.hud-stack .stat:nth-child(2){position:absolute}
   /* start, so each hairline is as long as its readout and the last one does
      not run on across the empty end of its column */
-  #statsbar .stat:nth-child(n+3){grid-row:3;justify-self:start;justify-content:flex-start;margin-top:8px;padding-top:7px;
+  #statsbar.hud-stack .stat:nth-child(n+3){grid-row:3;justify-self:start;justify-content:flex-start;margin-top:8px;padding-top:7px;
     border-top:1px solid rgba(216,203,170,.28)}
-  #statsbar .stat:nth-child(3){grid-column:1}
-  #statsbar .stat:nth-child(4){grid-column:2}
-  #statsbar .stat:nth-child(5){grid-column:3}
-  #statsbar .stat:nth-child(n+3) b{font-size:calc(15px * var(--uiScale))}
-  #hudTape{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);
-                  mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%)}
-  #hudTape text{font-size:10px}
-  #hudTape .nm{font-size:8.5px}
+  #statsbar.hud-stack .stat:nth-child(3){grid-column:1}
+  #statsbar.hud-stack .stat:nth-child(4){grid-column:2}
+  #statsbar.hud-stack .stat:nth-child(5){grid-column:3}
+  #statsbar.hud-stack .stat:nth-child(n+3) b{font-size:calc(15px * var(--uiScale))}
 }
 /* 1.15 rather than the prose 1.4 body sets: the cell is 56px and the three
    lines in it have about two to spare, so leading a gauge like a paragraph
@@ -4488,14 +4512,17 @@ function moveTape(hdg) {
   g.setAttribute("transform", "translate(" + (-d * TAPE_PX).toFixed(1) + " 0)");
 }
 
-/* Measures what the display holds and fits the rest to it. An upright phone
-   is laid out in CSS, so there this only clears what a band left behind. In
-   the band, the fade ends 20px below the lowest of the speed, the readouts
-   and the tape's letters, and the tape is masked away behind the speed and
-   the readouts - measured at their widest, a three-figure speed and a
-   four-figure distance, so a reading that grows never runs under it. Then
-   it publishes where the display ends, for the toast and the map chips,
-   and places the thumb dial. */
+/* Measures what the display holds and fits the rest to it. Everywhere it is
+   a band - speed at the left, readouts stacked at the right - and on an
+   upright phone the band first has its speed sized to fit (fitBand); a phone
+   too narrow even for that is laid out in CSS as three rows, and there this
+   only clears what a band left behind. In the band, the fade ends 14px below
+   the lowest of the speed, the readouts and the tape's letters, and where the
+   tape runs between them it is masked away behind the speed and the readouts
+   - measured at their widest, a three-figure speed and a four-figure
+   distance, so a reading that grows never runs under it. Then it publishes
+   where the display ends, for the toast and the map chips, and places the
+   thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
 let hudSpeedLen = 0;
 function layoutHud() {
@@ -4503,10 +4530,12 @@ function layoutHud() {
   if (!sb || !tape) return;
   buildTape();
   sb.style.height = ""; sb.style.background = "";
+  sb.style.removeProperty("--spd"); sb.classList.remove("hud-stack");
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
-  if (!HUD_UPRIGHT.matches) {
+  const upright = HUD_UPRIGHT.matches;
+  if (!upright || fitBand(sb, cells, sign)) {
     /* The readouts are measured at their widest so a growing one never runs
        under the tape. The speed is measured as it stands - this runs again
        when it gains or loses a digit - and the limit roundel follows it,
@@ -4526,19 +4555,56 @@ function layoutHud() {
     const l = sx + d + 10;
     const rr = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left) - 10;
     held.forEach(function (p) { p[0].textContent = p[1]; });
-    /* eased out over the 14px below the lowest of them */
+    /* eased out over the 14px below the lowest of them. Upright, the tape
+       has a row of its own over the band, and the fade keeps the step it
+       always had there: 72% where that row ends, 58% behind the figures. */
     sb.style.height = (foot + 14) + "px";
-    sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.6) " + foot + "px," +
+    sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0," +
+      (upright ? "rgba(17,21,19,.72) 76px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
       "rgba(17,21,19,.34) " + (foot + 5) + "px,rgba(17,21,19,.14) " + (foot + 10) + "px,rgba(17,21,19,0) 100%)";
-    const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
-      (rr - 60) + "px,transparent " + rr + "px,transparent 100%)";
-    tape.style.webkitMaskImage = m; tape.style.maskImage = m;
+    if (!upright) {
+      const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
+        (rr - 60) + "px,transparent " + rr + "px,transparent 100%)";
+      tape.style.webkitMaskImage = m; tape.style.maskImage = m;
+    }
   }
   const bottom = Math.max(sb.getBoundingClientRect().bottom, cells[1].getBoundingClientRect().bottom);
   const root = document.documentElement.style;
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
   root.setProperty("--hudStage", Math.round(bottom - stageEl.getBoundingClientRect().top) + "px");
   layoutDial();
+}
+
+/* An upright phone's band: the largest speed, from the 64px the CSS asks for
+   downwards, at which a three-figure speed, its unit and the limit roundel
+   stand 12px clear of the widest readouts. Measured with those figures
+   written in and put back before anything is drawn, so the size is set by
+   the screen and the text step and never by what the speed happens to read -
+   a band that shrank its speed at 100 km/h would be worse than either
+   layout. Under 48px drawn the speed stops being the thing you read first,
+   and the bar goes back to three rows. */
+function fitBand(sb, cells, sign) {
+  const held = [["#stSpeed", "888"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
+    .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
+  const d = sign.offsetWidth;
+  let size = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64, fits = false;
+  for (let i = 0; i < 6; i++) {
+    sb.style.setProperty("--spd", size + "px");
+    const clear = Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })) -
+      (cells[0].getBoundingClientRect().right + 12 + d + 12);
+    if (clear >= 0) { fits = true; break; }
+    /* the digits are the only part of the speed that scales with it */
+    const w = $("#stSpeed").getBoundingClientRect().width;
+    const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
+    if (next * scale < 48) break;
+    size = next;
+  }
+  held.forEach(function (p) { p[0].textContent = p[1]; });
+  if (fits) return true;
+  sb.style.removeProperty("--spd");
+  sb.classList.add("hud-stack");
+  return false;
 }
 
 /* ---------- the thumb dial ----------
@@ -5566,10 +5632,11 @@ function updateSpeedSign() {
 function updateStats() {
   moveTape(view.has ? view.hdgCur : null);
   $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
-  /* In the band the limit roundel stands just past the speed, so a speed that
-     gains or loses a digit - 99 to 100 - lays the band out again. Rare. */
+  /* In the band - upright too, now - the limit roundel stands just past the
+     speed, so a speed that gains or loses a digit - 99 to 100 - lays the band
+     out again. Rare. Three rows keep the roundel at the far end, so not there. */
   const spdLen = $("#stSpeed").textContent.length;
-  if (spdLen !== hudSpeedLen) { hudSpeedLen = spdLen; if (!HUD_UPRIGHT.matches) layoutHud(); }
+  if (spdLen !== hudSpeedLen) { hudSpeedLen = spdLen; if (!$("#statsbar").classList.contains("hud-stack")) layoutHud(); }
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
   $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";

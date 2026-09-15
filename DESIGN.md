@@ -889,27 +889,37 @@ and a fade behind them:
 - **Heading chip:** the heading in figures, hung under the lubber line on a
   panel-colour plate with a rust hairline, 8px below the tape's letters.
 - **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
-  74px on an upright phone — lettered the way a gauge is: its label in rust
+  64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
   level with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. At the
-  far end of the speed's row on an upright phone; 12px past the speed's unit
-  in the band, where the tape is masked past it. Hidden, it keeps its place.
+  white, without the roadside plate — collared in the panel colour. 12px
+  past the speed's unit and centred on its digits, 40px on an upright
+  phone. Hidden, it keeps its place.
 - **Readouts:** altitude, distance and time.
-- **Two arrangements:** wherever there is width (a tablet either way up, a
-  phone on its side) it is one band — speed at the left, the readouts
-  stacked at the right, the tape in the clear stretch between, masked away
-  behind them at their widest readings. An upright phone is too narrow for
-  that, so there the tape takes the width, speed sits under it and the
-  readouts run in a row under a hairline. The speed and the roundel share
-  the whole row between them and the readouts share theirs, so a
-  three-figure speed never pushes a readout along; the gaps between readouts
-  close from 16px to 12 on a 320px phone.
+- **One band, everywhere:** speed and its limit at the left, the readouts
+  stacked at the right. Wherever there is width (a tablet either way up, a
+  phone on its side) the tape runs in the clear stretch between them, masked
+  away behind them at their widest readings. An upright phone has no room
+  there, so the tape runs across the top instead and the band stands under
+  the heading chip, its speed sized to fit: the largest, from 64px down,
+  at which a three-figure speed, its unit and the roundel stand 12px clear
+  of the widest readouts. Measured with those figures, so the size is set
+  by the screen and the text step and never changes with what the speed
+  reads. The readouts step at 19px.
+- **Three rows, the fallback:** an upright phone too narrow for the band
+  with its speed at 48px or more — a 320px phone at Large text — stacks the
+  tape, then the speed with the roundel at the far end of its row, then the
+  readouts in a row under a hairline, with a 74px speed. The speed and the
+  roundel share the whole row and the readouts share theirs, so a
+  three-figure speed never pushes a readout along.
 - **Fade:** the panel colour, set against the content — 85% behind the
   tape, never under 58% behind a figure (the small ones need 55% over the
   palest terrain in sun), eased out over the 14px below the last of them.
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
-  heading chip 8px under them, the speed's digits 9px under the chip.
+  heading chip 8px under them. On an upright phone the band starts 84px
+  down, which leaves the roundel at least 10px under the chip - at 76 the
+  two rings all but touched and read as one object hung off the tape; in
+  three rows the speed's digits stand 9px under the chip.
 
 Nothing in it takes a tap, so the map under it still pans.
 
