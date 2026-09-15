@@ -1026,8 +1026,8 @@ badge-to-wordmark gaps match: 17px each on a phone, 12px with a mouse.
 
 The Australian regulatory roundel, in the heads-up display beside the speed:
 a white disc with an `#C8102E` ring 11% of its diameter and near-black
-numerals, 40px on an upright phone, 48 on a tablet, 38 on a phone on its
-side, with a 2px panel-colour collar. It is not themed and does not follow
+numerals, 40px on a phone or a tablet, 38 on a phone on its side, with a
+2px panel-colour collar. It is not themed and does not follow
 the palette — it is a road sign, and it is recognisable because it keeps the
 sign's colours. The roadside plate is gone: floating over the map it read as
 a sticker. Three digits drop the type size to keep the ring clear, and it is
