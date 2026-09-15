@@ -967,16 +967,17 @@ colour). Folded, only Navigate shows:
   buttons keep their distance from the disc and their reach.
 - **States:** Record keeps red while recording and amber while paused.
 
-The zoom buttons stand on the right edge, centred in the clear stretch
-between the heads-up display and the top of the open dial. Where that
-stretch is too short for them on a screen on its side - a phone, a short
-window - they become a row in the bottom-left corner instead. An upright
-screen never takes the row: it has no width for one, and on a 320px phone
-the row ran under Navigate and hid its last button behind the disc. Short
-and upright, the column stays, measured clear of the closed disc rather than
-the open arc, and steps aside while the dial is open, the way the panels do.
-It is measured, not keyed to orientation: a tablet or a desktop window on its
-side keeps the tablet's arrangement. It is measured against the tallest the
+The zoom buttons are always on the right-hand side. A column on the right
+edge, centred in the clear stretch between the heads-up display and the top
+of the open dial; where that is too short, centred in the longer stretch
+clear of the closed disc instead, stepping aside while the dial is open, the
+way the panels do; and where even a column of five will not fit - a phone
+on its side - folded into as many rows as the height holds, evened out, in
+columns from the right edge inward: +, - and recentre down the edge, the
+orientation and simulation buttons beside them. Never a row along the
+bottom: on a small nav screen that put them under the other thumb and
+pushed the panels along. It is measured, not keyed to orientation: a tablet
+or a desktop window on its side keeps the single column. It is measured against the tallest the
 screen has been at its width, so Android's system bars sliding up on a swipe
 move the dial with the bottom edge but leave the zoom buttons where they are;
 a width change or a drop of more than 120px is a real resize and starts
@@ -985,8 +986,8 @@ again.
 The nav and record panels stand beside Navigate, stopping 12px short of it,
 at exactly its height - top and bottom level with the disc, 64px on an
 upright phone, 80 on a tablet, 68 on a phone on its side - so the corner
-reads as one console. Every pixel the disc lost went to the panels' width. Where there is a zoom row they stand between it and
-Navigate. While the dial is open they step aside, so its plate never lands
+reads as one console. Every pixel the disc lost went to the panels' width.
+While the dial is open they step aside, so its plate never lands
 on them. How much each shows is fitted to the room it has - measured with
 the widest figures it will ever hold, a four-figure distance and PAUSED, so
 the form never changes under a driver as a number grows - in three forms
