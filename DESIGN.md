@@ -996,12 +996,32 @@ badge-to-wordmark gaps match: 17px each on a phone, 12px with a mouse.
 
 The Australian regulatory roundel, in the heads-up display beside the speed:
 a white disc with an `#C8102E` ring 11% of its diameter and near-black
-numerals, 46px on an upright phone, 48 on a tablet, 38 on a phone on its
+numerals, 40px on an upright phone, 48 on a tablet, 38 on a phone on its
 side, with a 2px panel-colour collar. It is not themed and does not follow
 the palette — it is a road sign, and it is recognisable because it keeps the
 sign's colours. The roadside plate is gone: floating over the map it read as
 a sticker. Three digits drop the type size to keep the ring clear, and it is
 never shown empty.
+
+**It shows what a driver would know from the roadside.** A limit holds until
+the next sign, so the roundel does too:
+
+- **Posted:** the road under the vehicle, going the way the vehicle is
+  going, carries a limit - including one signed a direction at a time, as
+  OpenStreetMap does where the two directions differ.
+- **Carried on:** a stretch with no limit of its own that continues the road
+  already signed - the same route number, or the same name - keeps the last
+  limit.
+- **Over a gap:** off every mapped road for a moment - a wandering fix, a
+  bend drawn across its corner - the last limit stays for 150m or 12 seconds
+  while still heading the same way.
+- **Gone:** a turn onto a road with no limit posted, or nothing known at all.
+
+The roads come from the map extract and are kept, merged, within 12km of the
+vehicle, so panning the map to look ahead, or a fetch the extract cannot
+answer, never takes them away. Where only a small box could be loaded - a
+dense town, a slow connection - more is fetched before the vehicle reaches
+its edge.
 
 ### Popups
 

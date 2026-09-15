@@ -3840,6 +3840,14 @@ const CFG = {
   SPEED_HDG_TOL: 45,       /* degrees a road may differ from your travel */
   SPEED_MIN_MOVE: 2,       /* m/s below which a heading is noise, not travel */
   SPEED_TICK: 400,         /* a posted limit does not need 60 fps */
+  SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
+  /* A limit rides over a short gap - a fix that wanders out of the snap, a
+     bend whose mapped line cuts the corner - for this far and this long, and
+     only while still heading the same way. A turn is a new road. */
+  SPEED_HOLD_M: 150,
+  SPEED_HOLD_MS: 12000,
+  ROAD_KEEP_M: 12000,      /* roads further than this from the vehicle are let go */
+  ROAD_EDGE_M: 300,        /* fetch more before the vehicle is this close to the edge of what is loaded */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -5588,11 +5596,13 @@ function pointSegMetres(p, a, b) {
            brg: (deg(Math.atan2(dx, dy)) + 360) % 360 };
 }
 
-/* The nearest road you are plausibly travelling along, or null. Null is a
-   real answer here and the common one on a station track: no limit is
-   posted, so none is shown. */
-function roadUnder(p, hdg, moving) {
-  let best = null, bestD = CFG.SPEED_SNAP_M;
+/* The nearest road you are plausibly travelling along, and which way along
+   it - {road, fwd} - or null. Null is a real answer here and the common one
+   on a station track: no limit is posted, so none is shown. fwd is true
+   going the way the road was drawn, false against it, null when there is no
+   direction to go on. */
+function roadUnder(p, hdg, moving, snap) {
+  let best = null, bestD = snap || CFG.SPEED_SNAP_M, fwd = null;
   for (let i = 0; i < roads.length; i++) {
     const pts = roads[i].pts;
     for (let j = 1; j < pts.length; j++) {
@@ -5602,30 +5612,81 @@ function roadUnder(p, hdg, moving) {
          distance test alone would happily snap to a service road beside a
          highway, or to the cross street at an intersection. Direction is
          only evidence while actually moving. */
+      let along = null;
       if (moving && hdg != null) {
-        let off = Math.abs(((hdg - seg.brg + 540) % 360) - 180);
-        off = Math.min(off, 180 - off);        /* either way along it counts */
-        if (off > CFG.SPEED_HDG_TOL) continue;
+        const turn = Math.abs(((hdg - seg.brg + 540) % 360) - 180);   /* 0 with the drawing, 180 against */
+        if (Math.min(turn, 180 - turn) > CFG.SPEED_HDG_TOL) continue;  /* either way along it counts */
+        along = turn <= 90;
       }
-      bestD = seg.d; best = roads[i];
+      bestD = seg.d; best = roads[i]; fwd = along;
     }
   }
-  return best;
+  return best ? { road: best, fwd: fwd } : null;
+}
+
+/* The limit a road posts for the way you are going along it. OSM signs a
+   road one way at a time where the two directions differ - just north of
+   Hawker the Outback Highway carries maxspeed:backward=110 and no plain
+   maxspeed, the 110 for traffic coming into town - and those ways used to
+   be dropped whole, so the sign went dark for two kilometres of the B83. A
+   way signed only in the other direction, or with no direction to go on,
+   posts nothing here. */
+function postedLimit(hit) {
+  const r = hit.road;
+  if (hit.fwd === true && r.f != null) return r.f;
+  if (hit.fwd === false && r.b != null) return r.b;
+  if (r.v != null) return r.v;
+  return (hit.fwd == null && r.f != null && r.f === r.b) ? r.f : null;
+}
+
+/* Two ways are one road if they share a route number, or failing that a name. */
+function sameRoad(a, b) {
+  return !!((a.ref && a.ref === b.ref) || (a.name && a.name === b.name));
 }
 
 /* The sign is hidden whenever the limit is not known, and never shown
    empty. An empty red ring is itself a real sign in some countries - the
-   end of a restriction - and reads as permission rather than absence. */
+   end of a restriction - and reads as permission rather than absence.
+
+   Known is how a driver knows it, though: a limit holds until the next
+   sign. So a way with no limit of its own that carries on the road you
+   were on - the same route number or name - keeps the last limit, where it
+   used to blank the sign until the next tagged way. Off any road for a
+   moment, the last limit rides over the gap for SPEED_HOLD_M, while still
+   heading the same way; a turn onto a road with nothing posted clears it.
+
+   The snap widens with a poor fix, and the heading test is left out while
+   the arrow is on the compass - that is which way the phone faces, not
+   which way the vehicle is going, and between 2 and 2.2 m/s it was
+   rejecting the road under the wheels in slow traffic. */
+let speedHold = null;          /* {v, road, at, hdg, t} of the last limit shown off a matched road */
 function updateSpeedSign() {
   const sign = $("#speedSign");
-  const hit = (roads.length && view.has)
-    ? roadUnder(view.cur, view.hdgCur, view.speed > CFG.SPEED_MIN_MOVE)
-    : null;
-  if (!hit) { sign.classList.add("hidden"); return; }
-  $("#speedLimit").textContent = String(hit.v);
+  let v = null;
+  if (roads.length && view.has) {
+    const moving = view.speed > CFG.SPEED_MIN_MOVE && view.hdgFrom !== "compass";
+    const snap = clamp(view.acc || 0, CFG.SPEED_SNAP_M, CFG.SPEED_SNAP_MAX);
+    const hit = roadUnder(view.cur, view.hdgCur, moving, snap);
+    const h = speedHold;
+    if (hit) {
+      v = postedLimit(hit);
+      if (v == null && h && sameRoad(hit.road, h.road)) v = h.v;
+      speedHold = v == null ? null
+        : { v: v, road: hit.road, at: { lat: view.cur.lat, lng: view.cur.lng }, hdg: view.hdgCur, t: Date.now() };
+    } else if (h && haversine(h.at, view.cur) < CFG.SPEED_HOLD_M && Date.now() - h.t < CFG.SPEED_HOLD_MS &&
+               (!moving || Math.abs(((view.hdgCur - h.hdg + 540) % 360) - 180) <= CFG.SPEED_HDG_TOL)) {
+      v = h.v;                 /* the hold is not renewed: it runs from the last road matched */
+    } else {
+      speedHold = null;
+    }
+  } else {
+    speedHold = null;
+  }
+  if (v == null) { sign.classList.add("hidden"); return; }
+  $("#speedLimit").textContent = String(v);
   /* the number a driver reads off the roadside, not a converted one: a
      65 mph road posts 65, whichever units the app is set to */
-  sign.classList.toggle("wide", String(hit.v).length > 2);
+  sign.classList.toggle("wide", String(v).length > 2);
   sign.classList.remove("hidden");
 }
 
@@ -7565,10 +7626,51 @@ let poiSourcedAt = null;      /* where that list was gathered around */
 let poiFar = [];
 let poiFarAt = null;          /* the anchor poiFar was worked out for */
 let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
-/* Roads with a posted limit, from the extract only. Photon is a place
-   index and carries no geometry, so a Photon answer leaves this empty and
-   the sign stays away rather than showing the last road's number. */
+/* Roads with a posted limit, and the ways that carry one of them on, from
+   the extract only - the offline pack and the map query carry no limits.
+
+   Merged by way, not replaced by whichever fetch ran last. Replacing was how
+   the sign went dark without a road changing: pan the map away while
+   driving and the fetch around the map took the vehicle's roads with it; a
+   fetch the extract failed and the pack answered wrote an empty set over
+   them, and cached the empty set for the cell for a week. Roads more than
+   ROAD_KEEP_M from the vehicle are let go as it moves on.
+
+   roadCover remembers the boxes loaded, because the extract is not always
+   5 km: a dense town, or a connection too slow for the big box, gets 700 m,
+   and the fetch used to wait for 3.5 km of driving regardless - so for most
+   of every 3.5 km there were no roads under the vehicle at all. Near the
+   edge of what is loaded is now reason enough to fetch again. */
 let roads = [];
+const roadStore = new Map();   /* way id -> {r, bb} */
+let roadCover = [];            /* {lat, lng, r} */
+const ROAD_SHAPE = 2;          /* cached roads older than this lack direction and continuation */
+function addRoads(list, cover) {
+  (list || []).forEach(function (r) {
+    if (!r || !r.pts || r.pts.length < 2) return;
+    let bb = [90, 180, -90, -180];
+    r.pts.forEach(function (p) {
+      bb = [Math.min(bb[0], p[0]), Math.min(bb[1], p[1]), Math.max(bb[2], p[0]), Math.max(bb[3], p[1])];
+    });
+    const last = r.pts[r.pts.length - 1];
+    roadStore.set(r.id || (r.pts[0].join() + "|" + last.join() + "|" + r.v), { r: r, bb: bb });
+  });
+  if (cover && cover.r) roadCover.push(cover);
+  const here = view.has ? view.cur : cover;
+  if (here) {
+    const mLng = 111320 * Math.cos(rad(here.lat));
+    roadStore.forEach(function (e, k) {
+      const dy = Math.max(e.bb[0] - here.lat, 0, here.lat - e.bb[2]) * 111320;
+      const dx = Math.max(e.bb[1] - here.lng, 0, here.lng - e.bb[3]) * mLng;
+      if (Math.sqrt(dx * dx + dy * dy) > CFG.ROAD_KEEP_M) roadStore.delete(k);
+    });
+    roadCover = roadCover.filter(function (c) { return haversine(here, c) < CFG.ROAD_KEEP_M; });
+  }
+  roads = Array.from(roadStore.values(), function (e) { return e.r; });
+}
+function roadsCovered(p) {
+  return roadCover.some(function (c) { return haversine(c, p) <= c.r - CFG.ROAD_EDGE_M; });
+}
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
 /* whole categories switched off, e.g. every car park in a town centre */
 let hiddenKinds = new Set(loadLS(LS.hiddenKinds, []));
@@ -7812,16 +7914,19 @@ async function fetchPois(force) {
   if (poiBusy) return;
   const show = S.poiOn;
   const a = poiAnchor();
-  /* cheap to call on every fix: returns unless you have travelled far enough */
-  if (!force && poiCentre && haversine(poiCentre, a) < CFG.POI_REFETCH) return;
+  /* cheap to call on every fix: returns unless you have travelled far
+     enough, or - following the vehicle - it is near the edge of the roads
+     loaded around it (see roadCover) */
+  const moved = !poiCentre || haversine(poiCentre, a) >= CFG.POI_REFETCH;
+  const roadsThin = S.follow && view.has && !roadsCovered(view.cur);
+  if (!force && !moved && !roadsThin) return;
   /* Addresses and roads ride the same movement trigger, but nothing waits
      on them and a POI failure must not hold them up - the packs come off
      our own origin and have no reason to be unreachable when a map server
      is. Route.ensure also brings down the national road spine the first time it
      runs, which is the one download that has to happen before the signal
      goes rather than after. */
-  Addr.ensure(a);
-  Route.ensure(a);
+  if (force || moved) { Addr.ensure(a); Route.ensure(a); }
   if (!force && Date.now() < poiRetryAt) return;
 
   poiBusy = true;
@@ -7831,10 +7936,16 @@ async function fetchPois(force) {
     try { cached = await DB.get("poi", key); } catch (e) { /* idb unavailable */ }
     const cachedTtl = (cached && cached.items && cached.items.length)
       ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
-    if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
+    /* a cached cell's roads count as loaded only in the current shape; an
+       older cell still serves its POIs, and is fetched again for its roads
+       wherever the vehicle is short of them */
+    const cachedCover = cached && cached.rv === ROAD_SHAPE && cached.rr
+      ? { lat: cached.rlat, lng: cached.rlng, r: cached.rr } : null;
+    if (cached && !force && (Date.now() - cached.ts) < cachedTtl &&
+        (!roadsThin || (cachedCover && haversine(cachedCover, a) <= cachedCover.r - CFG.ROAD_EDGE_M))) {
       poiCentre = a;
       if (show) setPois(cached.items, a);
-      roads = cached.roads || [];
+      addRoads(cached.roads, cachedCover);
       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
@@ -7897,11 +8008,18 @@ async function fetchPois(force) {
 
     if (items) {
       poiCentre = a;
-      poiRetryAt = 0;
-      await DB.put("poi", { ts: Date.now(), items: items, roads: found, lat: a.lat, lng: a.lng }, key)
+      /* Without the extract there are no roads in this answer, so the cell
+         keeps the ones it had rather than caching an empty set over them,
+         and the roads are not asked for again for a while. */
+      const rd = osm.error
+        ? { roads: (cached && cached.roads) || [], rv: cached && cached.rv, rr: cached && cached.rr,
+            rlat: cached && cached.rlat, rlng: cached && cached.rlng }
+        : { roads: found, rv: ROAD_SHAPE, rr: osm.radius, rlat: a.lat, rlng: a.lng };
+      poiRetryAt = osm.error ? Date.now() + CFG.POI_BACKOFF : 0;
+      await DB.put("poi", Object.assign({ ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, rd), key)
         .catch(function () {});
       if (show) setPois(items, a);
-      roads = found;
+      addRoads(rd.roads, osm.error ? null : { lat: a.lat, lng: a.lng, r: osm.radius });
       refreshStorageStats();
       if (show) offerOsmPois(false);
       /* count what is actually on the map, after copies of the same place
@@ -7915,7 +8033,7 @@ async function fetchPois(force) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
       if (show) setPois(cached.items, a);
-      roads = cached.roads || [];
+      addRoads(cached.roads, null);
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
@@ -7975,9 +8093,15 @@ function parseOsmXml(text, a, radius) {
   /* The extract is already on the wire for the POIs, and every road in it
      carries its geometry and whatever limit a mapper recorded. Keeping the
      posted ones costs about 9 KB per 5 km cell against a 1.8 MB download
-     that was happening anyway. Untagged roads are dropped: they cannot
-     answer the question, so storing them would only slow the search. */
-  const roads = [];
+     that was happening anyway.
+
+     A limit signed one direction at a time (maxspeed:forward, :backward)
+     counts as posted - see postedLimit. A road with no limit at all is kept
+     only where it carries on one that has one, by route number or name, so
+     the limit can hold along it (see updateSpeedSign); any other untagged
+     road cannot answer the question, and storing it would only slow the
+     search. Each way keeps its OSM id, which is what lets fetches merge. */
+  const roads = [], unsigned = [];
   function collectRoad(el) {
     const tags = {};
     const kids = el.children;
@@ -7986,7 +8110,8 @@ function parseOsmXml(text, a, radius) {
     }
     if (!tags.highway || NOT_DRIVABLE[tags.highway]) return;
     const lim = parseMaxspeed(tags.maxspeed);
-    if (!lim) return;
+    const fw = parseMaxspeed(tags["maxspeed:forward"]), bw = parseMaxspeed(tags["maxspeed:backward"]);
+    if (!lim && !fw && !bw && !tags.ref && !tags.name) return;
     const pts = [];
     for (let j = 0; j < kids.length; j++) {
       if (kids[j].tagName !== "nd") continue;
@@ -7995,7 +8120,13 @@ function parseOsmXml(text, a, radius) {
       if (p) pts.push([+p.lat.toFixed(5), +p.lng.toFixed(5)]);
     }
     if (pts.length < 2) return;
-    roads.push({ v: lim.v, mph: lim.mph, pts: pts });
+    const r = { id: +el.getAttribute("id"), pts: pts };
+    if (tags.ref) r.ref = tags.ref;
+    if (tags.name) r.name = tags.name;
+    if (lim) { r.v = lim.v; r.mph = lim.mph; }
+    if (fw) r.f = fw.v;
+    if (bw) r.b = bw.v;
+    (lim || fw || bw ? roads : unsigned).push(r);
   }
   function collect(el, type, wayById) {
     const tags = {};
@@ -8074,6 +8205,11 @@ function parseOsmXml(text, a, radius) {
     for (let i = 0; i < rels.length; i++) collect(rels[i], "relation", wayById);
   }
   for (let i = 0; i < ways.length; i++) collectRoad(ways[i]);
+  const refs = new Set(), names = new Set();
+  roads.forEach(function (r) { if (r.ref) refs.add(r.ref); if (r.name) names.add(r.name); });
+  unsigned.forEach(function (r) {
+    if ((r.ref && refs.has(r.ref)) || (r.name && names.has(r.name))) roads.push(r);
+  });
   return { pois: out, roads: roads };
 }
 
