@@ -4549,6 +4549,7 @@ function moveTape(hdg) {
    thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
 let hudSpeedLen = 0;
+let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
   const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
   if (!sb || !tape) return;
@@ -4572,14 +4573,25 @@ function layoutHud() {
        under the tape. The speed is measured as it stands - this runs again
        when it gains or loses a digit - and the limit roundel follows it,
        12px off its unit and centred on the digits, so neither leaves a gap
-       beside the other. The tape's mask starts past the roundel whether or
-       not a limit is showing, since the roundel keeps its place. */
+       beside the other. Upright, the roundel stands on the middle of the
+       bar instead, under the heading window and the lubber line, between the
+       speed and the readouts; fitBand leaves it the room. The tape's mask
+       starts past the roundel whether or not a limit is showing, since the
+       roundel keeps its place. */
     const held = [["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
       .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
     let spd = r(cells[0]), outs = cells.slice(2).map(r);
     const d = sign.offsetWidth;
-    const sx = Math.round(spd.right - box.left) + 12;
+    let sx = Math.round(spd.right - box.left) + 12;
+    if (upright) {
+      /* centred, unless fitBand could only make room beside the speed - then
+         as near the middle as a three-figure speed and the widest readouts
+         allow, and there it stays: measured off the widest speed rather than
+         this one, so it does not step sideways as 99 becomes 100 */
+      const outL = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left);
+      sx = Math.round(clamp(box.width / 2 - d / 2, bandSignMin, outL - 12 - d));
+    }
     /* Centred on the middle of the digits' ink - measured, not the middle of
        their line box, which is where a font thinks digits sit and can be a
        pixel or two out in a phone's own face. Always centred: upright, the
@@ -4678,30 +4690,47 @@ new MutationObserver(function () { centreSignNumber(); })
   .observe($("#speedSign"), { attributes: true, attributeFilter: ["class"] });
 
 /* An upright phone's band: the largest speed, from the 64px the CSS asks for
-   downwards, at which a three-figure speed, its unit and the limit roundel
-   stand 12px clear of the widest readouts. Measured with those figures
-   written in and put back before anything is drawn, so the size is set by
-   the screen and the text step and never by what the speed happens to read -
-   a band that shrank its speed at 100 km/h would be worse than either
-   layout. Under 48px drawn the speed stops being the thing you read first,
-   and the bar goes back to three rows. */
+   downwards, that leaves the limit roundel room on the middle of the bar -
+   12px clear of a three-figure speed on its left and of the widest readouts
+   on its right. Measured with those figures written in and put back before
+   anything is drawn, so the size is set by the screen and the text step and
+   never by what the speed happens to read: a roundel that slid off the
+   middle at 100 km/h, or a speed that shrank there, would be worse than
+   either. It costs the speed little - 62px rather than 64 at 375 wide - and
+   more at Large text, where the figures either side are bigger.
+
+   Under 48px drawn the speed stops being the thing you read first. Where the
+   middle would take it there, the roundel stands beside the speed instead,
+   12px off its unit and as near the middle as the readouts allow; where even
+   that will not fit, the bar goes back to three rows. */
 function fitBand(sb, cells, sign) {
   const held = [["#stSpeed", "888"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
     .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
   const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
-  const d = sign.offsetWidth;
-  let size = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64, fits = false;
-  for (let i = 0; i < 6; i++) {
-    sb.style.setProperty("--spd", size + "px");
-    const clear = Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })) -
-      (cells[0].getBoundingClientRect().right + 12 + d + 12);
-    if (clear >= 0) { fits = true; break; }
-    /* the digits are the only part of the speed that scales with it */
-    const w = $("#stSpeed").getBoundingClientRect().width;
-    const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
-    if (next * scale < 48) break;
-    size = next;
+  const d = sign.offsetWidth, bar = sb.getBoundingClientRect(), mid = bar.left + bar.width / 2;
+  const top = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64;
+  const outL = function () { return Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })); };
+  const spdR = function () { return cells[0].getBoundingClientRect().right; };
+  /* the readouts do not move with the speed, so a middle they crowd is no use at any size */
+  const centred = function () { return outL() - 12 >= mid + d / 2 ? (mid - d / 2 - 12) - spdR() : -Infinity; };
+  const beside = function () { return outL() - (spdR() + 12 + d + 12); };
+  function shrinkTo(clearOf) {
+    let size = top;
+    for (let i = 0; i < 6; i++) {
+      sb.style.setProperty("--spd", size + "px");
+      const clear = clearOf();
+      if (clear >= 0) return true;
+      if (!isFinite(clear)) return false;
+      /* the digits are the only part of the speed that scales with it */
+      const w = $("#stSpeed").getBoundingClientRect().width;
+      const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
+      if (next * scale < 48) return false;
+      size = next;
+    }
+    return false;
   }
+  const fits = shrinkTo(centred) || shrinkTo(beside);
+  bandSignMin = Math.ceil(spdR() + 12 - bar.left);
   held.forEach(function (p) { p[0].textContent = p[1]; });
   if (fits) return true;
   sb.style.removeProperty("--spd");

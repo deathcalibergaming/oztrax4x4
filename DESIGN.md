@@ -897,18 +897,22 @@ and a fade behind them:
   64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
   level with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. 12px
-  past the speed's unit and centred on its digits, 40px on an upright
-  phone. Hidden, it keeps its place.
+  white, without the roadside plate — collared in the panel colour. Centred
+  on the speed's digits: 12px past its unit in the band, and on an upright
+  phone on the middle of the bar, under the heading window, 40px. Hidden,
+  it keeps its place.
 - **Readouts:** altitude, distance and time.
 - **One band, everywhere:** speed and its limit at the left, the readouts
   stacked at the right. Wherever there is width (a tablet either way up, a
   phone on its side) the tape runs in the clear stretch between them, masked
   away behind them at their widest readings. An upright phone has no room
   there, so the tape runs across the top instead and the band stands
-  straight under it, its speed sized to fit: the largest, from 64px down,
-  at which a three-figure speed, its unit and the roundel stand 12px clear
-  of the widest readouts. Measured with those figures, so the size is set
+  straight under it, the roundel on the middle of the bar and the speed
+  sized to fit: the largest, from 64px down, that leaves the centred
+  roundel 12px clear of a three-figure speed and of the widest readouts
+  (62px at 375 wide). Where that would take the speed under 48px - 320
+  wide, or 340 at Large text - the roundel stands as near the middle as a
+  three-figure speed allows, and stays there as the speed changes. Measured with those figures, so the size is set
   by the screen and the text step and never changes with what the speed
   reads. The readouts step at 19px.
 - **Three rows, the fallback:** an upright phone too narrow for the band
