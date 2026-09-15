@@ -1155,13 +1155,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   #hudTape .nm{font-size:8.5px}
 }
 
-/* An upright phone: the same band, with the tape lifted over it. Speed and
-   its limit at the left, the three readouts stacked at the right, as on a
-   tablet or a phone on its side; the tape, which has no room between them on
-   a screen this narrow, runs across the top instead, and the heading chip
-   hangs from its lubber line between the two. It replaced a stack of three
-   rows - tape, speed, readouts under a hairline - and gives the map back
-   about 50px.
+/* Every screen but a phone on its side - an upright phone, a tablet either
+   way up, a desktop window: the band with the tape lifted over it. The tape
+   runs across the top with the heading window on it, and under it the speed
+   at the left, the limit roundel on the middle, the three readouts stacked
+   at the right. It was the upright phone's alone; a tablet ran the tape
+   through the band between the speed and the readouts, and was asked to
+   look the same as the phone. The query is the exact complement of the phone
+   on its side's, below and above, so every screen gets one or the other.
 
    The band starts 46px down, straight under the tape's letters: the speed's
    digits stand 11px under them, and the limit roundel 15px under the heading
@@ -1169,11 +1170,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    own under the tape. The readouts step at 19px, the phone-on-its-side size.
 
    The speed is sized to fit by layoutHud, measured with a three-figure speed
-   and the widest readouts, from 64px down to 48; the limit roundel follows
-   it, 12px off its unit. Where even 48 will not fit - a 320px phone - the
-   bar goes back to the three rows (.hud-stack, below), which keep a large
-   speed on any width. */
-@media (orientation: portrait) and (max-width: 599px) {
+   and the widest readouts, from 64px down to 48, leaving the roundel the
+   middle of the bar. Where even 48 will not fit - a 320px phone at Large
+   text - the bar goes back to the three rows (.hud-stack, below), which keep
+   a large speed on any width. The same sizes on a tablet as on a phone. */
+@media (orientation: portrait), (height > 520px) {
   #statsbar{--spd:64px;--sign-d:40px;--bandT:46px}
   #statsbar .stat:nth-child(1){left:16px;top:var(--bandT)}
   /* The label's cap height on the digits' and the unit's baseline on
@@ -4548,8 +4549,10 @@ function moveTape(hdg) {
    where the display ends, for the toast and the map chips, and places the
    thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
-/* a phone on its side - the one screen with no height to give the roundel a row */
-const HUD_SQUAT = window.matchMedia("(orientation: landscape) and (max-height: 520px)");
+/* The display's own question, apart from the upright phone's the panels ask:
+   is this anything but a phone on its side? If so it gets the tape across the
+   top and the band under it - see the CSS. Must match that media query. */
+const HUD_ROWS = window.matchMedia("(orientation: portrait), (height > 520px)");
 let hudSpeedLen = 0;
 let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
@@ -4569,7 +4572,7 @@ function layoutHud() {
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
-  const upright = HUD_UPRIGHT.matches;
+  const upright = HUD_ROWS.matches;
   if (!upright || fitBand(sb, cells, sign)) {
     /* The readouts are measured at their widest so a growing one never runs
        under the tape. The speed is measured as it stands - this runs again
@@ -4586,15 +4589,6 @@ function layoutHud() {
     let spd = r(cells[0]), outs = cells.slice(2).map(r);
     const d = sign.offsetWidth;
     let sx = Math.round(spd.right - box.left) + 12;
-    /* On a tablet or a desktop the roundel stands under the heading window
-       too, as it does on an upright phone. Beside the speed it made the left
-       of the band much the wider of the two, and the tape - which runs the
-       same distance either side of the lubber line - came down to a stub:
-       40px of scale either side of the window on an upright 768px tablet.
-       Only a phone on its side keeps it beside the speed, where a row under
-       the window would cost the map the height it has least of. */
-    const under = !upright && !HUD_SQUAT.matches;
-    if (under) sx = Math.round(box.width / 2 - d / 2);
     if (upright) {
       /* centred, unless fitBand could only make room beside the speed - then
          as near the middle as a three-figure speed and the widest readouts
@@ -4611,8 +4605,7 @@ function layoutHud() {
        the band steps down to make the room. It used to be the ring that
        stepped down, 3.6px off the middle of the speed beside it. */
     const ink = inkBox($("#stSpeed"), "8");
-    let sy = under ? Math.ceil(r(cells[1]).bottom - box.top) + 12
-                   : Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2);
+    let sy = Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2);
     if (upright) {
       const short = Math.ceil(r(cells[1]).bottom - box.top) + 12 - sy;
       if (short > 0) {
@@ -4631,13 +4624,14 @@ function layoutHud() {
        a tablet 172px of tape showed left of the heading window and 239 right
        of it, so the window sat off the middle of its own scale. Each arm is
        now the shorter of the two, and the left is measured past a
-       three-figure speed - and its roundel, where the roundel stands beside
-       it - so the tape does not shorten as the speed reaches 100. */
+       three-figure speed and its roundel, so the tape does not shorten as
+       the speed reaches 100. Only a phone on its side runs the tape through
+       the band now; everywhere else it has the width of the screen. */
     const spdEl = $("#stSpeed"), spdWas = spdEl.textContent;
     spdEl.textContent = "888";
     const wideRight = Math.round(r(cells[0]).right - box.left);
     spdEl.textContent = spdWas;
-    const arm = Math.min(box.width / 2 - (wideRight + (under ? 0 : 12 + d) + 8),
+    const arm = Math.min(box.width / 2 - (wideRight + 12 + d + 8),
       Math.min(...outs.map(function (b) { return b.left; })) - box.left - 8 - box.width / 2);
     const l = Math.round(box.width / 2 - arm), rr = Math.round(box.width / 2 + arm);
     held.forEach(function (p) { p[0].textContent = p[1]; });

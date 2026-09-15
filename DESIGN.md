@@ -892,31 +892,34 @@ and a fade behind them:
   stop 6px short of it each side and fade in over 10px - the way an
   aircraft's heading tape frames the figure it reads. One width for every
   heading, the widest, so the window and the gap stay still as N becomes NNE.
-  16px figures on a tablet, 15px on a phone.
-- **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
-  64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
-  level with the top of the digits, its unit on their baseline, 10px off them.
+  15px figures.
+- **Speed:** large figures — 64px, less where that will not fit; 52px on a
+  phone on its side — lettered the way a gauge is: its label in rust level
+  with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. On the
-  middle of the bar, under the heading window: 12px under it on a tablet or
-  a desktop, and centred on the speed's digits on an upright phone, 40px.
-  A phone on its side, with no height to spare for a row, keeps it 12px past
-  the speed's unit, centred on its digits. Hidden, it keeps its place.
+  white, without the roadside plate — collared in the panel colour, 40px, on
+  the middle of the bar under the heading window, centred on the speed's
+  digits. A phone on its side keeps it 12px past the speed's unit, 38px.
+  Hidden, it keeps its place.
 - **Readouts:** altitude, distance and time.
-- **One band, everywhere:** speed at the left, the readouts stacked at the
-  right, the limit on the middle. Wherever there is width (a tablet either
-  way up, a phone on its side) the tape runs in the clear stretch between
-  them, and runs the same distance either side of the lubber line - the
-  shorter of the two arms, measured past a three-figure speed and the widest
-  readouts, faded in over 32px - so the heading window always sits on the
-  middle of its scale. With the limit beside the speed on a tablet the left
-  group was far the wider and the scale either side of the window came down
-  to 40px on an upright 768px tablet; under the window it is 100px. An upright phone has no room
-  there, so the tape runs across the top instead and the band stands
-  straight under it, the roundel on the middle of the bar and the speed
-  sized to fit: the largest, from 64px down, that leaves the centred
-  roundel 12px clear of a three-figure speed and of the widest readouts
-  (62px at 375 wide). Where that would take the speed under 48px - 320
+- **One layout, phone and tablet:** an upright phone, a tablet either way
+  up and a desktop window all get the same display, at the same sizes: the
+  tape across the top with the heading window on it, and straight under it
+  one band - the speed at the left, the limit roundel on the middle, the
+  readouts stacked at the right. A tablet used to run the tape through the
+  band between the speed and the readouts, as a phone on its side still
+  does; it was asked to look the same as the phone. The speed is sized to
+  fit: the largest, from 64px down, that leaves the centred roundel 12px
+  clear of a three-figure speed and of the widest readouts (62px at 375
+  wide, 64 on a tablet).
+- **A phone on its side:** the one exception, with no height to give the
+  tape a row. Speed and limit at the left, readouts stacked at the right,
+  the tape in the clear stretch between them - and running the same
+  distance either side of the lubber line, the shorter of the two arms,
+  measured past a three-figure speed and the widest readouts and faded in
+  over 32px, so the heading window sits on the middle of its scale: 207px
+  either side at 812 wide, 146 at 690.
+- **Tight upright phones:** Where that would take the speed under 48px - 320
   wide, or 340 at Large text - the roundel stands as near the middle as a
   three-figure speed allows, and stays there as the speed changes. Measured with those figures, so the size is set
   by the screen and the text step and never changes with what the speed
