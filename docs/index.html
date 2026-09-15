@@ -934,8 +934,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   display:flex;align-items:center;gap:10px;padding-left:10px;padding-right:6px;
   background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
+/* The wordmark gives way before the status pill does. On a 320px phone at
+   Large text it ran 13px into the pill; the pill carries the GPS fix and the
+   battery, and the name of the app is the one thing on the bar nobody needs
+   to read while driving. So it takes its step's size wherever the bar has
+   the width, and below that shrinks with the screen: the menu, the pill and
+   the bar's padding and gaps come to 196px, and the mark is 9.3 of its own
+   font-size wide - 9.6 leaves it a few pixels clear. */
 .brand{flex:1;min-width:0;display:flex;align-items:baseline;gap:.32em;letter-spacing:.16em;
-  font-size:var(--t-brand);font-weight:700;text-transform:uppercase}
+  font-size:min(var(--t-brand), calc((100vw - 196px) / 9.6));font-weight:700;text-transform:uppercase}
 .brand .b1{color:var(--sand)}
 .brand .b2{color:var(--rust2)}
 .icon-btn{width:var(--tap);height:var(--tap);border-radius:6px;display:flex;align-items:center;justify-content:center;
@@ -1143,21 +1150,31 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
      heading chip, which stands 8px under the tape's letters. The fade eases
      out over the 14px below the readouts. Both were looser - 84px and 20 -
      and the display gave the map back about 15px for it. */
-  #statsbar{display:grid;grid-template-columns:auto auto auto 1fr;grid-template-rows:76px auto auto;
-    column-gap:16px;padding:0 16px 14px;--spd:74px;--sign-d:46px;
+  /* The speed and the limit share the width of the whole bar between them,
+     and the three readouts share it between themselves. They used to share
+     the same columns, so a three-figure speed widened the first two and
+     pushed the third readout into the limit's column - on a 320px phone at
+     Large text the distance ran into TIME. Spanning the bar, the speed and
+     the roundel ask only that the bar be wider than the two of them, which
+     every phone is, and the readouts keep the positions they had. */
+  #statsbar{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:76px auto auto;
+    column-gap:clamp(10px, calc((100vw - 272px) / 4), 16px);   /* 16 from 336px; 12 at 320, where Large text needs it */
+    padding:0 16px 14px;--spd:74px;--sign-d:46px;
     background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 76px,
       rgba(17,21,19,.58) calc(100% - 14px),rgba(17,21,19,.34) calc(100% - 9px),
       rgba(17,21,19,.14) calc(100% - 4px),rgba(17,21,19,0) 100%)}
   #statsbar .stat{position:static}
-  #statsbar .stat:nth-child(1){grid-column:1/4;grid-row:2}
+  #statsbar .stat:nth-child(1){grid-column:1/-1;grid-row:2;justify-self:start}
   #statsbar .stat:nth-child(1) .lbl{margin-top:calc(var(--spd) * var(--uiScale) * .08)}
   #statsbar .stat:nth-child(1) i{margin-bottom:calc(var(--spd) * var(--uiScale) * .063)}
   /* the limit at the far end of the speed's row, the way a car's cluster pairs them */
-  #statsbar #speedSign{position:static;grid-column:4;grid-row:2;justify-self:end;align-self:center}
+  #statsbar #speedSign{position:static;grid-column:1/-1;grid-row:2;justify-self:end;align-self:center}
   #statsbar .stat:nth-child(1) i{font-size:calc(11px * var(--uiScale))}
   #statsbar .stat:nth-child(2){position:absolute;padding:3px 9px}
   #statsbar .stat:nth-child(2) b{font-size:calc(15px * var(--uiScale))}
-  #statsbar .stat:nth-child(n+3){grid-row:3;justify-content:flex-start;margin-top:8px;padding-top:7px;
+  /* start, so each hairline is as long as its readout and the last one does
+     not run on across the empty end of its column */
+  #statsbar .stat:nth-child(n+3){grid-row:3;justify-self:start;justify-content:flex-start;margin-top:8px;padding-top:7px;
     border-top:1px solid rgba(216,203,170,.28)}
   #statsbar .stat:nth-child(3){grid-column:1}
   #statsbar .stat:nth-child(4){grid-column:2}
@@ -1480,7 +1497,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   transform:none;flex-direction:row}
 /* With a zoom row the panels stand between it and Navigate, level with the
    disc as everywhere else; the speed sign stays on the row. */
-.zoom-row #panelStack{left:calc(var(--dial-m) + 5 * var(--tap) + 34px);bottom:calc(var(--dial-m) + var(--safeB))}
+.zoom-row #panelStack{left:calc(var(--dial-m) + 5 * var(--tap) + 34px);
+  bottom:max(calc(8px + var(--safeB)), calc(var(--dial-m) + var(--safeB) + var(--stackShift, 0px)))}
+/* A row needs a width only a screen on its side has - on an upright 320px
+   phone it ran under Navigate and hid the last button behind the disc - so
+   an upright phone too short for the column to clear the open dial keeps
+   the column anyway, clear of the closed disc instead, and takes it out of
+   the way while the dial is open, the way the panels step aside. */
+#zoomCtl{transition:opacity .15s,visibility .15s}
+.zoom-tuck #stage.dial-open #zoomCtl{opacity:0;visibility:hidden;pointer-events:none}
 #actionbar{position:absolute;left:0;right:0;bottom:var(--safeB);height:0;z-index:500;pointer-events:none}
 #arcPlate{position:absolute;left:0;bottom:0;pointer-events:none;filter:drop-shadow(0 -4px 12px rgba(0,0,0,.6))}
 /* the plate takes a tap itself, so pressing between two buttons does not reach the map */
@@ -1516,7 +1541,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Navigating while recording used to cost two stacked panels and most of the
    lower half of the screen. They sit side by side instead, each taking half
    the width, and a single panel still spans the full width on its own. */
-#panelStack{position:absolute;left:8px;right:var(--stackR);bottom:var(--stackB);z-index:500;
+#panelStack{position:absolute;left:8px;right:var(--stackR);z-index:500;
+  bottom:max(calc(8px + var(--safeB)), calc(var(--stackB) + var(--stackShift, 0px)));
   height:calc(var(--dial-rec) * 2);   /* the Navigate disc's height: top and bottom level with it */
   display:flex;flex-direction:row;align-items:stretch;gap:7px;pointer-events:none}
 #panelStack > *{pointer-events:auto;flex:1 1 0;min-width:0}
@@ -1571,39 +1597,85 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* the navigation side carries three readings and a button, the recording side two buttons */
 #panelStack.pair #navPanel{flex:3 1 0}
 #panelStack.pair #recPanel{flex:2 1 0}
-/* An upright phone pairs them at about 126px each, too narrow for all of
-   that inside 80px, so there each keeps to the essentials: the destination
-   with Cancel as a cross beside it, the distance left in full, travel time
-   and arrival under it; the dot and the state, and Pause and Stop as drawn
-   glyphs. The words are still on the buttons, for a screen reader - they
-   are only not drawn. Resume shows as a play glyph: the button turns .go. */
-@media (orientation: portrait) and (max-width: 599px) {
-  #panelStack.pair{gap:6px}
-  #panelStack.pair #navPanel,#panelStack.pair #recPanel{flex:1 1 0;padding:6px 8px}
-  #panelStack.pair #navPanel{row-gap:1px;column-gap:4px}
-  #panelStack.pair .np-top{gap:4px}
-  #panelStack.pair .np-ico{width:11px;height:11px}
-  #panelStack.pair .np-name,#panelStack.pair .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
-  #panelStack.pair .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
-  #panelStack.pair .np-figs{grid-column:1 / 3;display:grid;grid-template-columns:auto auto;
-    justify-content:start;gap:0 8px}
-  #panelStack.pair .np-figs > div{border-right:none;align-items:flex-start}
-  #panelStack.pair .np-figs > div:first-child{grid-column:1 / 3}
-  #panelStack.pair .np-figs > div:first-child b{font-size:var(--t-read-sm)}
-  #panelStack.pair .np-figs > div:nth-child(n+2) b{font-size:calc(11px * var(--uiScale))}
-  #panelStack.pair .np-figs i{display:none}
-  #panelStack.pair .np-btns{grid-row:1}
-  #panelStack.pair .np-btns .btn,#panelStack.pair .rp-btns .btn{font-size:0;padding:0;min-width:0}
-  #panelStack.pair .np-btns .btn{width:32px;height:32px;min-height:0}
-  #panelStack.pair .rp-btns .btn{min-height:40px}
-  #panelStack.pair .np-btns .btn::after,#panelStack.pair .rp-btns .btn::after{content:"";display:block;margin:auto;
-    width:14px;height:14px;background:currentColor;
-    -webkit-mask:var(--glyph) center/contain no-repeat;mask:var(--glyph) center/contain no-repeat}
-  #btnNavCancel{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 3.5l9 9M12.5 3.5l-9 9' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")}
-  #btnRecPause{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='2' width='3.6' height='12' rx='1'/%3E%3Crect x='9.4' y='2' width='3.6' height='12' rx='1'/%3E%3C/svg%3E")}
-  #btnRecPause.go{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 2.3v11.4c0 .5.5.8.9.5l8.6-5.7a.6.6 0 0 0 0-1L5.4 1.8c-.4-.3-.9 0-.9.5z'/%3E%3C/svg%3E")}
-  #btnRecStop{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='1.6'/%3E%3C/svg%3E")}
-}
+/* How much of all that each panel shows is fitted to the room it actually
+   has, by fitPanels, measured with the widest figures the panels will ever
+   hold - not decided by orientation. It used to be: an upright phone got the
+   short form below and everything else got the full one, so a single nav
+   panel on a 340px phone ran its three readings into each other, and so did
+   a pair on a phone on its side. Three steps, each tried in turn:
+
+   - Full, as above.
+   - .dense - the destination with Cancel as a cross beside it, the distance
+     left in full, travel time and arrival under it; the dot and the state,
+     and Pause and Stop as drawn glyphs. What an upright phone's pair has
+     always had. The words are still on the buttons for a screen reader -
+     only not drawn. Resume shows as a play glyph: the button turns .go.
+   - .stacked - a pair too narrow even for that, below about 124px a panel,
+     becomes two strips one over the other. See below. */
+#btnNavCancel{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 3.5l9 9M12.5 3.5l-9 9' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")}
+#btnRecPause{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='2' width='3.6' height='12' rx='1'/%3E%3Crect x='9.4' y='2' width='3.6' height='12' rx='1'/%3E%3C/svg%3E")}
+#btnRecPause.go{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 2.3v11.4c0 .5.5.8.9.5l8.6-5.7a.6.6 0 0 0 0-1L5.4 1.8c-.4-.3-.9 0-.9.5z'/%3E%3C/svg%3E")}
+#btnRecStop{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='1.6'/%3E%3C/svg%3E")}
+#panelStack:is(.dense,.stacked) .np-btns .btn,#panelStack:is(.dense,.stacked) .rp-btns .btn{font-size:0;padding:0;min-width:0}
+#panelStack:is(.dense,.stacked) .np-btns .btn::after,#panelStack:is(.dense,.stacked) .rp-btns .btn::after{content:"";display:block;margin:auto;
+  width:14px;height:14px;background:currentColor;
+  -webkit-mask:var(--glyph) center/contain no-repeat;mask:var(--glyph) center/contain no-repeat}
+#panelStack:is(.dense,.stacked) .np-figs i{display:none}
+#panelStack:is(.dense,.stacked) .np-figs > div{border-right:none;align-items:flex-start}
+#panelStack:is(.dense,.stacked) .np-top{gap:4px}
+#panelStack:is(.dense,.stacked) .np-ico{width:11px;height:11px}
+#panelStack:is(.dense,.stacked) .np-name,#panelStack:is(.dense,.stacked) .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
+#panelStack:is(.dense,.stacked) .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
+
+#panelStack.dense.pair{gap:6px}
+#panelStack.dense.pair #navPanel,#panelStack.dense.pair #recPanel{flex:1 1 0}
+#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:6px 8px}
+#panelStack.dense #navPanel{row-gap:1px;column-gap:4px}
+#panelStack.dense .np-figs{grid-column:1 / 3;display:grid;grid-template-columns:auto auto;
+  justify-content:start;gap:0 8px}
+#panelStack.dense .np-figs > div:first-child{grid-column:1 / 3}
+#panelStack.dense .np-figs > div:first-child b{font-size:var(--t-read-sm)}
+#panelStack.dense .np-figs > div:nth-child(n+2) b{font-size:calc(11px * var(--uiScale))}
+#panelStack.dense .np-btns{grid-row:1}
+/* 36, the size of a control used at a stop; it was 32, under every target in the app */
+#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:var(--tap-sm);min-height:0}
+#panelStack.dense .rp-btns .btn{min-height:40px}
+
+/* Stacked: two strips, one over the other, each a full tap high, beside
+   Navigate. Side by side they came to 89px each on a 320px phone and the
+   record panel's buttons measured 2px wide behind the disc; one over the
+   other each has the whole width, and costs the map 12px more than the
+   pair did. The pair of strips is centred on the disc, so its top and foot
+   meet the collar's rather than the disc's - still one console - except
+   that its foot stays 8px off the bottom of the screen, which on a phone on
+   its side, whose disc is 68px, means it stands a little taller instead.
+   A phone on its side reaches this sooner than an upright one: its console
+   is 68px high, too short for the short form's three lines.
+
+   - Navigation: the destination over the distance left and the arrival,
+     Cancel as a cross down the right. Travel time goes; arrival says it.
+   - Recording: the dot, the track and its state, then Pause and Stop.
+
+   .tight is a strip too narrow for the arrival as well: distance alone. */
+#panelStack.stacked{flex-direction:column;height:auto;gap:4px;
+  --stackShift:calc(var(--dial-rec) - var(--tap) - 2px)}
+#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:var(--tap);padding:3px 3px 3px 10px;border-radius:8px}
+/* the two lines centred in the strip, and Cancel down its whole height */
+#panelStack.stacked #navPanel{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr auto auto 1fr;
+  align-content:stretch;column-gap:8px;row-gap:0}
+#panelStack.stacked .np-top,#panelStack.stacked .np-note{grid-row:2}
+#panelStack.stacked .np-figs{grid-column:1;grid-row:3;display:flex;gap:10px;min-width:0}
+#panelStack.stacked .np-figs > div{flex:0 0 auto}
+#panelStack.stacked .np-figs > div:nth-child(2){display:none}
+#panelStack.stacked.tight .np-figs > div:nth-child(3){display:none}
+#panelStack.stacked .np-figs b{font-size:calc(11px * var(--uiScale))}
+#panelStack.stacked .np-figs > div:first-child b{color:var(--hud)}
+#panelStack.stacked .np-btns{grid-row:1 / -1;align-self:stretch}
+#panelStack.stacked .rp-btns{align-self:stretch}
+#panelStack.stacked .np-btns .btn,#panelStack.stacked .rp-btns .btn{width:var(--tap);height:auto;min-height:0;flex:0 0 auto}
+#panelStack.stacked #recPanel{flex-direction:row;align-items:center;gap:8px}
+#panelStack.stacked .rp-top{flex:1 1 auto;min-width:0}
+#panelStack.stacked .rp-btns{gap:3px}
 /* These two panels sit over the map while it is moving, and both used to
    carry backdrop-filter:blur(8px) behind a background that was already 96%
    opaque - so the blur was sampling the terrain in order to show you four
@@ -1972,6 +2044,13 @@ details.sub > .sec-body{padding:12px 0 0}
    taller than its neighbour and every row with one in it stepped; 40px holds
    both lines and gives a gloved thumb a little more to hit. */
 #poiKinds .kchip{height:40px;gap:8px;padding:0 10px 0 7px;border-radius:8px;opacity:1}
+/* Two columns where two fit, one where they do not. The widest chips - EV
+   charging, Supermarket, Outdoor gear, with a nearest line under them -
+   measure 134px to show their whole label, so on a 320px phone, whose panel
+   gives the grid 244px, six labels were cut to "EV charg...". Below two of
+   those side by side the grid is one column: a longer list, every word of it
+   readable. The panel is never wide enough for three. */
+#poiKinds.kchips{grid-template-columns:repeat(auto-fill,minmax(min(100%,calc(136px * var(--uiScale))),1fr))}
 #poiKinds .kchip .dotmark{opacity:.45;transition:opacity .16s}
 #poiKinds .kchip.on{color:var(--sand);border-color:var(--kc);
   border-color:color-mix(in srgb,var(--kc) 55%,transparent);
@@ -4518,11 +4597,20 @@ function layoutDial() {
   const colH = nz * tap + (nz - 1) * 6;
   const hud = parseFloat(document.documentElement.style.getPropertyValue("--hudStage")) || 0;
   const room = (zoomBase.h - M - rec - R - band / 2) - hud;
-  const row = room < colH + 20;
+  /* Short of room, a screen on its side takes the row. An upright one has no
+     width for a row - five buttons and the disc are 340px before a margin -
+     so it keeps the column, measured clear of the closed disc and its collar
+     instead of the open arc, and the column steps aside while the dial is
+     open (.zoom-tuck). A 320 by 640 phone is where this starts to matter. */
+  const short = room < colH + 20, upright = W < zoomBase.h;
+  const row = short && !upright, tuck = short && upright;
+  const clear = tuck ? (zoomBase.h - M - 2 * rec - 8 - 12) - hud : room;
   document.documentElement.classList.toggle("zoom-row", row);
-  zc.style.top = row ? "" : Math.round(hud + (room - colH) / 2) + "px";
+  document.documentElement.classList.toggle("zoom-tuck", tuck);
+  zc.style.top = row ? "" : Math.round(hud + Math.max(6, (clear - colH) / 2)) + "px";
   zc.style.transform = row ? "" : "none";
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
+  fitPanels();               /* the room beside Navigate may have changed with it */
   if (!Dial.open) bar.classList.add("shut");
   nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
 }
@@ -13523,6 +13611,63 @@ function syncPanelStack() {
   const nav = !$("#navPanel").classList.contains("hidden");
   const rec = !$("#recPanel").classList.contains("hidden");
   $("#panelStack").classList.toggle("pair", nav && rec);
+  fitPanels();
+}
+
+/* Which form of the docked panels fits the room beside Navigate - full,
+   .dense or .stacked, set out beside their CSS. Each is tried in turn and the
+   first that holds is kept. "Holds" is measured, not guessed from the screen:
+   a phone's own fonts and the Text Size step both move where the words run
+   out, and a width rule only knows the width.
+
+   It is measured with the widest figures a panel shows - a four-figure
+   distance, a two-figure hours, a two-figure arrival and PAUSED - written in
+   for the length of the measure and put back before anything is drawn, so a
+   panel that fits now does not overflow the first time the distance gains a
+   digit, and the form never flips back and forth while driving. It runs
+   when the panels come and go and when the screen or the text size changes,
+   nowhere near a fix.
+
+   An upright phone's pair starts at .dense rather than full, as it always
+   has. A pair narrower than 124px a panel - scaled with the text - goes
+   straight to strips: that is where the destination was down to five
+   letters beside its Cancel, and it is what an upright 360px phone gets. */
+function fitPanels() {
+  /* inside, not beside: layoutDial calls this from the first sizeMap, long
+     before a top-level constant down here would have been reached */
+  const widest = [["#navDist", "8888.88 km"], ["#navTime", "88h 88m"], ["#navEta", "12:59 pm"], ["#recState", "PAUSED"]];
+  const stack = $("#panelStack");
+  const shown = [$("#navPanel"), $("#recPanel")].filter(function (p) { return !p.classList.contains("hidden"); });
+  const forms = ["dense", "stacked", "tight"];
+  stack.classList.remove(...forms);
+  if (!shown.length || !stack.clientWidth) return;
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
+  const pair = shown.length === 2;
+  let steps = pair ? [[], ["dense"], ["stacked"], ["stacked", "tight"]] : [[], ["dense"]];
+  if (pair && HUD_UPRIGHT.matches) steps = steps.slice(1);
+  if (pair && (stack.clientWidth - 7) / 2 < 124 * scale) steps = steps.slice(-2);
+  const held = widest.map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
+  for (let i = 0; i < steps.length; i++) {
+    stack.classList.remove(...forms);
+    stack.classList.add(...steps[i]);
+    if (i === steps.length - 1 || panelsHold(shown, scale)) break;
+  }
+  held.forEach(function (p) { p[0].textContent = p[1]; });
+}
+
+/* Nothing runs out of its box, and the destination keeps room for a word -
+   48px, about six letters, is the least the upright pair has ever shown.
+   The track's name is not held to it: you know what you are recording, and
+   its state and its two buttons are what that panel is for. A cell the form
+   hides is not counted. */
+function panelsHold(shown, scale) {
+  const over = function (el) { return el.offsetWidth && el.scrollWidth > el.clientWidth + 1; };
+  return shown.every(function (p) {
+    if (p.scrollHeight > p.clientHeight + 1) return false;
+    const name = p.querySelector(".np-name");
+    if (name && name.clientWidth < 48 * scale) return false;
+    return !Array.from(p.querySelectorAll(".np-figs, .np-figs > div, .btn")).some(over);
+  });
 }
 
 function showNavPanel() {
