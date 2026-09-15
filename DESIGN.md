@@ -923,7 +923,12 @@ and a fade behind them:
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
   heading window centred at 27, 3-5px under the line. On an upright phone
   the band starts at 46, the speed's digits about 11px under the tape's
-  letters, and the roundel is held at least 12px under the window. With the
+  letters, and the roundel at least 12px under the window - the band steps
+  down to make that room on a 320px phone, so the roundel never leaves the
+  middle of the speed. It is centred on the digits' ink rather than their
+  line box, and its number on the ring's centre by the number's ink, both
+  measured in the phone's own face: flex alone left 110 1.2px right and
+  two-figure limits up to 1.4px low. With the
   heading in a row of its own under the tape the band started at 84; the
   display now ends 115px into the map on an upright phone, from 153.
 

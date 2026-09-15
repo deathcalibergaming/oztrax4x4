@@ -4562,7 +4562,7 @@ function layoutHud() {
   chip.style.minWidth = chipW + "px";
   buildTape(chipW);
   sb.style.height = ""; sb.style.background = "";
-  sb.style.removeProperty("--spd"); sb.classList.remove("hud-stack");
+  sb.style.removeProperty("--spd"); sb.style.removeProperty("--bandT"); sb.classList.remove("hud-stack");
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
@@ -4577,14 +4577,26 @@ function layoutHud() {
     const held = [["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
       .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
-    const spd = r(cells[0]), digits = r($("#stSpeed")), outs = cells.slice(2).map(r), d = sign.offsetWidth;
+    let spd = r(cells[0]), outs = cells.slice(2).map(r);
+    const d = sign.offsetWidth;
     const sx = Math.round(spd.right - box.left) + 12;
-    /* Upright, the roundel stands under the heading window as well, and is
-       held 12px clear of it: on a 320px phone the speed shrinks to fit, its
-       centre rises with it, and centred on the digits the ring came to 8px
-       under the window and read as hanging off it. */
-    const sy = Math.max(Math.round((digits.top + digits.bottom) / 2 - box.top - d / 2),
-      upright ? Math.ceil(r(cells[1]).bottom - box.top) + 12 : -Infinity);
+    /* Centred on the middle of the digits' ink - measured, not the middle of
+       their line box, which is where a font thinks digits sit and can be a
+       pixel or two out in a phone's own face. Always centred: upright, the
+       ring also stands under the heading window, and where centred it would
+       come within 12px of it - a 320px phone, whose speed shrinks to fit -
+       the band steps down to make the room. It used to be the ring that
+       stepped down, 3.6px off the middle of the speed beside it. */
+    const ink = inkBox($("#stSpeed"), "8");
+    let sy = Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2);
+    if (upright) {
+      const short = Math.ceil(r(cells[1]).bottom - box.top) + 12 - sy;
+      if (short > 0) {
+        sb.style.setProperty("--bandT", (parseFloat(getComputedStyle(sb).getPropertyValue("--bandT")) + short) + "px");
+        sy += short;
+        spd = r(cells[0]); outs = cells.slice(2).map(r);
+      }
+    }
     sign.style.left = sx + "px"; sign.style.top = sy + "px";
     const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
     const foot = Math.ceil(Math.max(spd.bottom - box.top, sy + d, ...outs.map(function (b) { return b.bottom - box.top; }),
@@ -4609,8 +4621,61 @@ function layoutHud() {
   const root = document.documentElement.style;
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
   root.setProperty("--hudStage", Math.round(bottom - stageEl.getBoundingClientRect().top) + "px");
+  centreSignNumber(true);
   layoutDial();
 }
+
+/* The box a line of text actually inks, in the viewport: the baseline where
+   layout put it, read off a zero-size probe - a font's ascent and descent
+   predict it only to within the pixel the line box is snapped to, which was
+   0.8px on a three-figure limit - and the ink from the glyphs drawn, so it
+   is right in whatever face the phone supplies, not only the one it was
+   checked in. */
+let inkCtx = null;
+function inkBox(el, text) {
+  if (!inkCtx) inkCtx = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(el);
+  inkCtx.font = cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+  inkCtx.letterSpacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+  const m = inkCtx.measureText(text);
+  const probe = document.createElement("span");
+  probe.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
+  el.appendChild(probe);
+  const base = probe.getBoundingClientRect().top;
+  probe.remove();
+  const rg = document.createRange();
+  rg.selectNodeContents(el);
+  const x0 = rg.getBoundingClientRect().left;
+  return { top: base - m.actualBoundingBoxAscent, bottom: base + m.actualBoundingBoxDescent,
+           left: x0 - m.actualBoundingBoxLeft, right: x0 + m.actualBoundingBoxRight };
+}
+
+/* The limit's number, centred in the ring by its ink. Flex centres the
+   line box, and a line box is not the digits: measured, a two-figure limit
+   sat 0.8 to 1.4px low and a three-figure one 1.2px right, the 1s carrying
+   more space on their left than their right. Nudged by the difference, so
+   50 and 110 both sit on the ring's centre. Run again when the number or
+   its size class changes, and by layoutHud when the ring's size might have. */
+let signInkKey = "", signInkWatch = null;
+function centreSignNumber(force) {
+  const sign = $("#speedSign"), b = $("#speedLimit");
+  if (!sign || !b) return;
+  const key = b.textContent + "|" + sign.classList.contains("wide");
+  if (!force && key === signInkKey) return;
+  signInkKey = key;
+  b.style.transform = "";
+  const ring = sign.getBoundingClientRect();
+  if (!ring.width || !b.textContent.trim()) return;
+  const k = inkBox(b, b.textContent);
+  const dx = (ring.left + ring.right) / 2 - (k.left + k.right) / 2;
+  const dy = (ring.top + ring.bottom) / 2 - (k.top + k.bottom) / 2;
+  b.style.transform = "translate(" + dx.toFixed(1) + "px," + dy.toFixed(1) + "px)";
+  if (signInkWatch) signInkWatch.takeRecords();   /* the probe's own coming and going is not a change */
+}
+signInkWatch = new MutationObserver(function () { centreSignNumber(); });
+signInkWatch.observe($("#speedLimit"), { childList: true, characterData: true, subtree: true });
+new MutationObserver(function () { centreSignNumber(); })
+  .observe($("#speedSign"), { attributes: true, attributeFilter: ["class"] });
 
 /* An upright phone's band: the largest speed, from the 64px the CSS asks for
    downwards, at which a three-figure speed, its unit and the limit roundel
