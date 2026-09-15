@@ -886,24 +886,42 @@ and a fade behind them:
   five-degree ticks) on every size, slid along under a rust lubber line.
   Cardinals in white, N in rust, tens of degrees as small numerals. Dimmed to
   35% with no fix.
-- **Heading chip:** the heading in figures, hung under the lubber line on a
-  panel-colour plate with a rust hairline, 8px below the tape's letters.
-- **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
-  64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
-  level with the top of the digits, its unit on their baseline, 10px off them.
+- **Heading window:** the heading in figures on a panel-colour plate with a
+  rust hairline, set into the tape itself under the lubber line and centred
+  on its ticks and letters. The tape parts around it - the ticks and letters
+  stop 6px short of it each side and fade in over 10px - the way an
+  aircraft's heading tape frames the figure it reads. One width for every
+  heading, the widest, so the window and the gap stay still as N becomes NNE.
+  15px figures.
+- **Speed:** large figures — 64px, less where that will not fit; 52px on a
+  phone on its side — lettered the way a gauge is: its label in rust level
+  with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. 12px
-  past the speed's unit and centred on its digits, 40px on an upright
-  phone. Hidden, it keeps its place.
+  white, without the roadside plate — collared in the panel colour, 40px, on
+  the middle of the bar under the heading window, centred on the speed's
+  digits. A phone on its side keeps it 12px past the speed's unit, 38px.
+  Hidden, it keeps its place.
 - **Readouts:** altitude, distance and time.
-- **One band, everywhere:** speed and its limit at the left, the readouts
-  stacked at the right. Wherever there is width (a tablet either way up, a
-  phone on its side) the tape runs in the clear stretch between them, masked
-  away behind them at their widest readings. An upright phone has no room
-  there, so the tape runs across the top instead and the band stands under
-  the heading chip, its speed sized to fit: the largest, from 64px down,
-  at which a three-figure speed, its unit and the roundel stand 12px clear
-  of the widest readouts. Measured with those figures, so the size is set
+- **One layout, phone and tablet:** an upright phone, a tablet either way
+  up and a desktop window all get the same display, at the same sizes: the
+  tape across the top with the heading window on it, and straight under it
+  one band - the speed at the left, the limit roundel on the middle, the
+  readouts stacked at the right. A tablet used to run the tape through the
+  band between the speed and the readouts, as a phone on its side still
+  does; it was asked to look the same as the phone. The speed is sized to
+  fit: the largest, from 64px down, that leaves the centred roundel 12px
+  clear of a three-figure speed and of the widest readouts (62px at 375
+  wide, 64 on a tablet).
+- **A phone on its side:** the one exception, with no height to give the
+  tape a row. Speed and limit at the left, readouts stacked at the right,
+  the tape in the clear stretch between them - and running the same
+  distance either side of the lubber line, the shorter of the two arms,
+  measured past a three-figure speed and the widest readouts and faded in
+  over 32px, so the heading window sits on the middle of its scale: 207px
+  either side at 812 wide, 146 at 690.
+- **Tight upright phones:** Where that would take the speed under 48px - 320
+  wide, or 340 at Large text - the roundel stands as near the middle as a
+  three-figure speed allows, and stays there as the speed changes. Measured with those figures, so the size is set
   by the screen and the text step and never changes with what the speed
   reads. The readouts step at 19px.
 - **Three rows, the fallback:** an upright phone too narrow for the band
@@ -916,10 +934,16 @@ and a fade behind them:
   tape, never under 58% behind a figure (the small ones need 55% over the
   palest terrain in sun), eased out over the 14px below the last of them.
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
-  heading chip 8px under them. On an upright phone the band starts 84px
-  down, which leaves the roundel at least 10px under the chip - at 76 the
-  two rings all but touched and read as one object hung off the tape; in
-  three rows the speed's digits stand 9px under the chip.
+  heading window centred at 27, 3-5px under the line. On an upright phone
+  the band starts at 46, the speed's digits about 11px under the tape's
+  letters, and the roundel at least 12px under the window - the band steps
+  down to make that room on a 320px phone, so the roundel never leaves the
+  middle of the speed. It is centred on the digits' ink rather than their
+  line box, and its number on the ring's centre by the number's ink, both
+  measured in the phone's own face: flex alone left 110 1.2px right and
+  two-figure limits up to 1.4px low. With the
+  heading in a row of its own under the tape the band started at 84; the
+  display now ends 115px into the map on an upright phone, from 153.
 
 Nothing in it takes a tap, so the map under it still pans.
 
@@ -937,30 +961,33 @@ colour). Folded, only Navigate shows:
 - **Actions:** a tap on one of the four runs it, then folds.
 - **Dismiss:** a tap anywhere else only folds; it is swallowed, so dismissing
   the dial cannot also drop a pin or open a place. Escape folds it too.
-- **Sizes:** a 136px radius on an upright phone, 176px on a tablet, 100px on
-  a phone on its side.
+- **Sizes:** Navigate 64px with a 128px arc on an upright phone, 80px and
+  166 on a tablet, 68px and 100 on a phone on its side. The first two were a
+  fifth larger; the arc came in by as much as the disc shrank, so its
+  buttons keep their distance from the disc and their reach.
 - **States:** Record keeps red while recording and amber while paused.
 
-The zoom buttons stand on the right edge, centred in the clear stretch
-between the heads-up display and the top of the open dial. Where that
-stretch is too short for them on a screen on its side - a phone, a short
-window - they become a row in the bottom-left corner instead. An upright
-screen never takes the row: it has no width for one, and on a 320px phone
-the row ran under Navigate and hid its last button behind the disc. Short
-and upright, the column stays, measured clear of the closed disc rather than
-the open arc, and steps aside while the dial is open, the way the panels do.
-It is measured, not keyed to orientation: a tablet or a desktop window on its
-side keeps the tablet's arrangement. It is measured against the tallest the
+The zoom buttons are always on the right-hand side. A column on the right
+edge, centred in the clear stretch between the heads-up display and the top
+of the open dial; where that is too short, centred in the longer stretch
+clear of the closed disc instead, stepping aside while the dial is open, the
+way the panels do; and where even a column of five will not fit - a phone
+on its side - folded into as many rows as the height holds, evened out, in
+columns from the right edge inward: +, - and recentre down the edge, the
+orientation and simulation buttons beside them. Never a row along the
+bottom: on a small nav screen that put them under the other thumb and
+pushed the panels along. It is measured, not keyed to orientation: a tablet
+or a desktop window on its side keeps the single column. It is measured against the tallest the
 screen has been at its width, so Android's system bars sliding up on a swipe
 move the dial with the bottom edge but leave the zoom buttons where they are;
 a width change or a drop of more than 120px is a real resize and starts
 again.
 
 The nav and record panels stand beside Navigate, stopping 12px short of it,
-at exactly its height - top and bottom level with the disc, 80px on an
-upright phone, 100 on a tablet, 68 on a phone on its side - so the corner
-reads as one console. Where there is a zoom row they stand between it and
-Navigate. While the dial is open they step aside, so its plate never lands
+at exactly its height - top and bottom level with the disc, 64px on an
+upright phone, 80 on a tablet, 68 on a phone on its side - so the corner
+reads as one console. Every pixel the disc lost went to the panels' width.
+While the dial is open they step aside, so its plate never lands
 on them. How much each shows is fitted to the room it has - measured with
 the widest figures it will ever hold, a four-figure distance and PAUSED, so
 the form never changes under a driver as a number grows - in three forms
@@ -969,18 +996,21 @@ tried in turn:
 - **Full:** navigation carries the destination, three readings on short
   labels (LEFT, TIME, ETA) and Cancel down the right; recording carries the
   dot, the track and its state, and Pause and Stop & Save side by side.
-- **Short:** the destination, the distance left, travel time and arrival,
-  with Cancel as a drawn 36px cross and Pause, Resume and Stop as drawn
-  glyphs whose words stay on the buttons for screen readers. An upright
-  phone's pair starts here, side by side at about 126px each; a single panel,
+- **Short:** the destination over the distance left, travel time and
+  arrival, one to a line at 11px, with Cancel as a drawn cross in a 36px
+  column down the panel's whole right side, and Pause, Resume and Stop as
+  36px drawn glyphs whose words stay on the buttons for screen readers - all
+  of it inside a 64px console. An upright phone's pair starts here, side by
+  side at about 126px each on a 360px phone and 134 at 375; a single panel,
   or a pair on a phone on its side, comes to it only when the full form runs
   out.
 - **Strips:** a pair too narrow for the short form becomes two strips, one
-  over the other, each a full tap high - the destination over the distance
-  and arrival with Cancel down the right, and the dot, track and state with
-  Pause and Stop. That is any pair under 124px a panel, scaled with the text:
-  an upright phone under about 370px wide, or a phone on its side, whose 68px
-  console cannot hold the short form's three lines. The strips are centred
+  over the other, each 40px - a 36px control and its border - the
+  destination over the distance and arrival with Cancel down the right, and
+  the dot, track and state with Pause and Stop. That is any pair under 124px
+  a panel, scaled with the text: an upright phone under about 350px wide, or
+  at Large text, or a phone on its side too short for the short form. The
+  84px pair is centred
   on the disc, meeting its collar at top and foot, and never nearer the
   bottom of the screen than 8px. A strip too narrow for the arrival as well
   shows the distance alone.
