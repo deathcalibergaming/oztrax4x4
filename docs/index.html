@@ -5682,7 +5682,8 @@ function updateSpeedSign() {
   } else {
     speedHold = null;
   }
-  if (v == null) { sign.classList.add("hidden"); return; }
+  /* a number or nothing: the sign must never print what is not a limit */
+  if (typeof v !== "number" || !isFinite(v)) { sign.classList.add("hidden"); return; }
   $("#speedLimit").textContent = String(v);
   /* the number a driver reads off the roadside, not a converted one: a
      65 mph road posts 65, whichever units the app is set to */
@@ -7645,6 +7646,21 @@ let roads = [];
 const roadStore = new Map();   /* way id -> {r, bb} */
 let roadCover = [];            /* {lat, lng, r} */
 const ROAD_SHAPE = 2;          /* cached roads older than this lack direction and continuation */
+/* A cached cell keeps two lists. `roads` stays in the shape every earlier
+   version reads - a plain posted limit on each way, nothing else - and
+   `roads2` holds the full set: ways signed one direction at a time and the
+   unsigned ways that carry a signed road on. They are not merged into one
+   list because an earlier copy of the app can still meet this cache - one
+   left open through an update, running the shell it loaded - and that code
+   prints whatever `v` it finds: a way with no plain limit came up on the
+   sign as "undefined". */
+function legacyRoads(list) {
+  return (list || []).filter(function (r) { return r.v != null; })
+    .map(function (r) { return { v: r.v, mph: r.mph, pts: r.pts }; });
+}
+function cellRoads(cell) {
+  return (cell && (cell.roads2 || cell.roads)) || [];
+}
 function addRoads(list, cover) {
   (list || []).forEach(function (r) {
     if (!r || !r.pts || r.pts.length < 2) return;
@@ -7939,13 +7955,13 @@ async function fetchPois(force) {
     /* a cached cell's roads count as loaded only in the current shape; an
        older cell still serves its POIs, and is fetched again for its roads
        wherever the vehicle is short of them */
-    const cachedCover = cached && cached.rv === ROAD_SHAPE && cached.rr
+    const cachedCover = cached && cached.rv === ROAD_SHAPE && cached.roads2 && cached.rr
       ? { lat: cached.rlat, lng: cached.rlng, r: cached.rr } : null;
     if (cached && !force && (Date.now() - cached.ts) < cachedTtl &&
         (!roadsThin || (cachedCover && haversine(cachedCover, a) <= cachedCover.r - CFG.ROAD_EDGE_M))) {
       poiCentre = a;
       if (show) setPois(cached.items, a);
-      addRoads(cached.roads, cachedCover);
+      addRoads(cellRoads(cached), cachedCover);
       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
@@ -8012,14 +8028,14 @@ async function fetchPois(force) {
          keeps the ones it had rather than caching an empty set over them,
          and the roads are not asked for again for a while. */
       const rd = osm.error
-        ? { roads: (cached && cached.roads) || [], rv: cached && cached.rv, rr: cached && cached.rr,
-            rlat: cached && cached.rlat, rlng: cached && cached.rlng }
-        : { roads: found, rv: ROAD_SHAPE, rr: osm.radius, rlat: a.lat, rlng: a.lng };
+        ? { roads: (cached && cached.roads) || [], roads2: cached && cached.roads2, rv: cached && cached.rv,
+            rr: cached && cached.rr, rlat: cached && cached.rlat, rlng: cached && cached.rlng }
+        : { roads: legacyRoads(found), roads2: found, rv: ROAD_SHAPE, rr: osm.radius, rlat: a.lat, rlng: a.lng };
       poiRetryAt = osm.error ? Date.now() + CFG.POI_BACKOFF : 0;
       await DB.put("poi", Object.assign({ ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, rd), key)
         .catch(function () {});
       if (show) setPois(items, a);
-      addRoads(rd.roads, osm.error ? null : { lat: a.lat, lng: a.lng, r: osm.radius });
+      addRoads(cellRoads(rd), osm.error ? null : { lat: a.lat, lng: a.lng, r: osm.radius });
       refreshStorageStats();
       if (show) offerOsmPois(false);
       /* count what is actually on the map, after copies of the same place
@@ -8033,7 +8049,7 @@ async function fetchPois(force) {
       /* both sources are unreachable but we have been here before - stale
          beats empty, and poiCentre stays unset so a later attempt happens */
       if (show) setPois(cached.items, a);
-      addRoads(cached.roads, null);
+      addRoads(cellRoads(cached), null);
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
       if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
     } else {
