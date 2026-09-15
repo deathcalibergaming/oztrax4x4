@@ -1100,12 +1100,24 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* three digits give a little back to keep the ring clear */
 #speedSign.wide b{font-size:calc(var(--sign-d) * .34);letter-spacing:-.04em}
 #statsbar #speedSign.hidden{display:flex !important;visibility:hidden}
-/* the heading, in a chip under the lubber line, 8px below the tape's letters */
-#statsbar .stat:nth-child(2){left:50%;top:50px;transform:translateX(-50%);z-index:2;background:#111513;
-  border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;
-  box-shadow:0 0 0 3px rgba(17,21,19,.7),0 6px 14px rgba(0,0,0,.5)}
+/* The heading, in a window on the tape itself: centred on the lubber line and
+   on the band of ticks and letters, with the tape parted around it (see
+   buildTape), the way an aircraft's heading tape frames the figure it is
+   reading. It used to hang under the tape's letters in a row of its own,
+   and on an upright phone that row was the 34px everything under it had to
+   start below.
+
+   One width for every heading - the widest, a three-letter point and three
+   figures, set by layoutHud - so the window and the gap in the tape stay
+   still while N becomes NNE. It carries a drop shadow and no halo: the gap
+   in the tape is what sets it apart now. 16px on a tablet rather than the
+   18 it was hanging in open space, so at Large text it still clears the
+   tape's rule. */
+#statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;background:#111513;
+  border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;justify-content:center;
+  box-shadow:0 4px 10px rgba(0,0,0,.45)}
 #statsbar .stat:nth-child(2) .lbl{display:none}
-#statsbar .stat:nth-child(2) b{font-size:calc(18px * var(--uiScale))}
+#statsbar .stat:nth-child(2) b{font-size:calc(16px * var(--uiScale))}
 #statsbar .stat:nth-child(2) b em{color:var(--rust2)}
 /* the readouts, stacked at the right of the band */
 #statsbar .stat:nth-child(n+3){right:24px;justify-content:flex-end}
@@ -1151,11 +1163,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    rows - tape, speed, readouts under a hairline - and gives the map back
    about 50px.
 
-   The chip stands 8px under the tape's letters, as it always has, and the
-   band starts 84px down - 8px lower than the old speed row, because the
-   limit roundel now stands beside the speed, under the chip, and at 76 the
-   two rings all but touched and read as one object hung off the tape. The
-   readouts step at 19px, the phone-on-its-side size.
+   The band starts 46px down, straight under the tape's letters: the speed's
+   digits stand 11px under them, and the limit roundel 15px under the heading
+   window on the tape. It started at 84 while the heading hung in a row of its
+   own under the tape. The readouts step at 19px, the phone-on-its-side size.
 
    The speed is sized to fit by layoutHud, measured with a three-figure speed
    and the widest readouts, from 64px down to 48; the limit roundel follows
@@ -1163,7 +1174,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    bar goes back to the three rows (.hud-stack, below), which keep a large
    speed on any width. */
 @media (orientation: portrait) and (max-width: 599px) {
-  #statsbar{--spd:64px;--sign-d:40px;--bandT:84px}
+  #statsbar{--spd:64px;--sign-d:40px;--bandT:46px}
   #statsbar .stat:nth-child(1){left:16px;top:var(--bandT)}
   /* The label's cap height on the digits' and the unit's baseline on
      theirs. The label's offset grows with the figure; the unit's is the
@@ -1188,10 +1199,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   /* .hud-stack: the three rows, for a phone too narrow for the band. The
      speed and the limit share the whole width between them and the readouts
      share theirs, so a three-figure speed never pushes a readout along. */
-  #statsbar.hud-stack{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:76px auto auto;
+  #statsbar.hud-stack{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:46px auto auto;
     column-gap:clamp(10px, calc((100vw - 272px) / 4), 16px);   /* 16 from 336px; 12 at 320, where Large text needs it */
     padding:0 16px 14px;--spd:74px;--sign-d:46px;
-    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 76px,
+    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 44px,
       rgba(17,21,19,.58) calc(100% - 14px),rgba(17,21,19,.34) calc(100% - 9px),
       rgba(17,21,19,.14) calc(100% - 4px),rgba(17,21,19,0) 100%)}
   #statsbar.hud-stack .stat{position:static}
@@ -4475,13 +4486,19 @@ function viewCenter() {
    either side of it, and it repeats, so crossing north jumps a whole turn of
    strip onto an identical picture. 4.2px a degree, 21px between five-degree
    ticks, on every size, so the scale reads the same upright or on its side.
-   Rebuilt only when the width changes. */
+
+   The heading window sits on the tape under the lubber line, so the ticks
+   and letters part around it: an SVG mask 6px clear of the window each side,
+   feathered over 10px, so a letter sliding in fades rather than being cut in
+   half at the window's edge. The mask is on a group that does not move - the
+   strip slides inside it - and the tape's rule, the caret and the lubber line
+   stay outside it. Rebuilt only when the width or the window's width changes. */
 const TAPE_PX = 4.2, TAPE_TOP = 10;
-let tapeW = 0, tapeLast = null;
-function buildTape() {
+let tapeKey = "", tapeLast = null;
+function buildTape(gap) {
   const box = $("#hudTape"), W = Math.round($("#statsbar").clientWidth);
-  if (!box || !W || W === tapeW) return;
-  tapeW = W;
+  if (!box || !W || W + "/" + gap === tapeKey) return;
+  tapeKey = W + "/" + gap;
   const cx = W / 2;
   const NAMES = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
   let s = "";
@@ -4493,12 +4510,19 @@ function buildTape() {
     if (name) s += '<text class="' + (n === 0 ? "nn" : "") + '" x="' + x + '" y="' + (TAPE_TOP + 29) + '">' + name + "</text>";
     if (num) s += '<text class="nm" x="' + x + '" y="' + (TAPE_TOP + 25) + '">' + String(n / 10).padStart(2, "0") + "</text>";
   }
+  const g0 = cx - gap / 2 - 16, gw = gap + 32, fe = (10 / gw).toFixed(4);
   box.innerHTML = '<svg width="' + W + '" height="64" viewBox="0 0 ' + W + ' 64">' +
+    '<defs><linearGradient id="tapeGapFade" gradientUnits="userSpaceOnUse" x1="' + g0 + '" x2="' + (g0 + gw) + '">' +
+    '<stop offset="0" stop-color="#fff"/><stop offset="' + fe + '" stop-color="#000"/>' +
+    '<stop offset="' + (1 - fe).toFixed(4) + '" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+    '<mask id="tapeGap" maskUnits="userSpaceOnUse" x="0" y="0" width="' + W + '" height="64">' +
+    '<rect width="' + W + '" height="64" fill="#fff"/>' +
+    '<rect x="' + g0 + '" y="' + (TAPE_TOP + 1) + '" width="' + gw + '" height="' + (63 - TAPE_TOP) + '" fill="url(#tapeGapFade)"/></mask></defs>' +
     '<line x1="0" y1="' + TAPE_TOP + '" x2="' + W + '" y2="' + TAPE_TOP + '" stroke="rgba(255,255,255,.8)" stroke-width="1.5"/>' +
-    '<g id="tapeG">' + s + "</g>" +
-    /* the caret rests on the tape's line, and the lubber line runs down to the chip */
+    '<g mask="url(#tapeGap)"><g id="tapeG">' + s + "</g></g>" +
+    /* the caret rests on the tape's line, and the lubber line runs down into the window */
     '<path d="M' + (cx - 7) + " 0H" + (cx + 7) + "L" + cx + " " + (TAPE_TOP - 1) + 'Z" fill="#CC5A2E"/>' +
-    '<line x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="50" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
+    '<line x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="27" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
   tapeLast = null;
 }
 /* With no fix it dims and holds where it was, or on north before the first. */
@@ -4528,7 +4552,15 @@ let hudSpeedLen = 0;
 function layoutHud() {
   const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
   if (!sb || !tape) return;
-  buildTape();
+  /* the heading window at its widest, fixed, and the tape parted to fit it */
+  const chip = sb.querySelector(".stat:nth-child(2)");
+  chip.style.minWidth = "";
+  const wide = [["#stCard", "WNW"], ["#stHdg", "888"]]
+    .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
+  const chipW = Math.ceil(chip.getBoundingClientRect().width);
+  wide.forEach(function (p) { p[0].textContent = p[1]; });
+  chip.style.minWidth = chipW + "px";
+  buildTape(chipW);
   sb.style.height = ""; sb.style.background = "";
   sb.style.removeProperty("--spd"); sb.classList.remove("hud-stack");
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
@@ -4547,7 +4579,12 @@ function layoutHud() {
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
     const spd = r(cells[0]), digits = r($("#stSpeed")), outs = cells.slice(2).map(r), d = sign.offsetWidth;
     const sx = Math.round(spd.right - box.left) + 12;
-    const sy = Math.round((digits.top + digits.bottom) / 2 - box.top - d / 2);
+    /* Upright, the roundel stands under the heading window as well, and is
+       held 12px clear of it: on a 320px phone the speed shrinks to fit, its
+       centre rises with it, and centred on the digits the ring came to 8px
+       under the window and read as hanging off it. */
+    const sy = Math.max(Math.round((digits.top + digits.bottom) / 2 - box.top - d / 2),
+      upright ? Math.ceil(r(cells[1]).bottom - box.top) + 12 : -Infinity);
     sign.style.left = sx + "px"; sign.style.top = sy + "px";
     const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
     const foot = Math.ceil(Math.max(spd.bottom - box.top, sy + d, ...outs.map(function (b) { return b.bottom - box.top; }),
@@ -4560,7 +4597,7 @@ function layoutHud() {
        always had there: 72% where that row ends, 58% behind the figures. */
     sb.style.height = (foot + 14) + "px";
     sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0," +
-      (upright ? "rgba(17,21,19,.72) 76px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
+      (upright ? "rgba(17,21,19,.72) 44px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
       "rgba(17,21,19,.34) " + (foot + 5) + "px,rgba(17,21,19,.14) " + (foot + 10) + "px,rgba(17,21,19,0) 100%)";
     if (!upright) {
       const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
