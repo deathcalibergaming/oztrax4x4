@@ -1506,16 +1506,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    above it. The map measures the bar's box to keep the vehicle clear of
    it, and a box the size of the dial would read as an inset the height of
    the map. layoutDial places everything from the sizes below. */
-:root{--dial-r:176px;--dial-rec:50px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
-  --dial-ico:25px;--dial-lab:8.5px;--dial-nico:32px;--dial-nlab:9.5px;
+/* Navigate is 80px on a tablet and 64 on an upright phone - a fifth smaller
+   than it was - and still 68 on a phone on its side. The panels beside it
+   are exactly its height, so every pixel off the disc's diameter went to the
+   panels' width: 16 on a phone, which is what puts a 360px phone's pair side
+   by side instead of in strips. On its side the panels have width to spare
+   and height to lose - a 60px console sent the pair to strips 84px tall - so
+   that disc stays. The arc is drawn in by as much as the disc shrank, so the
+   buttons on it keep the same distance from the disc's edge, and the same
+   reach. */
+:root{--dial-r:166px;--dial-rec:40px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
+  --dial-ico:25px;--dial-lab:8.5px;--dial-nico:28px;--dial-nlab:8.5px;
   /* The nav and record panels sit on the bottom edge beside Navigate, level
      with its foot and stopping 12px short of it, and the speed sign stands
      on the same line at the left. */
   --stackB:calc(var(--dial-m) + var(--safeB));
   --stackR:calc(var(--dial-m) + var(--dial-rec) * 2 + 12px)}
 @media (orientation: portrait) and (max-width: 599px) {
-  :root{--dial-r:136px;--dial-rec:40px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
-    --dial-ico:21px;--dial-lab:7.5px;--dial-nico:26px;--dial-nlab:8px}
+  :root{--dial-r:128px;--dial-rec:32px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
+    --dial-ico:21px;--dial-lab:7.5px;--dial-nico:22px;--dial-nlab:7.5px}
 }
 @media (orientation: landscape) and (max-height: 520px) {
   :root{--dial-r:100px;--dial-rec:34px;--dial-band:60px;--dial-b:50px;--dial-m:14px;
@@ -1593,8 +1602,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* ---------- the panels, docked ----------
    The nav and record panels stand beside Navigate at exactly its height -
    top and bottom level with the disc - so the corner reads as one console
-   rather than a stack of cards beside a button: 80px on an upright phone,
-   100 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
+   rather than a stack of cards beside a button: 64px on an upright phone,
+   80 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
 
    - Navigation: the destination on one line, the three readings under it on
      short labels, and Cancel down the right as one word.
@@ -1663,30 +1672,35 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack:is(.dense,.stacked) .np-name,#panelStack:is(.dense,.stacked) .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
 #panelStack:is(.dense,.stacked) .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
 
+/* The short form stands in a 64px console now that Navigate is 64 - it had
+   80. Cancel became a column down the whole right side of the navigation
+   panel, 36px wide and the panel's full height, where it had been a 36px
+   square that made its row that tall; the destination and the three
+   readings stack one to a line beside it, the readings at 11px. Pause and
+   Stop keep the 36px a control used at a stop gets. */
 #panelStack.dense.pair{gap:6px}
 #panelStack.dense.pair #navPanel,#panelStack.dense.pair #recPanel{flex:1 1 0}
-#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:6px 8px}
-#panelStack.dense #navPanel{row-gap:1px;column-gap:4px}
-#panelStack.dense .np-figs{grid-column:1 / 3;display:grid;grid-template-columns:auto auto;
-  justify-content:start;gap:0 8px}
-#panelStack.dense .np-figs > div:first-child{grid-column:1 / 3}
-#panelStack.dense .np-figs > div:first-child b{font-size:var(--t-read-sm)}
-#panelStack.dense .np-figs > div:nth-child(n+2) b{font-size:calc(11px * var(--uiScale))}
-#panelStack.dense .np-btns{grid-row:1}
-/* 36, the size of a control used at a stop; it was 32, under every target in the app */
-#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:var(--tap-sm);min-height:0}
-#panelStack.dense .rp-btns .btn{min-height:40px}
+#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:5px 8px}
+#panelStack.dense #navPanel{padding-right:5px;row-gap:1px;column-gap:6px;align-content:center}
+#panelStack.dense .np-figs{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:0}
+#panelStack.dense .np-figs > div{flex:0 0 auto}
+#panelStack.dense .np-figs b{font-size:calc(11px * var(--uiScale));line-height:1.1}
+#panelStack.dense .np-btns{grid-column:2;grid-row:1 / -1;align-self:stretch}
+#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:auto;min-height:0}
+#panelStack.dense #recPanel{gap:4px}
+#panelStack.dense .rp-btns .btn{min-height:var(--tap-sm)}
 
-/* Stacked: two strips, one over the other, each a full tap high, beside
-   Navigate. Side by side they came to 89px each on a 320px phone and the
+/* Stacked: two strips, one over the other, each 40px - a 36px control and
+   its border - beside Navigate. Side by side they came to 89px each on a 320px phone and the
    record panel's buttons measured 2px wide behind the disc; one over the
    other each has the whole width, and costs the map 12px more than the
-   pair did. The pair of strips is centred on the disc, so its top and foot
-   meet the collar's rather than the disc's - still one console - except
-   that its foot stays 8px off the bottom of the screen, which on a phone on
-   its side, whose disc is 68px, means it stands a little taller instead.
-   A phone on its side reaches this sooner than an upright one: its console
-   is 68px high, too short for the short form's three lines.
+   pair did. The pair of strips, 84px, is centred on the disc, so its top
+   and foot meet the collar's rather than the disc's - still one console -
+   except that its foot stays 8px off the bottom of the screen, which on a
+   64px phone disc lifts it 2px. They were a full 44px tap each until
+   Navigate came down to 64, when two of them stood 20px proud of it. A phone
+   on its side reaches this sooner than an upright one: its console is 68px
+   high, and the short form wants 64 of it with 36px controls.
 
    - Navigation: the destination over the distance left and the arrival,
      Cancel as a cross down the right. Travel time goes; arrival says it.
@@ -1694,8 +1708,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
    .tight is a strip too narrow for the arrival as well: distance alone. */
 #panelStack.stacked{flex-direction:column;height:auto;gap:4px;
-  --stackShift:calc(var(--dial-rec) - var(--tap) - 2px)}
-#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:var(--tap);padding:3px 3px 3px 10px;border-radius:8px}
+  --stackShift:calc(var(--dial-rec) - var(--tap-sm) - 6px)}
+#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:calc(var(--tap-sm) + 4px);padding:1px 1px 1px 10px;border-radius:8px}
 /* the two lines centred in the strip, and Cancel down its whole height */
 #panelStack.stacked #navPanel{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr auto auto 1fr;
   align-content:stretch;column-gap:8px;row-gap:0}

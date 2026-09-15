@@ -961,8 +961,10 @@ colour). Folded, only Navigate shows:
 - **Actions:** a tap on one of the four runs it, then folds.
 - **Dismiss:** a tap anywhere else only folds; it is swallowed, so dismissing
   the dial cannot also drop a pin or open a place. Escape folds it too.
-- **Sizes:** a 136px radius on an upright phone, 176px on a tablet, 100px on
-  a phone on its side.
+- **Sizes:** Navigate 64px with a 128px arc on an upright phone, 80px and
+  166 on a tablet, 68px and 100 on a phone on its side. The first two were a
+  fifth larger; the arc came in by as much as the disc shrank, so its
+  buttons keep their distance from the disc and their reach.
 - **States:** Record keeps red while recording and amber while paused.
 
 The zoom buttons stand on the right edge, centred in the clear stretch
@@ -981,9 +983,9 @@ a width change or a drop of more than 120px is a real resize and starts
 again.
 
 The nav and record panels stand beside Navigate, stopping 12px short of it,
-at exactly its height - top and bottom level with the disc, 80px on an
-upright phone, 100 on a tablet, 68 on a phone on its side - so the corner
-reads as one console. Where there is a zoom row they stand between it and
+at exactly its height - top and bottom level with the disc, 64px on an
+upright phone, 80 on a tablet, 68 on a phone on its side - so the corner
+reads as one console. Every pixel the disc lost went to the panels' width. Where there is a zoom row they stand between it and
 Navigate. While the dial is open they step aside, so its plate never lands
 on them. How much each shows is fitted to the room it has - measured with
 the widest figures it will ever hold, a four-figure distance and PAUSED, so
@@ -993,18 +995,21 @@ tried in turn:
 - **Full:** navigation carries the destination, three readings on short
   labels (LEFT, TIME, ETA) and Cancel down the right; recording carries the
   dot, the track and its state, and Pause and Stop & Save side by side.
-- **Short:** the destination, the distance left, travel time and arrival,
-  with Cancel as a drawn 36px cross and Pause, Resume and Stop as drawn
-  glyphs whose words stay on the buttons for screen readers. An upright
-  phone's pair starts here, side by side at about 126px each; a single panel,
+- **Short:** the destination over the distance left, travel time and
+  arrival, one to a line at 11px, with Cancel as a drawn cross in a 36px
+  column down the panel's whole right side, and Pause, Resume and Stop as
+  36px drawn glyphs whose words stay on the buttons for screen readers - all
+  of it inside a 64px console. An upright phone's pair starts here, side by
+  side at about 126px each on a 360px phone and 134 at 375; a single panel,
   or a pair on a phone on its side, comes to it only when the full form runs
   out.
 - **Strips:** a pair too narrow for the short form becomes two strips, one
-  over the other, each a full tap high - the destination over the distance
-  and arrival with Cancel down the right, and the dot, track and state with
-  Pause and Stop. That is any pair under 124px a panel, scaled with the text:
-  an upright phone under about 370px wide, or a phone on its side, whose 68px
-  console cannot hold the short form's three lines. The strips are centred
+  over the other, each 40px - a 36px control and its border - the
+  destination over the distance and arrival with Cancel down the right, and
+  the dot, track and state with Pause and Stop. That is any pair under 124px
+  a panel, scaled with the text: an upright phone under about 350px wide, or
+  at Large text, or a phone on its side too short for the short form. The
+  84px pair is centred
   on the disc, meeting its collar at top and foot, and never nearer the
   bottom of the screen than 8px. A strip too narrow for the arrival as well
   shows the distance alone.
