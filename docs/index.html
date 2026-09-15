@@ -1100,12 +1100,24 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* three digits give a little back to keep the ring clear */
 #speedSign.wide b{font-size:calc(var(--sign-d) * .34);letter-spacing:-.04em}
 #statsbar #speedSign.hidden{display:flex !important;visibility:hidden}
-/* the heading, in a chip under the lubber line, 8px below the tape's letters */
-#statsbar .stat:nth-child(2){left:50%;top:50px;transform:translateX(-50%);z-index:2;background:#111513;
-  border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;
-  box-shadow:0 0 0 3px rgba(17,21,19,.7),0 6px 14px rgba(0,0,0,.5)}
+/* The heading, in a window on the tape itself: centred on the lubber line and
+   on the band of ticks and letters, with the tape parted around it (see
+   buildTape), the way an aircraft's heading tape frames the figure it is
+   reading. It used to hang under the tape's letters in a row of its own,
+   and on an upright phone that row was the 34px everything under it had to
+   start below.
+
+   One width for every heading - the widest, a three-letter point and three
+   figures, set by layoutHud - so the window and the gap in the tape stay
+   still while N becomes NNE. It carries a drop shadow and no halo: the gap
+   in the tape is what sets it apart now. 16px on a tablet rather than the
+   18 it was hanging in open space, so at Large text it still clears the
+   tape's rule. */
+#statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;background:#111513;
+  border:1px solid var(--rust);border-radius:6px;padding:4px 10px;text-shadow:none;justify-content:center;
+  box-shadow:0 4px 10px rgba(0,0,0,.45)}
 #statsbar .stat:nth-child(2) .lbl{display:none}
-#statsbar .stat:nth-child(2) b{font-size:calc(18px * var(--uiScale))}
+#statsbar .stat:nth-child(2) b{font-size:calc(16px * var(--uiScale))}
 #statsbar .stat:nth-child(2) b em{color:var(--rust2)}
 /* the readouts, stacked at the right of the band */
 #statsbar .stat:nth-child(n+3){right:24px;justify-content:flex-end}
@@ -1151,11 +1163,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    rows - tape, speed, readouts under a hairline - and gives the map back
    about 50px.
 
-   The chip stands 8px under the tape's letters, as it always has, and the
-   band starts 84px down - 8px lower than the old speed row, because the
-   limit roundel now stands beside the speed, under the chip, and at 76 the
-   two rings all but touched and read as one object hung off the tape. The
-   readouts step at 19px, the phone-on-its-side size.
+   The band starts 46px down, straight under the tape's letters: the speed's
+   digits stand 11px under them, and the limit roundel 15px under the heading
+   window on the tape. It started at 84 while the heading hung in a row of its
+   own under the tape. The readouts step at 19px, the phone-on-its-side size.
 
    The speed is sized to fit by layoutHud, measured with a three-figure speed
    and the widest readouts, from 64px down to 48; the limit roundel follows
@@ -1163,7 +1174,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    bar goes back to the three rows (.hud-stack, below), which keep a large
    speed on any width. */
 @media (orientation: portrait) and (max-width: 599px) {
-  #statsbar{--spd:64px;--sign-d:40px;--bandT:84px}
+  #statsbar{--spd:64px;--sign-d:40px;--bandT:46px}
   #statsbar .stat:nth-child(1){left:16px;top:var(--bandT)}
   /* The label's cap height on the digits' and the unit's baseline on
      theirs. The label's offset grows with the figure; the unit's is the
@@ -1188,10 +1199,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   /* .hud-stack: the three rows, for a phone too narrow for the band. The
      speed and the limit share the whole width between them and the readouts
      share theirs, so a three-figure speed never pushes a readout along. */
-  #statsbar.hud-stack{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:76px auto auto;
+  #statsbar.hud-stack{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:46px auto auto;
     column-gap:clamp(10px, calc((100vw - 272px) / 4), 16px);   /* 16 from 336px; 12 at 320, where Large text needs it */
     padding:0 16px 14px;--spd:74px;--sign-d:46px;
-    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 76px,
+    background:linear-gradient(180deg,rgba(17,21,19,.85) 0,rgba(17,21,19,.72) 44px,
       rgba(17,21,19,.58) calc(100% - 14px),rgba(17,21,19,.34) calc(100% - 9px),
       rgba(17,21,19,.14) calc(100% - 4px),rgba(17,21,19,0) 100%)}
   #statsbar.hud-stack .stat{position:static}
@@ -4475,13 +4486,19 @@ function viewCenter() {
    either side of it, and it repeats, so crossing north jumps a whole turn of
    strip onto an identical picture. 4.2px a degree, 21px between five-degree
    ticks, on every size, so the scale reads the same upright or on its side.
-   Rebuilt only when the width changes. */
+
+   The heading window sits on the tape under the lubber line, so the ticks
+   and letters part around it: an SVG mask 6px clear of the window each side,
+   feathered over 10px, so a letter sliding in fades rather than being cut in
+   half at the window's edge. The mask is on a group that does not move - the
+   strip slides inside it - and the tape's rule, the caret and the lubber line
+   stay outside it. Rebuilt only when the width or the window's width changes. */
 const TAPE_PX = 4.2, TAPE_TOP = 10;
-let tapeW = 0, tapeLast = null;
-function buildTape() {
+let tapeKey = "", tapeLast = null;
+function buildTape(gap) {
   const box = $("#hudTape"), W = Math.round($("#statsbar").clientWidth);
-  if (!box || !W || W === tapeW) return;
-  tapeW = W;
+  if (!box || !W || W + "/" + gap === tapeKey) return;
+  tapeKey = W + "/" + gap;
   const cx = W / 2;
   const NAMES = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
   let s = "";
@@ -4493,12 +4510,19 @@ function buildTape() {
     if (name) s += '<text class="' + (n === 0 ? "nn" : "") + '" x="' + x + '" y="' + (TAPE_TOP + 29) + '">' + name + "</text>";
     if (num) s += '<text class="nm" x="' + x + '" y="' + (TAPE_TOP + 25) + '">' + String(n / 10).padStart(2, "0") + "</text>";
   }
+  const g0 = cx - gap / 2 - 16, gw = gap + 32, fe = (10 / gw).toFixed(4);
   box.innerHTML = '<svg width="' + W + '" height="64" viewBox="0 0 ' + W + ' 64">' +
+    '<defs><linearGradient id="tapeGapFade" gradientUnits="userSpaceOnUse" x1="' + g0 + '" x2="' + (g0 + gw) + '">' +
+    '<stop offset="0" stop-color="#fff"/><stop offset="' + fe + '" stop-color="#000"/>' +
+    '<stop offset="' + (1 - fe).toFixed(4) + '" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+    '<mask id="tapeGap" maskUnits="userSpaceOnUse" x="0" y="0" width="' + W + '" height="64">' +
+    '<rect width="' + W + '" height="64" fill="#fff"/>' +
+    '<rect x="' + g0 + '" y="' + (TAPE_TOP + 1) + '" width="' + gw + '" height="' + (63 - TAPE_TOP) + '" fill="url(#tapeGapFade)"/></mask></defs>' +
     '<line x1="0" y1="' + TAPE_TOP + '" x2="' + W + '" y2="' + TAPE_TOP + '" stroke="rgba(255,255,255,.8)" stroke-width="1.5"/>' +
-    '<g id="tapeG">' + s + "</g>" +
-    /* the caret rests on the tape's line, and the lubber line runs down to the chip */
+    '<g mask="url(#tapeGap)"><g id="tapeG">' + s + "</g></g>" +
+    /* the caret rests on the tape's line, and the lubber line runs down into the window */
     '<path d="M' + (cx - 7) + " 0H" + (cx + 7) + "L" + cx + " " + (TAPE_TOP - 1) + 'Z" fill="#CC5A2E"/>' +
-    '<line x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="50" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
+    '<line x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="27" stroke="#CC5A2E" stroke-width="1.6"/></svg>';
   tapeLast = null;
 }
 /* With no fix it dims and holds where it was, or on north before the first. */
@@ -4525,12 +4549,21 @@ function moveTape(hdg) {
    thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
 let hudSpeedLen = 0;
+let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
   const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
   if (!sb || !tape) return;
-  buildTape();
+  /* the heading window at its widest, fixed, and the tape parted to fit it */
+  const chip = sb.querySelector(".stat:nth-child(2)");
+  chip.style.minWidth = "";
+  const wide = [["#stCard", "WNW"], ["#stHdg", "888"]]
+    .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
+  const chipW = Math.ceil(chip.getBoundingClientRect().width);
+  wide.forEach(function (p) { p[0].textContent = p[1]; });
+  chip.style.minWidth = chipW + "px";
+  buildTape(chipW);
   sb.style.height = ""; sb.style.background = "";
-  sb.style.removeProperty("--spd"); sb.classList.remove("hud-stack");
+  sb.style.removeProperty("--spd"); sb.style.removeProperty("--bandT"); sb.classList.remove("hud-stack");
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
@@ -4540,14 +4573,42 @@ function layoutHud() {
        under the tape. The speed is measured as it stands - this runs again
        when it gains or loses a digit - and the limit roundel follows it,
        12px off its unit and centred on the digits, so neither leaves a gap
-       beside the other. The tape's mask starts past the roundel whether or
-       not a limit is showing, since the roundel keeps its place. */
+       beside the other. Upright, the roundel stands on the middle of the
+       bar instead, under the heading window and the lubber line, between the
+       speed and the readouts; fitBand leaves it the room. The tape's mask
+       starts past the roundel whether or not a limit is showing, since the
+       roundel keeps its place. */
     const held = [["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
       .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
-    const spd = r(cells[0]), digits = r($("#stSpeed")), outs = cells.slice(2).map(r), d = sign.offsetWidth;
-    const sx = Math.round(spd.right - box.left) + 12;
-    const sy = Math.round((digits.top + digits.bottom) / 2 - box.top - d / 2);
+    let spd = r(cells[0]), outs = cells.slice(2).map(r);
+    const d = sign.offsetWidth;
+    let sx = Math.round(spd.right - box.left) + 12;
+    if (upright) {
+      /* centred, unless fitBand could only make room beside the speed - then
+         as near the middle as a three-figure speed and the widest readouts
+         allow, and there it stays: measured off the widest speed rather than
+         this one, so it does not step sideways as 99 becomes 100 */
+      const outL = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left);
+      sx = Math.round(clamp(box.width / 2 - d / 2, bandSignMin, outL - 12 - d));
+    }
+    /* Centred on the middle of the digits' ink - measured, not the middle of
+       their line box, which is where a font thinks digits sit and can be a
+       pixel or two out in a phone's own face. Always centred: upright, the
+       ring also stands under the heading window, and where centred it would
+       come within 12px of it - a 320px phone, whose speed shrinks to fit -
+       the band steps down to make the room. It used to be the ring that
+       stepped down, 3.6px off the middle of the speed beside it. */
+    const ink = inkBox($("#stSpeed"), "8");
+    let sy = Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2);
+    if (upright) {
+      const short = Math.ceil(r(cells[1]).bottom - box.top) + 12 - sy;
+      if (short > 0) {
+        sb.style.setProperty("--bandT", (parseFloat(getComputedStyle(sb).getPropertyValue("--bandT")) + short) + "px");
+        sy += short;
+        spd = r(cells[0]); outs = cells.slice(2).map(r);
+      }
+    }
     sign.style.left = sx + "px"; sign.style.top = sy + "px";
     const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
     const foot = Math.ceil(Math.max(spd.bottom - box.top, sy + d, ...outs.map(function (b) { return b.bottom - box.top; }),
@@ -4560,7 +4621,7 @@ function layoutHud() {
        always had there: 72% where that row ends, 58% behind the figures. */
     sb.style.height = (foot + 14) + "px";
     sb.style.background = "linear-gradient(180deg,rgba(17,21,19,.85) 0," +
-      (upright ? "rgba(17,21,19,.72) 76px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
+      (upright ? "rgba(17,21,19,.72) 44px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
       "rgba(17,21,19,.34) " + (foot + 5) + "px,rgba(17,21,19,.14) " + (foot + 10) + "px,rgba(17,21,19,0) 100%)";
     if (!upright) {
       const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
@@ -4572,34 +4633,104 @@ function layoutHud() {
   const root = document.documentElement.style;
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
   root.setProperty("--hudStage", Math.round(bottom - stageEl.getBoundingClientRect().top) + "px");
+  centreSignNumber(true);
   layoutDial();
 }
 
+/* The box a line of text actually inks, in the viewport: the baseline where
+   layout put it, read off a zero-size probe - a font's ascent and descent
+   predict it only to within the pixel the line box is snapped to, which was
+   0.8px on a three-figure limit - and the ink from the glyphs drawn, so it
+   is right in whatever face the phone supplies, not only the one it was
+   checked in. */
+let inkCtx = null;
+function inkBox(el, text) {
+  if (!inkCtx) inkCtx = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(el);
+  inkCtx.font = cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+  inkCtx.letterSpacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+  const m = inkCtx.measureText(text);
+  const probe = document.createElement("span");
+  probe.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
+  el.appendChild(probe);
+  const base = probe.getBoundingClientRect().top;
+  probe.remove();
+  const rg = document.createRange();
+  rg.selectNodeContents(el);
+  const x0 = rg.getBoundingClientRect().left;
+  return { top: base - m.actualBoundingBoxAscent, bottom: base + m.actualBoundingBoxDescent,
+           left: x0 - m.actualBoundingBoxLeft, right: x0 + m.actualBoundingBoxRight };
+}
+
+/* The limit's number, centred in the ring by its ink. Flex centres the
+   line box, and a line box is not the digits: measured, a two-figure limit
+   sat 0.8 to 1.4px low and a three-figure one 1.2px right, the 1s carrying
+   more space on their left than their right. Nudged by the difference, so
+   50 and 110 both sit on the ring's centre. Run again when the number or
+   its size class changes, and by layoutHud when the ring's size might have. */
+let signInkKey = "", signInkWatch = null;
+function centreSignNumber(force) {
+  const sign = $("#speedSign"), b = $("#speedLimit");
+  if (!sign || !b) return;
+  const key = b.textContent + "|" + sign.classList.contains("wide");
+  if (!force && key === signInkKey) return;
+  signInkKey = key;
+  b.style.transform = "";
+  const ring = sign.getBoundingClientRect();
+  if (!ring.width || !b.textContent.trim()) return;
+  const k = inkBox(b, b.textContent);
+  const dx = (ring.left + ring.right) / 2 - (k.left + k.right) / 2;
+  const dy = (ring.top + ring.bottom) / 2 - (k.top + k.bottom) / 2;
+  b.style.transform = "translate(" + dx.toFixed(1) + "px," + dy.toFixed(1) + "px)";
+  if (signInkWatch) signInkWatch.takeRecords();   /* the probe's own coming and going is not a change */
+}
+signInkWatch = new MutationObserver(function () { centreSignNumber(); });
+signInkWatch.observe($("#speedLimit"), { childList: true, characterData: true, subtree: true });
+new MutationObserver(function () { centreSignNumber(); })
+  .observe($("#speedSign"), { attributes: true, attributeFilter: ["class"] });
+
 /* An upright phone's band: the largest speed, from the 64px the CSS asks for
-   downwards, at which a three-figure speed, its unit and the limit roundel
-   stand 12px clear of the widest readouts. Measured with those figures
-   written in and put back before anything is drawn, so the size is set by
-   the screen and the text step and never by what the speed happens to read -
-   a band that shrank its speed at 100 km/h would be worse than either
-   layout. Under 48px drawn the speed stops being the thing you read first,
-   and the bar goes back to three rows. */
+   downwards, that leaves the limit roundel room on the middle of the bar -
+   12px clear of a three-figure speed on its left and of the widest readouts
+   on its right. Measured with those figures written in and put back before
+   anything is drawn, so the size is set by the screen and the text step and
+   never by what the speed happens to read: a roundel that slid off the
+   middle at 100 km/h, or a speed that shrank there, would be worse than
+   either. It costs the speed little - 62px rather than 64 at 375 wide - and
+   more at Large text, where the figures either side are bigger.
+
+   Under 48px drawn the speed stops being the thing you read first. Where the
+   middle would take it there, the roundel stands beside the speed instead,
+   12px off its unit and as near the middle as the readouts allow; where even
+   that will not fit, the bar goes back to three rows. */
 function fitBand(sb, cells, sign) {
   const held = [["#stSpeed", "888"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
     .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
   const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
-  const d = sign.offsetWidth;
-  let size = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64, fits = false;
-  for (let i = 0; i < 6; i++) {
-    sb.style.setProperty("--spd", size + "px");
-    const clear = Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })) -
-      (cells[0].getBoundingClientRect().right + 12 + d + 12);
-    if (clear >= 0) { fits = true; break; }
-    /* the digits are the only part of the speed that scales with it */
-    const w = $("#stSpeed").getBoundingClientRect().width;
-    const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
-    if (next * scale < 48) break;
-    size = next;
+  const d = sign.offsetWidth, bar = sb.getBoundingClientRect(), mid = bar.left + bar.width / 2;
+  const top = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64;
+  const outL = function () { return Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })); };
+  const spdR = function () { return cells[0].getBoundingClientRect().right; };
+  /* the readouts do not move with the speed, so a middle they crowd is no use at any size */
+  const centred = function () { return outL() - 12 >= mid + d / 2 ? (mid - d / 2 - 12) - spdR() : -Infinity; };
+  const beside = function () { return outL() - (spdR() + 12 + d + 12); };
+  function shrinkTo(clearOf) {
+    let size = top;
+    for (let i = 0; i < 6; i++) {
+      sb.style.setProperty("--spd", size + "px");
+      const clear = clearOf();
+      if (clear >= 0) return true;
+      if (!isFinite(clear)) return false;
+      /* the digits are the only part of the speed that scales with it */
+      const w = $("#stSpeed").getBoundingClientRect().width;
+      const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
+      if (next * scale < 48) return false;
+      size = next;
+    }
+    return false;
   }
+  const fits = shrinkTo(centred) || shrinkTo(beside);
+  bandSignMin = Math.ceil(spdR() + 12 - bar.left);
   held.forEach(function (p) { p[0].textContent = p[1]; });
   if (fits) return true;
   sb.style.removeProperty("--spd");

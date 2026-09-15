@@ -886,24 +886,33 @@ and a fade behind them:
   five-degree ticks) on every size, slid along under a rust lubber line.
   Cardinals in white, N in rust, tens of degrees as small numerals. Dimmed to
   35% with no fix.
-- **Heading chip:** the heading in figures, hung under the lubber line on a
-  panel-colour plate with a rust hairline, 8px below the tape's letters.
+- **Heading window:** the heading in figures on a panel-colour plate with a
+  rust hairline, set into the tape itself under the lubber line and centred
+  on its ticks and letters. The tape parts around it - the ticks and letters
+  stop 6px short of it each side and fade in over 10px - the way an
+  aircraft's heading tape frames the figure it reads. One width for every
+  heading, the widest, so the window and the gap stay still as N becomes NNE.
+  16px figures on a tablet, 15px on a phone.
 - **Speed:** large figures — 68px on a tablet, 52px on a phone on its side,
   64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
   level with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. 12px
-  past the speed's unit and centred on its digits, 40px on an upright
-  phone. Hidden, it keeps its place.
+  white, without the roadside plate — collared in the panel colour. Centred
+  on the speed's digits: 12px past its unit in the band, and on an upright
+  phone on the middle of the bar, under the heading window, 40px. Hidden,
+  it keeps its place.
 - **Readouts:** altitude, distance and time.
 - **One band, everywhere:** speed and its limit at the left, the readouts
   stacked at the right. Wherever there is width (a tablet either way up, a
   phone on its side) the tape runs in the clear stretch between them, masked
   away behind them at their widest readings. An upright phone has no room
-  there, so the tape runs across the top instead and the band stands under
-  the heading chip, its speed sized to fit: the largest, from 64px down,
-  at which a three-figure speed, its unit and the roundel stand 12px clear
-  of the widest readouts. Measured with those figures, so the size is set
+  there, so the tape runs across the top instead and the band stands
+  straight under it, the roundel on the middle of the bar and the speed
+  sized to fit: the largest, from 64px down, that leaves the centred
+  roundel 12px clear of a three-figure speed and of the widest readouts
+  (62px at 375 wide). Where that would take the speed under 48px - 320
+  wide, or 340 at Large text - the roundel stands as near the middle as a
+  three-figure speed allows, and stays there as the speed changes. Measured with those figures, so the size is set
   by the screen and the text step and never changes with what the speed
   reads. The readouts step at 19px.
 - **Three rows, the fallback:** an upright phone too narrow for the band
@@ -916,10 +925,16 @@ and a fade behind them:
   tape, never under 58% behind a figure (the small ones need 55% over the
   palest terrain in sun), eased out over the 14px below the last of them.
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
-  heading chip 8px under them. On an upright phone the band starts 84px
-  down, which leaves the roundel at least 10px under the chip - at 76 the
-  two rings all but touched and read as one object hung off the tape; in
-  three rows the speed's digits stand 9px under the chip.
+  heading window centred at 27, 3-5px under the line. On an upright phone
+  the band starts at 46, the speed's digits about 11px under the tape's
+  letters, and the roundel at least 12px under the window - the band steps
+  down to make that room on a 320px phone, so the roundel never leaves the
+  middle of the speed. It is centred on the digits' ink rather than their
+  line box, and its number on the ring's centre by the number's ink, both
+  measured in the phone's own face: flex alone left 110 1.2px right and
+  two-figure limits up to 1.4px low. With the
+  heading in a row of its own under the tape the band started at 84; the
+  display now ends 115px into the map on an upright phone, from 153.
 
 Nothing in it takes a tap, so the map under it still pans.
 
