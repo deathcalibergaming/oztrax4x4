@@ -1155,13 +1155,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   #hudTape .nm{font-size:8.5px}
 }
 
-/* An upright phone: the same band, with the tape lifted over it. Speed and
-   its limit at the left, the three readouts stacked at the right, as on a
-   tablet or a phone on its side; the tape, which has no room between them on
-   a screen this narrow, runs across the top instead, and the heading chip
-   hangs from its lubber line between the two. It replaced a stack of three
-   rows - tape, speed, readouts under a hairline - and gives the map back
-   about 50px.
+/* Every screen but a phone on its side - an upright phone, a tablet either
+   way up, a desktop window: the band with the tape lifted over it. The tape
+   runs across the top with the heading window on it, and under it the speed
+   at the left, the limit roundel on the middle, the three readouts stacked
+   at the right. It was the upright phone's alone; a tablet ran the tape
+   through the band between the speed and the readouts, and was asked to
+   look the same as the phone. The query is the exact complement of the phone
+   on its side's, below and above, so every screen gets one or the other.
 
    The band starts 46px down, straight under the tape's letters: the speed's
    digits stand 11px under them, and the limit roundel 15px under the heading
@@ -1169,11 +1170,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    own under the tape. The readouts step at 19px, the phone-on-its-side size.
 
    The speed is sized to fit by layoutHud, measured with a three-figure speed
-   and the widest readouts, from 64px down to 48; the limit roundel follows
-   it, 12px off its unit. Where even 48 will not fit - a 320px phone - the
-   bar goes back to the three rows (.hud-stack, below), which keep a large
-   speed on any width. */
-@media (orientation: portrait) and (max-width: 599px) {
+   and the widest readouts, from 64px down to 48, leaving the roundel the
+   middle of the bar. Where even 48 will not fit - a 320px phone at Large
+   text - the bar goes back to the three rows (.hud-stack, below), which keep
+   a large speed on any width. The same sizes on a tablet as on a phone. */
+@media (orientation: portrait), (height > 520px) {
   #statsbar{--spd:64px;--sign-d:40px;--bandT:46px}
   #statsbar .stat:nth-child(1){left:16px;top:var(--bandT)}
   /* The label's cap height on the digits' and the unit's baseline on
@@ -1276,7 +1277,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    display and the top of the open dial - layoutDial works that out and sets
    the top. Centred on the map, which is what this rule does before it runs.
    Where the stretch is too short it becomes a row - see the thumb dial. */
-#zoomCtl{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:450;display:flex;flex-direction:column;gap:6px}
+/* A grid filled column by column from the right edge: one column of five
+   wherever it fits, and on a screen too short for that - a phone on its
+   side - as many rows as the height holds, the next column in to its left.
+   layoutDial sets --zc-rows. The right-to-left flow is for the columns only;
+   the buttons read left to right like everything else. */
+#zoomCtl{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:450;
+  display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--zc-rows, 5), var(--tap));
+  direction:rtl;gap:6px}
+#zoomCtl > *{direction:ltr}
 #zoomCtl button{width:var(--tap);height:var(--tap);border-radius:6px;background:rgba(27,33,29,.92);border:1px solid var(--line2);
   font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
@@ -1505,40 +1514,38 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    above it. The map measures the bar's box to keep the vehicle clear of
    it, and a box the size of the dial would read as an inset the height of
    the map. layoutDial places everything from the sizes below. */
-:root{--dial-r:176px;--dial-rec:50px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
-  --dial-ico:25px;--dial-lab:8.5px;--dial-nico:32px;--dial-nlab:9.5px;
+/* Navigate is 80px on a tablet and 64 on an upright phone - a fifth smaller
+   than it was - and still 68 on a phone on its side. The panels beside it
+   are exactly its height, so every pixel off the disc's diameter went to the
+   panels' width: 16 on a phone, which is what puts a 360px phone's pair side
+   by side instead of in strips. On its side the panels have width to spare
+   and height to lose - a 60px console sent the pair to strips 84px tall - so
+   that disc stays. The arc is drawn in by as much as the disc shrank, so the
+   buttons on it keep the same distance from the disc's edge, and the same
+   reach. */
+:root{--dial-r:166px;--dial-rec:40px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
+  --dial-ico:25px;--dial-lab:8.5px;--dial-nico:28px;--dial-nlab:8.5px;
   /* The nav and record panels sit on the bottom edge beside Navigate, level
      with its foot and stopping 12px short of it, and the speed sign stands
      on the same line at the left. */
   --stackB:calc(var(--dial-m) + var(--safeB));
   --stackR:calc(var(--dial-m) + var(--dial-rec) * 2 + 12px)}
 @media (orientation: portrait) and (max-width: 599px) {
-  :root{--dial-r:136px;--dial-rec:40px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
-    --dial-ico:21px;--dial-lab:7.5px;--dial-nico:26px;--dial-nlab:8px}
+  :root{--dial-r:128px;--dial-rec:32px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
+    --dial-ico:21px;--dial-lab:7.5px;--dial-nico:22px;--dial-nlab:7.5px}
 }
 @media (orientation: landscape) and (max-height: 520px) {
   :root{--dial-r:100px;--dial-rec:34px;--dial-band:60px;--dial-b:50px;--dial-m:14px;
     --dial-ico:18px;--dial-lab:7px;--dial-nico:22px;--dial-nlab:7px}
 }
-/* Where the map is too short for the zoom column to stand clear between the
-   heads-up display and the open dial - a phone on its side, a short window -
-   layoutDial sets .zoom-row and the buttons become a row in the bottom-left
-   corner, balancing the dial, with the panels and the speed sign standing on
-   it. Everywhere else, either way up, they keep the tablet's arrangement.
-   Decided by measuring rather than by orientation, because a tablet or a
-   desktop window on its side has the room and a phone on its side does not. */
-.zoom-row{--stackB:calc(var(--dial-m) + var(--tap) + 10px + var(--safeB))}
-.zoom-row #zoomCtl{top:auto;bottom:calc(var(--dial-m) + var(--safeB));left:var(--dial-m);right:auto;
-  transform:none;flex-direction:row}
-/* With a zoom row the panels stand between it and Navigate, level with the
-   disc as everywhere else; the speed sign stays on the row. */
-.zoom-row #panelStack{left:calc(var(--dial-m) + 5 * var(--tap) + 34px);
-  bottom:max(calc(8px + var(--safeB)), calc(var(--dial-m) + var(--safeB) + var(--stackShift, 0px)))}
-/* A row needs a width only a screen on its side has - on an upright 320px
-   phone it ran under Navigate and hid the last button behind the disc - so
-   an upright phone too short for the column to clear the open dial keeps
-   the column anyway, clear of the closed disc instead, and takes it out of
-   the way while the dial is open, the way the panels step aside. */
+/* The zoom buttons are always on the right-hand side. On a screen too short
+   for the column to stand clear of the open dial they used to become a row
+   along the bottom-left corner, and on a phone on its side - a small nav
+   screen - that put them under the driver's other thumb and pushed the
+   panels along. Now a short screen keeps them on the right, clear of the
+   closed disc instead of the open arc, folded into a second column where
+   one will not fit, and takes them out of the way while the dial is open,
+   the way the panels step aside (.zoom-tuck). */
 #zoomCtl{transition:opacity .15s,visibility .15s}
 .zoom-tuck #stage.dial-open #zoomCtl{opacity:0;visibility:hidden;pointer-events:none}
 #actionbar{position:absolute;left:0;right:0;bottom:var(--safeB);height:0;z-index:500;pointer-events:none}
@@ -1592,8 +1599,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* ---------- the panels, docked ----------
    The nav and record panels stand beside Navigate at exactly its height -
    top and bottom level with the disc - so the corner reads as one console
-   rather than a stack of cards beside a button: 80px on an upright phone,
-   100 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
+   rather than a stack of cards beside a button: 64px on an upright phone,
+   80 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
 
    - Navigation: the destination on one line, the three readings under it on
      short labels, and Cancel down the right as one word.
@@ -1662,30 +1669,35 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack:is(.dense,.stacked) .np-name,#panelStack:is(.dense,.stacked) .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
 #panelStack:is(.dense,.stacked) .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
 
+/* The short form stands in a 64px console now that Navigate is 64 - it had
+   80. Cancel became a column down the whole right side of the navigation
+   panel, 36px wide and the panel's full height, where it had been a 36px
+   square that made its row that tall; the destination and the three
+   readings stack one to a line beside it, the readings at 11px. Pause and
+   Stop keep the 36px a control used at a stop gets. */
 #panelStack.dense.pair{gap:6px}
 #panelStack.dense.pair #navPanel,#panelStack.dense.pair #recPanel{flex:1 1 0}
-#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:6px 8px}
-#panelStack.dense #navPanel{row-gap:1px;column-gap:4px}
-#panelStack.dense .np-figs{grid-column:1 / 3;display:grid;grid-template-columns:auto auto;
-  justify-content:start;gap:0 8px}
-#panelStack.dense .np-figs > div:first-child{grid-column:1 / 3}
-#panelStack.dense .np-figs > div:first-child b{font-size:var(--t-read-sm)}
-#panelStack.dense .np-figs > div:nth-child(n+2) b{font-size:calc(11px * var(--uiScale))}
-#panelStack.dense .np-btns{grid-row:1}
-/* 36, the size of a control used at a stop; it was 32, under every target in the app */
-#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:var(--tap-sm);min-height:0}
-#panelStack.dense .rp-btns .btn{min-height:40px}
+#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:5px 8px}
+#panelStack.dense #navPanel{padding-right:5px;row-gap:1px;column-gap:6px;align-content:center}
+#panelStack.dense .np-figs{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:0}
+#panelStack.dense .np-figs > div{flex:0 0 auto}
+#panelStack.dense .np-figs b{font-size:calc(11px * var(--uiScale));line-height:1.1}
+#panelStack.dense .np-btns{grid-column:2;grid-row:1 / -1;align-self:stretch}
+#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:auto;min-height:0}
+#panelStack.dense #recPanel{gap:4px}
+#panelStack.dense .rp-btns .btn{min-height:var(--tap-sm)}
 
-/* Stacked: two strips, one over the other, each a full tap high, beside
-   Navigate. Side by side they came to 89px each on a 320px phone and the
+/* Stacked: two strips, one over the other, each 40px - a 36px control and
+   its border - beside Navigate. Side by side they came to 89px each on a 320px phone and the
    record panel's buttons measured 2px wide behind the disc; one over the
    other each has the whole width, and costs the map 12px more than the
-   pair did. The pair of strips is centred on the disc, so its top and foot
-   meet the collar's rather than the disc's - still one console - except
-   that its foot stays 8px off the bottom of the screen, which on a phone on
-   its side, whose disc is 68px, means it stands a little taller instead.
-   A phone on its side reaches this sooner than an upright one: its console
-   is 68px high, too short for the short form's three lines.
+   pair did. The pair of strips, 84px, is centred on the disc, so its top
+   and foot meet the collar's rather than the disc's - still one console -
+   except that its foot stays 8px off the bottom of the screen, which on a
+   64px phone disc lifts it 2px. They were a full 44px tap each until
+   Navigate came down to 64, when two of them stood 20px proud of it. A phone
+   on its side reaches this sooner than an upright one: its console is 68px
+   high, and the short form wants 64 of it with 36px controls.
 
    - Navigation: the destination over the distance left and the arrival,
      Cancel as a cross down the right. Travel time goes; arrival says it.
@@ -1693,8 +1705,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
    .tight is a strip too narrow for the arrival as well: distance alone. */
 #panelStack.stacked{flex-direction:column;height:auto;gap:4px;
-  --stackShift:calc(var(--dial-rec) - var(--tap) - 2px)}
-#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:var(--tap);padding:3px 3px 3px 10px;border-radius:8px}
+  --stackShift:calc(var(--dial-rec) - var(--tap-sm) - 6px)}
+#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:calc(var(--tap-sm) + 4px);padding:1px 1px 1px 10px;border-radius:8px}
 /* the two lines centred in the strip, and Cancel down its whole height */
 #panelStack.stacked #navPanel{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr auto auto 1fr;
   align-content:stretch;column-gap:8px;row-gap:0}
@@ -4548,6 +4560,10 @@ function moveTape(hdg) {
    where the display ends, for the toast and the map chips, and places the
    thumb dial. */
 const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
+/* The display's own question, apart from the upright phone's the panels ask:
+   is this anything but a phone on its side? If so it gets the tape across the
+   top and the band under it - see the CSS. Must match that media query. */
+const HUD_ROWS = window.matchMedia("(orientation: portrait), (height > 520px)");
 let hudSpeedLen = 0;
 let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
@@ -4567,7 +4583,7 @@ function layoutHud() {
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
-  const upright = HUD_UPRIGHT.matches;
+  const upright = HUD_ROWS.matches;
   if (!upright || fitBand(sb, cells, sign)) {
     /* The readouts are measured at their widest so a growing one never runs
        under the tape. The speed is measured as it stands - this runs again
@@ -4613,8 +4629,22 @@ function layoutHud() {
     const letters = Array.from(tape.querySelectorAll("text")).map(r).filter(function (b) { return b.width; });
     const foot = Math.ceil(Math.max(spd.bottom - box.top, sy + d, ...outs.map(function (b) { return b.bottom - box.top; }),
       ...letters.map(function (b) { return b.bottom - box.top; })));
-    const l = sx + d + 10;
-    const rr = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left) - 10;
+    /* The tape runs the same distance either side of the lubber line. It
+       used to run from just past the roundel to just short of the readouts,
+       and the speed and its limit are much the wider of the two groups - on
+       a tablet 172px of tape showed left of the heading window and 239 right
+       of it, so the window sat off the middle of its own scale. Each arm is
+       now the shorter of the two, and the left is measured past a
+       three-figure speed and its roundel, so the tape does not shorten as
+       the speed reaches 100. Only a phone on its side runs the tape through
+       the band now; everywhere else it has the width of the screen. */
+    const spdEl = $("#stSpeed"), spdWas = spdEl.textContent;
+    spdEl.textContent = "888";
+    const wideRight = Math.round(r(cells[0]).right - box.left);
+    spdEl.textContent = spdWas;
+    const arm = Math.min(box.width / 2 - (wideRight + 12 + d + 8),
+      Math.min(...outs.map(function (b) { return b.left; })) - box.left - 8 - box.width / 2);
+    const l = Math.round(box.width / 2 - arm), rr = Math.round(box.width / 2 + arm);
     held.forEach(function (p) { p[0].textContent = p[1]; });
     /* eased out over the 14px below the lowest of them. Upright, the tape
        has a row of its own over the band, and the fade keeps the step it
@@ -4624,8 +4654,9 @@ function layoutHud() {
       (upright ? "rgba(17,21,19,.72) 44px,rgba(17,21,19,.58) " : "rgba(17,21,19,.6) ") + foot + "px," +
       "rgba(17,21,19,.34) " + (foot + 5) + "px,rgba(17,21,19,.14) " + (foot + 10) + "px,rgba(17,21,19,0) 100%)";
     if (!upright) {
-      const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 60) + "px,#000 " +
-        (rr - 60) + "px,transparent " + rr + "px,transparent 100%)";
+      /* faded in over 32px at each end, not 60: the arms are shorter now */
+      const m = "linear-gradient(90deg,transparent 0,transparent " + l + "px,#000 " + (l + 32) + "px,#000 " +
+        (rr - 32) + "px,transparent " + rr + "px,transparent 100%)";
       tape.style.webkitMaskImage = m; tape.style.maskImage = m;
     }
   }
@@ -4773,39 +4804,46 @@ function layoutDial() {
   });
   const nav = $("#btnNavTo");
   nav.style.left = (cx - rec) + "px"; nav.style.top = (cy - rec - H) + "px";
-  /* The zoom buttons: a column on the right edge, centred in the clear
-     stretch between the display and the top of the open dial, wherever that
-     stretch holds it with 10px to spare each end; where it does not, a row
-     in the bottom-left corner. The column's height is worked out from the
-     tap size, since in a row it cannot be measured.
+  /* The zoom buttons: always on the right edge. A column centred in the
+     clear stretch between the display and the top of the open dial, wherever
+     that stretch holds it with 10px to spare each end; where it does not,
+     centred in the longer stretch clear of the closed disc, stepping aside
+     while the dial is open; and where even that is too short - a phone on
+     its side - folded into as many rows as it holds, in columns from the
+     edge inward. Heights are worked out from the tap size.
 
      Android's system bars slide up over the bottom of the screen on a swipe
      and shrink the page while they are there. The dial rides up with the
      bottom edge, as it has to, but the zoom buttons must not move: where
-     they stand, and whether they are a column or a row, are worked out from
+     they stand, and how many columns they take, are worked out from
      the tallest the stage has been at this width rather than from the
      height of the moment. Measured the other way, a swipe on a 740px-tall
-     phone tipped the column into the row and dropped the buttons to the
+     phone tipped the column into a row and dropped the buttons to the
      bottom. A width change, or a drop of more than 120px - a window made
      shorter, not a bar - is a real resize and starts again. */
   if (W !== zoomBase.w || H < zoomBase.h - 120) { zoomBase.w = W; zoomBase.h = H; }
   else if (H > zoomBase.h) zoomBase.h = H;
   const zc = $("#zoomCtl"), tap = tok("--tap"), nz = zc.children.length;
-  const colH = nz * tap + (nz - 1) * 6;
+  const span = function (n) { return n * tap + (n - 1) * 6; };
   const hud = parseFloat(document.documentElement.style.getPropertyValue("--hudStage")) || 0;
-  const room = (zoomBase.h - M - rec - R - band / 2) - hud;
-  /* Short of room, a screen on its side takes the row. An upright one has no
-     width for a row - five buttons and the disc are 340px before a margin -
-     so it keeps the column, measured clear of the closed disc and its collar
-     instead of the open arc, and the column steps aside while the dial is
-     open (.zoom-tuck). A 320 by 640 phone is where this starts to matter. */
-  const short = room < colH + 20, upright = W < zoomBase.h;
-  const row = short && !upright, tuck = short && upright;
-  const clear = tuck ? (zoomBase.h - M - 2 * rec - 8 - 12) - hud : room;
-  document.documentElement.classList.toggle("zoom-row", row);
+  const room = (zoomBase.h - M - rec - R - band / 2) - hud;          /* clear of the open arc */
+  const roomShut = (zoomBase.h - M - 2 * rec - 8 - 12) - hud;         /* clear of the closed disc and its collar */
+  const tuck = room < span(nz) + 20;
+  const clear = tuck ? roomShut : room;
+  let rows = nz;
+  if (tuck && roomShut < span(nz) + 12) {
+    /* As many rows as fit, then evened out: five in two columns is three and
+       two, not four and one. roomShut already keeps 12px off the collar and
+       starts where the display's fade ends, 14px under its figures, so the
+       folded block may use all of it - asking for more margin on top turned a
+       320px-tall phone's two rows into a single five-wide strip. */
+    const fit = Math.max(1, Math.floor((roomShut + 6) / (tap + 6)));
+    rows = Math.ceil(nz / Math.ceil(nz / fit));
+  }
+  zc.style.setProperty("--zc-rows", String(rows));
   document.documentElement.classList.toggle("zoom-tuck", tuck);
-  zc.style.top = row ? "" : Math.round(hud + Math.max(6, (clear - colH) / 2)) + "px";
-  zc.style.transform = row ? "" : "none";
+  zc.style.top = Math.round(hud + Math.max(rows < nz ? 0 : 6, (clear - span(rows)) / 2)) + "px";
+  zc.style.transform = "none";
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
   fitPanels();               /* the room beside Navigate may have changed with it */
   if (!Dial.open) bar.classList.add("shut");
