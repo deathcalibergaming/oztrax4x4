@@ -897,15 +897,21 @@ and a fade behind them:
   64px on an upright phone, less where that will not fit — lettered the way a gauge is: its label in rust
   level with the top of the digits, its unit on their baseline, 10px off them.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour. Centred
-  on the speed's digits: 12px past its unit in the band, and on an upright
-  phone on the middle of the bar, under the heading window, 40px. Hidden,
-  it keeps its place.
+  white, without the roadside plate — collared in the panel colour. On the
+  middle of the bar, under the heading window: 12px under it on a tablet or
+  a desktop, and centred on the speed's digits on an upright phone, 40px.
+  A phone on its side, with no height to spare for a row, keeps it 12px past
+  the speed's unit, centred on its digits. Hidden, it keeps its place.
 - **Readouts:** altitude, distance and time.
-- **One band, everywhere:** speed and its limit at the left, the readouts
-  stacked at the right. Wherever there is width (a tablet either way up, a
-  phone on its side) the tape runs in the clear stretch between them, masked
-  away behind them at their widest readings. An upright phone has no room
+- **One band, everywhere:** speed at the left, the readouts stacked at the
+  right, the limit on the middle. Wherever there is width (a tablet either
+  way up, a phone on its side) the tape runs in the clear stretch between
+  them, and runs the same distance either side of the lubber line - the
+  shorter of the two arms, measured past a three-figure speed and the widest
+  readouts, faded in over 32px - so the heading window always sits on the
+  middle of its scale. With the limit beside the speed on a tablet the left
+  group was far the wider and the scale either side of the window came down
+  to 40px on an upright 768px tablet; under the window it is 100px. An upright phone has no room
   there, so the tape runs across the top instead and the band stands
   straight under it, the roundel on the middle of the bar and the speed
   sized to fit: the largest, from 64px down, that leaves the centred
