@@ -913,10 +913,10 @@ A value a stranger cannot act on is a diagnostic, however true it is.
 
 ### Heads-Up Display
 
-The signature component, and one of the two places in the app that keeps the
-monospaced face — the navigation panel's figures being the other. The five
-readings lie over the top of the map in Instrument White, with a text shadow
-and a fade behind them:
+The signature component, and one of the three places in the app that keep the
+monospaced face — the navigation panel's figures and the turn bar's distance
+are the others. The five readings lie over the top of the map in Instrument
+White, with a text shadow and a fade behind them:
 
 - **Heading tape:** straight, across the top, at 4.2px a degree (21px between
   five-degree ticks) on every size, slid along under a rust lubber line.
@@ -1137,6 +1137,108 @@ The sentence under the switch says where the limits come from, because the
 app is not the authority here and should not sound like one: *those limits
 come from OpenStreetMap — they are missing on many roads and can be out of
 date, so the sign beside the road is the one that counts.*
+
+### Turn Instructions
+
+The next manoeuvre, across the top of the map, while a route is running.
+
+It gets the top of the map rather than a corner of it, because it is the one
+thing on this screen that is read at speed and acted on immediately — every
+other thing here is a reading, and this is an instruction. Navigation Blue,
+the colour of the line it describes and of the panel at the other end of the
+screen, so the three read as one thing running rather than three separate
+announcements. Its right edge stands off the zoom column, measured rather
+than assumed: that column is one button wide upright and folds to two on a
+phone on its side, which is exactly where the bar is widest. Nothing in it is
+tappable, so a pinch that lands on it still reaches the map.
+
+Two lines and a glyph: **the distance in the readout face** — the third
+gauge in the app, and it counts down while you drive at it — then the turn
+named beside it in Navigation Blue Lit, and under them the road it puts you
+on. The glyph is the half read first and from furthest away, so it gets a
+34px tinted tile of its own rather than sitting loose against the type. A
+second turn within 250m shows as a dim **THEN** and a small arrow at the far
+end: that is the one that catches people out, where you take the first and
+are already past the second. On a phone on its side the road comes up beside
+the turn instead of under it and the bar is one row; the map keeps the
+difference.
+
+The row holds its height whether or not there is a distance to show and
+whether or not the road has a name — which out here is most tracks — so the
+bar never changes size at a junction and never takes the map chips under it
+along for the ride.
+
+Distances are rounded the way a distance is read at speed and not the way the
+app reports one: to ten metres under 200, to fifty under a kilometre, to a
+tenth of a kilometre over it, and **Now** inside 40m. The fifty metres
+between 375 and 425 is not information at eighty, and a last digit that is
+always moving is movement in the corner of the eye rather than anything to
+act on.
+
+**Where the turns come from.** The route, and nothing else. The offline packs
+have carried a road name on every edge since they were first cut, and the
+search walks a chain of those edges to draw the line, so the corners are read
+back out of a route that was already worked out — no download, no pack
+rebuilt, and it works with the phone in flight mode. Out beyond the packs,
+OSRM is asked for its steps and its overview drops to simplified in the same
+breath, because the steps carry the whole line between them and asking for
+both would send the same geometry twice on the worst connection the app ever
+sees. OSRM's own turn types are not read: it knows more about a junction than
+the geometry does, but the packs answer nearly every trip, and two routers
+wording the same corner two different ways is worse than both being plain.
+
+**What counts as a turn.** Not much, deliberately. The graph splits a road at
+every side street it passes, so a ten kilometre suburban drive has two
+hundred junctions in it and seven turns. Three rules do the cutting:
+
+- **The angle is read over twenty metres either side**, not from the
+  neighbouring point. A junction shows its whole angle over twenty metres
+  and a curve shows only what it has actually bent in twenty metres, which
+  is what keeps a bend from being called a turn.
+- **A bend has to be sharper than a turn before it is called one.** Fifty
+  degrees where the name over the road carries on, twenty-five where it
+  changes. The same forty degrees means two different things: on a road
+  whose name continues it is the road going that way, and saying "turn left"
+  would be describing a bend as a decision.
+- **Nothing is said about the last twenty-five metres**, and no turning
+  round is announced within 120m of the end. A destination is rarely on a
+  corner, so the line has to reach its side of the road — which read
+  literally is a u-turn at the front door. Arriving is the instruction
+  there, and **Arrive** is what the bar says.
+
+**Corners that run into one another are one corner to drive.** A corner opens
+a group and the group swallows the junctions after it, and the whole group is
+described at once — the bearing twenty metres before its first junction
+against the bearing twenty metres after its last — announced at the entry,
+where the decision is made, rather than at the exit where it has been made
+already. Two ways in, and the difference between them is what keeps this from
+eating a town: twenty metres apart is one junction drawn as two, and an
+unnamed leg under 90m is a connector. A named leg is a road you are driving
+along however short it is, and it ends the group. Distance alone was the
+first attempt and it was wrong — a right into Augusta Street and a left into
+Nile Street a hundred metres later were swallowed into one group whose net
+angle came to nothing, and both instructions vanished.
+
+**Roundabouts** fall out of that rather than being handled. The packs carry
+no roundabout tag, so there is no exit to count — but a roundabout is a ring
+of short unnamed legs, and what one does to a driver is change the direction
+they leave in. The net angle is exactly that: in from the south and out to
+the east is a right turn, announced at the entry. Straight through nets out
+under the threshold and says nothing, which is also right. Measured over
+rings from 10m to 40m of radius it comes out square either way. Sign is
+deliberately no part of the grouping, and that is the whole of what makes it
+work: an Australian roundabout is entered with a veer to the left and then
+circulated to the right, so the first corner of one is the opposite way to
+the rest of it.
+
+**What it does not do**, and says so by staying quiet rather than guessing:
+lanes, exit numbers, and speaking. A straight-line trip with no roads mapped
+has no corners in it and is told the truth — **Head south-west**, to the
+eighth of the compass so it is not stepping between NE and ENE while you
+watch it, spelled out in words because this is the one line on the screen
+that is a sentence rather than a reading. Off the route it goes amber and
+says **Off route — working out a new way**, because a blue bar reads as an
+instruction and there is nothing to follow until a new line lands.
 
 ### Popups
 
