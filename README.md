@@ -101,6 +101,10 @@ land on the very next launch.
   monthly by `tools/build-routing.mjs`
 * Routing — worked out on the phone from those packs across the whole country,
   with OSRM behind it for anywhere the packs do not reach and a plain bearing
-  behind that. Turn instructions are read off the route's own geometry and the
+  behind that. The whole national spine is downloaded and stored on the first
+  movement, while there is still signal, but only the part of it a trip needs
+  is parsed into memory: all of it is 105 MB of heap and sixty kilometres of
+  it is five, which is the difference between a phone that routes to the shops
+  and one Android kills for it. Turn instructions are read off the route's own geometry and the
   road names the packs already carry, so they need no extra download and work
   offline; nothing is spoken yet
