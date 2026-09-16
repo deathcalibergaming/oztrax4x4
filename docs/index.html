@@ -4056,6 +4056,12 @@ const CFG = {
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
+  /* How much of the trail is kept in the piece that is drawn again on every
+     fix, and how many points a checkpoint may carry in its header. See
+     Rec.push and Rec.persist: both exist so that the cost of recording one
+     more point does not grow with the length of the track. */
+  TRAIL_TIP: 200,
+  REC_TAIL: 300,
   /* The map stops one zoom above the last one Esri draws, so the worst
      enlargement anyone ever looks at is 2x rather than 4x. z18 was reachable
      and was a quarter of the detail stretched over the same screen: not a
@@ -4530,7 +4536,7 @@ function showUpdateBar() {
    IndexedDB: tiles / poi cells / saved areas / recorded tracks / addresses
    ===================================================================== */
 const DB = (function () {
-  const NAME = "trailtracker", VER = 5;
+  const NAME = "trailtracker", VER = 6;
   let dbp = null;
   function open() {
     if (dbp) return dbp;
@@ -4556,6 +4562,12 @@ const DB = (function () {
            it, which holds the week-old answers from the network and is
            cleared on a different clock entirely. */
         if (!db.objectStoreNames.contains("poipack")) db.createObjectStore("poipack");
+        /* v6: the running recording's points, in blocks keyed
+           "<track id>/<block number>". Not in with the finished tracks:
+           these are written every few seconds while driving and thrown away
+           the moment the track is saved, and a finished track is one record
+           that is never appended to. See Rec.persist. */
+        if (!db.objectStoreNames.contains("recpts")) db.createObjectStore("recpts");
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = () => rej(rq.error);
@@ -5407,8 +5419,20 @@ const PAINT = (function () {
 const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
 const navLine     = L.polyline([], { color: PAINT.nav, weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
 const navDestMk   = L.layerGroup().addTo(map);
-const trailCasing = L.polyline([], { color: "#0D100F", weight: 9, opacity: .85, lineCap: "round", lineJoin: "round" }).addTo(map);
-const trailLine   = L.polyline([], { color: "#8FB93E", weight: 4, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
+/* The recorded trail, drawn as a settled part and a short tip - see
+   Rec.push for why. Both casings go down before either line, so the tip's
+   nine pixel casing can never be laid over the line it joins. */
+const TRAIL_CASE_STYLE = { color: "#0D100F", weight: 9, opacity: .85, lineCap: "round", lineJoin: "round" };
+const TRAIL_LINE_STYLE = { color: "#8FB93E", weight: 4, opacity: .95, lineCap: "round", lineJoin: "round" };
+const trailCasing = L.polyline([], TRAIL_CASE_STYLE).addTo(map);
+const tipCasing   = L.polyline([], TRAIL_CASE_STYLE).addTo(map);
+const trailLine   = L.polyline([], TRAIL_LINE_STYLE).addTo(map);
+const tipLine     = L.polyline([], TRAIL_LINE_STYLE).addTo(map);
+/* Every place that used to empty the two lines empties all four. */
+function trailClear() {
+  trailCasing.setLatLngs([]); trailLine.setLatLngs([]);
+  tipCasing.setLatLngs([]); tipLine.setLatLngs([]);
+}
 const ghostLayer  = L.layerGroup().addTo(map);   /* saved tracks shown on map */
 const wptLayer    = L.layerGroup().addTo(map);
 const poiLayer    = L.layerGroup().addTo(map);
@@ -5479,9 +5503,35 @@ function applyFollowTransform(allowResync) {
     dx = mapW / 2 - p2.x; dy = mapH / 2 - p2.y;
   }
   panDx = dx; panDy = dy;
-  panWrap.style.transform = "translate3d(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px,0)";
-  rotWrap.style.transform = "rotate(" + view.mapRot.toFixed(2) + "deg)";
-  document.documentElement.style.setProperty("--maprot", view.mapRot.toFixed(2) + "deg");
+  /* Written only when they would say something different. This runs once a
+     frame at whatever rate the screen refreshes - 90 or 120 a second on a
+     modern phone, not 60 - and a parked vehicle produces the same three
+     strings every time. Putting a transform back that is already there is
+     not free: it is a style invalidation the compositor has to answer, and
+     --maprot sits on the root element, where a change invalidates every
+     rule in the document that reads it.
+
+     The comparison is on the string that would be written rather than on
+     the numbers behind it, so it is exactly the question being asked. The
+     offset is still worked out from the map every frame, so the map moving
+     underneath - a zoom, a resync, a resize - still moves the transform;
+     only the writing is guarded, never the measuring.
+
+     Parked on a 180Hz desktop, the loop went from 37.4ms of every five
+     seconds to 11.9, and what is left is the periodic work the ticks below
+     do rather than any of this. Driving it changes nothing, because then
+     the numbers really are different every frame. */
+  const pan = "translate3d(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px,0)";
+  if (pan !== applyFollowTransform.pan) {
+    applyFollowTransform.pan = pan;
+    panWrap.style.transform = pan;
+  }
+  const rot = view.mapRot.toFixed(2) + "deg";
+  if (rot !== applyFollowTransform.rot) {
+    applyFollowTransform.rot = rot;
+    rotWrap.style.transform = "rotate(" + rot + ")";
+    document.documentElement.style.setProperty("--maprot", rot);
+  }
 }
 
 function clearFollowTransform() {
@@ -5489,6 +5539,9 @@ function clearFollowTransform() {
   panWrap.style.transform = "";
   rotWrap.style.transform = "";
   document.documentElement.style.setProperty("--maprot", "0deg");
+  /* what was just written, so the guard above agrees with the screen */
+  applyFollowTransform.pan = "";
+  applyFollowTransform.rot = "0deg";
 }
 /* Dragging stays enabled in every mode. It used to be switched off whenever
    the map was rotated, because Leaflet's pointer maths does not account for
@@ -5677,18 +5730,34 @@ function frame(ts) {
   view.cur.lng += (view.tgt.lng - view.cur.lng) * kp;
   view.hdgCur = lerpAngle(view.hdgCur, view.hdgTgt, kh);
 
-  gpsMarker.setLatLng(view.cur);
+  /* Each of these is guarded the same way the transform is, and for the
+     same reason: the lerp settles onto its target and then holds there bit
+     for bit, so a vehicle standing still writes the identical value to all
+     of them at the refresh rate of the screen until it moves again. Leaflet
+     reprojects the marker itself whenever the map moves, so nothing here
+     has to be written again to keep up with the map. */
+  if (view.cur.lat !== frame.lat || view.cur.lng !== frame.lng) {
+    frame.lat = view.cur.lat; frame.lng = view.cur.lng;
+    gpsMarker.setLatLng(view.cur);
+  }
 
   const wantRot = (S.follow && !S.northLock && view.has) ? -view.hdgCur : 0;
   view.mapRot = wantRot;
 
   if (S.follow) applyFollowTransform(true);
-  else document.documentElement.style.setProperty("--maprot", "0deg");
+  else if (applyFollowTransform.rot !== "0deg") {
+    applyFollowTransform.rot = "0deg";
+    document.documentElement.style.setProperty("--maprot", "0deg");
+  }
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
   /* The arrow lives inside the rotated map, so the map rotation is already
      applied to it - only the heading goes here, or it is counted twice. */
-  if (gpsRotEl) gpsRotEl.style.transform = "rotate(" + view.hdgCur.toFixed(1) + "deg)";
+  const arrow = "rotate(" + view.hdgCur.toFixed(1) + "deg)";
+  if (gpsRotEl && arrow !== frame.arrow) {
+    frame.arrow = arrow;
+    gpsRotEl.style.transform = arrow;
+  }
 
   /* The readout used to change only when a fix arrived, so turning on the
      spot left it stale. Ten times a second is smooth to read without
@@ -5993,8 +6062,22 @@ function pointSegMetres(p, a, b) {
    direction to go on. */
 function roadUnder(p, hdg, moving, snap) {
   let best = null, bestD = snap || CFG.SPEED_SNAP_M, fwd = null;
-  for (let i = 0; i < roads.length; i++) {
-    const pts = roads[i].pts;
+  /* Walked over the store rather than over a copy of it, because the store
+     already holds each way's bounding box and the copy threw it away. Only
+     ways whose box comes within the snap are opened up and measured segment
+     by segment, and at thirty to fifty metres that is a handful of the
+     couple of thousand ways within ROAD_KEEP_M of a vehicle that has been
+     driving through suburbs for an hour. The box is in the same hundred
+     thousandths of a degree the rest of this file measures in, widened by
+     the snap, and generous north-south and east-west rather than round -
+     the only cost of being generous is measuring a way that turns out not
+     to be the nearest. */
+  const dLat = bestD / 111320, dLng = bestD / (111320 * Math.cos(rad(p.lat)));
+  for (const e of roadStore.values()) {
+    const bb = e.bb;
+    if (p.lat < bb[0] - dLat || p.lat > bb[2] + dLat ||
+        p.lng < bb[1] - dLng || p.lng > bb[3] + dLng) continue;
+    const pts = e.r.pts;
     for (let j = 1; j < pts.length; j++) {
       const seg = pointSegMetres(p, pts[j - 1], pts[j]);
       if (seg.d >= bestD) continue;
@@ -6008,7 +6091,7 @@ function roadUnder(p, hdg, moving, snap) {
         if (Math.min(turn, 180 - turn) > CFG.SPEED_HDG_TOL) continue;  /* either way along it counts */
         along = turn <= 90;
       }
-      bestD = seg.d; best = roads[i]; fwd = along;
+      bestD = seg.d; best = e.r; fwd = along;
     }
   }
   return best ? { road: best, fwd: fwd } : null;
@@ -6213,7 +6296,7 @@ function updateSpeedSign() {
      the parser records the tag either way and a limit read in the wrong
      unit would chime at 100 on a 65 mph road. */
   let v = null, src = null;
-  if (roads.length && view.has) {
+  if (roadStore.size && view.has) {
     const moving = view.speed > CFG.SPEED_MIN_MOVE && view.hdgFrom !== "compass";
     const snap = clamp(view.acc || 0, CFG.SPEED_SNAP_M, CFG.SPEED_SNAP_MAX);
     const hit = roadUnder(view.cur, view.hdgCur, moving, snap);
@@ -6248,18 +6331,39 @@ function updateSpeedSign() {
   sign.classList.remove("hidden");
 }
 
+/* Written only when what is there now is not what is wanted. Assigning
+   textContent replaces the text node whether or not the string differs, and
+   this runs sixteen times a second - ten off the animation loop, two off the
+   half-second interval, and one on every fix. Parked, that measured 348
+   writes in five seconds and not one of them changed a figure; driving, 450
+   writes of which 31 changed something. The rest were the altitude that has
+   not moved and the heading that is still north-east.
+
+   The comparison is against the element rather than against a remembered
+   string, because layoutHud writes its widest figures into these boxes to
+   measure them and puts them back: a memo would go stale there, the live
+   text cannot.
+
+   moveTape has read the same way for a long time. This is the rest of the
+   band catching up with it. */
+function setStat(el, text) { if (el && el.textContent !== text) el.textContent = text; }
 function updateStats() {
   moveTape(view.has ? view.hdgCur : null);
-  $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
+  /* looked up once and kept on the function - all six are markup and are
+     never rebuilt, and $ is a querySelector every time it is called */
+  let e = updateStats.el;
+  if (!e) e = updateStats.el = { spd: $("#stSpeed"), hdg: $("#stHdg"), card: $("#stCard"),
+                                alt: $("#stAlt"), dist: $("#stDist"), time: $("#stTime") };
+  setStat(e.spd, view.has ? dispSpeed(view.speed).toFixed(0) : "--");
   /* A speed gaining or losing a digit used to lay the whole band out again,
      because the roundel stands a measured distance past the speed and the
      speed's width had just changed. The figures sit in a three-wide box now,
      so nothing past them moves and there is nothing to lay out. */
-  $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
-  $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
-  $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";
-  $("#stDist").textContent = dispKm(Rec.dist).toFixed(2);
-  $("#stTime").textContent = fmtStopwatch(Rec.elapsed());
+  setStat(e.hdg, view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--");
+  setStat(e.card, view.has ? cardinal(view.hdgCur) : "");
+  setStat(e.alt, (view.alt != null) ? String(Math.round(dispAlt(view.alt))) : "--");
+  setStat(e.dist, dispKm(Rec.dist).toFixed(2));
+  setStat(e.time, fmtStopwatch(Rec.elapsed()));
 }
 
 /* The captions under the stats, and the two labels in the track dialog that
@@ -6285,6 +6389,10 @@ const Rec = {
   id: null, name: "", diff: "Medium",
   startedAt: 0, accMs: 0, segAt: 0,
   points: [], dist: 0,
+  /* How much of the track the checkpoint blocks already hold, which block
+     number is next, and the distance as of that many points - see persist.
+     writing is the checkpoint in flight, so two can never overlap. */
+  saved: 0, seq: 0, savedDist: 0, writing: null, again: false,
 
   elapsed: function () {
     return this.accMs + (this.state === "recording" ? Date.now() - this.segAt : 0);
@@ -6298,7 +6406,8 @@ const Rec = {
     this.accMs = 0; this.segAt = Date.now();
     this.points = []; this.dist = 0;
     this.state = "recording";
-    trailCasing.setLatLngs([]); trailLine.setLatLngs([]);
+    trailClear();
+    this.saved = 0; this.seq = 0; this.savedDist = 0;
     if (view.has) this.push({ lat: view.tgt.lat, lng: view.tgt.lng, alt: view.alt, spd: view.speed, t: Date.now() });
     this.persist(); this.ui();
     toast(view.has ? "Recording started" : "Recording started - waiting for GPS fix", view.has ? "ok" : "warn");
@@ -6330,7 +6439,7 @@ const Rec = {
     this.state = "idle";
     this.ui();
     if (this.points.length < 2) {
-      delLS(LS.rec);
+      this.forget();
       toast("Track discarded - too few points", "warn");
       return;
     }
@@ -6371,23 +6480,47 @@ const Rec = {
     return segs;
   },
 
+  /* Everything drawn again, and the tip started afresh from the last point
+     of what was just drawn - so the two pieces always share a point and the
+     join never shows as a gap. */
   redraw: function () {
     const segs = this.segments();
     trailLine.setLatLngs(segs);
     trailCasing.setLatLngs(segs);
+    const last = segs.length ? segs[segs.length - 1] : null;
+    const seed = (last && last.length) ? [last[last.length - 1]] : [];
+    tipLine.setLatLngs(seed);
+    tipCasing.setLatLngs(seed);
   },
 
   push: function (p) {
     this.points.push(p);
     if (p.gap) { this.redraw(); return; }        /* a break needs the whole line rebuilt */
-    /* Once the line has been split, addLatLng on its own appends to the
-       first run, not the current one, so the target ring is named. */
+    /* Appending to a Leaflet polyline reprojects every point already on it,
+       so a trail that has been growing all day charges the whole of itself
+       for one more fix. Measured on this desktop, one append cost 0.14ms at
+       five hundred points and 2.75ms at twenty thousand - a five hundred
+       kilometre day - and that is paid twice, once for the line and once for
+       the casing, every second the recorder is running. It only ever gets
+       dearer, which is the wrong shape for a thing meant to run all week.
+
+       So the drawn line is cut in two. The part behind the vehicle is
+       settled: drawn once and then left alone. Only the tip is appended to,
+       and it is never longer than TRAIL_TIP, so a fix costs the tip rather
+       than the track. When the tip fills, everything is drawn again in one
+       pass and the tip starts over - once every two hundred fixes instead of
+       on each of them.
+
+       Two hundred is about the square root of the point count of a long
+       day's drive, which is where the two halves of the cost meet.
+
+       The tip is always one plain run, never split into rings, because a
+       gap rebuilds the whole line and starts the tip again after it - so
+       the old business of naming which ring to append to is gone with it. */
     const ll = [p.lat, p.lng];
-    [trailLine, trailCasing].forEach(function (line) {
-      const rings = line.getLatLngs();
-      if (rings.length && Array.isArray(rings[0])) line.addLatLng(ll, rings[rings.length - 1]);
-      else line.addLatLng(ll);
-    });
+    tipLine.addLatLng(ll);
+    tipCasing.addLatLng(ll);
+    if (tipLine.getLatLngs().length > CFG.TRAIL_TIP) this.redraw();
   },
 
   onFix: function (fix) {
@@ -6408,25 +6541,125 @@ const Rec = {
     if (this.points.length % 8 === 0) this.persist();
   },
 
+  /* What the recorder can be brought back from after a crash, a killed tab
+     or a phone that went to sleep and never woke the page.
+
+     It used to be the whole track, rewritten into localStorage every eighth
+     fix. That is work in proportion to the track for one more point, on the
+     main thread, in the one store here with a fixed ceiling: at twenty
+     thousand points - five hundred kilometres - the checkpoint measured 1.7
+     MB of JSON, stringified and written synchronously every eight seconds,
+     and growing all day. localStorage shares its allowance with the tiles
+     and the packs, and saveLS swallows the failure, so a long enough drive
+     would have quietly stopped being recoverable with nothing said.
+
+     Now the header goes to localStorage, where it is a few dozen bytes and
+     always fits, and the points are appended to IndexedDB in blocks of
+     whatever has arrived since the last checkpoint. A checkpoint costs the
+     new points rather than the track.
+
+     The header is written first and synchronously, and it carries the few
+     points that are not in a block yet, so it recovers the whole track on
+     its own. That matters because a checkpoint is most wanted at exactly
+     the moment the page is being taken away - beforeunload, or the tab
+     being hidden - where an await may simply never come back and an
+     IndexedDB write may not outlive the page. The block write follows, and
+     rewrites the header without the tail once the points are somewhere
+     cheaper to keep them.
+
+     So the header stays a few dozen bytes in the ordinary run of things,
+     and grows only while block writes are failing. Past REC_TAIL it stops
+     growing: a header too big to store would lose the track rather than the
+     tail, and the distance it reports drops back to the blocks' so it never
+     claims kilometres it cannot show. */
   persist: function () {
     if (this.state === "idle") return;
+    this.header();
+    const self = this;
+    if (this.writing) { this.again = true; return; }
+    this.again = false;
+    this.writing = (async function () {
+      do {
+        self.again = false;
+        const upto = self.points.length, dist = self.dist;
+        try {
+          if (upto < self.saved) {                 /* the track was cleared under us */
+            await DB.clear("recpts");
+            self.saved = 0; self.seq = 0; self.savedDist = 0;
+            self.header();
+          }
+          if (upto > self.saved) {
+            const block = self.points.slice(self.saved, upto);
+            await DB.put("recpts", { from: self.saved, pts: block },
+                         self.id + "/" + String(self.seq).padStart(6, "0"));
+            self.seq++;
+            self.saved += block.length;
+            self.savedDist = dist;
+            self.header();      /* those points are in a block now: say so */
+          }
+        } catch (e) { /* the header goes on carrying them as its tail */ }
+      } while (self.again);
+      self.writing = null;
+    })();
+  },
+
+  header: function () {
+    const unsaved = this.points.length - this.saved;
+    const tail = (unsaved > 0 && unsaved <= CFG.REC_TAIL) ? this.points.slice(this.saved) : null;
     saveLS(LS.rec, {
-      id: this.id, name: this.name, diff: this.diff, state: this.state,
-      startedAt: this.startedAt, accMs: this.elapsed(), dist: this.dist,
-      points: this.points
+      v: 2, id: this.id, name: this.name, diff: this.diff, state: this.state,
+      startedAt: this.startedAt, accMs: this.elapsed(),
+      /* the distance of what can actually be recovered: all of it while the
+         tail rides along, the blocks' own when it is too long to */
+      dist: (unsaved === 0 || tail) ? this.dist : this.savedDist,
+      n: this.saved,
+      tail: tail
     });
   },
 
-  restore: function () {
+  /* The checkpoint dropped: the header and every block belonging to it. */
+  forget: function () {
+    delLS(LS.rec);
+    this.saved = 0; this.seq = 0; this.savedDist = 0;
+    DB.clear("recpts").catch(function () { /* nothing to drop, or no store */ });
+  },
+
+  restore: async function () {
     const r = loadLS(LS.rec, null);
-    if (!r || !r.points) return;
+    if (!r) return;
+    /* v1 kept the points in the header. An app left open through an update
+       can still be holding one of those, so it is read where it is. */
+    let pts = r.points || null;
+    if (!pts) {
+      pts = [];
+      try {
+        const keys = (await DB.keys("recpts")) || [];
+        const mine = keys.filter(function (k) { return String(k).indexOf(r.id + "/") === 0; }).sort();
+        for (let i = 0; i < mine.length; i++) {
+          const b = await DB.get("recpts", mine[i]);
+          if (b && b.pts) for (let j = 0; j < b.pts.length; j++) pts.push(b.pts[j]);
+        }
+      } catch (e) { /* no store, so only whatever the header carried */ }
+      /* A crash between the block and the header can leave a block the
+         header never counted. The header is the record of what is true. */
+      if (r.n != null && pts.length > r.n) pts.length = r.n;
+      if (r.tail) for (let i = 0; i < r.tail.length; i++) pts.push(r.tail[i]);
+    }
+    if (!pts.length) return;
     this.id = r.id; this.name = r.name; this.diff = r.diff;
     this.startedAt = r.startedAt; this.accMs = r.accMs || 0; this.segAt = Date.now();
-    this.points = r.points; this.dist = r.dist || 0;
+    this.points = pts; this.dist = r.dist || 0;
     this.state = "paused";                    /* always resume in a safe state */
     this.redraw();                            /* keeps any recorded gaps broken */
     this.ui();
-    if (this.points.length) toast("Recovered paused recording", "warn");
+    toast("Recovered paused recording", "warn");
+    /* Written out again as one block, so the store holds exactly the track
+       that was just recovered - blocks from before, an orphan the header did
+       not count, and the tail are all folded into one and the next
+       checkpoint carries on from there. */
+    try { await DB.clear("recpts"); } catch (e) { /* ignore */ }
+    this.saved = 0; this.seq = 0; this.savedDist = 0;
+    this.persist();
   },
 
   ui: function () {
@@ -6667,7 +6900,7 @@ async function saveTrackDialog() {
     toast("Could not save track - storage unavailable", "err");
     return;                       /* keep the dialog open so nothing is lost */
   }
-  delLS(LS.rec);
+  Rec.forget();
   pendingTrack = null;
   closeTrackDialog();
   await renderTracks();
@@ -6686,9 +6919,9 @@ async function trackDialogSecondary() {
   if (!pendingTrack) { closeTrackDialog(); return; }
   if (!(await ask("This recording will not be saved."))) return;
   pendingTrack = null;
-  delLS(LS.rec);
+  Rec.forget();
   Rec.points = []; Rec.dist = 0; Rec.accMs = 0;
-  trailLine.setLatLngs([]); trailCasing.setLatLngs([]);
+  trailClear();
   closeTrackDialog();
   updateStats();
   toast("Recording discarded", "warn");
@@ -8198,7 +8431,6 @@ let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
    and the fetch used to wait for 3.5 km of driving regardless - so for most
    of every 3.5 km there were no roads under the vehicle at all. Near the
    edge of what is loaded is now reason enough to fetch again. */
-let roads = [];
 const roadStore = new Map();   /* way id -> {r, bb} */
 let roadCover = [];            /* {lat, lng, r} */
 const ROAD_SHAPE = 2;          /* cached roads older than this lack direction and continuation */
@@ -8238,7 +8470,6 @@ function addRoads(list, cover) {
     });
     roadCover = roadCover.filter(function (c) { return haversine(here, c) < CFG.ROAD_KEEP_M; });
   }
-  roads = Array.from(roadStore.values(), function (e) { return e.r; });
 }
 function roadsCovered(p) {
   return roadCover.some(function (c) { return haversine(c, p) <= c.r - CFG.ROAD_EDGE_M; });
@@ -16201,7 +16432,11 @@ function syncNorthUI() {
 function setNorthLock(lock, announce) {
   S.northLock = !!lock;
   saveSettings();
-  if (S.northLock) { view.mapRot = 0; rotWrap.style.transform = ""; }
+  if (S.northLock) {
+    view.mapRot = 0;
+    rotWrap.style.transform = "";
+    applyFollowTransform.rot = null;     /* written here, so the guard is told */
+  }
   syncDragMode();
   syncNorthUI();
   if (announce) toast(S.northLock ? "North up" : "Heading up", "ok");
@@ -16293,7 +16528,7 @@ async function clearTrailLine() {
     ? "The line on the map will clear, and the points recorded so far in this track will be lost for good."
     : "The line on the map will clear. Saved tracks are not affected.";
   if (!(await ask(msg))) return;
-  trailLine.setLatLngs([]); trailCasing.setLatLngs([]);
+  trailClear();
   ghostLayer.clearLayers(); shownTrackId = null;
   if (Rec.state !== "idle") { Rec.points = []; Rec.dist = 0; Rec.persist(); }
   renderTracks();
