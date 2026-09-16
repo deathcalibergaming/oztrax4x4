@@ -81,7 +81,9 @@ land on the very next launch.
 * Fuel prices — the state reporting schemes, fetched server-side once a day by
   `tools/build-fuel.mjs` into `docs/fuel.json`: South Australia's Fuel Pricing
   Information Scheme, whose subscriber token is a repository secret because its
-  terms are server-to-server only; New South Wales and Tasmania together from
+  terms are server-to-server only;
+  [Fuel Prices QLD](https://www.fuelpricesqld.com.au), the same Informed
+  Sources platform under Queensland's own host, token and terms; New South Wales and Tasmania together from
   the NSW Government's [FuelCheck](https://www.fuelcheck.nsw.gov.au) Fuel API
   v2, licensed CC-BY-SA, whose key and secret are repository secrets as well;
   Victoria's

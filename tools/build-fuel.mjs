@@ -116,12 +116,26 @@ async function pooled(items, width, fn) {
 
 const SA_HOST = "https://fppdirectapi-prod.safuelpricinginformation.com.au";
 /* Queensland runs the same Informed Sources platform under its own host and
-   its own subscriber token: same endpoints, same FPDAPI header, same prices
-   in tenths of a cent, same 9999 for "not sold here today". */
+   its own subscriber token: same endpoints, same FPDAPI header, same
+   countryId 21 and level 3, same site fields (S, N, A, B, Lat, Lng), same
+   price fields (SiteId, FuelId, Price, TransactionDateUtc), same prices in
+   tenths of a cent, same 9999 for "not sold here today". Checked field by
+   field against their v1.5 guide, which unlike South Australia's is public:
+   https://www.fuelpricesqld.com.au/documents/FuelPricesQLDDirectAPI(OUT)v1.5.pdf
+
+   Its terms are South Australia's as well, in the same words - the API "is
+   not intended to be called by large numbers of end users directly via
+   websites or Apps", and "it is the responsibility of the Data Consumer to
+   keep the Data Consumer Token secret" - so the token stays a repository
+   secret and the phone never calls this either.
+
+   One limit of its own: the guide asks that GetSitesPrices not be called
+   more than once a minute. This job calls it once a day. */
 const QLD_HOST = "https://fppdirectapi-prod.fuelpricesqld.com.au";
 const SA_COUNTRY = 21;        /* Australia */
 const SA_LEVEL = 3;           /* geographic region level 3 = states */
-const SA_REGION = 4;          /* South Australia */
+const SA_REGION = 4;          /* South Australia, from the SAFPIS guide */
+const QLD_REGION = 1;         /* Queensland, from the Fuel Prices QLD guide v1.5 */
 const SA_UNAVAILABLE = 9999;  /* the scheme's "not sold here today" price */
 
 async function fpdGet(host, path, token, fetchImpl = fetch) {
@@ -158,29 +172,53 @@ function asList(json) {
 /* One scheme on the Informed Sources platform - South Australia's or
    Queensland's - described by `cfg`.
 
-   The state's region id is either given (South Australia's is 4, in the
-   scheme's own guide, and costs no extra call) or looked up by name through
+   Both publish their state's region id in the guide a subscriber receives:
+   South Australia's is 4, and Queensland's is 1, which the Queensland guide
+   states twice over - "GeoRegionId: (1 = Queensland)" against
+   GetFullSiteDetails, and again under GetSitesPrices, "a value of 1 can be
+   provided for GeoRegionId to return Queensland prices". So neither is
+   guessed. Where a scheme gives no id, `regionName` finds it through
    GetCountryGeographicRegions, which returns every region with its level,
-   id, name and abbreviation. Queensland's id is not published anywhere
-   outside the guide a subscriber receives, and a guessed number that
-   happened to be another state would publish that state's prices under
-   Queensland's name - so it is found, not assumed, and a lookup that finds
-   nothing fails naming the states the scheme does offer. */
+   id, name and abbreviation, and a lookup that finds nothing fails naming
+   the states the scheme does offer.
+
+   Where a name is given alongside an id - Queensland - the id is used and
+   the name is checked against it. Publishing one state's prices under
+   another state's name is the one failure here worth being loud about, and
+   it is the failure a renumbering would cause; a name merely spelled
+   differently should not take a build down when the documented id is right
+   there. Note that ids are not unique across levels - the guide's own
+   example has GeoRegionId 1 at level 2 as Brisbane - so everything here
+   filters to level 3 first. */
 async function fpdSource(cfg, token, fetchImpl = fetch) {
   const get = (path) => fpdGet(cfg.host, path, token, fetchImpl);
 
   let region = cfg.regionId;
-  if (region == null) {
+  if (region == null || cfg.regionName) {
     const all = asList(await get(`/Subscriber/GetCountryGeographicRegions?countryId=${SA_COUNTRY}`));
     const states = all.filter((r) => Number(r.GeoRegionLevel) === SA_LEVEL);
     const norm = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().toLowerCase();
-    const hit = states.find((r) =>
-      norm(r.Name) === norm(cfg.regionName) || norm(r.Abbrev) === norm(cfg.regionAbbrev));
-    if (!hit) {
-      throw new Error(`${cfg.name}: no state-level region named ${cfg.regionName} - the scheme lists ` +
-        (states.map((r) => String(r.Name).trim()).join(", ") || "none"));
+    const isOurs = (r) =>
+      norm(r.Name) === norm(cfg.regionName) || norm(r.Abbrev) === norm(cfg.regionAbbrev);
+
+    if (region == null) {
+      const hit = states.find(isOurs);
+      if (!hit) {
+        throw new Error(`${cfg.name}: no state-level region named ${cfg.regionName} - the scheme lists ` +
+          (states.map((r) => String(r.Name).trim()).join(", ") || "none"));
+      }
+      region = hit.GeoRegionId;
+    } else {
+      const atId = states.find((r) => Number(r.GeoRegionId) === Number(region));
+      if (atId && !isOurs(atId)) {
+        throw new Error(`${cfg.name}: state-level region ${region} is "${String(atId.Name).trim()}", ` +
+          `not ${cfg.regionName} - refusing to publish one state's prices under another's name`);
+      }
+      if (!atId) {
+        console.log(`${cfg.name}: the scheme lists no state-level region ${region}; ` +
+          "using the id from its guide anyway");
+      }
     }
-    region = hit.GeoRegionId;
   }
 
   const [fuelTypes, brands, siteDetails, sitePrices] = await Promise.all([
@@ -255,12 +293,15 @@ const sourceSA = (token, fetchImpl) => fpdSource({
   regionId: SA_REGION
 }, token, fetchImpl);
 
+/* Named as the scheme names itself - "known as Fuel Prices QLD" in its own
+   guide - so the settings credit and the card say the same thing. */
 const sourceQLD = (token, fetchImpl) => fpdSource({
   key: "QLD",
-  name: "Fuel Prices Queensland",
+  name: "Fuel Prices QLD",
   url: "https://www.fuelpricesqld.com.au",
   state: "Queensland",
   host: QLD_HOST,
+  regionId: QLD_REGION,
   regionName: "Queensland",
   regionAbbrev: "QLD"
 }, token, fetchImpl);
