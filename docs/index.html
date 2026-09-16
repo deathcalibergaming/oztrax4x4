@@ -9025,7 +9025,19 @@ const FUEL_LOOK = {
   8:  { label: "Premium ULP 98", color: "#B9432E", icon: "fuel" },
   12: { label: "e10",                 color: "#8FB93E", icon: "leaf" },
   14: { label: "Premium Diesel",      color: "#9AA3A0", icon: "droplet", group: "diesel" },
-  19: { label: "e85",                 color: "#B9432E", icon: "leaf" }
+  19: { label: "e85",                 color: "#B9432E", icon: "leaf" },
+  /* Opal - low aromatic unleaded, sold where petrol sniffing is a problem.
+     Queensland is the only scheme that reports it and on 2026-09-16 it was
+     two sites, Mount Isa and Camooweal, both on the Barkly. It is a 91
+     substitute, but a violet rather than 91's blue: the rule on this list is
+     that a grade must not be mistakable for one it is not, and somebody who
+     needs Opal needs Opal. It arrived through the fallback below and came
+     out in the fuel pin's yellow, which is Premium 95's, so two chips read
+     the same - which is the thing the rule exists to stop.
+
+     Deliberately not added to FUEL_ORDER. Falling to the end puts the
+     rarest grade on the list last and leaves the chips four and four. */
+  21: { label: "Opal",                color: "#AE7BC8", icon: "fuel" }
 };
 
 /* Grades that answer to one switch. Diesel and premium diesel are not a
