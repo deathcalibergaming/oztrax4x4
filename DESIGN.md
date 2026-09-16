@@ -1319,8 +1319,12 @@ that is a sentence rather than a reading.
 **Off the route** it goes amber and says **Off route — working out a new
 way**, because a blue bar reads as an instruction and there is nothing to
 follow until a new line lands. Off means sixty metres from the drawn line for
-three fixes running — about three seconds — and then a new route every eight
-seconds until one takes. Two hundred metres was the old figure and it was
+two fixes running — about two seconds — and then a new route every five
+seconds until one takes. The route itself is about twenty milliseconds and
+asks the network for nothing: a recalculation searches the graph already in
+memory before it considers fetching, because the roads either end of a wrong
+turn are the roads that were just being driven. It falls through and fetches
+as it always did if what is in hand cannot reach the destination. Two hundred metres was the old figure and it was
 most of a suburb: a parallel street is sixty to a hundred metres away, so
 taking the next street over never once counted as leaving the route, and the
 app followed a line nobody was driving all the way to the destination. That
