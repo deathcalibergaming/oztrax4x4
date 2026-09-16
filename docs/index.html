@@ -6578,28 +6578,38 @@ const Rec = {
     const self = this;
     if (this.writing) { this.again = true; return; }
     this.again = false;
+    /* The latch is let go in a finally, not on the way out of the bottom.
+       One that is only cleared when everything went right stops every later
+       checkpoint the first time something does not, and says nothing about
+       it - which is how the spine's own busy flag came to hold a stale
+       window for a whole session. Nothing outside the try can throw today;
+       the point is that it does not matter whether that stays true.
+
+       The loop also stops when the recording does, rather than going on
+       writing blocks for a track that has been put away. */
     this.writing = (async function () {
-      do {
-        self.again = false;
-        const upto = self.points.length, dist = self.dist;
-        try {
-          if (upto < self.saved) {                 /* the track was cleared under us */
-            await DB.clear("recpts");
-            self.saved = 0; self.seq = 0; self.savedDist = 0;
-            self.header();
-          }
-          if (upto > self.saved) {
-            const block = self.points.slice(self.saved, upto);
-            await DB.put("recpts", { from: self.saved, pts: block },
-                         self.id + "/" + String(self.seq).padStart(6, "0"));
-            self.seq++;
-            self.saved += block.length;
-            self.savedDist = dist;
-            self.header();      /* those points are in a block now: say so */
-          }
-        } catch (e) { /* the header goes on carrying them as its tail */ }
-      } while (self.again);
-      self.writing = null;
+      try {
+        do {
+          self.again = false;
+          const upto = self.points.length, dist = self.dist;
+          try {
+            if (upto < self.saved) {                 /* the track was cleared under us */
+              await DB.clear("recpts");
+              self.saved = 0; self.seq = 0; self.savedDist = 0;
+              self.header();
+            }
+            if (upto > self.saved) {
+              const block = self.points.slice(self.saved, upto);
+              await DB.put("recpts", { from: self.saved, pts: block },
+                           self.id + "/" + String(self.seq).padStart(6, "0"));
+              self.seq++;
+              self.saved += block.length;
+              self.savedDist = dist;
+              self.header();    /* those points are in a block now: say so */
+            }
+          } catch (e) { /* the header goes on carrying them as its tail */ }
+        } while (self.again && self.state !== "idle");
+      } finally { self.writing = null; }
     })();
   },
 
@@ -6621,6 +6631,7 @@ const Rec = {
   forget: function () {
     delLS(LS.rec);
     this.saved = 0; this.seq = 0; this.savedDist = 0;
+    this.again = false;
     DB.clear("recpts").catch(function () { /* nothing to drop, or no store */ });
   },
 
