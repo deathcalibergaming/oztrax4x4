@@ -137,6 +137,19 @@ const SA_LEVEL = 3;           /* geographic region level 3 = states */
 const SA_REGION = 4;          /* South Australia, from the SAFPIS guide */
 const QLD_REGION = 1;         /* Queensland, from the Fuel Prices QLD guide v1.5 */
 const SA_UNAVAILABLE = 9999;  /* the scheme's "not sold here today" price */
+/* Below this a price is a typing error, not a price - the same floor and the
+   same reasoning as FuelCheck's, which caught Premium 95 at Minnie Water on
+   24 cents. The first Queensland run found the same thing twice over: diesel
+   at 28.6 at a Mooloolaba slipway, and - already live, and the reason this
+   is worth doing rather than noting - LPG at 12.9 at Caltex Bordertown,
+   which had been standing as the cheapest LPG in South Australia.
+
+   Fifty cents a litre, in tenths. The headroom is enormous: across all five
+   states the next cheapest row of anything is LPG at 87.9, and LPG is the
+   cheapest thing on any forecourt. There is deliberately no ceiling, here or
+   anywhere else in this file - Orchid Beach on Fraser Island came back at
+   395.0 a litre for diesel and that is the row this app exists to show. */
+const FPD_FLOOR = 500;
 
 async function fpdGet(host, path, token, fetchImpl = fetch) {
   const res = await fetchImpl(host + path, {
@@ -242,14 +255,29 @@ async function fpdSource(cfg, token, fetchImpl = fetch) {
      shipped as a pin with an empty card under it. */
   const priced = new Map();      /* siteId -> {fuelId: price} */
   const seenAt = new Map();      /* siteId -> newest transaction time */
+  let typos = 0;
   for (const p of asList(sitePrices)) {
     if (p.SiteId == null || p.FuelId == null) continue;
     const price = Number(p.Price);
     if (!isFinite(price) || price === SA_UNAVAILABLE || price <= 0) continue;
+    /* counted and named in the log rather than dropped in silence, so a day
+       the scheme changes its units is a day this says so instead of quietly
+       publishing nothing */
+    if (price < FPD_FLOOR) {
+      typos++;
+      console.log(`${cfg.name}: dropping site ${p.SiteId} fuel ${p.FuelId} at ` +
+        `${(price / 10).toFixed(1)} c/L - below the ${FPD_FLOOR / 10} c/L floor`);
+      continue;
+    }
     if (!priced.has(p.SiteId)) priced.set(p.SiteId, {});
     priced.get(p.SiteId)[p.FuelId] = Math.round(price);
     const t = p.TransactionDateUtc || "";
     if (t && (!seenAt.has(p.SiteId) || t > seenAt.get(p.SiteId))) seenAt.set(p.SiteId, t);
+  }
+
+  if (typos > 20) {
+    throw new Error(`${cfg.name}: ${typos} prices under ${FPD_FLOOR / 10} c/L - ` +
+      "that is not a scattering of typing errors, it is the units having changed");
   }
 
   const sites = [];
