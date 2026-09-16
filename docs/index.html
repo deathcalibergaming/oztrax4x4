@@ -1965,6 +1965,28 @@ details.sub > .sec-body{padding:12px 0 0}
    section they act on. */
 .kbulk{margin-bottom:7px}
 .list{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
+/* The verdict, above the numbers: whether the app is getting a position,
+   and where it is not, the thing to do about it. A stranger opening this
+   section is asking one question and the answer used to be the fourth row
+   of nineteen, in the same 9.5px grey as "Page scheme https:" - with no
+   instruction anywhere for the one case that needs one.
+
+   Built like a section heading rather than a row: the panel colour, a rule
+   down the left in the state's own colour, the verdict in the interface
+   face and the advice under it at note size, which is the size this system
+   uses for the sentence a stranger needs. */
+.gps-state{display:grid;gap:3px;background:var(--head);border:1px solid var(--line);
+  border-left:3px solid var(--line);border-radius:5px;padding:9px 11px;margin-top:10px}
+.gps-state:empty{display:none}
+.gps-state b{font-family:var(--ui);font-size:var(--t-label);font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;line-height:1.3}
+.gps-state span{font-size:var(--t-note);line-height:1.45;color:var(--dim)}
+.gps-state.ok{border-left-color:var(--green)}
+.gps-state.ok b{color:var(--green)}
+.gps-state.warn{border-left-color:var(--warn)}
+.gps-state.warn b{color:var(--warn)}
+.gps-state.bad{border-left-color:var(--danger2)}
+.gps-state.bad b{color:var(--danger2)}
 .diag{font-variant-numeric:tabular-nums;font-size:var(--t-meta);line-height:1.7;color:var(--dim);margin-top:9px}
 .diag:empty{display:none}
 .diag div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:2px 0}
@@ -3274,12 +3296,26 @@ input[type=date],input[type=time]{color-scheme:dark}
         GPS &amp; Location <span class="chev"></span>
       </summary>
       <div class="sec-body">
+        <div id="gpsState" class="gps-state"></div>
         <div id="gpsDiag" class="diag"></div>
-        <div id="gpsNote" class="note"></div>
         <div class="row" style="margin-top:11px">
           <button class="btn sm primary" id="btnGpsAsk">Request A Fix Now</button>
           <button class="btn sm ghost" id="btnGpsRefresh">Refresh</button>
         </div>
+        <!-- Shut by default, and everything that used to be in the list above
+             is inside it. None of it is deleted: every row was put there to
+             answer a real fault on a real phone, and a fault is exactly when
+             somebody comes looking. -->
+        <details class="sub" id="secGpsTech">
+          <summary>
+            <svg viewBox="0 0 24 24"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg>
+            Technical Details <span class="chev"></span>
+          </summary>
+          <div class="sec-body">
+            <div id="gpsTech" class="diag"></div>
+            <div id="gpsNote" class="note"></div>
+          </div>
+        </details>
       </div>
     </details>
 
@@ -14559,85 +14595,236 @@ function requestGeoOnce() {
   }, { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 });
 }
 
+/* How long ago, in the words somebody would use out loud. The panel
+   re-renders four times a second, so anything under five seconds is simply
+   current - a number counting 1, 2, 3 in the corner of the eye reads as
+   something going wrong. */
+function gpsAgo(secs) {
+  if (!isFinite(secs)) return "never";
+  if (secs < 5) return "just now";
+  if (secs < 90) return Math.round(secs) + " seconds ago";
+  if (secs < 5400) return Math.round(secs / 60) + " minutes ago";
+  return Math.round(secs / 3600) + " hours ago";
+}
+
+/* Altitude, in whichever unit the driver has chosen. Metres or feet and
+   never kilometres, which is what altitude is always quoted in - accuracy
+   goes through fmtDist instead, because a tower-only fix is better read as
+   "1.40 km" than as "1400 m". */
+function gpsAlt(m) {
+  return Math.round(dispAlt(m)) + " " + unitLabel("alt");
+}
+
+/* The one question this section exists to answer, and where the answer is no,
+   what to do about it.
+
+   Ordered by what stops the app soonest, so the first true case is the one
+   worth saying. Every unhappy state carries an instruction: a diagnosis a
+   driver at a track junction cannot act on is not worth the line, and the
+   state this panel most often has to report - location refused - is the one
+   the old list explained least, since "Permission: denied" says nothing
+   about the padlock beside the address bar. */
+function gpsVerdict() {
+  const f = GPS.last;
+  const age = f ? (Date.now() - GPS.lastAt) / 1000 : Infinity;
+  const looking = GPS.watching || GPS.retryAt;
+
+  if (!navigator.geolocation) {
+    return { cls: "bad", head: "This browser cannot use location",
+      sub: "It has no location support at all, so the map cannot follow you. Chrome, Firefox and Safari all can." };
+  }
+  /* Not a browser setting and not fixable from inside the app: the page has
+     been opened in a way the browser will never trust with a position -
+     most often from the Android downloads list after saving the file. */
+  if (!window.isSecureContext) {
+    const why = contextNote();
+    return { cls: "bad", head: "Location cannot work here",
+      sub: why.charAt(0).toUpperCase() + why.slice(1) +
+        ". Open the app from its web address instead of from a saved copy." };
+  }
+  if (GPS.perm === "denied") {
+    return { cls: "bad", head: "Location is blocked",
+      sub: "This site is not allowed to use your location. Tap the padlock beside the web address, " +
+        "turn Location on for this site, then tap Request A Fix Now below." };
+  }
+  if (!f && GPS.lastErr && GPS.lastErr.code === 2) {
+    return { cls: "bad", head: "No position yet",
+      sub: "The phone cannot see enough sky. Check location is switched on in the phone's own settings, " +
+        "then try again away from buildings and heavy timber." };
+  }
+  if (!f && GPS.lastErr && GPS.lastErr.code === 3) {
+    return { cls: "warn", head: "Still searching",
+      sub: "The phone has not answered yet. A first fix from cold can take a minute or two outdoors." };
+  }
+  if (!f) {
+    return looking
+      ? { cls: "warn", head: "Looking for your position",
+          sub: "A first fix usually lands within a few seconds outdoors, and can take a minute from cold." }
+      : { cls: "bad", head: "Not looking yet",
+          sub: "Tap Request A Fix Now below and allow location when the browser asks." };
+  }
+  if (age > 60) {
+    return { cls: "warn", head: "Position is out of date",
+      sub: "The last fix was " + gpsAgo(age) + ". This usually means the phone has lost sight of the sky - " +
+        "a gorge, a shed, or a windscreen with a heat-reflective coating." };
+  }
+  /* The accuracy radius is the only read the web gives on where a position
+     came from, so it is what the wording is built on - see fixSource. */
+  if (f.acc > 200) {
+    return { cls: "warn", head: "Rough position only",
+      sub: "This is coming from the mobile network rather than satellites and can be a kilometre out. " +
+        "It should sharpen once the phone sees the sky." };
+  }
+  if (f.acc > 35) {
+    return { cls: "warn", head: "Working, but roughly",
+      sub: "Accurate to about " + fmtDist(f.acc) + ", which is not a satellite fix. " +
+        "It should sharpen in the open." };
+  }
+  return { cls: "ok", head: "Location is working",
+    sub: "Good satellite fix, accurate to about " + fmtDist(f.acc) + "." };
+}
+
+/* Two readers, one panel.
+
+   A driver wants one answer - is this working, and if not what do I do -
+   and then a handful of facts worth reading at a stop: where they are, how
+   close that is, how high, how old, and whether the screen will stay on.
+   That is the whole of what is on top now.
+
+   The rest is diagnostics, and all of it is still here under Technical
+   Details. Every row was put there to answer a real fault on a real phone -
+   the secure-context rows caught the app being opened from the Android
+   downloads list, and the two compass numbers are what tell a
+   screen-rotation error from a sign error when the arrow points the wrong
+   way - and a fault is exactly when somebody goes looking. Folding them
+   away is not deleting them. */
 function renderGpsPanel() {
   const box = $("#gpsDiag");
   if (!box) return;
-  const rows = [];
   const f = GPS.last;
+  const age = f ? (Date.now() - GPS.lastAt) / 1000 : Infinity;
+
+  const rows = [];
   function row(k, v, cls) { rows.push({ k: k, v: v, cls: cls || "" }); }
+  const draw = function (list) {
+    return list.map(function (r) {
+      return "<div><span>" + esc(r.k) + '</span><b class="' + r.cls + '">' + esc(r.v) + "</b></div>";
+    }).join("");
+  };
 
-  row("Page scheme", location.protocol, window.isSecureContext ? "ok" : "bad");
-  row("Secure context", window.isSecureContext ? "yes" : "no", window.isSecureContext ? "ok" : "bad");
-  row("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
-  row("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
-  /* A pending retry outranks a registered watch, and is asked about first.
-     A failed watch stays registered right up to the moment its replacement
-     takes over, so reading "yes" off it would report as healthy the very
-     subscription we have just concluded is dead - and the countdown would
-     never be seen, since it is dropped and replaced inside one callback.
-     What the driver needs to know is that another attempt is coming, and
-     when. */
-  row("Watching", GPS.retryAt
-      ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
-      : GPS.watching ? "yes" : "no",
-      GPS.retryAt ? "warn" : GPS.watching ? "ok" : "warn");
-  /* Wake is defined further down the file; guard so an early render is safe */
-  if (typeof Wake !== "undefined") {
-    row("Screen lock", Wake.status(),
-        Wake.lock ? "ok" : !Wake.supported || !S.keepAwake ? "warn" : "warn");
+  const state = gpsVerdict();
+  const sb = $("#gpsState");
+  if (sb) {
+    sb.className = "gps-state " + state.cls;
+    sb.innerHTML = "<b>" + esc(state.head) + "</b><span>" + esc(state.sub) + "</span>";
   }
-  row("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
-  /* The count is a session tally, and a tally left red after the fixes came
-     back reads as a fault still happening. Red is for an error still
-     standing; once a fix lands on top of one it is history, and says so. */
-  row("Errors", String(GPS.errors) + (GPS.errors && !GPS.lastErr ? " (recovered)" : ""),
-      !GPS.errors ? "ok" : GPS.lastErr ? "bad" : "warn");
 
+  /* Position first, because it is the one fact here somebody may have to
+     read out loud to somebody else, and five decimal places is a metre -
+     finer than any fix this panel will ever report. */
   if (f) {
-    const age = Math.round((Date.now() - GPS.lastAt) / 1000);
-    row("Last fix", age + "s ago", age < 15 ? "ok" : "warn");
-    row("Position", f.lat.toFixed(6) + ", " + f.lng.toFixed(6), "ok");
-    row("Accuracy", Math.round(dispAlt(f.acc)) + " " + unitLabel("alt"),
-        f.acc <= 35 ? "ok" : "warn");
-    row("Likely source", fixSource(f.acc), f.acc <= 35 ? "ok" : "warn");
-    row("Altitude", f.alt == null ? "not reported"
-        : Math.round(dispAlt(f.alt)) + " " + unitLabel("alt") +
-          (f.altAcc == null ? "" : " (+/- " + Math.round(dispAlt(f.altAcc)) + " " + unitLabel("alt") + ")"),
+    row("Position", f.lat.toFixed(5) + ", " + f.lng.toFixed(5), "ok");
+    row("Accuracy", "within " + fmtDist(f.acc), f.acc <= 35 ? "ok" : "warn");
+    row("Altitude", f.alt == null ? "not reported" : gpsAlt(f.alt),
         f.alt == null ? "warn" : "ok");
-    row("Speed", f.spd == null ? "not reported"
-        : dispSpeed(f.spd).toFixed(1) + " " + unitLabel("speed"));
-    row("GPS course", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
-        : Math.round(f.hdg) + " deg");
-  } else {
-    row("Last fix", "none yet", "bad");
+    row("Updated", gpsAgo(age), age < 15 ? "ok" : "warn");
   }
-  /* The compass is what makes the arrow turn while you stand still, so its
-     working is worth showing - including the raw sensor value, because if
-     the arrow points the wrong way it is almost always a screen-rotation or
-     sign error and these two numbers say which. */
-  row("Compass", Compass.status(), Compass.fresh() ? "ok" : "warn");
-  if (Compass.raw != null) {
-    row("Compass raw", Math.round(Compass.raw) + " deg, screen " + Compass.screenAngle() + " deg");
+  /* Compass.status() and Wake.status() both answer in the API's own words,
+     which is right for the diagnostics below and wrong here: "refused: Wake
+     Lock permission request denied" is a sentence about a browser feature
+     rather than about the screen, and it is twice the width the row has.
+     The full wording is still in Technical Details. */
+  row("Compass", Compass.fresh()
+      ? Math.round(Compass.heading) + " deg " + cardinal(Compass.heading)
+      : Compass.state === "unsupported" ? "this phone has none"
+      : Compass.state === "denied" ? "not allowed"
+      : Compass.state === "listening" ? "waiting for a reading"
+      : "off",
+      Compass.fresh() ? "ok" : "warn");
+  if (typeof Wake !== "undefined") {
+    row("Screen stays on", Wake.lock ? "yes, while the app is open"
+        : !Wake.supported ? "no - this browser cannot"
+        : !S.keepAwake ? "no - switched off in Settings"
+        : "no - the browser refused",
+        Wake.lock ? "ok" : "warn");
   }
-  row("Arrow follows", view.hdgFrom || "nothing yet",
-      view.hdgFrom === "compass" || view.hdgFrom === "gps course" ? "ok" : "warn");
+  box.innerHTML = draw(rows);
 
-  if (GPS.lastErr) {
-    const names = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
-    row("Last error", (names[GPS.lastErr.code] || GPS.lastErr.code) +
-        (GPS.lastErr.msg ? " - " + GPS.lastErr.msg : ""), "bad");
+  /* Nobody is reading the diagnostics while they are folded away, and this
+     redraws four times a second for as long as the section is open. */
+  const tech = $("#gpsTech");
+  if (tech && $("#secGpsTech") && $("#secGpsTech").open) {
+    const t = [];
+    function trow(k, v, cls) { t.push({ k: k, v: v, cls: cls || "" }); }
+
+    trow("Page scheme", location.protocol, window.isSecureContext ? "ok" : "bad");
+    trow("Secure context", window.isSecureContext ? "yes" : "no", window.isSecureContext ? "ok" : "bad");
+    trow("API present", navigator.geolocation ? "yes" : "no", navigator.geolocation ? "ok" : "bad");
+    trow("Permission", GPS.perm, GPS.perm === "granted" ? "ok" : GPS.perm === "denied" ? "bad" : "warn");
+    /* A pending retry outranks a registered watch, and is asked about first.
+       A failed watch stays registered right up to the moment its replacement
+       takes over, so reading "yes" off it would report as healthy the very
+       subscription we have just concluded is dead - and the countdown would
+       never be seen, since it is dropped and replaced inside one callback.
+       What the driver needs to know is that another attempt is coming, and
+       when. */
+    trow("Watching", GPS.retryAt
+        ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
+        : GPS.watching ? "yes" : "no",
+        GPS.retryAt ? "warn" : GPS.watching ? "ok" : "warn");
+    trow("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
+    /* The count is a session tally, and a tally left red after the fixes came
+       back reads as a fault still happening. Red is for an error still
+       standing; once a fix lands on top of one it is history, and says so. */
+    trow("Errors", String(GPS.errors) + (GPS.errors && !GPS.lastErr ? " (recovered)" : ""),
+        !GPS.errors ? "ok" : GPS.lastErr ? "bad" : "warn");
+
+    if (f) {
+      trow("Last fix", Math.round(age) + "s ago", age < 15 ? "ok" : "warn");
+      trow("Accuracy", Math.round(dispAlt(f.acc)) + " " + unitLabel("alt"),
+           f.acc <= 35 ? "ok" : "warn");
+      trow("Likely source", fixSource(f.acc), f.acc <= 35 ? "ok" : "warn");
+      trow("Altitude accuracy", f.altAcc == null ? "not reported"
+           : "+/- " + Math.round(dispAlt(f.altAcc)) + " " + unitLabel("alt"),
+           f.altAcc == null ? "warn" : "ok");
+      trow("Speed", f.spd == null ? "not reported"
+           : dispSpeed(f.spd).toFixed(1) + " " + unitLabel("speed"));
+      trow("GPS course", f.hdg == null || !isFinite(f.hdg) ? "not reported (needs movement)"
+           : Math.round(f.hdg) + " deg");
+    } else {
+      trow("Last fix", "none yet", "bad");
+    }
+    /* The raw sensor value alongside the screen angle, because if the arrow
+       points the wrong way it is almost always a screen-rotation or a sign
+       error, and these two numbers say which. */
+    if (Compass.raw != null) {
+      trow("Compass raw", Math.round(Compass.raw) + " deg, screen " + Compass.screenAngle() + " deg");
+    }
+    trow("Compass", Compass.status(), Compass.fresh() ? "ok" : "warn");
+    trow("Arrow follows", view.hdgFrom || "nothing yet",
+         view.hdgFrom === "compass" || view.hdgFrom === "gps course" ? "ok" : "warn");
+    if (typeof Wake !== "undefined") {
+      trow("Screen lock", Wake.status(), Wake.lock ? "ok" : "warn");
+    }
+
+    if (GPS.lastErr) {
+      const names = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
+      trow("Last error", (names[GPS.lastErr.code] || GPS.lastErr.code) +
+           (GPS.lastErr.msg ? " - " + GPS.lastErr.msg : ""), "bad");
+    }
+    tech.innerHTML = draw(t);
   }
 
-  box.innerHTML = rows.map(function (r) {
-    return "<div><span>" + esc(r.k) + '</span><b class="' + r.cls + '">' + esc(r.v) + "</b></div>";
-  }).join("");
-
+  /* What the web can and cannot tell you about a fix. It explains the rows
+     above it rather than the app, so it belongs with them - and the one
+     thing it used to carry that a driver had to see, the insecure-context
+     warning, is now the verdict at the top where it cannot be missed. */
   const note = $("#gpsNote");
   if (note) {
-    note.textContent = window.isSecureContext
-      ? "The web location API reports a fused position and its accuracy only. It exposes no satellite list or signal strengths, so the accuracy radius above is the best available read on whether the fix came from satellites."
-      : contextNote() + ". Serve this file over https, or from http://localhost on the phone itself, and location will work.";
-    note.className = "note" + (window.isSecureContext ? "" : " bad-note");
+    note.textContent = "The web location API reports a fused position and its accuracy only. " +
+      "It exposes no satellite list or signal strengths, so the accuracy radius is the best " +
+      "available read on whether the fix came from satellites.";
+    note.className = "note";
   }
 }
 
@@ -15141,6 +15328,7 @@ $("#btnGpsAsk").addEventListener("click", function () {
      button doubles as the compass prompt */
   Compass.start().then(renderGpsPanel);
 });
+$("#secGpsTech").addEventListener("toggle", renderGpsPanel);
 $("#btnGpsRefresh").addEventListener("click", function () {
   readGeoPermission().then(renderGpsPanel);
 });
