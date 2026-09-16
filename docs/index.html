@@ -1074,7 +1074,26 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    that had drifted rather than as part of the figure. */
 #statsbar .stat:nth-child(1){display:grid;grid-template-columns:auto auto;grid-template-rows:auto 1fr auto;
   grid-template-areas:"v l" "v ." "v u";justify-content:start;column-gap:10px;left:24px;top:4px}
-#statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;letter-spacing:-.05em}
+/* The figure sits in a box three digits wide whatever the speed is -
+   layoutHud measures it and sets the min-width - so 99 becoming 100 moves
+   nothing but the figure itself. Everything in the right-hand column, the
+   label and the unit, used to be shoved along by a digit's width at 100 and
+   again at 99, which on a road that sits on the limit is a caption twitching
+   in the corner of the eye.
+
+   Right-aligned, so the figure grows leftward into the margin. The unit then
+   keeps the 10px off the digits it was measured to have, and a two-figure
+   speed does not leave its own km/h stranded - which is the failure that
+   spacing was worked out to fix in the first place. The empty digit's width
+   falls at the left, where the only thing beside it is the edge of the
+   screen. */
+#statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;
+  letter-spacing:-.05em;text-align:right}
+/* Over the posted limit, while the over-speed alert is on. Alert Red Lit,
+   and the same .over that a count past its limit already wears - see
+   .bignum.over. The chime and the colour come from one test, so they can
+   never disagree about whether you are over. */
+#statsbar .stat:nth-child(1) b.over{color:var(--danger2)}
 /* The two margins are measured, not reasoned: they put the label's cap
    height on the digits' and the unit's baseline on theirs, to within half a
    pixel, at each size - a smaller unit sits differently in its box, so an
@@ -2251,6 +2270,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
 #btnText1.on,#btnText2.on,
+#btnAlertOn.on,#btnAlertOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
@@ -3345,6 +3365,15 @@ input[type=date],input[type=time]{color-scheme:dark}
         </div>
         <div class="poi-status" id="awakeState"></div>
         <div class="note" id="awakeNote">A sleeping phone stops a recording. Turn off to leave the app open while parked.</div>
+        <div class="sublabel">Over-Speed Alert
+          <button class="btn xs ghost" id="btnAlertOn">On</button>
+          <button class="btn xs ghost" id="btnAlertOff">Off</button>
+        </div>
+        <div class="poi-status" id="alertState"></div>
+        <div class="row">
+          <button class="btn sm ghost" id="btnAlertTest">Test Sound</button>
+        </div>
+        <div class="note" id="alertNote"></div>
         <div class="sublabel">Terrain Shading
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
@@ -3899,6 +3928,9 @@ const CFG = {
   SPEED_HDG_TOL: 45,       /* degrees a road may differ from your travel */
   SPEED_MIN_MOVE: 2,       /* m/s below which a heading is noise, not travel */
   SPEED_TICK: 400,         /* a posted limit does not need 60 fps */
+  ALERT_OVER: 3,           /* km/h past the posted limit before the chime sounds */
+  ALERT_REPEAT: 30000,     /* ms between reminders while the speed stays over */
+  ALERT_STALE: 10000,      /* ms - a fix older than this says nothing about now */
   SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
   /* A limit rides over a short gap - a fix that wanders out of the snap, a
      bend whose mapped line cuts the corner - for this far and this long, and
@@ -4446,6 +4478,9 @@ const S = Object.assign({
   follow: true,
   poiOn: true,
   keepAwake: true,      /* hold the screen on the whole time the app is open */
+  /* Off until it is asked for. An app that starts making noises in a moving
+     vehicle without being asked is worse than one that stays quiet. */
+  speedAlert: false,    /* chime when the speed passes the posted limit */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
   hillshade: true,     /* shaded relief under the map, on by default */
@@ -4468,7 +4503,8 @@ if (!S.shadeDefaultApplied) {
 
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
-                        keepAwake: S.keepAwake, zoom: S.zoom, hillshade: S.hillshade,
+                        keepAwake: S.keepAwake, speedAlert: S.speedAlert,
+                        zoom: S.zoom, hillshade: S.hillshade,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         textScale: S.textScale });
 }
@@ -4608,7 +4644,6 @@ const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 5
    is this anything but a phone on its side? If so it gets the tape across the
    top and the band under it - see the CSS. Must match that media query. */
 const HUD_ROWS = window.matchMedia("(orientation: portrait), (height > 520px)");
-let hudSpeedLen = 0;
 let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
   const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
@@ -4624,6 +4659,9 @@ function layoutHud() {
   buildTape(chipW);
   sb.style.height = ""; sb.style.background = "";
   sb.style.removeProperty("--spd"); sb.style.removeProperty("--bandT"); sb.classList.remove("hud-stack");
+  /* cleared before anything measures: fitBand shrinks the figures to fit and
+     a width held over from the last size would stop it */
+  $("#stSpeed").style.minWidth = "";
   tape.style.webkitMaskImage = ""; tape.style.maskImage = "";
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
@@ -4704,6 +4742,16 @@ function layoutHud() {
       tape.style.webkitMaskImage = m; tape.style.maskImage = m;
     }
   }
+  /* The digits' box, three figures wide, so the label and the unit beside
+     them hold their place from 9 to 999. Measured rather than written as 3ch
+     because ch is the advance of a zero and these figures are tracked
+     -0.05em, which no unit knows about. */
+  const spd = $("#stSpeed"), spdNow = spd.textContent;
+  spd.textContent = "888";
+  const spdW = Math.ceil(spd.getBoundingClientRect().width);
+  spd.textContent = spdNow;
+  spd.style.minWidth = spdW + "px";
+
   const bottom = Math.max(sb.getBoundingClientRect().bottom, cells[1].getBoundingClientRect().bottom);
   const root = document.documentElement.style;
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
@@ -5525,7 +5573,7 @@ function frame(ts) {
     if ($("#secGps").open) { gpsTick = ts; renderGpsPanel(); }
     /* the wake lock reads the same way: it is handed back and taken again
        while you watch, so a stale line is worse than none */
-    else if ($("#secSettings").open) { gpsTick = ts; syncAwakeButtons(); }
+    else if ($("#secSettings").open) { gpsTick = ts; syncAwakeButtons(); syncAlertButtons(); }
   }
 
   /* Every distance and bearing on the nearby list was measured from where you
@@ -5865,9 +5913,131 @@ function sameRoad(a, b) {
    which way the vehicle is going, and between 2 and 2.2 m/s it was
    rejecting the road under the wheels in slow traffic. */
 let speedHold = null;          /* {v, road, at, hdg, t} of the last limit shown off a matched road */
+/* =====================================================================
+   Over the limit, out loud
+
+   A chime when the speed passes the posted limit, because a roundel in the
+   corner of the display is no use to somebody whose eyes are on the road.
+   Off until it is switched on.
+
+   Three things keep it honest rather than a gimmick:
+
+   - It sounds only where the roundel is showing a limit, and it reads that
+     limit from the same call that draws it, so the sound and the sign can
+     never disagree. Those limits come from OpenStreetMap: missing on plenty
+     of roads, occasionally wrong, and always older than the sign beside the
+     road. The sentence under the switch says so.
+   - The speed is the one the GPS reports - a Doppler figure off the
+     satellites, not a distance divided by a time - so it does not spike
+     when a fix jumps. A phone that reports no speed at all can never
+     trigger it, and the settings line says that out loud rather than
+     leaving a driver trusting a chime that is not coming.
+   - Three km/h of margin on the way up and none on the way down. The band
+     between the limit and the limit plus three is silent in both
+     directions, so a cruise sitting on the limit cannot chatter, and you
+     have to come back under the limit proper before it will sound again.
+
+   The sound is made rather than carried. This app is one HTML document,
+   and an audio file in it is either base64 in the page or a second request
+   that has to be cached offline forever; two notes from an oscillator cost
+   nothing and cannot 404.
+   ===================================================================== */
+const Chime = {
+  ctx: null,
+
+  supported: function () {
+    return !!(window.AudioContext || window.webkitAudioContext);
+  },
+
+  /* A browser will not let a page make a sound until somebody has touched
+     it, and the driver may have switched this on weeks ago in a session
+     that is long gone. So the context is opened on the first touch of the
+     page, whatever that touch was for - and Test Sound is the one gesture
+     guaranteed to do it while they are watching. */
+  arm: function () {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!this.ctx) {
+      try { this.ctx = new AC(); } catch (e) { return false; }
+    }
+    if (this.ctx.state === "suspended") this.ctx.resume().catch(function () {});
+    return true;
+  },
+
+  ready: function () { return !!this.ctx && this.ctx.state === "running"; },
+
+  /* Two rising notes a fourth apart - far enough to read as a signal rather
+     than a fault tone, high enough to carry over an engine and tyres
+     without being shrill. Triangle and not square: a square wave cuts
+     through better and sounds like a cheap alarm clock doing it. Each note
+     is faded in over 8ms and out over 70, because an oscillator switched on
+     at full gain clicks. */
+  play: function () {
+    if (!this.arm() || !this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    [[740, 0], [988, 0.14]].forEach(function (n) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = n[0];
+      const a = t0 + n[1];
+      g.gain.setValueAtTime(0.0001, a);
+      g.gain.exponentialRampToValueAtTime(0.25, a + 0.008);
+      g.gain.setValueAtTime(0.25, a + 0.09);
+      g.gain.exponentialRampToValueAtTime(0.0001, a + 0.16);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(a);
+      osc.stop(a + 0.18);
+    });
+  }
+};
+
+const OverSpeed = {
+  over: false,       /* past the limit right now, and already said so */
+  soundedAt: 0,
+
+  /* The chime and the red figures are one state, set in one place, so they
+     can never disagree about whether you are over - and so switching the
+     alert off takes the colour with it rather than leaving the display
+     saying something the driver has turned off. */
+  mark: function (on) {
+    this.over = on;
+    const b = $("#stSpeed");
+    if (b) b.classList.toggle("over", on);
+  },
+
+  /* Called from updateSpeedSign with whatever the roundel is about to show.
+     A null limit is the sign being hidden, and is the only honest moment to
+     forget that anybody was over anything: off a road with a known limit,
+     there is nothing to be over. */
+  check: function (limit, mph) {
+    if (limit == null || !S.speedAlert) { this.mark(false); return; }
+    /* a fix this old says nothing about how fast the vehicle is going now */
+    if (!view.has || Date.now() - view.lastFixAt > CFG.ALERT_STALE) { this.mark(false); return; }
+    const spd = view.speed;
+    if (!isFinite(spd) || spd <= CFG.SPEED_MIN_MOVE) { this.mark(false); return; }
+
+    /* the limit is the number on the sign, in the sign's own units */
+    const lim = limit * (mph ? 0.44704 : 1 / 3.6);
+    if (spd <= lim) { this.mark(false); return; }           /* back under: re-armed */
+    if (spd <= lim + CFG.ALERT_OVER / 3.6) return;          /* the quiet band */
+
+    const now = Date.now();
+    if (!this.over || now - this.soundedAt > CFG.ALERT_REPEAT) {
+      this.mark(true);
+      this.soundedAt = now;
+      Chime.play();
+    }
+  }
+};
+
 function updateSpeedSign() {
   const sign = $("#speedSign");
-  let v = null;
+  /* `src` is the way the limit came off, kept only so the alert knows
+     whether the number is km/h or mph - nothing in Australia posts mph, but
+     the parser records the tag either way and a limit read in the wrong
+     unit would chime at 100 on a 65 mph road. */
+  let v = null, src = null;
   if (roads.length && view.has) {
     const moving = view.speed > CFG.SPEED_MIN_MOVE && view.hdgFrom !== "compass";
     const snap = clamp(view.acc || 0, CFG.SPEED_SNAP_M, CFG.SPEED_SNAP_MAX);
@@ -5875,12 +6045,14 @@ function updateSpeedSign() {
     const h = speedHold;
     if (hit) {
       v = postedLimit(hit);
+      src = hit.road;
       if (v == null && h && sameRoad(hit.road, h.road)) v = h.v;
       speedHold = v == null ? null
         : { v: v, road: hit.road, at: { lat: view.cur.lat, lng: view.cur.lng }, hdg: view.hdgCur, t: Date.now() };
     } else if (h && haversine(h.at, view.cur) < CFG.SPEED_HOLD_M && Date.now() - h.t < CFG.SPEED_HOLD_MS &&
                (!moving || Math.abs(((view.hdgCur - h.hdg + 540) % 360) - 180) <= CFG.SPEED_HDG_TOL)) {
       v = h.v;                 /* the hold is not renewed: it runs from the last road matched */
+      src = h.road;
     } else {
       speedHold = null;
     }
@@ -5888,22 +6060,26 @@ function updateSpeedSign() {
     speedHold = null;
   }
   /* a number or nothing: the sign must never print what is not a limit */
-  if (typeof v !== "number" || !isFinite(v)) { sign.classList.add("hidden"); return; }
-  $("#speedLimit").textContent = String(v);
+  const posted = (typeof v === "number" && isFinite(v)) ? v : null;
+  /* The alert is told the limit here rather than working one out for
+     itself, so the chime and the roundel can never be about different
+     roads - including when the sign is hidden, which is what clears it. */
+  OverSpeed.check(posted, !!(src && src.mph));
+  if (posted == null) { sign.classList.add("hidden"); return; }
+  $("#speedLimit").textContent = String(posted);
   /* the number a driver reads off the roadside, not a converted one: a
      65 mph road posts 65, whichever units the app is set to */
-  sign.classList.toggle("wide", String(v).length > 2);
+  sign.classList.toggle("wide", String(posted).length > 2);
   sign.classList.remove("hidden");
 }
 
 function updateStats() {
   moveTape(view.has ? view.hdgCur : null);
   $("#stSpeed").textContent = view.has ? dispSpeed(view.speed).toFixed(0) : "--";
-  /* In the band - upright too, now - the limit roundel stands just past the
-     speed, so a speed that gains or loses a digit - 99 to 100 - lays the band
-     out again. Rare. Three rows keep the roundel at the far end, so not there. */
-  const spdLen = $("#stSpeed").textContent.length;
-  if (spdLen !== hudSpeedLen) { hudSpeedLen = spdLen; if (!$("#statsbar").classList.contains("hud-stack")) layoutHud(); }
+  /* A speed gaining or losing a digit used to lay the whole band out again,
+     because the roundel stands a measured distance past the speed and the
+     speed's width had just changed. The figures sit in a three-wide box now,
+     so nothing past them moves and there is nothing to lay out. */
   $("#stHdg").textContent = view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--";
   $("#stCard").textContent = view.has ? cardinal(view.hdgCur) : "";
   $("#stAlt").textContent = (view.alt != null) ? Math.round(dispAlt(view.alt)) : "--";
@@ -15408,6 +15584,64 @@ function setKeepAwake(on) {
            : "Screen may sleep - a recording stops with it",
         on ? "ok" : "warn");
 }
+/* The switch, the line under it and the sentence under that.
+
+   The state line earns its place the same way the screen lock's does:
+   whether this will actually make a sound is not something the switch can
+   promise on its own. A browser will not play anything until the page has
+   been touched, and a phone that reports no speed can never trigger it.
+   Both are worth saying before somebody relies on a chime that is not
+   coming. */
+function alertStateLine() {
+  if (!S.speedAlert) return "Off";
+  if (!Chime.supported()) return "On, but this browser cannot play a sound";
+  if (!Chime.ready()) return "On - tap Test Sound once to let the browser play it";
+  if (GPS.last && GPS.last.spd == null) return "On, but this phone is not reporting a speed";
+  return OverSpeed.over ? "Sounding - you are over the limit" : "On and ready";
+}
+
+function syncAlertButtons() {
+  $("#btnAlertOn").classList.toggle("on", !!S.speedAlert);
+  $("#btnAlertOff").classList.toggle("on", !S.speedAlert);
+  $("#alertState").textContent = alertStateLine();
+  /* the margin in the driver's own units: 3 km/h, or 2 mph */
+  const over = Math.round(dispSpeed(CFG.ALERT_OVER / 3.6)) + " " + unitLabel("speed");
+  $("#alertNote").textContent =
+    "A chime and red speed figures when you pass the posted limit by more than " + over +
+    ", and the chime again every " + Math.round(CFG.ALERT_REPEAT / 1000) +
+    " seconds while you stay over. Both only where the speed sign is showing a limit, and those " +
+    "limits come from OpenStreetMap - they are missing on many roads and can be out of date, so " +
+    "the sign beside the road is the one that counts.";
+}
+
+function setSpeedAlert(on) {
+  if (!!S.speedAlert === on) return;
+  S.speedAlert = on;
+  saveSettings();
+  /* Switching it on is itself the gesture a browser wants before it will
+     play anything, so the chime is sounded then and there - it arms the
+     audio and shows what the thing actually sounds like in one move. */
+  if (on) Chime.play();
+  OverSpeed.mark(false);
+  OverSpeed.soundedAt = 0;
+  syncAlertButtons();
+  toast(on ? "Over-speed alert on" : "Over-speed alert off", on ? "ok" : "warn");
+}
+
+$("#btnAlertOn").addEventListener("click", function () { setSpeedAlert(true); });
+$("#btnAlertOff").addEventListener("click", function () { setSpeedAlert(false); });
+$("#btnAlertTest").addEventListener("click", function () { Chime.play(); syncAlertButtons(); });
+
+/* Any touch of the page is enough for a browser to allow sound, and this is
+   the only way a setting switched on in an earlier session gets armed
+   without asking the driver to go and do something about it. Once is
+   enough, so it takes itself off. */
+addEventListener("pointerdown", function armChime() {
+  if (!S.speedAlert) return;
+  Chime.arm();
+  removeEventListener("pointerdown", armChime);
+}, { passive: true });
+
 function syncHillshadeButtons() {
   $("#btnShadeOn").classList.toggle("on", !!S.hillshade);
   $("#btnShadeOff").classList.toggle("on", !S.hillshade);
@@ -15736,6 +15970,7 @@ document.addEventListener("keydown", function (e) {
   syncNorthUI();
   syncPoiSwitch();
   syncAwakeButtons();
+  syncAlertButtons();
   syncUnitButtons();
   /* Relief's pair was the one segmented control here that nothing lit at
      boot. Its only sync ran from setHillshade, which the app calls at start

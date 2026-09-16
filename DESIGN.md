@@ -932,6 +932,17 @@ and a fade behind them:
 - **Speed:** large figures — 64px, less where that will not fit; 52px on a
   phone on its side — lettered the way a gauge is: its label in rust level
   with the top of the digits, its unit on their baseline, 10px off them.
+
+  The figures sit in a box **three digits wide whatever the speed is**,
+  measured at each size and right-aligned, so 99 becoming 100 moves nothing
+  but the figure. Before, the label and the unit were shoved along by a
+  digit’s width at 100 and back again at 99 — a caption twitching in the
+  corner of the eye on any road that sits near the limit, and a full relayout
+  of the bar each time it crossed. Right-aligned rather than left so the unit
+  keeps the 10px off the digits it was measured to have; the empty digit’s
+  width falls at the left, against the edge of the screen, where nothing else
+  lives. Over the posted limit they turn **Alert Red Lit** — see the
+  over-speed alert under Speed Sign.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
   white, without the roadside plate — collared in the panel colour, 40px, on
   the middle of the bar under the heading window, centred on the speed's
@@ -1088,6 +1099,44 @@ vehicle, so panning the map to look ahead, or a fetch the extract cannot
 answer, never takes them away. Where only a small box could be loaded - a
 dense town, a slow connection - more is fetched before the vehicle reaches
 its edge.
+
+**The over-speed alert.** A roundel in the corner of the display is no use to
+somebody whose eyes are on the road, so the same limit is heard as well as
+seen — and the speed figures turn **Alert Red Lit** at the same moment,
+wearing the same `.over` a count past its limit already wears. Colour for a
+noisy cabin or a phone on silent, sound for eyes that are not on the display.
+One test drives both, so they can never disagree about whether you are over,
+and switching the alert off takes the colour with it rather than leaving the
+display saying something the driver has turned off.
+
+The chime is two rising notes a fourth apart, F sharp then B, triangle rather
+than square so it carries over an engine without sounding like an alarm
+clock. Synthesised from an oscillator, because this app is one HTML document
+and an audio file in it is either base64 in the page or a second request to
+cache offline forever.
+
+Off until it is switched on, in Settings. An app that starts making noises in
+a moving vehicle without being asked is worse than one that stays quiet.
+
+Three rules keep it a driving aid rather than a gimmick, and they are the
+same three that keep the roundel honest:
+
+- **It only speaks when the sign is showing.** It is handed the limit by the
+  same call that draws the roundel, so the sound and the sign can never be
+  about different roads — and a hidden sign is what clears it.
+- **It uses the speed the satellites report**, a Doppler figure rather than a
+  distance over a time, so a jumping fix cannot set it off. A phone that
+  reports no speed at all can never trigger it, and the line under the switch
+  says so rather than leaving somebody trusting a chime that is not coming.
+- **Three km/h of margin up, none down.** The band between the limit and the
+  limit plus three is silent in both directions, so a cruise sitting on the
+  limit cannot chatter; you have to come back under the limit proper before
+  it will sound again, and it reminds every 30 seconds while you stay over.
+
+The sentence under the switch says where the limits come from, because the
+app is not the authority here and should not sound like one: *those limits
+come from OpenStreetMap — they are missing on many roads and can be out of
+date, so the sign beside the road is the one that counts.*
 
 ### Popups
 
