@@ -860,8 +860,44 @@ The two were once told apart by their face, and are now told apart by size
 and tracking — a status is the quieter, because it is the app talking about
 itself rather than to you. The test has not changed: if the line would read
 the same tomorrow it is a note; if the app is telling you a value, it is a
-status. A note that has gone wrong — the location warning on an insecure
-origin — takes Alert Red Lit and stays a note.
+status. A note that has gone wrong takes Alert Red Lit and stays a note.
+
+### Verdicts
+
+**A verdict** (`.gps-state`) answers the one question a section exists to
+answer, before any of its numbers: is this working, and if it is not, what do
+I do about it. One block at the top of the section, built like a heading
+rather than a row — the heading colour, a 3px rule down the left in the
+state's own colour, the answer in the interface face at label size and
+uppercase, and under it one sentence at note size.
+
+Three states, in the diagnostic colours the rows below already use: **Signal
+Green** working, **Caution Gold** working poorly, **Alert Red Lit** not
+working. Every unhappy verdict carries an instruction. A diagnosis a driver
+at a track junction cannot act on is not worth the line, and the state this
+app most often has to report — the browser has blocked location — is a
+setting two taps away that nobody finds by being told "denied".
+
+The pattern earns its place by what it replaced. GPS & Location was nineteen
+key-and-value rows in 9.5px grey, in the order the checks run rather than the
+order they matter: "Page scheme https:", "Secure context yes", "API present
+yes", and only then "Permission denied" — with no instruction anywhere, and
+"Arrow follows nothing yet" and "Compass raw 142 deg, screen 90 deg" below.
+It is a developer's console, and it was the first thing a stranger saw when
+their map would not follow them.
+
+Now: the verdict, then five or six rows worth reading at a stop — where you
+are, how close that is, how high, how old, the compass, whether the screen
+will stay on — then **Technical Details**, shut, holding every row that was
+there before. None deleted. Each was added to catch a real fault on a real
+phone: the secure-context rows caught the app being opened from the Android
+downloads list, and the two compass numbers are what tell a screen-rotation
+error from a sign error when the arrow points the wrong way. A fault is
+exactly when somebody goes looking for them.
+
+The rule generalises. **Where a section holds both an answer and its
+workings, the answer goes on top in plain words and the workings fold away.**
+A value a stranger cannot act on is a diagnostic, however true it is.
 
 ### Inputs
 
