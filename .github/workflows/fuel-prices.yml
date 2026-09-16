@@ -12,7 +12,8 @@ name: Fuel prices
 # the overnight moves and before anybody sets out. It is 3:40am in Perth,
 # which for FuelWatch is the right side of the line: WA sets one price per
 # site per day and publishes it the afternoon before, so the whole day's
-# prices are already sitting there waiting.
+# prices are already sitting there waiting. Victoria publishes a day behind
+# whatever the hour, so no time of day suits it better than another.
 
 on:
   schedule:
@@ -48,6 +49,10 @@ jobs:
           # Queensland, the same platform South Australia runs on with its own
           # subscriber token. Skipped until the secret exists.
           QLD_FUEL_TOKEN: ${{ secrets.QLD_FUEL_TOKEN }}
+          # Victoria's Servo Saver open data API. One consumer id, issued by
+          # Service Victoria on application, sent as the x-consumer-id header.
+          # Skipped until the secret exists.
+          VIC_FUEL_CONSUMER_ID: ${{ secrets.VIC_FUEL_CONSUMER_ID }}
         run: node tools/build-fuel.mjs
 
       # Nothing is committed on a day the prices did not move, so the
