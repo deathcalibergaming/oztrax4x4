@@ -79,6 +79,51 @@ const FUEL_NAMES = {
   19: "e85"
 };
 
+/* A price that has not moved in a year is not a price any more.
+
+   Most of the time a price standing still means nobody has changed it, which
+   is why the card says SET and then the age rather than implying rot: a
+   roadhouse holding one figure for four months is ordinary, and on
+   2026-09-16 the oldest in South Australia, New South Wales and Tasmania
+   were 142, 140 and 149 days. Queensland's first run had three that were not
+   that - United Cardwell at 371 days, the Post Office Roadhouse at Mount
+   Surprise at 1,794, and Foxtrap on the Diamantina Development Road still
+   carrying Premium 95 at 140.0 set in April 2020. That is 2,337 days and
+   about a dollar a litre under what it would cost now, which is not a price
+   a driver should be planning a leg of the Diamantina around.
+
+   A year is the line because nothing sits near it. Across all five states
+   there was not one price between 150 and 370 days old, so the cutoff has
+   over two hundred days of clearance either side and does not have to be
+   argued about.
+
+   Not applied to Western Australia, which has no per-price timestamp - its
+   prices are the price for a named day and are judged by that day. Not
+   applied to Victoria either: its terms say the data must not be modified
+   before presenting it, and nothing it publishes is over about 30 hours old
+   in any case. */
+const STALE_DAYS = 365;
+const STALE_MS = STALE_DAYS * 86400000;
+
+/* A stamp that cannot be read, or is not there, is not stale - only one that
+   is there and is old. */
+function tooOld(iso, now) {
+  if (!iso) return false;
+  const t = Date.parse(/Z$/.test(iso) ? iso : iso + "Z");
+  return isFinite(t) && (now - t) > STALE_MS;
+}
+
+/* A few is roadhouses nobody has been back to. A twentieth of a state is the
+   timestamp format or the clock having changed, and dropping that many
+   prices quietly is the worse failure by far - so it fails the build
+   instead, the way an empty source does. */
+function staleGuard(name, stale, rows) {
+  if (stale > 20 && stale * 20 > rows) {
+    throw new Error(`${name}: ${stale} of ${rows} prices read as over ${STALE_DAYS} days old - ` +
+      "that is the timestamps having changed, not roadhouses standing still");
+  }
+}
+
 /* Retried, because this runs unattended once a day against somebody else's
    web server and a single blip should not cost a day of prices. */
 async function fetchText(url, tries = 3) {
@@ -255,11 +300,19 @@ async function fpdSource(cfg, token, fetchImpl = fetch) {
      shipped as a pin with an empty card under it. */
   const priced = new Map();      /* siteId -> {fuelId: price} */
   const seenAt = new Map();      /* siteId -> newest transaction time */
-  let typos = 0;
+  let typos = 0, stale = 0, rows = 0;
+  const now = Date.now();
   for (const p of asList(sitePrices)) {
     if (p.SiteId == null || p.FuelId == null) continue;
     const price = Number(p.Price);
     if (!isFinite(price) || price === SA_UNAVAILABLE || price <= 0) continue;
+    rows++;
+    if (tooOld(p.TransactionDateUtc, now)) {
+      stale++;
+      console.log(`${cfg.name}: dropping site ${p.SiteId} fuel ${p.FuelId} at ` +
+        `${(price / 10).toFixed(1)} c/L - set ${p.TransactionDateUtc}, over ${STALE_DAYS} days ago`);
+      continue;
+    }
     /* counted and named in the log rather than dropped in silence, so a day
        the scheme changes its units is a day this says so instead of quietly
        publishing nothing */
@@ -279,6 +332,7 @@ async function fpdSource(cfg, token, fetchImpl = fetch) {
     throw new Error(`${cfg.name}: ${typos} prices under ${FPD_FLOOR / 10} c/L - ` +
       "that is not a scattering of typing errors, it is the units having changed");
   }
+  staleGuard(cfg.name, stale, rows);
 
   const sites = [];
   for (const s of asList(siteDetails)) {
@@ -602,6 +656,8 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
   }
 
   const all = [];
+  let nswStale = 0, nswRows = 0;
+  const nswNow = Date.now();
   for (const batch of batches) {
     const byCode = new Map();
     for (const st of batch.stations) {
@@ -632,13 +688,26 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
       const id = NSW_FUEL[String(pr.fueltype || "").toUpperCase()];
       const c = Number(pr.price);
       if (!site || !id || !isFinite(c) || c < NSW_FLOOR_CENTS) continue;
+      const t = stampToIso(pr.lastupdated);
+      nswRows++;
+      /* the same year as the Informed Sources schemes. Nothing in New South
+         Wales or Tasmania was near it on the day this was written - 140 and
+         149 days at the oldest - but a roadhouse that stops reporting should
+         not behave differently on one side of a border. */
+      if (tooOld(t, nswNow)) {
+        nswStale++;
+        console.log(`FuelCheck: dropping station ${pr.stationcode} ${pr.fueltype} at ` +
+          `${c} c/L - set ${t}, over ${STALE_DAYS} days ago`);
+        continue;
+      }
       /* cents a litre in the feed, tenths of a cent in the file */
       site.p[id] = Math.round(c * 10);
-      const t = stampToIso(pr.lastupdated);
       if (t > site.t) site.t = t;
     }
     for (const s of byCode.values()) all.push(s);
   }
+
+  staleGuard("FuelCheck", nswStale, nswRows);
 
   const sites = all.filter((s) => Object.keys(s.p).length);
   const nsw = sites.filter((s) => s.s === "NSW").length;
