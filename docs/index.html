@@ -4666,12 +4666,33 @@ function layoutHud() {
   sign.style.left = ""; sign.style.top = "";
   const cells = [1, 2, 3, 4, 5].map(function (i) { return sb.querySelector(".stat:nth-child(" + i + ")"); });
   const upright = HUD_ROWS.matches;
-  if (!upright || fitBand(sb, cells, sign)) {
+  /* fitBand settles --spd, so this has to run first: the box below is
+     measured at whatever size the figures ended up. */
+  const banded = !upright || fitBand(sb, cells, sign);
+
+  /* The digits' box, three figures wide, so the label and the unit beside
+     them hold their place from 9 to 999. Measured rather than written as 3ch
+     because ch is the advance of a zero and these figures are tracked
+     -0.05em.
+
+     It is set here, before anything measures past it, and that order is the
+     whole of it. On a phone on its side the roundel stands 12px off the
+     speed cell's right edge; set the box afterwards and the cell grows a
+     digit under a roundel already placed, which put the roundel on top of
+     the km/h - 19px over it, laid out at a two-figure speed on an 812px
+     screen. The relayout on every digit change used to hide that, and this
+     replaced it. */
+  const spdBox = $("#stSpeed"), spdText = spdBox.textContent;
+  spdBox.textContent = "888";
+  spdBox.style.minWidth = Math.ceil(spdBox.getBoundingClientRect().width) + "px";
+  spdBox.textContent = spdText;
+
+  if (banded) {
     /* The readouts are measured at their widest so a growing one never runs
-       under the tape. The speed is measured as it stands - this runs again
-       when it gains or loses a digit - and the limit roundel follows it,
-       12px off its unit and centred on the digits, so neither leaves a gap
-       beside the other. Upright, the roundel stands on the middle of the
+       under the tape. The speed is measured at its fixed three-figure box -
+       it no longer changes width with the reading - and the limit roundel
+       follows it, 12px off its unit and centred on the digits, so neither
+       leaves a gap beside the other. Upright, the roundel stands on the middle of the
        bar instead, under the heading window and the lubber line, between the
        speed and the readouts; fitBand leaves it the room. The tape's mask
        starts past the roundel whether or not a limit is showing, since the
@@ -4742,16 +4763,6 @@ function layoutHud() {
       tape.style.webkitMaskImage = m; tape.style.maskImage = m;
     }
   }
-  /* The digits' box, three figures wide, so the label and the unit beside
-     them hold their place from 9 to 999. Measured rather than written as 3ch
-     because ch is the advance of a zero and these figures are tracked
-     -0.05em, which no unit knows about. */
-  const spd = $("#stSpeed"), spdNow = spd.textContent;
-  spd.textContent = "888";
-  const spdW = Math.ceil(spd.getBoundingClientRect().width);
-  spd.textContent = spdNow;
-  spd.style.minWidth = spdW + "px";
-
   const bottom = Math.max(sb.getBoundingClientRect().bottom, cells[1].getBoundingClientRect().bottom);
   const root = document.documentElement.style;
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
