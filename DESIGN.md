@@ -1089,6 +1089,37 @@ answer, never takes them away. Where only a small box could be loaded - a
 dense town, a slow connection - more is fetched before the vehicle reaches
 its edge.
 
+**The over-speed chime.** A roundel in the corner of the display is no use to
+somebody whose eyes are on the road, so the same limit can be heard as well
+as seen — two rising notes a fourth apart, F sharp then B, triangle rather
+than square so it carries over an engine without sounding like an alarm
+clock. Synthesised from an oscillator, because this app is one HTML document
+and an audio file in it is either base64 in the page or a second request to
+cache offline forever.
+
+Off until it is switched on, in Settings. An app that starts making noises in
+a moving vehicle without being asked is worse than one that stays quiet.
+
+Three rules keep it a driving aid rather than a gimmick, and they are the
+same three that keep the roundel honest:
+
+- **It only speaks when the sign is showing.** It is handed the limit by the
+  same call that draws the roundel, so the sound and the sign can never be
+  about different roads — and a hidden sign is what clears it.
+- **It uses the speed the satellites report**, a Doppler figure rather than a
+  distance over a time, so a jumping fix cannot set it off. A phone that
+  reports no speed at all can never trigger it, and the line under the switch
+  says so rather than leaving somebody trusting a chime that is not coming.
+- **Three km/h of margin up, none down.** The band between the limit and the
+  limit plus three is silent in both directions, so a cruise sitting on the
+  limit cannot chatter; you have to come back under the limit proper before
+  it will sound again, and it reminds every 30 seconds while you stay over.
+
+The sentence under the switch says where the limits come from, because the
+app is not the authority here and should not sound like one: *those limits
+come from OpenStreetMap — they are missing on many roads and can be out of
+date, so the sign beside the road is the one that counts.*
+
 ### Popups
 
 Panel fill, hairline-strong border, 6px radius, popup shadow. An uppercase
