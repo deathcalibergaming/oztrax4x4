@@ -3941,6 +3941,12 @@ const CFG = {
 
      The old ceiling was 260,000, set when the backbone was one state's
      69,000 - a number the spine alone is more than twice. */
+  /* How much of the national spine is folded into the graph, in kilometres
+     around wherever it is centred, and how much more than was asked for -
+     so that driving does not re-fold it every kilometre. See ensureSpine:
+     all of it is 105 MB of heap, and Adelaide's sixty kilometres is five. */
+  SPINE_KM: 60,
+  SPINE_EDGE: 40,
   ROUTE_MEM_MAX: 800000,
   /* Standing further than this from any road the app holds, there is
      nothing honest to route from. */
@@ -11575,6 +11581,10 @@ const Route = {
   binHead: new Map(),      /* x * 8192 + y -> arena index, or absent */
   binEdge: null, binNext: null, binN: 0,
   fixed: 0,                /* edges belonging to the spine, never dropped */
+  /* Which part of the spine is in the graph: where it is centred and how
+     far out it reaches, in metres. spineFull is the whole country, which is
+     what a long enough trip asks for and what this used to do always. */
+  spineAt: null, spineKm: 0, spineFull: false,
   /* The fastest speed anything in the loaded graph is priced at, km/h, and
      the divisor hope uses. See hope for why it is measured rather than
      assumed. */
@@ -11702,10 +11712,51 @@ const Route = {
 
      Held under one promise: the startup fetch and a route asked for while
      it is still in flight are the same download, not two. */
-  ensureSpine: function () {
-    if (this.packs.has("sp")) return Promise.resolve(true);
-    if (this.bbBusy) return this.bbBusy;
+  /* Is the spine already folded far enough out to cover a circle of m
+     metres around at? */
+  spineHas: function (at, m) {
+    if (this.spineFull) return true;
+    return this.packs.has("sp") && !!this.spineAt &&
+           haversine(this.spineAt, at) + m <= this.spineKm;
+  },
+
+  /* The spine, within km of at.
+
+     It used to be all of it, always, from the first time the vehicle moved.
+     That is 577,630 edges and 105 MB of heap held for the life of the
+     session - on a phone driving two kilometres to the shops, with map
+     tiles and POIs and the address pack alongside it, and it is what put
+     Chrome's renderer over the edge: Aw Snap, the phone crawling, and
+     Android reclaiming memory from everything else on it.
+
+     Counted off the stored spine, around Adelaide:
+
+        25 km    22,750 edges     4 MB
+        50 km    28,495           5 MB
+       200 km    38,492           7 MB
+       400 km    52,737          10 MB
+       all of it 577,630        105 MB
+
+     So the window is nearly free and the country is not. Sixty kilometres
+     is kept around the vehicle as it drives, and a route asks for whatever
+     its own trip needs; a long enough one still asks for the lot, which is
+     the old behaviour and the right answer for a trip that crosses the
+     country. The download is untouched - the whole spine is still fetched
+     and stored on the first movement, while there is still signal. What
+     changed is only how much of it is parsed into the graph at once.
+
+     Widening or moving the window re-folds from the start, because fixed is
+     a count of the edges that came before the mark and the spine has to be
+     the edges before it. A re-fold is the sliced loop again, eight
+     milliseconds at a time, so the page keeps moving through it. */
+  ensureSpine: async function (at, km) {
+    const want = Math.round((km == null ? CFG.SPINE_KM : km) * 1000);
+    if (this.bbBusy) { try { await this.bbBusy; } catch (e) { /* its own problem */ } }
+    if (at && this.spineHas(at, want)) return true;
+    if (!at) return this.packs.has("sp");
     const self = this;
+    const mid = { lat: at.lat, lng: at.lng };
+    const reach = want + CFG.SPINE_EDGE * 1000;
     this.bbBusy = (async function () {
       let pk = null, held = null;
       try { held = await DB.get("route", "spine"); } catch (e) { /* fall through */ }
@@ -11739,7 +11790,15 @@ const Route = {
           }
         }
       }
-      await self.addPackSliced(pk, "sp");
+      /* Everything folded so far came in after a spine that no longer
+         covers where the vehicle is, so it goes and comes back. Local tiles
+         are a read from storage; the spine is the expensive half and it is
+         being re-read either way. */
+      if (self.packs.has("sp")) self.dropGraph();
+      self.spineAt = mid;
+      self.spineKm = reach;
+      self.spineFull = reach >= 2e7;          /* twenty thousand km is the lot */
+      await self.addPackSliced(pk, "sp", self.spineFull ? null : { at: mid, m: reach });
       self.fixed = self.nE;
       /* A spine stored by an earlier build is an array of half a million
          arrays, and reading one back out of storage is a single 168 ms
@@ -11750,7 +11809,11 @@ const Route = {
       }
       return true;
     })();
-    return this.bbBusy;
+    /* Cleared when it settles, not left standing. It used to be set once and
+       kept, which answered every later call from the first fold - harmless
+       while there was only ever one, and wrong the moment the window has to
+       grow. */
+    try { return await this.bbBusy; } finally { this.bbBusy = null; }
   },
 
   /* On disk is a different question from in the graph, and an offline area
@@ -11878,6 +11941,10 @@ const Route = {
     this.nE = 0;
     this.vMax = 0;
     this.names.length = 0;
+    /* with it, or the next edge to want a name already in the table would
+       be given an index into an array that no longer holds one */
+    this.nameAt.clear();
+    this.spineAt = null; this.spineKm = 0; this.spineFull = false;
     this.geoN = 0;
     this.fixed = 0;
     this.adjHead.clear();
@@ -11904,7 +11971,7 @@ const Route = {
          the mark - so a tile that slipped in ahead of it would be pinned
          there for the session and re-added as a duplicate after every
          eviction. */
-      await this.ensureSpine();
+      await this.ensureSpine(a, CFG.SPINE_KM);
       await inParallel(this.regionAround(a.lat, a.lng, CFG.ROUTE_REGION_RADIUS),
                        (t) => this.fetchRegion(t[0], t[1]));
       await inParallel(this.around(a.lat, a.lng, CFG.ROUTE_RADIUS),
@@ -12017,7 +12084,7 @@ const Route = {
      Marked as held only once the last row is in: ensureSpine answers from
      packs, and a route asked for halfway through has to wait for the whole
      network rather than be told it is there. */
-  addPackSliced: async function (pk, id) {
+  addPackSliced: async function (pk, id, near) {
     const rows = packRows(pk);
     if (this.packs.has(id) || !rows) return;
     if (this.nE > CFG.ROUTE_MEM_MAX) this.dropLocal();
@@ -12026,7 +12093,7 @@ const Route = {
       const until = performance.now() + 8;
       do {
         const next = Math.min(rows, r + 2048);
-        this.addRows(pk, r, next);
+        this.addRows(pk, r, next, near);
         r = next;
       } while (r < rows && performance.now() < until);
       if (r < rows) await yieldToPage();
@@ -12039,13 +12106,27 @@ const Route = {
      every tile keeps, or the spine's flat form (see packSpine), where one
      row is a view onto a single Int32Array. A view indexes exactly like
      the array it replaces, so the loop below reads either. */
-  addRows: function (pk, from, to) {
+  addRows: function (pk, from, to, near) {
     const oLat = pk.o[0], oLng = pk.o[1];
     const flat = pk.x ? pk.f : null, at = pk.x;
+    /* near is the spine's window, and nothing else passes one. A box rather
+       than a circle and measured off the row's first point, both because
+       this runs over half a million rows and because neither costs anything
+       but a little more spine than was asked for - which is what the margin
+       in ensureSpine is for anyway. Ways are cut at tile boundaries by the
+       builder, so no edge reaches far past its first point. */
+    let dLat = 0, dLng = 0, nLa = 0, nLng = 0;
+    if (near) {
+      dLat = near.m / 111320 * 1e5;
+      dLng = near.m / (111320 * Math.cos(rad(near.at.lat))) * 1e5;
+      nLa = near.at.lat * 1e5; nLng = near.at.lng * 1e5;
+    }
     for (let r = from; r < to; r++) {
       const row = flat ? flat.subarray(at[r], at[r + 1]) : pk.e[r];
       const n = (row.length - 4) >> 1;
       if (n < 2) continue;
+      if (near && (Math.abs(oLat + row[4] - nLa) > dLat ||
+                   Math.abs(oLng + row[5] - nLng) > dLng)) continue;
       const cls = ROAD_CLASSES[row[0]] || "unclassified";
       const off = this.geoN;
       this.room(n * 2);
@@ -12167,9 +12248,15 @@ const Route = {
     this.binN = 0;
     if (this.adjNext) this.adjNext.fill(-1);
     this.tried.clear();
-    const keep = this.packs.has("bb");
+    /* The spine's rows are the ones being kept, so its id has to be kept
+       with them. It said "bb" here, which is what the backbone was called
+       before the spine replaced it, so the id of the pack that survives was
+       the one thing this dropped - and only the latch in ensureSpine stopped
+       the next route folding a second copy of the country on top of the
+       first. */
+    const keep = this.packs.has("sp");
     this.packs.clear();
-    if (keep) this.packs.add("bb");
+    if (keep) this.packs.add("sp");
     for (let i = 0; i < this.nE; i++) this.link(i);
   },
 
@@ -12286,7 +12373,11 @@ const Route = {
      beating the track under the wheels to save two minutes. Nearest that
      works, then. Not cheapest counting a leg nobody can drive. */
   find: async function (from, to, quick) {
-    const ok = await this.ensureSpine();
+    /* The window has to hold both ends with room for the route to bow out
+       between them, so it is centred on the middle of the trip and reaches
+       half its length plus the usual sixty kilometres. */
+    const mid = { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 };
+    const ok = await this.ensureSpine(mid, haversine(from, to) / 2000 + CFG.SPINE_KM);
     if (!ok) return null;
     /* A recalculation is asked for at the moment a driver has gone the
        wrong way, and the answer is wanted then rather than soon. The graph
@@ -12306,6 +12397,16 @@ const Route = {
       const got = this.tryFind(from, to);
       if (got) return got;
     }
+    await this.reach(from, to);
+    const got = this.tryFind(from, to);
+    if (got) return got;
+
+    /* Nothing in the window reaches. Fold the country and ask once more, so
+       that a windowed spine can never answer worse than the whole one did -
+       whatever the window costs, it is never a trip that used to work and
+       now does not. */
+    if (this.spineFull) return null;
+    if (!await this.ensureSpine(mid, 1e5)) return null;
     await this.reach(from, to);
     return this.tryFind(from, to);
   },
