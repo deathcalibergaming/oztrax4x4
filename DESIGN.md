@@ -1657,6 +1657,21 @@ it acknowledges, explains or reports, and nothing after it entertains. The
 test is not how loud the motion is but when it runs — if a driver could be
 moving while it plays, it is not allowed to be a performance.
 
+**The Idle Frame Rule.** The loop that moves the vehicle runs on every frame
+the screen offers, which on a modern phone is 90 or 120 a second rather than
+60, and it writes only what would read differently. A vehicle standing still
+produces the same transform, the same marker position and the same six
+readouts on every one of those frames, and putting back a value that is
+already there is not free: it is a style invalidation the compositor has to
+answer, and on the root element it is one that every rule reading it has to
+answer too. Measured parked, the loop was doing the full write on all 900
+frames of five seconds and the readouts were replacing 348 text nodes in the
+same five seconds without one figure changing; driving, 31 figures changed
+out of 450 written. Everything is still computed every frame, because the map
+can move underneath the vehicle and the transform has to answer that — it is
+only the writing that is guarded. The case this is for is a phone in a cradle
+with the screen on all day.
+
 **The Unwitnessed First Frame Rule.** An animation whose first frame the
 viewer is not guaranteed to see cannot be the thing that explains a change.
 Anything running while the app is still being revealed — the splash under a
