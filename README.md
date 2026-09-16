@@ -2,7 +2,8 @@
 
 Offline 4x4 trail tracking for remote Australian touring: GPS trail logging
 with GPX export, named waypoints, offline map tiles, OpenStreetMap POIs with
-free-camp detection, and turn-free navigation to a destination.
+free-camp detection, and offline navigation with on-screen turn
+instructions.
 
 The whole application is one self-contained HTML file. It can be opened
 straight off a phone with no server at all, but see the warning below about
@@ -100,4 +101,6 @@ land on the very next launch.
   monthly by `tools/build-routing.mjs`
 * Routing — worked out on the phone from those packs across the whole country,
   with OSRM behind it for anywhere the packs do not reach and a plain bearing
-  behind that
+  behind that. Turn instructions are read off the route's own geometry and the
+  road names the packs already carry, so they need no extra download and work
+  offline; nothing is spoken yet

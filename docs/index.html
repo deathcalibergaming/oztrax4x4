@@ -1374,7 +1374,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* The speed limit lives in the heads-up display, beside the speed it
    governs - see the display. */
 
-#mapChips{position:absolute;left:8px;top:calc(var(--hudStage) + 10px);z-index:450;display:flex;flex-direction:column;
+/* --turnDrop is the turn bar's measured height, or zero when it is not
+   shown - so the chips sit under it rather than behind it. */
+#mapChips{position:absolute;left:8px;top:calc(var(--hudStage) + 10px + var(--turnDrop, 0px));z-index:450;display:flex;flex-direction:column;
   align-items:flex-start;gap:6px;width:calc(100% - 62px);pointer-events:none}
 #mapChips > *{pointer-events:auto;max-width:100%}
 /* Rust lived on the base rule, which meant a chip wore the accent by
@@ -1786,6 +1788,71 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .rp-state{font-size:var(--t-meta);letter-spacing:.14em;color:var(--danger2)}
 .rp-state.pause{color:var(--warn)}
 .rp-btns{display:flex;gap:6px}
+
+/* ---------- the turn bar ---------- */
+/* The next manoeuvre, across the top of the map.
+
+   It gets the top rather than a corner because it is the one thing on this
+   screen that is read at speed and acted on straight away, and because it
+   is where the eye already goes - every vehicle with a display of its own
+   puts the same instruction in the same place. Everything else here is a
+   reading; this is an instruction, and the layout says so.
+
+   Navigation blue, the colour of the line it is describing and of the panel
+   at the other end of the screen, so the three read as one thing running
+   rather than three separate announcements.
+
+   Right edge short of the zoom column, the same clearance the chips keep,
+   so a wide bar never sits under a control. Nothing in it is tappable -
+   pointer-events off, so a pinch that lands on it still reaches the map. */
+#turnBar{position:absolute;left:8px;right:var(--turnR, 54px);top:calc(var(--hudStage) + 8px);
+  z-index:460;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+  background:var(--head);border:1px solid rgba(127,193,240,.55);border-radius:10px;
+  padding:7px 10px;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none}
+/* The glyph is the half of this read first and from furthest away, so it
+   gets a tile of its own rather than sitting loose against the type. */
+.tb-ico{width:34px;height:34px;border-radius:8px;background:rgba(79,168,232,.14);
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.tb-ico svg{width:24px;height:24px}
+#turnBar svg{stroke:var(--nav2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tb-txt{min-width:0}
+.tb-line{display:flex;align-items:baseline;gap:8px;min-width:0;
+  min-height:calc(var(--t-read) * 1.05)}
+/* The third gauge in the app, and the third monospaced thing. Same reason as
+   the stat bar and the nav panel: it counts down while you drive at it. */
+.tb-line b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--hud);
+  line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tb-line span{font-size:var(--t-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--nav2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Kept at its own height even when the road has no name, which out here is
+   most tracks - so the bar does not change size at a junction and take the
+   chips under it with it. */
+.tb-road{font-size:var(--t-note);color:var(--sand);line-height:1.3;min-height:calc(var(--t-note) * 1.3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A second turn inside 250m is the one that catches people out - you take
+   the first and are already past the second. Dim, and a glyph rather than
+   words: it is a warning that something follows, not an instruction yet. */
+.tb-then{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.tb-then span{font-size:var(--t-micro-tight);letter-spacing:.12em;color:var(--dim)}
+.tb-then svg{width:20px;height:20px;stroke:var(--dim)}
+/* Off the route. Amber, the colour this app uses for a state that is not
+   wrong but is not settled either - and not blue, because a blue bar reads
+   as an instruction and there is nothing to follow until a new line lands. */
+#turnBar.recalc{border-color:rgba(232,185,35,.5)}
+#turnBar.recalc svg{stroke:var(--warn)}
+#turnBar.recalc .tb-ico{background:rgba(232,185,35,.12)}
+#turnBar.recalc .tb-line span{color:var(--warn)}
+@media (orientation: landscape) and (max-height: 520px) {
+  /* A phone on its side has the least height to give and the most width to
+     spare, so the road comes up beside the turn instead of under it and the
+     bar is one row. The map keeps the difference. */
+  #turnBar{padding:5px 8px;gap:8px}
+  .tb-ico{width:28px;height:28px;border-radius:7px}
+  .tb-ico svg{width:20px;height:20px}
+  .tb-txt{display:flex;align-items:baseline;gap:9px}
+  .tb-line{flex:0 0 auto}
+  .tb-road{flex:1 1 auto;min-width:0;min-height:0}
+}
 
 /* ---------- buttons ---------- */
 /* The face is stated, not inherited. `button{font-family:inherit}` up at the
@@ -3176,6 +3243,22 @@ input[type=date],input[type=time]{color-scheme:dark}
         <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>
       </button>
     </div>
+    <!-- The next manoeuvre, across the top of the map. It is drawn only
+         while navigating, and it says nothing it did not read off the line
+         it is describing. -->
+    <div id="turnBar" class="hidden" role="group" aria-label="Next turn">
+      <div class="tb-ico">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="turnP1" d=""/><path id="turnP2" d=""/></svg>
+      </div>
+      <div class="tb-txt">
+        <div class="tb-line"><b id="turnDist"></b><span id="turnAct"></span></div>
+        <div class="tb-road" id="turnRoad"></div>
+      </div>
+      <div class="tb-then hidden" id="turnThen">
+        <span>THEN</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="turnT1" d=""/><path id="turnT2" d=""/></svg>
+      </div>
+    </div>
     <div id="mapChips">
       <button id="poiFilterChip" class="mapchip hidden">
         <span id="poiFilterText">FILTER</span>
@@ -3902,6 +3985,13 @@ const CFG = {
   NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
   NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
   NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
+  /* How far either side of a junction the line is read to find the angle of
+     it. See navBearAt: one segment cannot tell a corner from a curve. */
+  NAV_TURN_WIN: 20,
+  NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
+  NAV_TURN_LINK: 90,       /* an unnamed leg this short belongs to the corner before it */
+  NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
+  NAV_TURN_THEN: 250,      /* and a second turn this close is worth warning of */
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
@@ -4947,6 +5037,7 @@ function layoutDial() {
   document.documentElement.classList.toggle("zoom-tuck", tuck);
   zc.style.top = Math.round(hud + Math.max(rows < nz ? 0 : 6, (clear - span(rows)) / 2)) + "px";
   zc.style.transform = "none";
+  navTurnFit();              /* the turn bar's right edge stands off this column */
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
   fitPanels();               /* the room beside Navigate may have changed with it */
   if (!Dial.open) bar.classList.add("shut");
@@ -11387,10 +11478,9 @@ const Route = {
        eCost  Float64  seconds, already weighted for surface and ferries
        eA/eB  Float64  the node keys at each end - 7.2e14, so not an Int32
 
-     cls and name are carried but not read by anything yet. They are what a
-     turn instruction would be written from, they cost two bytes and an
-     array slot, and dropping them would be deciding against that feature
-     rather than making this one cheaper. */
+     cls is carried and not read by anything yet. name is what the turn
+     instructions are written from - see navBuildTurns - which is what these
+     two columns were kept for. */
   eCap: 0,                 /* how many edges the columns have room for */
   nE: 0,                   /* how many they hold */
   eCls: null, eF: null, eName: null, eOff: null, eNp: null,
@@ -12155,6 +12245,7 @@ const Route = {
         if (held && held.cost + held.gap <= stub.cost + gap) continue;
         stub.gap = gap;
         stub.d = c.d;
+        stub.i = c.i;                 /* the road this last stretch is on */
         finish.set(node, stub);
       }
     }
@@ -12165,8 +12256,8 @@ const Route = {
     const seeds = [];
     for (const c of near) {
       const gap = this.gapCost(c.d);
-      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, stub: this.part(c.i, c.u, 0) });
-      seeds.push({ node: this.eB[c.i], d: c.d, gap: gap,
+      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, i: c.i, stub: this.part(c.i, c.u, 0) });
+      seeds.push({ node: this.eB[c.i], d: c.d, gap: gap, i: c.i,
                    stub: this.part(c.i, c.u, this.eNp[c.i] - 1) });
     }
 
@@ -12174,7 +12265,7 @@ const Route = {
     if (a.i === b.i) {
       const one = this.part(a.i, a.u, b.u);
       return this.route([[from.lat, from.lng]].concat(one.pts, [[to.lat, to.lng]]),
-                        one.m, one.cost, a.d, b.d);
+                        one.m, one.cost, a.d, b.d, [{ at: 0, i: a.i }]);
     }
 
     const goal = { lat: to.lat, lng: to.lng };
@@ -12228,11 +12319,18 @@ const Route = {
     if (!seed) return null;
     const startStub = seed.stub;
     const pts = [[from.lat, from.lng]].concat(startStub.pts);
+    /* Where each edge's stretch of the line starts, and which edge it was.
+       The line itself is the same line it has always been; this is the
+       chain the search already walked, written down on the way past
+       instead of thrown away, and it is what says "onto Main North Road"
+       rather than "in 400 metres, something". */
+    const marks = [{ at: 0, i: seed.i }];
     let m = startStub.m;
     for (const [, s] of chain) {
       const i = s >> 1;
       const off = this.eOff[i], n = this.eNp[i];
       const back = !!(s & 1);
+      marks.push({ at: pts.length, i: i });
       for (let p = 0; p < n; p++) {
         const q = back ? n - 1 - p : p;
         pts.push([this.geo[off + q * 2] / 1e5, this.geo[off + q * 2 + 1] / 1e5]);
@@ -12240,6 +12338,7 @@ const Route = {
       m += this.eM[i];
     }
     const endStub = finish.get(end);
+    marks.push({ at: pts.length, i: endStub.i });
     for (let p = endStub.pts.length - 1; p >= 0; p--) pts.push(endStub.pts[p]);
     pts.push([to.lat, to.lng]);
     m += endStub.m;
@@ -12253,7 +12352,7 @@ const Route = {
        Reported against the roads actually used, not the ones that happened
        to be nearest, which is the whole point of there being a choice. */
     return this.route(pts, m, g.get(end) - seed.gap + endStub.cost,
-                      seed.d, endStub.d);
+                      seed.d, endStub.d, marks);
   },
 
   /* Time to the destination if the rest of the trip were a straight line at
@@ -12287,19 +12386,48 @@ const Route = {
            / ((this.vMax || 100) / 3.6);
   },
 
-  route: function (pts, m, secs, snapA, snapB) {
+  route: function (pts, m, secs, snapA, snapB, marks) {
     /* Consecutive edges share the junction they meet at, so the join shows
        up as the same coordinate twice. Harmless to draw and untidy to
-       measure against, so it goes. */
+       measure against, so it goes.
+
+       Dropping a point moves every index after it, and the marks are
+       indices, so each one is carried across to where its point ended up.
+       A dropped mark lands on the point that survived it - which is the
+       junction itself, since what gets dropped here is the second copy of
+       one. */
     const coords = [];
-    for (const p of pts) {
+    const map = marks ? new Int32Array(pts.length) : null;
+    for (let k = 0; k < pts.length; k++) {
+      const p = pts[k];
       const last = coords[coords.length - 1];
-      if (last && Math.abs(last[0] - p[0]) < 1e-7 && Math.abs(last[1] - p[1]) < 1e-7) continue;
+      if (last && Math.abs(last[0] - p[0]) < 1e-7 && Math.abs(last[1] - p[1]) < 1e-7) {
+        if (map) map[k] = coords.length - 1;
+        continue;
+      }
+      if (map) map[k] = coords.length;
       coords.push(p);
     }
+    const self = this;
     return {
       coords: coords, distance: m, duration: secs,
-      local: true, snap: Math.max(snapA, snapB)
+      local: true, snap: Math.max(snapA, snapB),
+      /* The first point of a local route is where the vehicle is standing
+         and the last is the destination, and neither is on a road: the hop
+         between one of those and the road is a connector, not a stretch of
+         driving. It is drawn, because leaving it out would draw a line that
+         starts somewhere the driver is not - but a bearing measured through
+         it is the bearing of walking to the car, which is how a junction
+         seven metres from the start came to be called a right turn. */
+      head: map ? map[1] : 0,
+      tail: map ? map[pts.length - 2] : coords.length - 1,
+      legs: marks ? marks.map(function (k) {
+        return {
+          at: map[k.at],
+          name: self.eName[k.i] >= 0 ? self.names[self.eName[k.i]] : "",
+          cls: ROAD_CLASSES[self.eCls[k.i]] || ""
+        };
+      }) : null
     };
   },
 
@@ -14043,14 +14171,18 @@ const SIM_ROUTE = [
    Navigation. The line follows real roads and tracks, worked out on the
    phone from the packs in Route above, with the public OSRM router behind
    it for anywhere the packs do not reach and a plain bearing behind that.
-   A follow-the-line aid with distance and time remaining, not turn-by-turn
-   guidance.
+   Distance, time and arrival for the trip, and the next manoeuvre across
+   the top of the map - read off the line itself, so it works offline and
+   needed no pack rebuilt. Nothing is spoken yet.
    ===================================================================== */
 const Nav = {
   active: false,
   dest: null,            /* {lat,lng,name} */
   coords: [],            /* route geometry, [lat,lng] pairs */
   cum: [],               /* cumulative metres along the route */
+  legs: null,            /* [{at, name, cls}] - where each road's stretch starts */
+  head: 0, tail: 0,      /* the first and last point actually on a road */
+  turns: [],             /* [{at, m, ang, kind, name}] - read off legs, below */
   duration: 0,           /* seconds for the whole route, as routed */
   idx: 0,                /* cursor into coords, so progress is cheap */
   busy: false,
@@ -14070,11 +14202,25 @@ function navFrom() {
   return { lat: c.lat, lng: c.lng };
 }
 
+/* steps=true is where the road names come from out here, and the overview
+   drops from full to simplified in the same breath. The steps carry the
+   whole line between them, so asking for a full overview as well would be
+   the same geometry sent twice - and this is the router used exactly where
+   the packs do not reach, which is where the connection is worst. What the
+   simplified overview is still for is the case where a server answers
+   without steps at all: a coarse line to drive is worth having, and it
+   costs a few kilobytes rather than the hundreds a second full copy would.
+
+   The steps' own turn types are not read. OSRM knows more about a junction
+   than the geometry does - which lane, which exit - but the packs are the
+   router that answers nearly every trip, and two routers wording the same
+   corner two different ways is worse than both being plain. One reading,
+   in navBuildTurns, off the line either of them draws. */
 async function osrmRoute(from, to) {
   const url = CFG.OSRM + "/route/v1/driving/" +
     from.lng.toFixed(6) + "," + from.lat.toFixed(6) + ";" +
     to.lng.toFixed(6) + "," + to.lat.toFixed(6) +
-    "?overview=full&geometries=geojson&alternatives=false";
+    "?overview=simplified&geometries=geojson&alternatives=false&steps=true";
   const ctl = new AbortController();
   const bail = setTimeout(function () { ctl.abort(); }, CFG.NAV_TIMEOUT);
   try {
@@ -14082,11 +14228,36 @@ async function osrmRoute(from, to) {
     if (!resp.ok) throw new Error("http " + resp.status);
     const data = await resp.json();
     const r = data.routes && data.routes[0];
-    if (!r || !r.geometry || !r.geometry.coordinates.length) return null;
+    if (!r) return null;
+
+    /* Each step is one road, so a step beginning is a leg beginning - the
+       same shape the packs hand back. Steps share the junction they meet
+       at, and the last one is a standing start on the spot, so the same
+       "not twice in a row" the local router uses applies here too. */
+    const coords = [], legs = [];
+    const steps = (r.legs && r.legs[0] && r.legs[0].steps) || [];
+    for (const st of steps) {
+      const g = st.geometry && st.geometry.coordinates;
+      if (!g || !g.length) continue;
+      legs.push({ at: coords.length ? coords.length - 1 : 0, name: st.name || "", cls: "" });
+      for (const c of g) {
+        const p = [c[1], c[0]];                         /* lon,lat -> lat,lng */
+        const last = coords[coords.length - 1];
+        if (last && Math.abs(last[0] - p[0]) < 1e-7 && Math.abs(last[1] - p[1]) < 1e-7) continue;
+        coords.push(p);
+      }
+    }
+    if (coords.length > 1) {
+      return { coords: coords, distance: r.distance, duration: r.duration, legs: legs };
+    }
+    /* No steps came back. The simplified line is the whole of what we have,
+       and a route with no instructions beats no route. */
+    if (!r.geometry || r.geometry.coordinates.length < 2) return null;
     return {
-      coords: r.geometry.coordinates.map((c) => [c[1], c[0]]),   /* lon,lat -> lat,lng */
+      coords: r.geometry.coordinates.map((c) => [c[1], c[0]]),
       distance: r.distance,
-      duration: r.duration
+      duration: r.duration,
+      legs: null
     };
   } catch (e) {
     return null;
@@ -14102,6 +14273,340 @@ function navBuildCum() {
       { lat: Nav.coords[i - 1][0], lng: Nav.coords[i - 1][1] },
       { lat: Nav.coords[i][0], lng: Nav.coords[i][1] });
   }
+}
+
+/* ---------------------------------------------------------------------
+   The next manoeuvre.
+
+   Nothing is fetched for this and no pack was rebuilt for it. The line
+   already knew which road each stretch of it was on - the packs have
+   carried a name per edge since they were first cut, and the search walks
+   a chain of those edges to build the line - so the corners are read back
+   out of the route that was already worked out. That is why it works with
+   the phone in flight mode, and why it arrived without a download.
+   ------------------------------------------------------------------ */
+
+/* The bearing the route arrives on, or leaves on, at point i - measured
+   over a window of metres rather than from the neighbouring point.
+
+   The window is the whole of why a bend is not a turn. Corner to corner, a
+   highway drawn with a point every thirty metres turns a couple of degrees
+   at each one and a junction turns ninety at one - but a curve drawn tight
+   enough turns twenty at each of its corners too, and a single segment
+   cannot tell those apart. Read over twenty metres either side, the
+   junction still shows its whole angle and the curve shows only what it
+   has actually bent in twenty metres. */
+function navBearAt(i, dir) {
+  const c = Nav.coords, cum = Nav.cum;
+  const lo = Nav.head, hi = Nav.tail;
+  let j = i;
+  if (dir < 0) { while (j > lo && cum[i] - cum[j] < CFG.NAV_TURN_WIN) j--; }
+  else { while (j < hi && cum[j] - cum[i] < CFG.NAV_TURN_WIN) j++; }
+  if (j === i) return null;
+  const a = dir < 0 ? j : i, b = dir < 0 ? i : j;
+  return bearing({ lat: c[a][0], lng: c[a][1] }, { lat: c[b][0], lng: c[b][1] });
+}
+
+/* What a driver would call that angle - and nothing at all for the great
+   majority of junctions, which are the ones driven straight through.
+
+   The threshold depends on whether the name over the road changes, because
+   the same forty degrees means two different things. Where the name
+   carries on, forty degrees is the road going that way, and saying "turn
+   left" would be describing a bend as a decision. Where it changes, forty
+   degrees is the other road, and it is the one thing the driver has to do.
+   Fifty and twenty-five, measured against how tight a curve reads over the
+   window above: a hundred-metre radius bend - about as tight as a sealed
+   road is drawn - comes out at twenty-three. */
+function navTurnKind(ang, named) {
+  const a = Math.abs(ang);
+  if (a >= 160) return "uturn";
+  if (a < (named ? 25 : 50)) return null;
+  const side = ang < 0 ? "L" : "R";
+  if (a >= 125) return "sharp" + side;
+  if (a >= 45) return "turn" + side;
+  return "bear" + side;
+}
+
+/* Spelled out rather than lettered. The heading cell in the stat bar says
+   SW because it is a reading in a row of readings; this is the only line on
+   the screen that is a sentence told to a driver, and "Head south-west" is
+   the sentence. */
+const HEAD_WORD = ["north", "north-east", "east", "south-east",
+                   "south", "south-west", "west", "north-west"];
+
+const TURN_WORD = {
+  bearL: "Bear left", bearR: "Bear right",
+  turnL: "Turn left", turnR: "Turn right",
+  sharpL: "Sharp left", sharpR: "Sharp right",
+  uturn: "Turn around"
+};
+
+/* Line art at the weight everything else here is drawn at: the shaft the
+   road comes in on, and the head where it goes. Two paths each, because
+   several of them are a stroke plus a chevron, and one element that is
+   sometimes empty is simpler than a set that is sometimes absent. */
+const TURN_ART = {
+  bearL:  ["M14 21v-9L8 6",             "M8 11.2V6h5.2"],
+  bearR:  ["M10 21v-9l6-6",             "M10.8 6H16v5.2"],
+  turnL:  ["M15 21v-7a4 4 0 0 0-4-4H5", "M9.8 5.2 5 10l4.8 4.8"],
+  turnR:  ["M9 21v-7a4 4 0 0 1 4-4h6",  "M14.2 5.2 19 10l-4.8 4.8"],
+  /* The sharp pair were a shaft and a chevron doubling straight back, and
+     at twenty-four pixels with round joins the two strokes closed up into
+     a pennant. They hook instead: up, round a tight radius, and away at a
+     hundred and thirty-five degrees, which is the shape the turn is. */
+  sharpL: ["M16 21V15a4 4 0 0 0-6.8-2.8L6 15.3",      "M6 10.3v5h5"],
+  sharpR: ["M8 21V15a4 4 0 0 1 6.8-2.8L18 15.3",      "M18 10.3v5h-5"],
+  uturn:  ["M8 21v-8a4 4 0 0 1 8 0v4",  "M12.8 13.8 16 17l3.2-3.2"],
+  /* the destination's own pin, and the refresh arc the update chip wears */
+  arrive: ["M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z",
+           "M14.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"],
+  head:   ["M12 2.8 20 20.5 12 16.2 4 20.5Z", ""],
+  recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"]
+};
+
+function navBuildTurns() {
+  Nav.turns = [];
+  const legs = Nav.legs, c = Nav.coords, cum = Nav.cum;
+  if (!legs || legs.length < 2 || c.length < 3) return;
+  if (Nav.tail <= Nav.head) return;
+  const end = cum[Nav.tail];
+
+  /* Every junction on the route, with the angle the line turns through at
+     it and the road it puts you on. Most of them turn through nothing -
+     the graph splits a road at every side street it passes - and those are
+     kept anyway, because a junction that is not a corner is still where a
+     roundabout's next arc begins. kind is what makes one a corner. */
+  const js = [];
+  for (let k = 1; k < legs.length; k++) {
+    const at = legs[k].at;
+    if (at <= Nav.head || at >= Nav.tail) continue;
+    if (at === legs[k - 1].at) continue;        /* a leg the join-dedupe emptied */
+    const bIn = navBearAt(at, -1), bOut = navBearAt(at, 1);
+    if (bIn === null || bOut === null) continue;
+    const ang = ((bOut - bIn + 540) % 360) - 180;
+
+    /* A turn onto a fifteen-metre connector is a turn onto what the
+       connector leads to. The driver is told the road they will be on. */
+    let name = legs[k].name || "";
+    for (let j = k + 1; !name && j < legs.length &&
+         cum[legs[j].at] - cum[at] < 60; j++) name = legs[j].name || "";
+
+    const was = (legs[k - 1].name || "").toLowerCase();
+    let kind = navTurnKind(ang, !!name && name.toLowerCase() !== was);
+
+    /* Nothing is announced about the last few metres, and no turning round
+       is announced anywhere near the end. The destination is rarely on a
+       corner, so the line has to reach its side of the road - which is the
+       router arriving at a junction and then running back down the edge it
+       came in on. Read literally that is a u-turn at the front door, and it
+       was being called one. Arriving is the instruction there. */
+    if (end - cum[at] < 25) kind = null;
+    if (kind === "uturn" && end - cum[at] < 120) kind = null;
+
+    js.push({ at: at, m: cum[at], ang: ang, kind: kind, name: name,
+              bIn: bIn, bOut: bOut, link: legs[k].name || "" });
+  }
+
+  /* Corners that run into one another are one corner to drive.
+
+     A corner opens a group, and the group swallows the junctions after it
+     while they keep coming. The whole group is then described at once, by
+     the bearing twenty metres before its first junction against the
+     bearing twenty metres after its last, and announced at the entry -
+     where the decision is made - rather than at the exit, where it has
+     been made already.
+
+     Junctions and not only corners, because that is what a roundabout is.
+     The packs carry no roundabout tag, so there is nothing to count exits
+     against, but a roundabout is a ring of short unnamed legs and what one
+     does to a driver is change the direction they leave in. The net angle
+     is exactly that: in from the south and out to the east is a right
+     turn. Straight through nets out under the threshold and says nothing,
+     which is also right, and is why the group is re-tested rather than
+     assumed to still be a turn. Measured over rings from ten to forty
+     metres of radius, the net comes out square either way.
+
+     Two ways in, and the difference between them is the whole of what
+     keeps this from eating a town:
+
+     - NAV_TURN_MERGE, twenty metres, is one junction drawn as two -
+       a crossing split at the median, a node duplicated by the cutter.
+     - an unnamed leg under NAV_TURN_LINK is a connector: a ring arc, a
+       slip lane, the stub between two carriageways. Unnamed and short is
+       what those look like from here, and it is what a street is not.
+
+     Distance alone was the first attempt and it was wrong. Side streets in
+     a town come every thirty or forty metres, so a right into Augusta
+     Street and a left into Nile Street a hundred metres later - two real
+     decisions, with three named junctions between them - were swallowed
+     into one group whose net angle came out at nothing, and both
+     instructions vanished. A named leg is a road you are driving along,
+     however short it is, and it ends the group.
+
+     What it still costs is a jog: a right and then a left joined by a few
+     metres of unnamed connector nets out to nothing and is not announced.
+     That is one lane change rather than two decisions - it leaves you on
+     the same bearing a lane over, with the line on the map to follow.
+
+     NAV_TURN_RUN stops a group running away with a road, at the
+     circumference of the largest roundabout worth the name. */
+  let i = 0;
+  while (i < js.length) {
+    if (!js[i].kind) { i++; continue; }
+
+    /* Backwards by one first, and only one. A roundabout is entered at a
+       junction whose own angle is too gentle to be a corner once the ring
+       is wide enough - the entry to a fifty-metre one reads as forty-five
+       degrees, under the threshold - so what opens the group is the arc
+       after the entry, and the entry itself would be left outside it. That
+       moves the announcement thirty metres into the roundabout and takes
+       the net angle with it, which is how a right turn came out as a left
+       one. Same closeness test, and only onto a junction that is not a
+       corner in its own right - so a highway junction forty metres before
+       a real left turn cannot drag the instruction back onto itself. */
+    let b0 = i;
+    if (b0 > 0) {
+      const p = js[b0 - 1], gap = js[b0].m - p.m;
+      if (!p.kind && (gap < CFG.NAV_TURN_MERGE || (!p.link && gap < CFG.NAV_TURN_LINK))) b0--;
+    }
+    const s = js[b0];
+
+    let e = i;
+    while (e + 1 < js.length) {
+      const a = js[e], b = js[e + 1];
+      const gap = b.m - a.m;
+      const near = gap < CFG.NAV_TURN_MERGE || (!a.link && gap < CFG.NAV_TURN_LINK);
+      if (!near || b.m - s.m >= CFG.NAV_TURN_RUN) break;
+      e++;
+    }
+    if (e === i && b0 === i) { Nav.turns.push(s); i++; continue; }
+
+    const ang = ((js[e].bOut - s.bIn + 540) % 360) - 180;
+    const kind = navTurnKind(ang, true);
+    if (kind) {
+      let name = "";
+      for (let j = e; j >= b0 && !name; j--) name = js[j].name || "";
+      Nav.turns.push({ at: s.at, m: s.m, ang: ang, kind: kind, name: name });
+    }
+    i = e + 1;
+  }
+}
+
+/* The first turn not yet driven through. Fifteen metres of grace past it,
+   so the instruction does not vanish at the moment the wheel is being
+   turned - which is the moment it is being looked at. */
+function navNextTurnIdx(at) {
+  const ts = Nav.turns;
+  for (let i = 0; i < ts.length; i++) if (ts[i].m - at > -15) return i;
+  return -1;
+}
+
+/* Rounded the way a distance is read at speed rather than the way the app
+   reports one. fmtDist's two decimal places are for a card being looked at
+   while stopped; the fifty metres between 375 and 425 is not information at
+   eighty, and a last digit that is always moving is movement in the corner
+   of the eye rather than anything to act on. */
+function fmtTurnDist(m) {
+  if (imperial()) {
+    const ft = m * FT_PER_M;
+    if (ft < 150) return "Now";
+    if (ft < 975) return Math.round(ft / 50) * 50 + " ft";
+    const mi = m / 1000 * MI_PER_KM;
+    return (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + " mi";
+  }
+  if (m < 40) return "Now";
+  if (m < 200) return Math.round(m / 10) * 10 + " m";
+  if (m < 975) return Math.round(m / 50) * 50 + " m";
+  const km = m / 1000;
+  return (km < 10 ? km.toFixed(1) : Math.round(km)) + " km";
+}
+
+function navArt(p1, p2, art) {
+  p1.setAttribute("d", art[0]);
+  p2.setAttribute("d", art[1]);
+}
+
+/* Two measurements the bar needs and cannot state in CSS.
+
+   --turnDrop is the bar's own height, so the chips sit under it rather than
+   behind it. It moves with the text size and with the orientation.
+
+   --turnR is the room the zoom column takes on the right. That column is
+   one button wide upright and two on a phone on its side, where layoutDial
+   folds it into a block - which is exactly the shape where the bar is
+   widest. A right inset written as one button's width put the bar across
+   the top of N Up.
+
+   Both are written only when they change: this runs off every fix. The
+   last pair is kept on the function rather than in a binding beside it:
+   layoutDial calls this during the first layout, which happens while the
+   file is still being read, and a let up here is not initialised yet. */
+function navTurnFit() {
+  const bar = $("#turnBar"), zc = $("#zoomCtl");
+  const drop = bar && !bar.classList.contains("hidden")
+    ? Math.round(bar.getBoundingClientRect().height) + 8 : 0;
+  const zr = zc
+    ? Math.max(0, Math.round(window.innerWidth - zc.getBoundingClientRect().left) + 8) : 0;
+  const v = drop + "|" + zr;
+  if (v === navTurnFit.was) return;
+  navTurnFit.was = v;
+  const root = document.documentElement.style;
+  root.setProperty("--turnDrop", drop ? drop + "px" : "0px");
+  root.setProperty("--turnR", zr + "px");
+}
+
+function navHideTurn() {
+  const bar = $("#turnBar");
+  if (!bar || bar.classList.contains("hidden")) return;
+  bar.classList.add("hidden");
+  navTurnFit();
+}
+
+/* at: metres already driven along the route. remain: metres left of it. */
+function navRenderTurn(at, remain, off) {
+  const bar = $("#turnBar");
+  if (!bar) return;
+  if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
+
+  let kind, dist, act, road, then = null;
+
+  if (off > CFG.NAV_OFF_ROUTE && Nav.via !== "direct") {
+    /* Whatever the old line said to do next is about a road the vehicle is
+       not on any more, so it is not said. */
+    kind = "recalc"; dist = ""; act = "Off route"; road = "Working out a new way";
+  } else if (Nav.via === "direct") {
+    /* A bearing is not a route and has no corners in it. What it can say is
+       which way to point the vehicle - to the eighth of the compass rather
+       than the sixteenth, so it is not stepping between NE and ENE while
+       you watch it. */
+    const b = bearing(navFrom(), Nav.dest);
+    kind = "head"; dist = remain;
+    act = "Head " + HEAD_WORD[Math.round((((b % 360) + 360) % 360) / 45) % 8];
+    road = Nav.dest ? Nav.dest.name : "";
+  } else {
+    const i = navNextTurnIdx(at);
+    const t = i < 0 ? null : Nav.turns[i];
+    if (t) {
+      kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name;
+      const nx = Nav.turns[i + 1];
+      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) then = nx.kind;
+    } else {
+      kind = "arrive"; dist = remain; act = "Arrive";
+      road = Nav.dest ? Nav.dest.name : "";
+    }
+  }
+
+  navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
+  $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
+  $("#turnAct").textContent = act;
+  $("#turnRoad").textContent = road || "";
+  const th = $("#turnThen");
+  th.classList.toggle("hidden", !then);
+  if (then) navArt($("#turnT1"), $("#turnT2"), TURN_ART[then]);
+  bar.classList.toggle("recalc", kind === "recalc");
+  bar.classList.remove("hidden");
+  navTurnFit();
 }
 
 /* A bearing and a distance, for when there is no road data and no router.
@@ -14172,9 +14677,13 @@ async function navigateTo(dest, quiet) {
 
   Nav.active = true;
   Nav.coords = r.coords;
+  Nav.legs = r.legs || null;
+  Nav.head = r.head || 0;
+  Nav.tail = r.tail == null ? r.coords.length - 1 : r.tail;
   Nav.duration = r.duration;
   Nav.idx = 0;
   navBuildCum();
+  navBuildTurns();
   navLine.setLatLngs(Nav.coords);
   navCasing.setLatLngs(Nav.coords);
   navDestMk.clearLayers();
@@ -14239,6 +14748,7 @@ function navProgress() {
     ? Math.floor(secs / 3600) + "h " + String(Math.round((secs % 3600) / 60)).padStart(2, "0") + "m"
     : Math.max(1, Math.round(secs / 60)) + " min";
   $("#navEta").textContent = fmtClock(Date.now() + secs * 1000);
+  navRenderTurn(at, remain, near.off);
 
   const toDest = haversine(navFrom(), Nav.dest);
   if (toDest <= CFG.NAV_ARRIVE) { navArrive(); return; }
@@ -14340,9 +14850,12 @@ function cancelNav(quiet) {
   Nav.dest = null;
   Nav.coords = [];
   Nav.cum = [];
+  Nav.legs = null;
+  Nav.turns = [];
   Nav.idx = 0;
   Nav.via = "";
   Nav.standing = "";
+  navHideTurn();
   navLine.setLatLngs([]);
   navCasing.setLatLngs([]);
   navDestMk.clearLayers();
