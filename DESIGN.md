@@ -1137,10 +1137,16 @@ same three that keep the roundel honest:
   distance over a time, so a jumping fix cannot set it off. A phone that
   reports no speed at all can never trigger it, and the line under the switch
   says so rather than leaving somebody trusting a chime that is not coming.
-- **Three km/h of margin up, none down.** The band between the limit and the
-  limit plus three is silent in both directions, so a cruise sitting on the
-  limit cannot chatter; you have to come back under the limit proper before
-  it will sound again, and it reminds every 30 seconds while you stay over.
+- **Three km/h to start, and the limit itself to stop.** It takes three over
+  to sound, so a cruise sitting on the limit cannot chatter at it — and once
+  it is sounding it keeps sounding, every five seconds, until the speed is
+  back **at or under the posted limit**. The three is a threshold to start
+  at, not a band to fall quiet in. It was both, and the difference was the
+  whole of a bug: easing from four over to one over stopped the reminder
+  without re-arming it, so picking the speed back up said nothing, and
+  between that and a thirty second gap a driver sitting a few over heard the
+  chime once in a drive. Dropping to the limit re-arms it, so the next time
+  over sounds at once rather than waiting out a repeat.
 
 The sentence under the switch says where the limits come from, because the
 app is not the authority here and should not sound like one: *those limits
@@ -1217,10 +1223,14 @@ wording the same corner two different ways is worse than both being plain.
 every side street it passes, so a ten kilometre suburban drive has two
 hundred junctions in it and seven turns. Three rules do the cutting:
 
-- **The angle is read over twenty metres either side**, not from the
-  neighbouring point. A junction shows its whole angle over twenty metres
-  and a curve shows only what it has actually bent in twenty metres, which
-  is what keeps a bend from being called a turn.
+- **The angle is read on the segments either side of the junction.** Only
+  leg boundaries are tested and a leg boundary is a junction, so there are
+  no curve corners to mistake for one — the builder thins the geometry to a
+  five metre tolerance, and 274 edges around Salisbury East came back as two
+  points each. Twenty metres of window was the first attempt, and it read
+  straight through the short ones: the four corners of the roundabout on
+  Northbri Avenue turn −57, +54, +48 and −44 degrees and were being measured
+  as +4, +11, +12 and −2, so no roundabout on that road was ever mentioned.
 - **A bend has to be sharper than a turn before it is called one.** Fifty
   degrees where the name over the road carries on, twenty-five where it
   changes. The same forty degrees means two different things: on a road
@@ -1237,34 +1247,88 @@ a group and the group swallows the junctions after it, and the whole group is
 described at once — the bearing twenty metres before its first junction
 against the bearing twenty metres after its last — announced at the entry,
 where the decision is made, rather than at the exit where it has been made
-already. Two ways in, and the difference between them is what keeps this from
-eating a town: twenty metres apart is one junction drawn as two, and an
-unnamed leg under 90m is a connector. A named leg is a road you are driving
-along however short it is, and it ends the group. Distance alone was the
-first attempt and it was wrong — a right into Augusta Street and a left into
-Nile Street a hundred metres later were swallowed into one group whose net
-angle came to nothing, and both instructions vanished.
+already. The group reaches backwards as well as forwards, because a
+roundabout is often entered at a junction too gentle to be a corner in its
+own right, and an announcement that starts part way into one takes the net
+angle with it.
 
-**Roundabouts** fall out of that rather than being handled. The packs carry
-no roundabout tag, so there is no exit to count — but a roundabout is a ring
-of short unnamed legs, and what one does to a driver is change the direction
-they leave in. The net angle is exactly that: in from the south and out to
-the east is a right turn, announced at the entry. Straight through nets out
-under the threshold and says nothing, which is also right. Measured over
-rings from 10m to 40m of radius it comes out square either way. Sign is
-deliberately no part of the grouping, and that is the whole of what makes it
-work: an Australian roundabout is entered with a veer to the left and then
-circulated to the right, so the first corner of one is the opposite way to
-the rest of it.
+Two ways in, and the difference between them is what keeps this from eating a
+town: twenty metres apart is one junction drawn as two, and a leg that is
+**one-way, unnamed and under 90m** is a ring arc or a slip lane. All three,
+and the one-way bit is the one that matters — it is the only thing in the
+packs that separates the arcs of a roundabout from the driveway of a shopping
+centre. On Northbri Avenue the roundabout's arcs are one-way chords of five
+to fifteen metres and the IGA's driveway is a two-way service way of
+forty-eight; unnamed-and-short could not tell them apart, so the entrance and
+the turn into the car park past it were grouped, their two right turns summed
+to 242 degrees, and the group came out as a **left**. That was a real drive,
+and a right turn into the shops announced as a left one.
+
+Distance alone was the first attempt and it was wrong the other way — a right
+into Augusta Street and a left into Nile Street a hundred metres later were
+swallowed into one group whose net angle came to nothing, and both
+instructions vanished. A named leg is a road you are driving along however
+short it is, and it ends the group.
+
+**Roundabouts.** The packs carry no roundabout tag, so there is no exit to
+count — but a roundabout is a ring of short one-way legs, and what one does
+to a driver is change the direction they leave in. **One you turn at** falls
+out of the grouping with no special case: the net angle across the ring is
+exactly the change of direction, in from the south and out to the east is a
+right turn, and it is announced at the entry where the decision is made.
+Measured over rings from 10m to 40m of radius and 6 to 12 sides it comes out
+square either way. Sign is deliberately no part of the grouping, and that is
+the whole of what makes it work: an Australian roundabout is entered with a
+veer to the left and then circulated to the right, so the first corner of one
+is the opposite way to the rest of it.
+
+**One you go straight through** leaves you facing the way you came, so the net
+angle says nothing and by every rule above there is nothing to announce. That
+is true of a junction and false of a roundabout — a driver coming up on one
+wants to know the app knows it is there, and on a road with three of them
+silence reads as the app having missed them. It says **Straight ahead**, as
+an ordinary manoeuvre and not a hint beside one, because the bar has one slot
+and a slot that sometimes means one thing and sometimes another is worse at
+speed than a slot that always means the same.
+
+Recognising it is the one place here that does real geometry. Angles cannot:
+how far a roundabout swings you on the way through depends on how much of it
+you use and how coarsely it is drawn, and three on the same road measure 159,
+118 and 75 degrees — which overlaps a dogleg round a median from both sides,
+Anzac Highway having one at Rowells Road at 128. Every threshold that kept
+the dogleg out threw a roundabout away with it. So the test is the shape
+rather than a threshold: fit a circle to the group's corners, and call it a
+ring if they sit on one to within a fifth of its radius and that radius is
+between 6m and 45m. A straight road fits a circle of infinite radius and a
+gentle bend one of hundreds of metres, so size alone throws out everything
+that is not round. Across eleven routes it fires three times, at two real
+roundabouts, and not on the dogleg.
+
+What is still silent is a roundabout the route only clips — one arc drawn
+between where it goes in and where it comes out, with no corner sharp enough
+to anchor a group and too few points to tell a circle from a bend. Three or
+four nearly straight points genuinely do not say which it is.
 
 **What it does not do**, and says so by staying quiet rather than guessing:
 lanes, exit numbers, and speaking. A straight-line trip with no roads mapped
 has no corners in it and is told the truth — **Head south-west**, to the
 eighth of the compass so it is not stepping between NE and ENE while you
 watch it, spelled out in words because this is the one line on the screen
-that is a sentence rather than a reading. Off the route it goes amber and
-says **Off route — working out a new way**, because a blue bar reads as an
-instruction and there is nothing to follow until a new line lands.
+that is a sentence rather than a reading.
+
+**Off the route** it goes amber and says **Off route — working out a new
+way**, because a blue bar reads as an instruction and there is nothing to
+follow until a new line lands. Off means sixty metres from the drawn line for
+three fixes running — about three seconds — and then a new route every eight
+seconds until one takes. Two hundred metres was the old figure and it was
+most of a suburb: a parallel street is sixty to a hundred metres away, so
+taking the next street over never once counted as leaving the route, and the
+app followed a line nobody was driving all the way to the destination. That
+two hundred was slack the corners needed before the distance was measured to
+the drawn line rather than to them; measured properly, the builder's own five
+metre tolerance is the whole of the error, and the rest is the phone's. Three
+fixes rather than one, because a single fix bouncing off a shed is not a
+wrong turn.
 
 ### Popups
 
