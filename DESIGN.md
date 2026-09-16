@@ -1014,14 +1014,23 @@ colour). Folded, only Navigate shows:
   buttons keep their distance from the disc and their reach.
 - **States:** Record keeps red while recording and amber while paused.
 
-The zoom buttons are always on the right-hand side. A column on the right
-edge, centred in the clear stretch between the heads-up display and the top
-of the open dial; where that is too short, centred in the longer stretch
-clear of the closed disc instead, stepping aside while the dial is open, the
-way the panels do; and where even a column of five will not fit - a phone
-on its side - folded into as many rows as the height holds, evened out, in
-columns from the right edge inward: +, - and recentre down the edge, the
-orientation and simulation buttons beside them. Never a row along the
+The zoom buttons are always on the right-hand side, and down the middle of
+the map. A column on the right edge, centred on the map itself and then held
+off both ends — never up under the heads-up display, never down into the
+dial. Centred on the map rather than in the clear stretch above the dial,
+because those are not the same place: that stretch ends at the top of the
+dial in the bottom corner, so centring in it left the buttons a long way
+above the middle of what the driver is looking at, and close enough to the
+top of the map to crowd the turn bar. A screen with no room to centre lands
+where it always landed, because the clamp is the old placement's own limit.
+
+How many rows it takes is still measured against the clear stretch: five
+where the stretch above the open dial holds them with 10px to spare, else
+the longer stretch clear of the closed disc, stepping aside while the dial
+is open the way the panels do; and where even a column of five will not fit
+- a phone on its side - folded into as many rows as the height holds, evened
+out, in columns from the right edge inward: +, - and recentre down the edge,
+the orientation and simulation buttons beside them. Never a row along the
 bottom: on a small nav screen that put them under the other thumb and
 pushed the panels along. It is measured, not keyed to orientation: a tablet
 or a desktop window on its side keeps the single column. It is measured against the tallest the
@@ -1147,10 +1156,27 @@ thing on this screen that is read at speed and acted on immediately — every
 other thing here is a reading, and this is an instruction. Navigation Blue,
 the colour of the line it describes and of the panel at the other end of the
 screen, so the three read as one thing running rather than three separate
-announcements. Its right edge stands off the zoom column, measured rather
-than assumed: that column is one button wide upright and folds to two on a
-phone on its side, which is exactly where the bar is widest. Nothing in it is
-tappable, so a pinch that lands on it still reaches the map.
+announcements.
+
+**Centred on the map**, with equal margins and capped at 560px — a tablet
+gets a bar the width of a bar rather than one arrow marooned at the end of a
+metre of panel. The zoom buttons sit down the middle of the map, well below
+it, so usually there is nothing to avoid. A phone on its side is short enough
+that the middle of the map reaches up into the bar's rows, and there the bar
+is **narrowed rather than pushed aside**: it keeps the same gap to the column
+on its right as it keeps to the screen edge on its left, and stays centred.
+Pushed aside was the first attempt, and a three-pixel graze put the bar a
+hundred pixels off centre. Narrowing has its own limit — under 320px there is
+not enough left to say anything, and on a 568px screen centring cost the
+width twice and left a road called *Ma…* — so below that the bar gives up
+being centred and takes the room on the left instead. A road name is what the
+bar is for.
+
+The column is measured, not assumed: it is one button wide upright and folds
+to two on a phone on its side, which is exactly where the bar is widest, and
+a right inset written as one button's width put the bar across the top of
+N Up. Nothing in the bar is tappable, so a pinch that lands on it still
+reaches the map.
 
 Two lines and a glyph: **the distance in the readout face** — the third
 gauge in the app, and it counts down while you drive at it — then the turn

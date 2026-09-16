@@ -1802,10 +1802,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    at the other end of the screen, so the three read as one thing running
    rather than three separate announcements.
 
-   Right edge short of the zoom column, the same clearance the chips keep,
-   so a wide bar never sits under a control. Nothing in it is tappable -
-   pointer-events off, so a pinch that lands on it still reaches the map. */
-#turnBar{position:absolute;left:8px;right:var(--turnR, 54px);top:calc(var(--hudStage) + 8px);
+   Centred on the map - equal margins, and margin-inline:auto against both
+   insets rather than a left edge that happens to look middling - and capped
+   at 560px, so a tablet gets a bar the width of a bar rather than one arrow
+   marooned at the end of a metre of panel. --turnMax narrows it further on
+   the screens where the zoom column reaches its rows, and --turnR gives up
+   on centring where narrowing would leave too little to read; see
+   navTurnFit.
+   Nothing in it is tappable: pointer-events off, so a pinch that lands on
+   it still reaches the map. */
+#turnBar{position:absolute;left:8px;right:max(8px, var(--turnR, 0px));top:calc(var(--hudStage) + 8px);
+  max-width:min(560px, var(--turnMax, 100%));margin-inline:auto;
   z-index:460;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
   background:var(--head);border:1px solid rgba(127,193,240,.55);border-radius:10px;
   padding:7px 10px;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none}
@@ -4997,13 +5004,13 @@ function layoutDial() {
   });
   const nav = $("#btnNavTo");
   nav.style.left = (cx - rec) + "px"; nav.style.top = (cy - rec - H) + "px";
-  /* The zoom buttons: always on the right edge. A column centred in the
-     clear stretch between the display and the top of the open dial, wherever
-     that stretch holds it with 10px to spare each end; where it does not,
-     centred in the longer stretch clear of the closed disc, stepping aside
-     while the dial is open; and where even that is too short - a phone on
-     its side - folded into as many rows as it holds, in columns from the
-     edge inward. Heights are worked out from the tap size.
+  /* The zoom buttons: always on the right edge, and down the middle of the
+     map. A column as many rows tall as the clear stretch between the display
+     and the top of the open dial will hold with 10px to spare each end;
+     where that stretch is shorter, the longer one clear of the closed disc,
+     stepping aside while the dial is open; and where even that is too short
+     - a phone on its side - folded into as many rows as it holds, in columns
+     from the edge inward. Heights are worked out from the tap size.
 
      Android's system bars slide up over the bottom of the screen on a swipe
      and shrink the page while they are there. The dial rides up with the
@@ -5035,7 +5042,19 @@ function layoutDial() {
   }
   zc.style.setProperty("--zc-rows", String(rows));
   document.documentElement.classList.toggle("zoom-tuck", tuck);
-  zc.style.top = Math.round(hud + Math.max(rows < nz ? 0 : 6, (clear - span(rows)) / 2)) + "px";
+  /* Centred on the map, not on the stretch above the dial - which are not
+     the same place. That stretch ends at the top of the dial in the bottom
+     corner, so centring in it pulled the column up into the top half of the
+     screen, a long way above the middle of what the driver is looking at
+     and close enough to the turn bar to have to be measured around.
+
+     Then held off both ends: never up under the display, never down into
+     the dial. A screen with no room to centre lands exactly where it landed
+     before, because the clamp is the old placement's own limit. */
+  const mid = (zoomBase.h - span(rows)) / 2;
+  const lo = hud + (rows < nz ? 0 : 6);
+  const hi = hud + clear - span(rows);
+  zc.style.top = Math.round(Math.min(Math.max(mid, lo), hi > lo ? hi : lo)) + "px";
   zc.style.transform = "none";
   navTurnFit();              /* the turn bar's right edge stands off this column */
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
@@ -14532,11 +14551,18 @@ function navArt(p1, p2, art) {
    --turnDrop is the bar's own height, so the chips sit under it rather than
    behind it. It moves with the text size and with the orientation.
 
-   --turnR is the room the zoom column takes on the right. That column is
-   one button wide upright and two on a phone on its side, where layoutDial
-   folds it into a block - which is exactly the shape where the bar is
-   widest. A right inset written as one button's width put the bar across
-   the top of N Up.
+   --turnMax is the widest the bar may be, and it only binds where the zoom
+   column is standing in the same rows. Usually it is not: the column sits
+   down the middle of the map, well below the bar. A phone on its side is
+   short enough that the middle of the map reaches up into the bar's rows,
+   and there the bar is narrowed rather than pushed aside - it keeps the
+   same gap to the column on its right as it keeps to the screen edge on its
+   left, and stays centred. Pushed aside was the first attempt and it put a
+   bar three pixels into the column's rows a hundred pixels off centre.
+
+   Measured rather than assumed. The column is one button wide upright and
+   layoutDial folds it to two on a phone on its side, and a right inset
+   written as one button's width put the bar across the top of N Up.
 
    Both are written only when they change: this runs off every fix. The
    last pair is kept on the function rather than in a binding beside it:
@@ -14544,15 +14570,37 @@ function navArt(p1, p2, art) {
    file is still being read, and a let up here is not initialised yet. */
 function navTurnFit() {
   const bar = $("#turnBar"), zc = $("#zoomCtl");
-  const drop = bar && !bar.classList.contains("hidden")
-    ? Math.round(bar.getBoundingClientRect().height) + 8 : 0;
-  const zr = zc
-    ? Math.max(0, Math.round(window.innerWidth - zc.getBoundingClientRect().left) + 8) : 0;
-  const v = drop + "|" + zr;
+  const b = bar && !bar.classList.contains("hidden") ? bar.getBoundingClientRect() : null;
+  const drop = b ? Math.round(b.height) + 8 : 0;
+  /* Only the rows they share matter, and the test is the vertical one alone
+     - so narrowing the bar can never change the answer and set the two
+     measurements chasing each other.
+
+     Stay centred and stop 8px short of the column: the right edge lands at
+     z.left - 8, the left edge the same distance in from the other side, and
+     the width is what is left between them.
+
+     Under 320px there is not enough left to centre and still say anything.
+     Centring costs the width twice - once on the right to clear the column
+     and again on the left to match it - and on a 568px screen that came to
+     248px and a road called "Ma...". There the bar gives up being centred
+     and takes the room on the left instead, which is the whole width less
+     the column. A road name is what the bar is for. */
+  let max = 0, zr = 0;
+  if (b && zc) {
+    const z = zc.getBoundingClientRect();
+    if (z.top < b.bottom && z.bottom > b.top) {
+      const mid = Math.round(2 * (z.left - 8) - window.innerWidth);
+      if (mid >= 320) max = mid;
+      else zr = Math.max(0, Math.round(window.innerWidth - z.left) + 8);
+    }
+  }
+  const v = drop + "|" + max + "|" + zr;
   if (v === navTurnFit.was) return;
   navTurnFit.was = v;
   const root = document.documentElement.style;
   root.setProperty("--turnDrop", drop ? drop + "px" : "0px");
+  root.setProperty("--turnMax", max ? max + "px" : "100%");
   root.setProperty("--turnR", zr + "px");
 }
 
