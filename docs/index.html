@@ -5966,6 +5966,14 @@ const Chime = {
 
   ready: function () { return !!this.ctx && this.ctx.state === "running"; },
 
+  /* Peak gain. It was 0.25, which is fine in a quiet room and thin against
+     tyres on gravel with the phone on a dash mount - about seven and a half
+     decibels up now, and still well under the 1.0 where a triangle starts
+     to clip against whatever the phone does to it on the way out. The
+     device's own volume is the driver's control; this only decides how much
+     of it the chime uses. */
+  peak: 0.6,
+
   /* Two rising notes a fourth apart - far enough to read as a signal rather
      than a fault tone, high enough to carry over an engine and tyres
      without being shrill. Triangle and not square: a square wave cuts
@@ -5974,15 +5982,15 @@ const Chime = {
      at full gain clicks. */
   play: function () {
     if (!this.arm() || !this.ctx) return;
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02;
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, peak = this.peak;
     [[740, 0], [988, 0.14]].forEach(function (n) {
       const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.type = "triangle";
       osc.frequency.value = n[0];
       const a = t0 + n[1];
       g.gain.setValueAtTime(0.0001, a);
-      g.gain.exponentialRampToValueAtTime(0.25, a + 0.008);
-      g.gain.setValueAtTime(0.25, a + 0.09);
+      g.gain.exponentialRampToValueAtTime(peak, a + 0.008);
+      g.gain.setValueAtTime(peak, a + 0.09);
       g.gain.exponentialRampToValueAtTime(0.0001, a + 0.16);
       osc.connect(g);
       g.connect(ctx.destination);
