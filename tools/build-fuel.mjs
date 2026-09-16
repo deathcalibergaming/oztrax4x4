@@ -1,8 +1,10 @@
 /* Builds docs/fuel.json from the state fuel price reporting schemes.
 
-   Two sources so far, and they could not be less alike in what they let you
-   do with the data - which is why the shape of this script is dictated by
-   their terms rather than by convenience.
+   Five states so far and no two alike in what they let you do with the
+   data - which is why the shape of this script is dictated by their terms
+   rather than by convenience. The two below are the ends of that range;
+   New South Wales with Tasmania, Queensland and Victoria are each set out
+   at their own section.
 
    South Australia - the Fuel Pricing Information Scheme (Out). The scheme's
    Data Publisher guide is explicit on both counts: the API "is not intended
@@ -22,8 +24,8 @@
    there, so the credit travels with the data rather than being remembered
    separately.
 
-   Both are fetched here, in a GitHub Action, once a day, and what the phone
-   gets is a static file on its own origin. No token on the phone, no cross
+   They are all fetched here, in a GitHub Action, once a day, and what the
+   phone gets is a static file on its own origin. No token on the phone, no cross
    origin request to be refused, and the service worker keeps the last copy.
 
    Prices come back in different units - South Australia in tenths of a cent
@@ -39,7 +41,14 @@
    the difference as nothing. A red Action and yesterday's prices still on
    the site is the safe failure.
 
-   Usage: SAFPIS_TOKEN=<guid> node tools/build-fuel.mjs */
+   Usage: SAFPIS_TOKEN=<guid> node tools/build-fuel.mjs
+
+   South Australia's token is the one that is required, because it was the
+   first and the file has never been published without it. Every other
+   scheme's credential is optional and its state is simply skipped when it
+   is missing: NSW_FUEL_KEY with NSW_FUEL_SECRET, QLD_FUEL_TOKEN,
+   VIC_FUEL_CONSUMER_ID. Present and failing is a different thing, and
+   fails the build like any other source. */
 
 import { writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
@@ -582,6 +591,199 @@ async function sourceNSW(key, secret, fetchImpl = fetch) {
   };
 }
 
+/* ------------------------------------------------- Victoria (Servo Saver) */
+
+/* The youngest of the schemes and much the most plainly licensed. Victoria's
+   mandatory price reporting started on 10 March 2026: retailers submit to
+   Service Victoria's Fair Fuel platform, and what the public sees - in the
+   Service Victoria app as Servo Saver, and here - comes back out of the Open
+   Data API a day later.
+
+   That delay is the design rather than a fault. The retailer submission API
+   is real time; holding the public copy for twenty-four hours is how a
+   retailer's prices are kept from being read off the wire by the servo
+   across the road as they are lodged. So a Victorian price on a card is
+   always yesterday's or older, and the card says so - an age on its own
+   would read as a servo nobody has bothered with, which is the same mistake
+   that once had a Broome pump reading "SAFPIS - set 7 h ago".
+
+   The terms are what kept Victoria out of this file, and they turned out to
+   answer the question directly. Service Victoria's help centre: "you can
+   redistribute the fuel price dataset you get from the API to your end-users
+   (like in a mobile app)", on three conditions - "you must clearly
+   acknowledge Service Victoria as the source of the fuel price data", you
+   "must not imply that the Victorian Government endorses, supports, or
+   certifies your specific product", and "you must not modify the data before
+   presenting it". DataVic publishes the same dataset as Creative Commons
+   Attribution 4.0. The credit below names Service Victoria and links to it,
+   the app says nothing about endorsement, and no Victorian price is
+   adjusted, rounded or filtered on its way through here.
+
+   That last condition is why Victoria has no low-price floor where New South
+   Wales has one. A dropped digit in the FuelCheck feed put Premium 95 on the
+   board at 24 cents and there was nothing to do but throw it out; here, a
+   price Service Victoria publishes is the price the app prints. The only
+   rows left out are the ones the API itself marks as not for sale, which is
+   the isAvailable flag doing its job rather than a judgement about a number.
+
+   One call brings back the whole state, stations and prices together, and a
+   second names the brands. The rate limit is ten requests a minute; this
+   spends two a day. The fuel type list is a third endpoint and is not asked
+   for: its names would never be used, because South Australia is merged
+   first and the app's grade labels are deliberately the same in every
+   state. */
+
+const VIC_HOST = "https://api.fuel.service.vic.gov.au/open-data/v1";
+
+/* Required on every call, and a real one: it is how Service Victoria tells
+   one consumer's traffic from another's when a limit is hit. */
+const VIC_AGENT = "OzTraxRecon/1.0 (+https://deathcalibergaming.github.io/oztrax4x4/)";
+
+/* Service Victoria's codes on the left, this app's fuel ids on the right.
+   B20, LNG and CNG have no id in the South Australian numbering the app is
+   built on, and are left out the same way FuelCheck's B20, CNG and EV are
+   rather than given a colour and a switch nobody asked for. */
+const VIC_FUEL = { U91: 2, P95: 5, P98: 8, DSL: 3, PDSL: 14, E10: 12, E85: 19, LPG: 4 };
+
+/* Victoria issues a real station id and it is stable, so this hashes theirs
+   rather than a name and address the way FuelWatch's has to. Same 48 bits
+   and the same reason: the id is what a pin the driver has hidden is
+   remembered by, so it must not move between builds. */
+function vicId(code) {
+  return parseInt(createHash("sha1").update("servosaver|" + code).digest("hex").slice(0, 12), 16);
+}
+
+/* The documented behaviour on each status, followed literally, because the
+   API's own guidance is specific about what is worth retrying. A 400 or a
+   403 is the request being wrong and asking again only spends the rate
+   limit. A 429 wants the whole sixty-second window - the documentation
+   warns in as many words not to assume two seconds is enough, since the
+   firewall's evaluation window may be one, two, five or ten minutes. A 5xx
+   is worth another go a few seconds later. */
+async function vicGet(path, consumerId, fetchImpl = fetch, tries = 3) {
+  let last = "";
+  for (let n = 1; n <= tries; n++) {
+    const res = await fetchImpl(VIC_HOST + path, {
+      headers: {
+        "User-Agent": VIC_AGENT,
+        "x-consumer-id": consumerId,
+        /* a fresh v4 for each request, for their tracing; never reused */
+        "x-transactionid": randomUUID(),
+        "Accept": "application/json"
+      },
+      signal: AbortSignal.timeout(60000)
+    });
+    if (res.ok) return res.json();
+    if (res.status === 400 || res.status === 403) {
+      throw new Error("GET " + path + " failed: " + res.status +
+        (res.status === 403
+          ? " - the consumer id is missing or was refused. A replacement id invalidates the old one."
+          : " - the request was rejected as invalid"));
+    }
+    last = res.status + " " + res.statusText;
+    if (n === tries) break;
+    await new Promise((r) => setTimeout(r, res.status === 429 ? 60000 : 8000));
+  }
+  throw new Error("GET " + path + " failed after " + tries + " tries: " + last);
+}
+
+async function sourceVIC(consumerId, fetchImpl = fetch) {
+  const body = await vicGet("/fuel/prices", consumerId, fetchImpl);
+  const rows = Array.isArray(body && body.fuelPriceDetails) ? body.fuelPriceDetails : [];
+  if (!rows.length) {
+    throw new Error("Servo Saver returned no fuelPriceDetails - the response shape has changed " +
+      "(keys: " + Object.keys(body || {}).join(", ") + ")");
+  }
+
+  /* Brands arrive as an id on the station and a name in a list of their own.
+     Worth the second call, because "Main Street Fuel" does not say whose
+     fuel it is - but not worth the state: a brand is one line on a card, and
+     losing the lookup should not lose Victoria's prices with it. */
+  const brandName = {};
+  try {
+    const b = await vicGet("/fuel/reference-data/brands", consumerId, fetchImpl);
+    for (const br of (Array.isArray(b && b.brands) ? b.brands : [])) {
+      if (br && br.id != null && br.name) brandName[String(br.id)] = String(br.name).trim();
+    }
+  } catch (e) {
+    console.log("Servo Saver: brand names unavailable, carrying on without them - " + e.message);
+  }
+
+  const sites = [];
+  let noCoord = 0, noPrice = 0;
+  for (const row of rows) {
+    const st = (row && row.fuelStation) || {};
+    const id = st.id == null ? "" : String(st.id);
+    if (!id) continue;
+    const loc = st.location || {};
+    const lat = Number(loc.latitude), lng = Number(loc.longitude);
+    /* Both coordinates are nullable in their schema, and a servo with no
+       point cannot be drawn. Counted rather than dropped quietly: a day it
+       happens to hundreds is a day something changed at their end. */
+    if (!isFinite(lat) || !isFinite(lng) || !lat || !lng) { noCoord++; continue; }
+
+    const p = {};
+    let t = "";
+    for (const fp of (Array.isArray(row.fuelPrices) ? row.fuelPrices : [])) {
+      const fid = VIC_FUEL[String((fp && fp.fuelType) || "").toUpperCase()];
+      const c = Number(fp && fp.price);
+      /* isAvailable false is the API saying this grade is not on sale here -
+         the same fact South Australia writes as 9999, and the same reason
+         not to print a price under it. */
+      if (!fid || !fp || fp.isAvailable === false || !isFinite(c) || c <= 0) continue;
+      /* cents a litre in the feed, tenths of a cent in the file */
+      p[fid] = Math.round(c * 10);
+      const when = stampToIso(fp.updatedAt);
+      if (when > t) t = when;
+    }
+    if (!Object.keys(p).length) { noPrice++; continue; }
+    /* the station's own stamp as a fallback, for a row whose prices carry
+       none of their own */
+    if (!t) t = stampToIso(row.updatedAt);
+
+    sites.push({
+      i: vicId(id),
+      s: "VIC",
+      n: String(st.name || "").trim(),
+      b: brandName[String(st.brandId)] || "",
+      a: String(st.address || "").trim(),
+      y: round6(lat),
+      x: round6(lng),
+      p: p,
+      t: t
+    });
+  }
+
+  const ids = new Set(sites.map((s) => s.i));
+  if (ids.size !== sites.length) {
+    throw new Error("Servo Saver: " + (sites.length - ids.size) +
+      " site id collision(s) - two servos would merge into one");
+  }
+
+  console.log("Servo Saver: " + rows.length + " stations, " + sites.length + " kept" +
+    (noCoord ? ", " + noCoord + " without a coordinate" : "") +
+    (noPrice ? ", " + noPrice + " with nothing on sale" : ""));
+
+  const fuels = {};
+  for (const id of Object.values(VIC_FUEL)) if (FUEL_NAMES[id]) fuels[id] = FUEL_NAMES[id];
+
+  return {
+    key: "VIC",
+    /* The acknowledgement the terms ask for, in the name itself, because
+       this string is what the settings note renders and Service Victoria
+       has to be named there in so many words. */
+    name: "Servo Saver (Service Victoria)",
+    url: "https://service.vic.gov.au/find-services/transport-and-driving/servo-saver",
+    state: "Victoria",
+    /* Not daily the way FuelWatch is - a Victorian price carries the real
+       moment it was set - but published a day after that moment, which the
+       card has to say or the age reads as neglect. */
+    delayed: true,
+    fuels: fuels,
+    sites: sites
+  };
+}
+
 /* ------------------------------------------------------------------- main */
 
 function merge(sources) {
@@ -603,6 +805,10 @@ function merge(sources) {
       state: src.state,
       sites: src.sites.length,
       daily: !!src.daily,
+      /* published later than it was reported - Victoria, so far. The app
+         reads this rather than keeping its own list of which states are
+         behind. */
+      delayed: !!src.delayed,
       dated: src.dated || ""
     });
   }
@@ -660,6 +866,11 @@ async function main() {
   const qldToken = process.env.QLD_FUEL_TOKEN;
   if (qldToken) jobs.push(sourceQLD(qldToken));
   else console.log("QLD_FUEL_TOKEN not set - Queensland skipped");
+  /* Victoria the same way: skipped until Service Victoria has issued a
+     consumer id and it is in the repository secrets. */
+  const vicConsumer = process.env.VIC_FUEL_CONSUMER_ID;
+  if (vicConsumer) jobs.push(sourceVIC(vicConsumer));
+  else console.log("VIC_FUEL_CONSUMER_ID not set - Victoria skipped");
 
   const out = merge(await Promise.all(jobs));
 
@@ -673,7 +884,7 @@ async function main() {
    is the only way to see a scheme's real output without publishing it - and
    so the merge can be tested against made-up sources, which is where a bug
    would cost a state rather than a field. */
-export { sourceSA, sourceQLD, fpdSource, sourceWA, sourceNSW, merge, unxml, waId, nswId, stampToIso };
+export { sourceSA, sourceQLD, fpdSource, sourceWA, sourceNSW, sourceVIC, merge, unxml, waId, nswId, vicId, stampToIso };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(e.message); process.exit(1); });

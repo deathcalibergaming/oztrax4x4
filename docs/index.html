@@ -8964,6 +8964,17 @@ function visiblePois() {
    WA price is not a last-seen figure that may already have moved; it is the
    price for the day, which for planning a leg is the more useful of the two.
 
+   Victoria is a third arrangement again. Its prices carry a real moment they
+   were set, the way South Australia's do, but Service Victoria publishes the
+   public copy a day after the retailer lodges it - that gap is what keeps a
+   servo from reading its neighbour's prices off the wire as they arrive. So
+   a Victorian figure is never less than a day old and there is nothing wrong
+   with it, which is why the card says both: when it was set, and that
+   Victoria publishes a day later. Its terms are the plainest of the lot -
+   redistribute to your end users in an app, acknowledge Service Victoria,
+   do not modify the data before presenting it - so nothing is filtered on
+   the way in.
+
    So the fetching happens once a day in a GitHub Action holding the SA token
    as a repository secret, and what arrives here is fuel.json sitting beside
    index.html on the same origin. No token on the phone, no cross origin
@@ -9223,9 +9234,10 @@ const Fuel = {
 
      A servo no scheme has heard of keeps its OSM pin untouched - there are a
      few, mostly community and airport bowsers - and in a state with no
-     scheme in the file none of this does anything at all. South Australia
-     and Western Australia are covered; the rest is OSM alone, and reads
-     exactly as it did before either was added. */
+     scheme in the file none of this does anything at all. Which states those
+     are is read off the file rather than listed here, because the list keeps
+     growing: whatever the builder returned is what is covered, and the rest
+     is OSM alone and reads exactly as it did before any scheme was added. */
   mergePins: function (centre, items) {
     const src = items || [];
     if (!this.data || !centre) return { items: src, added: 0, named: 0 };
@@ -9296,7 +9308,8 @@ const Fuel = {
          getting a tidier one. */
       id: (st.s === "WA" ? "fuelwatch/" :
            st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" :
-           st.s === "QLD" ? "fuelqld/" : "safpis/") + st.i,
+           st.s === "QLD" ? "fuelqld/" :
+           st.s === "VIC" ? "servosaver/" : "safpis/") + st.i,
       kind: "fuel",
       lat: osm ? osm.lat : st.y,
       lng: osm ? osm.lng : st.x,
@@ -9402,6 +9415,19 @@ const Fuel = {
       if (!site.t) return "FuelWatch &middot; price for the day";
       return "FuelWatch &middot; " +
         (site.t === today ? "today's price" : "price for " + esc(site.t));
+    }
+    /* Victoria times its prices the way South Australia does and then holds
+       them back a day before publishing, so the age arithmetic is right and
+       the number it produces is never under about 24 h. On its own that
+       reads as a servo nobody has bothered with - the same misreading the
+       Broome pump above caused, arrived at from the opposite direction - so
+       the delay is said alongside it. It is Service Victoria's design, not
+       the servo's neglect, and a driver who knows that can tell a price set
+       yesterday from one nobody has changed since autumn. */
+    if (site && site.s === "VIC") {
+      const set = this.age(site.t);
+      return "Servo Saver &middot; " + (set ? "set " + set + " &middot; " : "") +
+        "published a day later";
     }
     /* FuelCheck reports changes as they happen, like the SA scheme, so its
        prices have an age in the same sense - the builder has already turned

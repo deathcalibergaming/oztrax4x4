@@ -84,7 +84,11 @@ land on the very next launch.
   terms are server-to-server only; New South Wales and Tasmania together from
   the NSW Government's [FuelCheck](https://www.fuelcheck.nsw.gov.au) Fuel API
   v2, licensed CC-BY-SA, whose key and secret are repository secrets as well;
-  and Western Australia's
+  Victoria's
+  [Servo Saver](https://service.vic.gov.au/find-services/transport-and-driving/servo-saver)
+  open data API, CC-BY-4.0 and explicitly open to redistribution in an app,
+  published a day behind and needing a consumer id issued on application; and
+  Western Australia's
   [FuelWatch](https://www.fuelwatch.wa.gov.au), a public feed used on the
   condition that FuelWatch is credited as the source with a link back — which
   the app renders from the file rather than hard-coding, so the credit travels
