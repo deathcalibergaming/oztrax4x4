@@ -3989,15 +3989,25 @@ const CFG = {
   POI_BACKOFF: 45000,      /* wait this long after a failed POI fetch before retrying */
   OSRM: "https://router.project-osrm.org",
   NAV_TIMEOUT: 15000,
-  NAV_OFF_ROUTE: 200,      /* metres off the line before we call it a wrong turn */
-  NAV_RECALC_GAP: 20000,   /* and how often we are willing to recalculate */
+  /* Metres off the line before we call it a wrong turn, and how many fixes
+     running it has to stay that way. Two hundred metres was the old figure
+     and it was most of a suburb: a parallel street is sixty to a hundred
+     metres away, so taking the next street over never once counted as being
+     off the route, and the app followed a line nobody was driving all the
+     way to the destination. It is the distance to the drawn line rather
+     than to its corners, so the slack a simplified curve needs is metres,
+     not hundreds of them - the packs' longest chords sag about twenty. */
+  NAV_OFF_ROUTE: 60,
+  NAV_OFF_FIXES: 3,        /* one bad fix is not a wrong turn */
+  NAV_RECALC_GAP: 8000,    /* and how often we are willing to recalculate */
   NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
   /* How far either side of a junction the line is read to find the angle of
-     it. See navBearAt: one segment cannot tell a corner from a curve. */
-  NAV_TURN_WIN: 20,
+     it. Just past nothing: see navBearAt. */
+  NAV_TURN_WIN: 5,
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
-  NAV_TURN_LINK: 90,       /* an unnamed leg this short belongs to the corner before it */
+  NAV_TURN_LINK: 90,       /* a one-way unnamed leg this short is a ring arc */
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
+  NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
   NAV_TURN_THEN: 250,      /* and a second turn this close is worth warning of */
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
@@ -4026,7 +4036,7 @@ const CFG = {
   SPEED_MIN_MOVE: 2,       /* m/s below which a heading is noise, not travel */
   SPEED_TICK: 400,         /* a posted limit does not need 60 fps */
   ALERT_OVER: 3,           /* km/h past the posted limit before the chime sounds */
-  ALERT_REPEAT: 30000,     /* ms between reminders while the speed stays over */
+  ALERT_REPEAT: 5000,      /* ms between reminders while the speed stays over */
   ALERT_STALE: 10000,      /* ms - a fix older than this says nothing about now */
   SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
   /* A limit rides over a short gap - a fix that wanders out of the snap, a
@@ -6078,6 +6088,9 @@ const Chime = {
   arm: function () {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
+    /* A closed context never sounds again. Android closes one on some
+       audio-focus changes, and the old code held on to it forever. */
+    if (this.ctx && this.ctx.state === "closed") this.ctx = null;
     if (!this.ctx) {
       try { this.ctx = new AC(); } catch (e) { return false; }
     }
@@ -6103,7 +6116,19 @@ const Chime = {
      at full gain clicks. */
   play: function () {
     if (!this.arm() || !this.ctx) return;
-    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, peak = this.peak;
+    const ctx = this.ctx, self = this;
+    if (ctx.state === "running") { this.blow(ctx); return; }
+    /* A context that is not running has a clock that is not moving, and
+       notes booked against a stopped clock are thrown away when it starts:
+       resume() is a promise and the old code did not wait for it. A phone
+       whose screen had been off, or that had lost audio focus to anything
+       else, came back and swallowed every chime after the first - which is
+       what "it only went off once" was. */
+    ctx.resume().then(function () { self.blow(ctx); }).catch(function () {});
+  },
+
+  blow: function (ctx) {
+    const t0 = ctx.currentTime + 0.02, peak = this.peak;
     [[740, 0], [988, 0.14]].forEach(function (n) {
       const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.type = "triangle";
@@ -6131,6 +6156,9 @@ const OverSpeed = {
      saying something the driver has turned off. */
   mark: function (on) {
     this.over = on;
+    /* Dropping back to the limit re-arms it, so the next time over sounds
+       at once rather than waiting out the rest of a repeat interval. */
+    if (!on) this.soundedAt = 0;
     const b = $("#stSpeed");
     if (b) b.classList.toggle("over", on);
   },
@@ -6148,12 +6176,24 @@ const OverSpeed = {
 
     /* the limit is the number on the sign, in the sign's own units */
     const lim = limit * (mph ? 0.44704 : 1 / 3.6);
-    if (spd <= lim) { this.mark(false); return; }           /* back under: re-armed */
-    if (spd <= lim + CFG.ALERT_OVER / 3.6) return;          /* the quiet band */
 
+    /* At or under the posted limit is silent, always. */
+    if (spd <= lim) { this.mark(false); return; }
+
+    /* Over it, but not yet by the margin, and not already sounding: still
+       silent. The three km/h is a threshold to start at, so a cruise
+       holding the limit cannot chatter at it.
+
+       It is not a band to fall quiet in, which is what it had become: once
+       sounding, easing back to a km/h over used to stop the reminder
+       without re-arming it, so picking the speed back up said nothing.
+       Between that and the thirty second gap, a driver sitting a few over
+       heard the chime once and then nothing. */
+    if (!this.over && spd <= lim + CFG.ALERT_OVER / 3.6) return;
+
+    this.mark(true);
     const now = Date.now();
-    if (!this.over || now - this.soundedAt > CFG.ALERT_REPEAT) {
-      this.mark(true);
+    if (now - this.soundedAt >= CFG.ALERT_REPEAT) {
       this.soundedAt = now;
       Chime.play();
     }
@@ -12444,7 +12484,10 @@ const Route = {
         return {
           at: map[k.at],
           name: self.eName[k.i] >= 0 ? self.names[self.eName[k.i]] : "",
-          cls: ROAD_CLASSES[self.eCls[k.i]] || ""
+          cls: ROAD_CLASSES[self.eCls[k.i]] || "",
+          /* Either direction bit. It is what tells a roundabout's ring from
+             a car park's driveway - see navBuildTurns. */
+          one: !!(self.eF[k.i] & 3)
         };
       }) : null
     };
@@ -14199,7 +14242,9 @@ const Nav = {
   dest: null,            /* {lat,lng,name} */
   coords: [],            /* route geometry, [lat,lng] pairs */
   cum: [],               /* cumulative metres along the route */
-  legs: null,            /* [{at, name, cls}] - where each road's stretch starts */
+  legs: null,            /* [{at, name, cls, one}] - where each road's stretch starts */
+  offFor: 0,             /* fixes running that the vehicle has been off the line */
+  lost: false,           /* and whether that has gone on long enough to believe */
   head: 0, tail: 0,      /* the first and last point actually on a road */
   turns: [],             /* [{at, m, ang, kind, name}] - read off legs, below */
   duration: 0,           /* seconds for the whole route, as routed */
@@ -14258,7 +14303,11 @@ async function osrmRoute(from, to) {
     for (const st of steps) {
       const g = st.geometry && st.geometry.coordinates;
       if (!g || !g.length) continue;
-      legs.push({ at: coords.length ? coords.length - 1 : 0, name: st.name || "", cls: "" });
+      /* OSRM gives no one-way flag per step, so no leg out here is ever
+         taken for a ring arc. It collapses a roundabout into a single step
+         of its own anyway, whose inside is never a leg boundary and so is
+         never read for corners. */
+      legs.push({ at: coords.length ? coords.length - 1 : 0, name: st.name || "", cls: "", one: false });
       for (const c of g) {
         const p = [c[1], c[0]];                         /* lon,lat -> lat,lng */
         const last = coords[coords.length - 1];
@@ -14305,16 +14354,23 @@ function navBuildCum() {
    the phone in flight mode, and why it arrived without a download.
    ------------------------------------------------------------------ */
 
-/* The bearing the route arrives on, or leaves on, at point i - measured
-   over a window of metres rather than from the neighbouring point.
+/* The bearing the route arrives on, or leaves on, at point i - measured on
+   the segments either side of it, and the window is five metres because
+   that is just far enough to step over a degenerate one.
 
-   The window is the whole of why a bend is not a turn. Corner to corner, a
-   highway drawn with a point every thirty metres turns a couple of degrees
-   at each one and a junction turns ninety at one - but a curve drawn tight
-   enough turns twenty at each of its corners too, and a single segment
-   cannot tell those apart. Read over twenty metres either side, the
-   junction still shows its whole angle and the curve shows only what it
-   has actually bent in twenty metres. */
+   It was twenty, to keep a tight curve from reading as a turn, and that was
+   solving a problem this data does not have. The packs store one straight
+   chord per edge - 274 edges around Salisbury East, every one of them two
+   points - so there are no curve corners to mistake for junctions. Points
+   inside an edge are never tested, because only leg boundaries are, and a
+   leg boundary is a junction.
+
+   What twenty metres did instead was read straight through the short ones.
+   A roundabout in these packs is a ring of five to fifteen metre chords, so
+   a window of twenty spanned the whole of it: the four corners of the
+   roundabout on Northbri Avenue turn -57, +54, +48 and -44 degrees, and
+   read over twenty metres they came out as +4, +11, +12 and -2. Nothing
+   reached the threshold and no roundabout on that road was ever mentioned. */
 function navBearAt(i, dir) {
   const c = Nav.coords, cum = Nav.cum;
   const lo = Nav.head, hi = Nav.tail;
@@ -14355,6 +14411,7 @@ const HEAD_WORD = ["north", "north-east", "east", "south-east",
                    "south", "south-west", "west", "north-west"];
 
 const TURN_WORD = {
+  straight: "Straight ahead",
   bearL: "Bear left", bearR: "Bear right",
   turnL: "Turn left", turnR: "Turn right",
   sharpL: "Sharp left", sharpR: "Sharp right",
@@ -14366,6 +14423,7 @@ const TURN_WORD = {
    several of them are a stroke plus a chevron, and one element that is
    sometimes empty is simpler than a set that is sometimes absent. */
 const TURN_ART = {
+  straight: ["M12 21V4",                "M7.5 8.5 12 4l4.5 4.5"],
   bearL:  ["M14 21v-9L8 6",             "M8 11.2V6h5.2"],
   bearR:  ["M10 21v-9l6-6",             "M10.8 6H16v5.2"],
   turnL:  ["M15 21v-7a4 4 0 0 0-4-4H5", "M9.8 5.2 5 10l4.8 4.8"],
@@ -14383,6 +14441,75 @@ const TURN_ART = {
   head:   ["M12 2.8 20 20.5 12 16.2 4 20.5Z", ""],
   recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"]
 };
+
+/* Do these points lie on a circle, and is it the size of a roundabout?
+
+   The straight-through case needs this and the turning case does not. A
+   roundabout you turn at declares itself by the direction it leaves you
+   facing; one you go straight through leaves you facing the way you came,
+   so all that is left to recognise it by is its shape.
+
+   Angles cannot answer it. How far a roundabout swings you on the way
+   through depends on how much of it you use and how coarsely it is drawn:
+   three of them on the same road measure 159, 118 and 75 degrees, which
+   overlaps a dogleg round a median - Anzac Highway has one at Rowells Road
+   at 128 - from both sides. Every threshold that kept the dogleg out threw
+   a roundabout away with it.
+
+   A dogleg is a road with a kink in it and a roundabout is a circle, and
+   that is a question with an answer rather than a threshold: fit a circle
+   and see what comes back.
+
+   Kasa's fit, which is the least-squares one that stays linear - minimise
+   the error in x^2 + y^2 + Dx + Ey + F and read the centre and radius off
+   D, E and F. No iteration, a 3x3 solve, and exact enough for something
+   that only has to tell a ring from a wiggle. Flat earth: these are tens of
+   metres across. Returns the radius, or 0 for anything that is not one. */
+function navRingR(i0, i1) {
+  const c = Nav.coords, n = i1 - i0 + 1;
+  if (n < 4) return 0;
+  const mLat = 111320, mLng = 111320 * Math.cos(rad(c[i0][0]));
+  const x = [], y = [];
+  let Sx = 0, Sy = 0, Sz = 0, Sxx = 0, Syy = 0, Sxy = 0, Sxz = 0, Syz = 0;
+  for (let k = i0; k <= i1; k++) {
+    const px = (c[k][1] - c[i0][1]) * mLng, py = (c[k][0] - c[i0][0]) * mLat;
+    x.push(px); y.push(py);
+    const z = px * px + py * py;
+    Sx += px; Sy += py; Sz += z;
+    Sxx += px * px; Syy += py * py; Sxy += px * py;
+    Sxz += px * z; Syz += py * z;
+  }
+  /* [Sxx Sxy Sx][D]   [-Sxz]
+     [Sxy Syy Sy][E] = [-Syz]
+     [Sx  Sy  n ][F]   [-Sz ]   by Cramer */
+  const M = [[Sxx, Sxy, Sx], [Sxy, Syy, Sy], [Sx, Sy, n]];
+  const rhs = [-Sxz, -Syz, -Sz];
+  const det3 = function (m) {
+    return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+           m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+           m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  };
+  const sub = function (col) {
+    return M.map(function (row, r) {
+      return row.map(function (v, cc) { return cc === col ? rhs[r] : v; });
+    });
+  };
+  const det = det3(M);
+  if (!det) return 0;
+  const D = det3(sub(0)) / det, E = det3(sub(1)) / det, F = det3(sub(2)) / det;
+  const cx = -D / 2, cy = -E / 2, r2 = cx * cx + cy * cy - F;
+  if (!(r2 > 0)) return 0;
+  const R = Math.sqrt(r2);
+  if (R < CFG.NAV_RING_R[0] || R > CFG.NAV_RING_R[1]) return 0;
+  let err = 0;
+  for (let k = 0; k < x.length; k++) {
+    const e = Math.hypot(x[k] - cx, y[k] - cy) - R;
+    err += e * e;
+  }
+  /* A ring's corners sit on it to within a fraction of its radius. A kink
+     in a road does not sit on one at all. */
+  return Math.sqrt(err / x.length) < R * 0.18 ? R : 0;
+}
 
 function navBuildTurns() {
   Nav.turns = [];
@@ -14424,7 +14551,7 @@ function navBuildTurns() {
     if (kind === "uturn" && end - cum[at] < 120) kind = null;
 
     js.push({ at: at, m: cum[at], ang: ang, kind: kind, name: name,
-              bIn: bIn, bOut: bOut, link: legs[k].name || "" });
+              bIn: bIn, bOut: bOut, link: legs[k].name || "", one: !!legs[k].one });
   }
 
   /* Corners that run into one another are one corner to drive.
@@ -14446,21 +14573,29 @@ function navBuildTurns() {
      assumed to still be a turn. Measured over rings from ten to forty
      metres of radius, the net comes out square either way.
 
-     Two ways in, and the difference between them is the whole of what
-     keeps this from eating a town:
+     Two ways in, and the difference between them is what keeps this from
+     eating a town:
 
      - NAV_TURN_MERGE, twenty metres, is one junction drawn as two -
        a crossing split at the median, a node duplicated by the cutter.
-     - an unnamed leg under NAV_TURN_LINK is a connector: a ring arc, a
-       slip lane, the stub between two carriageways. Unnamed and short is
-       what those look like from here, and it is what a street is not.
+     - a leg that is one-way, unnamed and under NAV_TURN_LINK is a ring arc
+       or a slip lane. All three, and the one-way bit is the one that
+       matters: it is the only thing in the packs that separates the arcs of
+       a roundabout from the driveway of a shopping centre. Measured on
+       Northbri Avenue, the roundabout's arcs are one-way tertiary chords of
+       five to fifteen metres and the IGA's driveway is a two-way service
+       way of forty-eight, and unnamed-and-short alone could not tell them
+       apart: the entrance and the turn into the car park past it were
+       grouped, their two right turns summed to 242 degrees, and the group
+       came out as a left. That is the "turn left" the driver got for a
+       right turn into the shops.
 
-     Distance alone was the first attempt and it was wrong. Side streets in
-     a town come every thirty or forty metres, so a right into Augusta
-     Street and a left into Nile Street a hundred metres later - two real
-     decisions, with three named junctions between them - were swallowed
-     into one group whose net angle came out at nothing, and both
-     instructions vanished. A named leg is a road you are driving along,
+     Distance alone was the first attempt and it was wrong the other way.
+     Side streets in a town come every thirty or forty metres, so a right
+     into Augusta Street and a left into Nile Street a hundred metres later
+     - two real decisions, with three named junctions between them - were
+     swallowed into one group whose net angle came out at nothing, and both
+     instructions vanished. A named leg is a road you are driving along
      however short it is, and it ends the group.
 
      What it still costs is a jog: a right and then a left joined by a few
@@ -14474,35 +14609,69 @@ function navBuildTurns() {
   while (i < js.length) {
     if (!js[i].kind) { i++; continue; }
 
-    /* Backwards by one first, and only one. A roundabout is entered at a
-       junction whose own angle is too gentle to be a corner once the ring
-       is wide enough - the entry to a fifty-metre one reads as forty-five
-       degrees, under the threshold - so what opens the group is the arc
-       after the entry, and the entry itself would be left outside it. That
-       moves the announcement thirty metres into the roundabout and takes
-       the net angle with it, which is how a right turn came out as a left
-       one. Same closeness test, and only onto a junction that is not a
-       corner in its own right - so a highway junction forty metres before
-       a real left turn cannot drag the instruction back onto itself. */
+    /* Backwards first. A roundabout is entered at a junction whose own
+       angle is often too gentle to be a corner - the entry to the one on
+       Northbri Avenue reads as twenty-three degrees on a road whose name
+       carries through it, so it is a bend, not a turn - and what opens the
+       group is an arc further round. Left as it was, the announcement lands
+       part way into the roundabout and takes the net angle with it, which
+       is how a right turn came out as a left one.
+
+       As far back as the same closeness test reaches, rather than a single
+       step: the arcs of a small roundabout are five and eight metres, so
+       the entry can be two or three junctions behind the corner that opens
+       the group. Only onto junctions that are not corners in their own
+       right, so a real turn can never be swallowed backwards, and never
+       further than NAV_TURN_RUN. */
+    const joins = function (a, gap) {
+      return gap < CFG.NAV_TURN_MERGE ||
+             (a.one && !a.link && gap < CFG.NAV_TURN_LINK);
+    };
     let b0 = i;
-    if (b0 > 0) {
-      const p = js[b0 - 1], gap = js[b0].m - p.m;
-      if (!p.kind && (gap < CFG.NAV_TURN_MERGE || (!p.link && gap < CFG.NAV_TURN_LINK))) b0--;
+    while (b0 > 0) {
+      const p = js[b0 - 1];
+      if (p.kind || !joins(p, js[b0].m - p.m)) break;
+      if (js[i].m - p.m >= CFG.NAV_TURN_RUN) break;
+      b0--;
     }
     const s = js[b0];
 
     let e = i;
     while (e + 1 < js.length) {
       const a = js[e], b = js[e + 1];
-      const gap = b.m - a.m;
-      const near = gap < CFG.NAV_TURN_MERGE || (!a.link && gap < CFG.NAV_TURN_LINK);
-      if (!near || b.m - s.m >= CFG.NAV_TURN_RUN) break;
+      if (!joins(a, b.m - a.m) || b.m - s.m >= CFG.NAV_TURN_RUN) break;
       e++;
     }
     if (e === i && b0 === i) { Nav.turns.push(s); i++; continue; }
 
     const ang = ((js[e].bOut - s.bIn + 540) % 360) - 180;
-    const kind = navTurnKind(ang, true);
+    let kind = navTurnKind(ang, true);
+
+    /* A ring the route goes straight through.
+
+       It leaves on the bearing it came in on, so the net angle says nothing
+       and by every rule above there is nothing to announce - and that is
+       true of a junction, but it is not true of a roundabout. A driver
+       coming up on one wants to know the app knows it is there; silence
+       reads as the app having missed it, which on a road with three of them
+       is most of the drive. It is announced like any other manoeuvre rather
+       than as a hint beside one, because the bar has one slot and a slot
+       that sometimes means one thing and sometimes another is worse at
+       speed than a slot that always means the same.
+
+       Two things have to hold. The group has to contain a short one-way
+       unnamed leg, which is what a ring arc looks like in these packs and
+       what joined the group in the first place - and its points have to lie
+       on a circle you could drive around, which is navRingR and is the one
+       that means it. Nothing else: a straight road fits a circle of
+       infinite radius and a gentle bend one of hundreds of metres, so the
+       size test alone throws out everything that is not round. */
+    if (!kind && e > b0) {
+      let ring = false;
+      for (let j = b0; j <= e && !ring; j++) ring = js[j].one && !js[j].link;
+      if (ring && navRingR(s.at, js[e].at)) kind = "straight";
+    }
+
     if (kind) {
       let name = "";
       for (let j = e; j >= b0 && !name; j--) name = js[j].name || "";
@@ -14612,14 +14781,14 @@ function navHideTurn() {
 }
 
 /* at: metres already driven along the route. remain: metres left of it. */
-function navRenderTurn(at, remain, off) {
+function navRenderTurn(at, remain) {
   const bar = $("#turnBar");
   if (!bar) return;
   if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
 
   let kind, dist, act, road, then = null;
 
-  if (off > CFG.NAV_OFF_ROUTE && Nav.via !== "direct") {
+  if (Nav.lost && Nav.via !== "direct") {
     /* Whatever the old line said to do next is about a road the vehicle is
        not on any more, so it is not said. */
     kind = "recalc"; dist = ""; act = "Off route"; road = "Working out a new way";
@@ -14728,6 +14897,8 @@ async function navigateTo(dest, quiet) {
   Nav.legs = r.legs || null;
   Nav.head = r.head || 0;
   Nav.tail = r.tail == null ? r.coords.length - 1 : r.tail;
+  Nav.offFor = 0;
+  Nav.lost = false;
   Nav.duration = r.duration;
   Nav.idx = 0;
   navBuildCum();
@@ -14758,11 +14929,17 @@ function navNearestIdx() {
 
   /* Distance to the drawn line, not to the corners of it. Measured against
      the shipped packs, 3.82% of the gaps between corners on the spine are
-     over four hundred metres, so the middle of one reads as more than two
-     hundred metres off a road the vehicle is driving straight down - and two
-     hundred is where this calls a wrong turn. That is a false recalculation
-     on the long outback straights, which is exactly where the gaps are
-     widest and where being told to turn around is least welcome. */
+     over four hundred metres, so the middle of one read as hundreds of
+     metres off a road the vehicle was driving straight down - a false
+     recalculation on the long outback straights, which is exactly where the
+     gaps are widest and where being told to turn around is least welcome.
+
+     Projecting onto the segment is what fixed that, and it is also what
+     lets the wrong-turn threshold be a sane number again. The builder
+     thins corners with a five metre tolerance measured the same way, so the
+     drawn line is never more than five metres from the surveyed road
+     however long the chord across it - and NAV_OFF_ROUTE no longer has to
+     carry the slack that the corners used to need. */
   let best = Infinity, bestI = Nav.idx, bestT = 0;
   const scan = (from, to) => {
     for (let i = from; i < to; i++) {         /* the segment i -> i + 1 */
@@ -14796,12 +14973,20 @@ function navProgress() {
     ? Math.floor(secs / 3600) + "h " + String(Math.round((secs % 3600) / 60)).padStart(2, "0") + "m"
     : Math.max(1, Math.round(secs / 60)) + " min";
   $("#navEta").textContent = fmtClock(Date.now() + secs * 1000);
-  navRenderTurn(at, remain, near.off);
 
   const toDest = haversine(navFrom(), Nav.dest);
   if (toDest <= CFG.NAV_ARRIVE) { navArrive(); return; }
 
-  if (near.off > CFG.NAV_OFF_ROUTE) {
+  /* Off the line is counted in fixes rather than believed on the first one.
+     A single fix bouncing off a shed is not a wrong turn, and at sixty
+     metres one of those would be enough to start a recalculation; three in
+     a row at a second apart is a vehicle that has actually gone somewhere
+     else, and is still only three seconds. */
+  if (near.off > CFG.NAV_OFF_ROUTE) Nav.offFor++;
+  else Nav.offFor = 0;
+  Nav.lost = Nav.offFor >= CFG.NAV_OFF_FIXES;
+
+  if (Nav.lost) {
     /* Nothing to be off, when the line was only ever a bearing. It still
        gets redrawn from where the vehicle now is, which is the whole of
        what recalculating means for a straight line. */
@@ -14812,6 +14997,9 @@ function navProgress() {
   } else if (Nav.note !== Nav.standing) {
     setNavNote(Nav.standing);
   }
+  /* Last, so the bar is drawn from the settled off-route state rather than
+     flashing amber at every fix that wanders sixty metres. */
+  navRenderTurn(at, remain);
 }
 
 function navArrive() {
@@ -14901,6 +15089,8 @@ function cancelNav(quiet) {
   Nav.legs = null;
   Nav.turns = [];
   Nav.idx = 0;
+  Nav.offFor = 0;
+  Nav.lost = false;
   Nav.via = "";
   Nav.standing = "";
   navHideTurn();
@@ -16189,7 +16379,7 @@ function syncAlertButtons() {
   $("#alertNote").textContent =
     "A chime and red speed figures when you pass the posted limit by more than " + over +
     ", and the chime again every " + Math.round(CFG.ALERT_REPEAT / 1000) +
-    " seconds while you stay over. Both only where the speed sign is showing a limit, and those " +
+    " seconds until you are back at or under it. Both only where the speed sign is showing a limit, and those " +
     "limits come from OpenStreetMap - they are missing on many roads and can be out of date, so " +
     "the sign beside the road is the one that counts.";
 }
