@@ -59,6 +59,26 @@ Open the Pages URL in Chrome on Android and use "Install app" / "Add to home
 screen". That gives a home-screen icon that launches full screen and works
 without signal, which is what an APK would have bought you.
 
+## Going out of range
+
+Menu → Downloaded Areas holds two downloads, and they cover different things:
+
+* **Download A State** stores a whole state's addresses, roads (spine,
+  tertiary and streets) and POIs, so search, routing and the speed sign work
+  with no signal anywhere in it. It is a plain bounding box per state, set in
+  `CFG.STATES` with sizes measured off `docs/`: South Australia is 31,086
+  files and about 24 MB on the phone, New South Wales 81,559 files and about
+  94 MB. Imagery is not part of it — a state's basemap runs to gigabytes.
+  Each state is recorded with the build it came from, so a state the monthly
+  rebuild has moved on from says so and offers an update, and Delete keeps
+  whatever another downloaded state or a drawn area still covers.
+* **Download New Area** is a box you draw, for the map imagery, and it brings
+  the same data for that box with it.
+
+Both pull the data files 24 at a time. They are about 2 KB each and the cost
+is the round trip, not the bytes: one at a time South Australia took over two
+hours, and at 24 about six minutes.
+
 ## Updating
 
 Edit `docs/index.html` and push. Phones running the installed copy show the
