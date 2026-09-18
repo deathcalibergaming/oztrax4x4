@@ -40,9 +40,8 @@
    lift it into tools/lib rather than now, when merging them would mean
    touching a working monthly build to no purpose.
 
-   OpenStreetMap data, licensed ODbL. The app already carries the
-   attribution for the extract it fetches live, and the same notice covers
-   this.
+   OpenStreetMap data, licensed ODbL. The app carries the OpenStreetMap
+   attribution, and the same notice covers this.
 
    Usage: node tools/build-poi.mjs [--force] [--only SA,NT] [--pbf path]
 
@@ -119,9 +118,10 @@ const WANT = {
      app for. Dropping it takes about a third off the download for the whole
      state and rather more than that off a city tile.
 
-     poiKind still knows what a car park is, and the live map extract still
-     returns them inside its own radius, so the Parking category has not gone
-     anywhere - it is simply not something we now ask a source for. */
+     For a while the live map extract still returned them inside its own
+     radius, which kept a Parking category alive around the vehicle. The
+     extract is gone and the category with it, by decision: nothing the app
+     reads carries car parks now. */
   amenity: new Set(["fuel", "drinking_water", "water_point", "toilets",
     "sanitary_dump_station", "shower", "hospital", "pharmacy", "doctors",
     "clinic", "telephone", "post_office", "bbq", "shelter",
@@ -147,11 +147,22 @@ const WANT = {
 /* The tags worth keeping once something has qualified. poiKind reads all of
    these, poiInfoLine and poiAddress read the rest, and everything else in
    OpenStreetMap - the survey dates, the wikidata ids, the source notes - is
-   weight the phone would carry and never open. */
+   weight the phone would carry and never open.
+
+   It has to be every tag the app reads, and it was not. Eight were missing,
+   found by scanning the app's POI functions for the tags they touch, and
+   four of them decide what a thing is rather than what its card says:
+   camp_site and informal are how campIsFree tells a free camp from a paid
+   one, description and note are two of the places waterDrinkable looks for
+   whether a tap is safe to drink, and operational_status is how boreKind
+   knows a bore is dead. While the live map extract answered around the
+   vehicle that only showed offline and past its radius. The pack is the
+   whole answer now, so it shows everywhere. */
 const KEEP = new Set([
   /* what it is */
   "amenity", "man_made", "natural", "tourism", "highway", "healthcare",
   "emergency", "shop", "information", "shelter_type", "healthcare:speciality",
+  "camp_site", "informal", "operational_status",
   /* what it is called */
   "name", "brand", "operator",
   /* whose ATM it is: an ATM is very often tagged with no name at all, only
@@ -159,14 +170,15 @@ const KEEP = new Set([
   "network",
   /* whether you may, and whether you would want to */
   "access", "drinking_water", "fee", "charge", "backcountry", "permit",
-  "tents", "caravan", "camping", "overnight", "motorhome",
-  "toilets", "shower", "drinking_water:legal", "potable",
-  /* what a card says about it */
+  "tents", "caravan", "caravans", "camping", "overnight", "motorhome",
+  "toilets", "shower", "drinking_water:legal", "potable", "seasonal",
+  /* what a card says about it - and, for a tap, whether it is drinkable */
   "opening_hours", "phone", "website", "wheelchair", "dispensing",
-  "fuel:diesel", "fuel:lpg", "capacity",
+  "fuel:diesel", "fuel:lpg", "capacity", "description", "note",
   "atm", "cash_in", "self_service", "charging_station:output",
   /* where it is */
-  "addr:housenumber", "addr:street", "addr:city", "addr:suburb", "addr:postcode"
+  "addr:housenumber", "addr:street", "addr:city", "addr:suburb", "addr:postcode",
+  "addr:place"
 ]);
 
 /* A charger's plugs and their power: socket:type2_combo=2 and

@@ -56,14 +56,17 @@
    matching coordinates, and a node on the border has the same coordinates in
    both extracts, so the two halves join without being told.
 
-   OpenStreetMap data, licensed ODbL. The app already carries the attribution
-   for the map extract it fetches live, and the same notice covers this.
+   OpenStreetMap data, licensed ODbL. The app carries the OpenStreetMap
+   attribution, and the same notice covers this.
 
-   Usage: node tools/build-routing.mjs [--force] [--only SA,NT] [--restamp]
+   Usage: node tools/build-routing.mjs [--force] [--only SA,NT] [--pbf path] [--restamp]
 
    --only limits the build to some of the states, which is how a change gets
    tried without waiting on nine hundred megabytes. What it writes is a
-   partial pack, so it is not something to commit. */
+   partial pack, so it is not something to commit. --pbf reads one local
+   extract instead of downloading, and wants --only naming the state it is;
+   ROUTE_OUT writes somewhere other than the site's own packs. Both are for
+   trying a change, the same as in build-poi.mjs. */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -79,7 +82,7 @@ import { join } from "node:path";
 const inflateAsync = promisify(inflate);
 
 const MIRROR = "https://download.geofabrik.de/australia-oceania/australia/";
-const OUT = "docs/route";
+const OUT = process.env.ROUTE_OUT || "docs/route";
 const Z = 13;                 /* the same grid the address packs are cut on */
 const REGION_Z = 9;           /* the coarse grid the tertiary roads are cut on, ~78 km.
                                  Measured against 8: the worst tile in South Australia
@@ -452,7 +455,10 @@ function cutStamp(source) {
   const shape = JSON.stringify([
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
-    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M
+    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M,
+    /* the directional limits beside the rows: a pack built without them
+       has to be fetched again */
+    "dir1"
   ]);
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -552,6 +558,10 @@ async function readExtract(path, seenWays, emit, tally) {
   const wayCls = new Grow(Uint8Array, 1 << 19);
   const wayFlags = new Grow(Uint8Array, 1 << 19);
   const waySpeed = new Grow(Uint8Array, 1 << 19);
+  /* A limit signed one direction at a time, forward and backward along
+     the way as it is drawn - see pack. Almost always 0. */
+  const wayFw = new Grow(Uint8Array, 1 << 19);
+  const wayBw = new Grow(Uint8Array, 1 << 19);
   const wayName = [];
 
   for await (const block of blocks(buf)) {
@@ -567,6 +577,8 @@ async function readExtract(path, seenWays, emit, tally) {
       wayCls.push(cls);
       wayFlags.push(flagsOf(tags));
       waySpeed.push(Math.min(255, parseSpeed(tags.maxspeed)));
+      wayFw.push(Math.min(255, parseSpeed(tags["maxspeed:forward"])));
+      wayBw.push(Math.min(255, parseSpeed(tags["maxspeed:backward"])));
       wayName.push(tags.name || tags.ref || "");
       for (const r of refs) refsFlat.push(r);
     }, null);
@@ -624,8 +636,9 @@ async function readExtract(path, seenWays, emit, tally) {
     const pts = [];
     const flush = () => {
       if (pts.length < 4) return;
+      const fw = wayFw.get(w), bw = wayBw.get(w);
       emit({ cls: cls, f: wayFlags.get(w), v: waySpeed.get(w),
-             name: wayName[w], pts: pts.slice() });
+             d: fw || bw ? [fw, bw] : 0, name: wayName[w], pts: pts.slice() });
       tally.edges++;
     };
     for (let i = st; i < en; i++) {
@@ -656,6 +669,11 @@ async function main() {
     return (src.also || []).some((a) => only.has(a));
   });
   if (!sources.length) throw new Error("--only named no state this build knows");
+  const pbfArg = process.argv.indexOf("--pbf");
+  const pbfPath = pbfArg >= 0 ? process.argv[pbfArg + 1] : null;
+  if (pbfPath && sources.length !== 1) {
+    throw new Error("--pbf reads one extract, so it wants --only naming one state");
+  }
 
   const stamp = await sourceStamps(sources);
   const cut = cutStamp(stamp);
@@ -696,7 +714,7 @@ async function main() {
       const pts = simplify(edge.pts, SIMPLIFY_M);
       tally.pts += edge.pts.length / 2;
       tally.kept += pts.length / 2;
-      spine([edge.cls, edge.f, edge.v, edge.name, pts]);
+      spine([edge.cls, edge.f, edge.v, edge.name, pts, edge.d]);
       tally.spine++;
       return;
     }
@@ -713,7 +731,7 @@ async function main() {
       tally.pts += dense.length / 2;
       tally.kept += piece.length / 2;
       const x = lngToX(piece[1] / PRECISION, z), y = latToY(piece[0] / PRECISION, z);
-      const row = [edge.cls, edge.f, edge.v, edge.name, piece];
+      const row = [edge.cls, edge.f, edge.v, edge.name, piece, edge.d];
       if (coarse) { region.add(x + "_" + y, row); tally.region++; }
       else { local.add(x + "_" + y, row); tally.local++; }
     }
@@ -722,11 +740,11 @@ async function main() {
   const seenWays = new Set();
   for (const src of sources) {
     console.log(`\n--- ${src.state} ---`);
-    const path = await fetchExtract(src.slug, tmp);
+    const path = pbfPath || await fetchExtract(src.slug, tmp);
     try {
       await readExtract(path, seenWays, emit, tally);
     } finally {
-      await rm(path, { force: true });
+      if (!pbfPath) await rm(path, { force: true });
     }
     console.log(`  running total: ${tally.spine} spine, ${tally.region} tertiary, ${tally.local} local`);
     console.log(`  corners: ${tally.kept} kept of ${tally.pts} ` +
@@ -751,9 +769,12 @@ async function main() {
   const names = [], nIdx = new Map();
   const spineFile = createWriteStream(join(OUT, "spine.json"));
   spineFile.write('{"o":[0,0],"e":[');
-  let first = true, spineKm = 0;
+  let first = true, spineKm = 0, spineRow = 0;
+  const spineD = [];
   await eachLine(spinePath, (row) => {
-    const [cls, f, v, name, pts] = row;
+    const [cls, f, v, name, pts, d] = row;
+    if (d) spineD.push([spineRow, d[0], d[1]]);
+    spineRow++;
     let ni = -1;
     if (name) {
       if (!nIdx.has(name)) { nIdx.set(name, names.length); names.push(name); }
@@ -769,7 +790,8 @@ async function main() {
     spineFile.write((first ? "" : ",") + JSON.stringify(out));
     first = false;
   });
-  spineFile.write('],"n":' + JSON.stringify(names) + "}");
+  spineFile.write('],"n":' + JSON.stringify(names) +
+                  (spineD.length ? ',"d":' + JSON.stringify(spineD) : "") + "}");
   await new Promise((res) => spineFile.end(res));
   console.log(`\nspine: ${tally.spine} edges, ${spineKm.toFixed(0)} km`);
 
@@ -781,7 +803,7 @@ async function main() {
     const x = +xs, y = +ys;
     const edges = [];
     await eachLine(join(regionDir, bucket + ".jsonl"), (row) => {
-      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4] });
+      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4], d: row[5] });
       regionKm += lineKm(row[4]);
     });
     const dir = join(OUT, "r" + REGION_Z, String(x));
@@ -796,7 +818,7 @@ async function main() {
     const x = +xs, y = +ys;
     const edges = [];
     await eachLine(join(localDir, bucket + ".jsonl"), (row) => {
-      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4] });
+      edges.push({ cls: row[0], f: row[1], v: row[2], name: row[3], pts: row[4], d: row[5] });
       localKm += lineKm(row[4]);
     });
     const dir = join(OUT, String(Z), String(x));
@@ -942,7 +964,16 @@ function splitByTile(pts, z) {
 function pack(edges, origin) {
   const names = [], nIdx = new Map();
   const out = [];
+  /* Limits signed one direction at a time, as [row, forward, backward] in
+     km/h against the way as drawn - the Outback Highway just north of
+     Hawker carries only maxspeed:backward=110. A list beside the rows
+     rather than more columns in them, because every copy of the app reads
+     the coordinates from the fifth column on, and one left open through an
+     update would read a new column as a point. It ignores a key it does
+     not know. Missing when a pack has none, which is nearly every pack. */
+  const d = [];
   for (const e of edges) {
+    if (e.d) d.push([out.length, e.d[0], e.d[1]]);
     let ni = -1;
     if (e.name) {
       if (!nIdx.has(e.name)) { nIdx.set(e.name, names.length); names.push(e.name); }
@@ -956,7 +987,7 @@ function pack(edges, origin) {
     }
     out.push(row);
   }
-  return { o: origin, n: names, e: out };
+  return d.length ? { o: origin, n: names, e: out, d: d } : { o: origin, n: names, e: out };
 }
 
 main().catch((e) => {
