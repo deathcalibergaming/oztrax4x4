@@ -1467,6 +1467,19 @@ names it, and here the word is half the reading. It is below the detector’s
 pointer gets, and the label is reinforcement rather than the only signal, since
 the needle also fills Burnt Orange when heading-up is on.
 
+**The vehicle sits in the lower third while heading up.** Following in heading
+up, the vehicle is held two thirds of the way down the open map — from the
+foot of the heads-up display to the bottom of the map — rather than in its
+middle (`CFG.HEADUP_AT`). The stat bar covers the top of the map, so the middle
+showed more road behind than ahead: 266px ahead and 381px behind on a 375×812
+phone, 94 and 167 on its side. Held low it is about 431 and 216, and 172 and
+85. North up and whenever the map is not following, the vehicle stays in the
+middle: north up, "ahead" can be any direction, and a map dragged away is being
+looked around rather than driven into. Changing mode glides the vehicle between
+the two over about half a second rather than jumping it. The map turns about
+the vehicle wherever it is held, so it never swings round the screen as the
+heading changes.
+
 ### The Mark
 
 A heading arrow inside a bearing ring, in Burnt Orange on the app's own

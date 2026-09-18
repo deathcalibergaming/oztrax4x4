@@ -4187,12 +4187,17 @@ const CFG = {
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
+  RESYNC_EDGE: 48,         /* px of canvas left beyond a screen corner before it resyncs */
   /* Pixels past the edge of the turning screen that a pin is already
      brought round within, and how often the pins catch up with the map -
      see pinTurn. */
   PIN_TURN_MARGIN: 80,
   PIN_TURN_MS: 125,
   LERP_POS: 0.16, LERP_HDG: 0.13,
+  /* How far down the open map - from the foot of the heads-up display to
+     the bottom of the map - the vehicle is held while following heading
+     up, and how fast it glides there. See headUpShift. */
+  HEADUP_AT: 0.67, LERP_SHIFT: 0.1,
   SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
   SIM_TICK: 100, SIM_SCALE: 2
 };
@@ -4789,6 +4794,57 @@ function viewCenter() {
   return { x: stageW / 2 - viewInsX / 2, y: stageH / 2 - viewInsY / 2 };
 }
 
+/* Where the vehicle is held while the map turns with it: two thirds of the
+   way down the open map, not in its middle.
+
+   Held in the middle, the screen showed more road behind than ahead. The
+   stat bar covers the top of the map, so on a 375x812 phone the middle had
+   266px of road above it and 381px below - about 1.1 km ahead at the
+   driving zoom and 1.5 km behind. On its side it was 94px ahead and 167
+   behind. The lower third turns that round: about 431px ahead upright, 174
+   on its side. Only heading up, because north up "ahead" is any way at all,
+   and driving south with the vehicle low would put the road under the
+   Navigate button; and only while following, since a map dragged away is
+   being looked around, not driven into.
+
+   followShift is how far below viewCenter the vehicle is right now. It is
+   eased toward headUpShift by the frame loop, so changing mode glides the
+   vehicle rather than jumping it, and it is zero whenever the map is not
+   turning with the vehicle. hudStagePx and turnDropPx are the heads-up
+   display and the turn bar, kept here in numbers by layoutHud and
+   navTurnFit so the frame loop never has to read them back out of CSS. */
+let hudStagePx = 100, turnDropPx = 0, followShift = 0;
+
+function headUpShift() {
+  const top = hudStagePx + turnDropPx, bottom = stageH - viewInsY;
+  return Math.max(0, Math.round(top + (bottom - top) * CFG.HEADUP_AT - viewCenter().y));
+}
+
+/* The map turns about the vehicle, wherever it is being held. */
+function turnOrigin() {
+  const c = viewCenter();
+  return { x: c.x, y: c.y + followShift };
+}
+
+function setTurnOrigin() {
+  const o = turnOrigin();
+  const s = o.x.toFixed(1) + "px " + o.y.toFixed(1) + "px";
+  if (s === setTurnOrigin.was) return;
+  setTurnOrigin.was = s;
+  rotWrap.style.transformOrigin = s;
+}
+
+/* A point on the stage, back to a point on the map canvas: undo the turn
+   about turnOrigin, then the follow transform. Everything that reads the
+   screen back into the map goes through here, so none of it can go on
+   assuming the map turns about the middle. */
+function stageToCanvas(x, y) {
+  const o = turnOrigin(), off = mapOffset();
+  const a = -view.mapRot * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+  const rx = x - o.x, ry = y - o.y;
+  return [rx * ca - ry * sa + o.x + off.x - panDx, rx * sa + ry * ca + o.y + off.y - panDy];
+}
+
 /* ---------- the heads-up display ----------
    The heading tape is one strip of ticks built once and slid along under
    the lubber line - one transform per quarter degree of change, never a
@@ -4983,8 +5039,9 @@ function layoutHud() {
   }
   const bottom = Math.max(sb.getBoundingClientRect().bottom, cells[1].getBoundingClientRect().bottom);
   const root = document.documentElement.style;
+  hudStagePx = Math.round(bottom - stageEl.getBoundingClientRect().top);
   root.setProperty("--hudBottom", Math.round(bottom) + "px");
-  root.setProperty("--hudStage", Math.round(bottom - stageEl.getBoundingClientRect().top) + "px");
+  root.setProperty("--hudStage", hudStagePx + "px");
   centreSignNumber(true);
   layoutDial();
 }
@@ -5268,8 +5325,7 @@ function sizeMap() {
   mapEl.style.top = Math.round((stageH - mapH) / 2 - viewInsY / 2) + "px";
   /* and it turns about the vehicle rather than about the stage, or heading
      up would walk the vehicle round a circle as the map came round */
-  const vc = viewCenter();
-  rotWrap.style.transformOrigin = vc.x.toFixed(1) + "px " + vc.y.toFixed(1) + "px";
+  setTurnOrigin();
   layoutHud();
   if (mapReady) map.invalidateSize({ animate: false, pan: false });
 }
@@ -5571,32 +5627,55 @@ function fitVisible(b) {
 }
 
 function visibleBounds() {
-  const vc = viewCenter();
-  const cx = vc.x, cy = vc.y;
-  const a = -view.mapRot * Math.PI / 180;
-  const ca = Math.cos(a), sa = Math.sin(a);
-  const off = mapOffset();
   const pts = [[0, 0], [stageW, 0], [stageW, stageH], [0, stageH]].map(function (p) {
-    const rx = p[0] - cx, ry = p[1] - cy;
-    const ux = rx * ca - ry * sa + cx;
-    const uy = rx * sa + ry * ca + cy;
-    return map.containerPointToLatLng([ux + off.x - panDx, uy + off.y - panDy]);
+    return map.containerPointToLatLng(stageToCanvas(p[0], p[1]));
   });
   return L.latLngBounds(pts);
 }
 
-function applyFollowTransform(allowResync) {
-  const p = map.latLngToContainerPoint(view.cur);
-  let dx = mapW / 2 - p.x, dy = mapH / 2 - p.y;
-  if (allowResync && !resyncing &&
-      (Math.abs(dx) > stageW * CFG.RESYNC_FRAC || Math.abs(dy) > stageH * CFG.RESYNC_FRAC)) {
-    resyncing = true;
-    map.setView(view.cur, map.getZoom(), { animate: false });
-    resyncing = false;
-    const p2 = map.latLngToContainerPoint(view.cur);
-    dx = mapW / 2 - p2.x; dy = mapH / 2 - p2.y;
+/* Whether the screen is running off the edge of the canvas: any corner of
+   the stage, read back through the turn, within RESYNC_EDGE of it.
+
+   The drift test below was the only guard, and it cannot see the turn. A
+   rotated screen reaches further across the canvas than an upright one -
+   out to its half-diagonal - so a drift inside RESYNC_FRAC could still put
+   a corner past the edge. Measured over the same 4 km of bends on a 375x812
+   screen: 18px past it with the vehicle in the middle, 34px with it held
+   low. The tile grid usually runs a little past the canvas, which is why it
+   was never seen, but a corner of blank map is the thing this canvas is
+   oversized to prevent. Four corners a frame, and only while following. */
+function followThin() {
+  for (const k of [[0, 0], [stageW, 0], [stageW, stageH], [0, stageH]]) {
+    const c = stageToCanvas(k[0], k[1]);
+    if (Math.min(c[0], c[1], mapW - c[0], mapH - c[1]) < CFG.RESYNC_EDGE) return true;
   }
-  panDx = dx; panDy = dy;
+  return false;
+}
+
+function applyFollowTransform(allowResync) {
+  let p = map.latLngToContainerPoint(view.cur);
+  /* the vehicle lands followShift below the middle, which is where the map
+     is turning about - see turnOrigin */
+  panDx = mapW / 2 - p.x; panDy = mapH / 2 - p.y + followShift;
+  /* The resync keeps the middle of the screen near the middle of the
+     canvas, not the vehicle. With the vehicle held low, the screen is the
+     canvas turned about the vehicle, so what it shows is centred
+     followShift ahead of it along the way it faces - and it is that point
+     the canvas's headroom has to be measured from, or the far corners run
+     off the canvas as the map comes round. With followShift at zero the two
+     are the same point, which is how this has always worked. */
+  const t = view.mapRot * Math.PI / 180;
+  const lx = p.x - followShift * Math.sin(t), ly = p.y - followShift * Math.cos(t);
+  if (allowResync && !resyncing &&
+      (Math.abs(mapW / 2 - lx) > stageW * CFG.RESYNC_FRAC || Math.abs(mapH / 2 - ly) > stageH * CFG.RESYNC_FRAC ||
+       followThin())) {
+    resyncing = true;
+    map.setView(map.containerPointToLatLng([lx, ly]), map.getZoom(), { animate: false });
+    resyncing = false;
+    p = map.latLngToContainerPoint(view.cur);
+    panDx = mapW / 2 - p.x; panDy = mapH / 2 - p.y + followShift;
+  }
+  const dx = panDx, dy = panDy;
   /* Written only when they would say something different. This runs once a
      frame at whatever rate the screen refreshes - 90 or 120 a second on a
      modern phone, not 60 - and a parked vehicle produces the same three
@@ -5678,9 +5757,10 @@ pinTurn.deg = 0;
 function pinSweep(all) {
   if (!pinTurn.ups) pinTurn.ups = map.getPane("markerPane").getElementsByClassName("upright");
   const r = pinTurn.deg, t = r ? "rotate(" + (-r) + "deg)" : "";
-  /* the middle of what is visible, where the map turns: the canvas is hung
-     with its centre there, less the follow transform's offset */
-  const c = map.containerPointToLayerPoint([mapW / 2 - panDx, mapH / 2 - panDy]);
+  /* the middle of what is visible, read back through the turn - which is
+     about the vehicle, and that is not the middle when it is held low */
+  const vc = viewCenter();
+  const c = map.containerPointToLayerPoint(stageToCanvas(vc.x, vc.y));
   const reach = Math.hypot(stageW, stageH) / 2 + CFG.PIN_TURN_MARGIN;
   const ups = pinTurn.ups;
   for (let i = 0; i < ups.length; i++) {
@@ -5700,6 +5780,10 @@ function pinUpright() {
 
 function clearFollowTransform() {
   panDx = 0; panDy = 0; view.mapRot = 0;
+  /* not following, so nothing is held low: straight back to the middle,
+     with the map, rather than eased there under a map that is not moving */
+  followShift = 0;
+  setTurnOrigin();
   panWrap.style.transform = "";
   rotWrap.style.transform = "";
   pinTurn(0, true);
@@ -5727,8 +5811,11 @@ function syncDragMode() {
 
 function pauseFollow() {
   if (!S.follow) return;
-  /* freeze the map where it currently looks, then drop the transform */
-  const centerLL = map.containerPointToLatLng([mapW / 2 - panDx, mapH / 2 - panDy]);
+  /* freeze the map where it currently looks, then drop the transform: the
+     point in the middle of the screen stays in the middle, which with the
+     vehicle held low is a little way ahead of it */
+  const vc = viewCenter();
+  const centerLL = map.containerPointToLatLng(stageToCanvas(vc.x, vc.y));
   S.follow = false;
   clearFollowTransform();
   resyncing = true;
@@ -5911,8 +5998,19 @@ function frame(ts) {
     gpsMarker.setLatLng(view.cur);
   }
 
-  const wantRot = (S.follow && !S.northLock && view.has) ? -view.hdgCur : 0;
+  const headUp = S.follow && !S.northLock && view.has;
+  const wantRot = headUp ? -view.hdgCur : 0;
   view.mapRot = wantRot;
+
+  /* Down to the lower third while the map turns with the vehicle, back to
+     the middle when it stops - eased, so the switch is a glide. See
+     headUpShift. */
+  const wantShift = headUp ? headUpShift() : 0;
+  if (followShift !== wantShift) {
+    followShift += (wantShift - followShift) * (1 - Math.pow(1 - CFG.LERP_SHIFT, dt / 16.7));
+    if (Math.abs(wantShift - followShift) < 0.5) followShift = wantShift;
+    setTurnOrigin();
+  }
 
   if (S.follow) applyFollowTransform(true);
   else if (applyFollowTransform.rot !== "0deg") {
@@ -7696,14 +7794,7 @@ function gotoLatLng(lat, lng, z) {
 /* ---- coordinate helper that respects the CSS pan/rotate transform ---- */
 function clientToLatLng(cx, cy) {
   const st = stageEl.getBoundingClientRect();
-  const x = cx - st.left, y = cy - st.top;
-  const c = viewCenter();
-  const a = -view.mapRot * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-  const rx = x - c.x, ry = y - c.y;
-  const ux = rx * ca - ry * sa + c.x;
-  const uy = rx * sa + ry * ca + c.y;
-  const off = mapOffset();
-  return map.containerPointToLatLng([ux + off.x - panDx, uy + off.y - panDy]);
+  return map.containerPointToLatLng(stageToCanvas(cx - st.left, cy - st.top));
 }
 /* Where the driver is looking when nothing is being followed, which is the
    middle of the visible map and not the middle of the stage - the bar
@@ -15486,6 +15577,7 @@ function navTurnFit() {
   const v = drop + "|" + max + "|" + zr;
   if (v === navTurnFit.was) return;
   navTurnFit.was = v;
+  turnDropPx = drop;
   const root = document.documentElement.style;
   root.setProperty("--turnDrop", drop ? drop + "px" : "0px");
   root.setProperty("--turnMax", max ? max + "px" : "100%");
