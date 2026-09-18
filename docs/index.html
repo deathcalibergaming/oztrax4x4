@@ -2604,7 +2604,11 @@ input[type=date],input[type=time]{color-scheme:dark}
 .kv b{color:var(--sand);font-weight:600}
 
 /* ---------- draw box ---------- */
-#drawHint{position:absolute;top:12px;left:12px;right:60px;z-index:470;background:rgba(23,28,25,.95);
+/* Under the heads-up display, where the map chips sit, not 12px from the top
+   of the map. The stat bar is drawn over the top of the map at 600, so a hint
+   placed there came up behind the heading tape, the speed and the readings,
+   Cancel included. */
+#drawHint{position:absolute;top:calc(var(--hudStage) + 10px + var(--turnDrop, 0px));left:12px;right:60px;z-index:470;background:rgba(23,28,25,.95);
   border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--t-note);line-height:1.4;color:var(--sand)}
 #drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--t-label-sm);display:block;margin-bottom:3px;text-transform:uppercase}
 #drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
