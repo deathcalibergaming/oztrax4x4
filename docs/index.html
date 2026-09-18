@@ -2278,6 +2278,7 @@ details.sub > .sec-body{padding:12px 0 0}
 .trk-m span{font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);color:var(--sand);
   letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-n{font-size:var(--t-note);color:var(--dim);margin-top:5px;line-height:1.45;word-break:break-word}
+.card-n.bad-note{color:var(--danger2)}
 /* The street address, above the attribute line and a shade brighter than it:
    where a place is reads ahead of what it offers. */
 .card-ad{font-size:var(--t-note);color:rgba(216,203,170,.8);margin-top:5px;line-height:1.45;word-break:break-word}
@@ -3397,6 +3398,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div id="areaList" class="list"></div>
         <div class="row">
           <button class="btn sm primary" id="btnNewArea">Download New Area</button>
+          <button class="btn sm ghost" id="btnNewState">Download A State</button>
         </div>
       </div>
     </details>
@@ -3793,6 +3795,34 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
 </div>
 
+<!-- A whole state's data at once. The same modal holds the choice and then
+     the progress, and it can be closed while the download carries on: New
+     South Wales is half an hour, and the map is still wanted meanwhile. -->
+<div id="stateModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="smTitle">
+  <div class="modal-box">
+    <div class="modal-head"><h2 class="t" id="smTitle">Download A State</h2></div>
+    <div class="modal-body">
+      <div id="smSetup">
+        <div class="hint">Addresses, roads and POIs for the whole state, so search, routes and the speed sign work with no signal. Map imagery is not included: draw an area for that.</div>
+        <div class="kv"><span>Free space</span><b id="smFree">--</b></div>
+        <div id="smList" class="list"></div>
+      </div>
+      <div id="smProgress" class="hidden">
+        <div class="prog"><i id="smBar"></i></div>
+        <div class="kv"><span id="smStatus">Starting&hellip;</span><b id="smPct">0%</b></div>
+        <div class="kv"><span>Files</span><b id="smFiles">--</b></div>
+        <div class="kv"><span>Time left</span><b id="smLeft">--</b></div>
+        <div class="kv"><span>New / already here / failed</span><b id="smTally">0 / 0 / 0</b></div>
+        <div class="note">Keep OzTrax open until it finishes. The screen stays on by itself, and you can close this box and use the map.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm ghost" id="smClose">Close</button>
+      <button class="btn sm ghost hidden" id="smStop">Stop</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- in-app confirmation: browsers suppress window.confirm in installed PWAs -->
 <div id="askModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="askTitle">
@@ -4115,6 +4145,37 @@ const CFG = {
      being recorded has nowhere to write its next point, and the recording
      is the one thing here that cannot be fetched again. */
   DL_RESERVE: 64 * 1048576,
+  /* A state at a time: its addresses, roads and POIs, never its imagery.
+     A state's basemap to z13 alone is 2.5 GB for South Australia and 5.5 GB
+     for WA, so imagery stays a box somebody draws.
+
+     A plain bounding box, south, west, north, east. Four of these borders
+     are meridians and parallels, so the box is the state; NSW and Victoria
+     take in some of each other's river country, which a driver near the
+     Murray wants anyway. files and mb are measured off docs/ on 2026-09-19
+     and only ever shown as "about" - the run itself counts off the
+     manifests. mb is raw JSON; IndexedDB stores it at PACK_STORED of that. */
+  STATES: [
+    { id: "ACT", name: "Australian Capital Territory", box: [-35.95, 148.7, -35.1, 149.4], files: 854, mb: 8.2 },
+    { id: "NSW", name: "New South Wales", box: [-37.6, 140.9, -28.1, 153.7], files: 81559, mb: 178.2 },
+    { id: "NT", name: "Northern Territory", box: [-26.1, 129.0, -10.9, 138.1], files: 15432, mb: 7.2 },
+    { id: "QLD", name: "Queensland", box: [-29.2, 137.9, -9.1, 153.6], files: 60015, mb: 105.6 },
+    { id: "SA", name: "South Australia", box: [-38.1, 129.0, -25.9, 141.1], files: 31086, mb: 45.5 },
+    { id: "TAS", name: "Tasmania", box: [-43.7, 143.8, -39.5, 148.5], files: 7140, mb: 15.5 },
+    { id: "VIC", name: "Victoria", box: [-39.2, 140.9, -33.9, 150.1], files: 45750, mb: 148.2 },
+    { id: "WA", name: "Western Australia", box: [-35.2, 112.9, -13.6, 129.1], files: 49385, mb: 60.5 }
+  ],
+  /* The pack files are about 2 KB each and the download is latency-bound,
+     not bandwidth-bound: about 270 ms a file whatever its size. Measured
+     cold against the live site, one at a time managed 3.7 files a second
+     and 24 at a time 80.6 - South Australia in six minutes rather than two
+     hours. Imagery keeps DL_CONC; its tiles are ten times the size. */
+  PACK_CONC: 24,
+  /* What the estimate assumes a phone manages at PACK_CONC. The desktop
+     measured 80; a phone on 4G is 1.5 to 3 times slower. */
+  PACK_RATE: 50,
+  PACK_STORED: 0.53,       /* measured: Chrome compresses what IndexedDB holds */
+  PACK_TIMEOUT: 30000,     /* one stalled file must not hold a worker for good */
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
@@ -4138,7 +4199,8 @@ const LS = {
   country: "tt.country",
   home: "tt.home",
   fuelSel: "tt.fuelSel",
-  favs: "tt.favs"
+  favs: "tt.favs",
+  states: "tt.states"      /* which states' data is on this phone, and from which cut */
 };
 
 /* ---------- tiny helpers ---------- */
@@ -4590,7 +4652,31 @@ const DB = (function () {
     all: (s) => tx(s, "readonly", (os) => os.getAll()),
     keys: (s) => tx(s, "readonly", (os) => os.getAllKeys()),
     count: (s) => tx(s, "readonly", (os) => os.count()),
-    clear: (s) => tx(s, "readwrite", (os) => os.clear())
+    clear: (s) => tx(s, "readwrite", (os) => os.clear()),
+    /* Every value in a store, n at a time, for a store too big to hold at
+       once. all() on a store holding a whole state's addresses would be a
+       hundred megabytes of objects in one go. fn returns false to stop. */
+    each: function (s, n, fn) {
+      return open().then((db) => new Promise((res, rej) => {
+        let after = null;
+        (function next() {
+          const t = db.transaction(s, "readonly"), os = t.objectStore(s);
+          const range = after === null ? null : IDBKeyRange.lowerBound(after, true);
+          const kr = os.getAllKeys(range, n), vr = os.getAll(range, n);
+          t.oncomplete = () => {
+            const ks = kr.result, vs = vr.result;
+            for (let i = 0; i < vs.length; i++) if (fn(vs[i], ks[i]) === false) return res();
+            if (ks.length < n) return res();
+            after = ks[ks.length - 1];
+            next();
+          };
+          t.onerror = () => rej(t.error);
+          t.onabort = () => rej(t.error);
+        })();
+      }));
+    },
+    /* Many keys in one transaction, rather than one each. */
+    delMany: (s, keys) => tx(s, "readwrite", (os) => { keys.forEach((k) => os.delete(k)); return null; })
   };
 })();
 
@@ -10550,45 +10636,59 @@ const Addr = {
     return hits;
   },
 
-  /* Go and get the packs for a suburb the query named but the phone does
-     not hold. This is the one part of the address search that needs a
-     connection: the tile is on the server and nothing has ever asked for
-     it. What is already stored still answers without one.
+  /* Which tiles a query points at, as store keys, and with a signal go and
+     get the ones the phone does not hold. Fetching is the one part of the
+     address search that needs a connection: the tile is on the server and
+     nothing has ever asked for it. Working out which tiles does not, since
+     a downloaded state keeps the suburb index, and that is what lets a
+     search there read one suburb's tiles instead of every tile the state
+     has.
 
      Capped, because a rural locality can span ninety tiles - though they
      are the sparse kind, a few hundred addresses between them. */
   reachFor: async function (q) {
-    if (!navigator.onLine) return 0;
     const t = this.terms(q);
-    if (!t) return 0;
-    let got = 0;
+    if (!t) return [];
+    const want = [];
     const places = await this.loadLocalities();
     if (places) {
       for (const name of this.placesIn(q, places)) {
         for (const k of places[name]) {
-          if (got >= CFG.ADDR_REACH_MAX) return got;
-          const p = k.split("/");
-          await this.fetchTile(+p[0], +p[1], false);
-          got++;
+          if (want.length >= CFG.ADDR_REACH_MAX) break;
+          want.push(k);
         }
       }
     }
-    /* A suburb was named and its packs are here now. The answer is in them
-       or it is nowhere, so the street index is not worth fetching. */
-    if (got) return got;
-    /* Nothing named a suburb - "12 Waterford Avenue" on its own, which is a
-       fair thing to type when the street is unusual enough. One short word
-       is not, and is not worth fetching the streets around you for. */
-    if (t.words.length === 1 && t.words[0].length < 4) return 0;
-    const streets = await this.loadStreets();
-    if (!streets) return 0;
-    for (const k of this.tilesForStreets(t, streets)) {
-      if (got >= CFG.ADDR_REACH_MAX) break;
-      const p = k.split("/");
-      await this.fetchTile(+p[0], +p[1], false);
-      got++;
+    const named = want.length > 0;
+    if (named && navigator.onLine) {
+      for (const k of want) {
+        const p = k.split("/");
+        await this.fetchTile(+p[0], +p[1], false);
+      }
     }
-    return got;
+    /* The street's own tiles near the vehicle as well. "12 Waterford
+       Avenue" names Waterford, a suburb of Perth, and the Waterford Avenue
+       wanted is in Dernancourt - which reading the whole store used to
+       find as a matter of course, and which the suburb's tiles alone never
+       will. Fetched only when no suburb was named, which is when the query
+       has nothing else to go on; otherwise read if the phone holds them.
+       One short word is not worth fetching the streets around you for. */
+    const keys = () => want.map((k) => CFG.ADDR_Z + "/" + k);
+    if (t.words.length === 1 && t.words[0].length < 4) return keys();
+    const streets = await this.loadStreets();
+    if (streets) {
+      const cap = want.length + CFG.ADDR_REACH_MAX, had = new Set(want);
+      for (const k of this.tilesForStreets(t, streets)) {
+        if (want.length >= cap) break;
+        if (had.has(k)) continue;
+        want.push(k);
+        if (!named && navigator.onLine) {
+          const p = k.split("/");
+          await this.fetchTile(+p[0], +p[1], false);
+        }
+      }
+    }
+    return keys();
   },
 
   /* Which longitude bands of the street index cover where the vehicle is.
@@ -10633,8 +10733,12 @@ const Addr = {
     for (const b of bands) {
       let part = this.streetShards.get(b);
       if (part === undefined) {
-        part = (await this.side("streets/" + b + ".json", "streets" + b)) || {};
-        this.streetShards.set(b, part);
+        /* Remembered only once it has arrived. A search with no signal asks
+           too now, and a band it could not get must be asked for again
+           when there is one, not held as empty for the session. */
+        part = await this.side("streets/" + b + ".json", "streets" + b);
+        if (part) this.streetShards.set(b, part);
+        else part = {};
       }
       /* Merged rather than searched three times over: a street runs across
          a band edge as readily as it runs across a tile edge, and the
@@ -10957,30 +11061,44 @@ const Addr = {
      finding an address in it from four hundred kilometres away is the
      reason the packs came down with the imagery.
 
-     This reads the whole store, which is bounded by what was deliberately
-     downloaded - an area over Adelaide is about fifty tiles - rather than
-     by the country's eighty thousand. Memory is searched first and
-     its hits kept in front, so the near answer never sorts below a far one
-     that happens to share a street name. */
+     It used to read the whole store in one getAll, which was fine while
+     the store was an area or two - fifty tiles over Adelaide. With New
+     South Wales downloaded that one read was 33,017 tiles and 292 MB of
+     heap, measured, on the typing pause as well as on Search. So the tiles
+     the query points at - the suburbs it names, and its street near the
+     vehicle - are read first, and when they hold an answer that is the
+     answer: 22 to 70 ms over the same store. Only when they do not is the
+     rest walked, a batch at a time, stopping at the cap and as soon as a
+     newer search has started - 0.8 s and 58 MB passing through rather
+     than held. Memory is searched first and its hits kept in
+     front, so the near answer never sorts below a far one that happens to
+     share a street name. */
+  storedSeq: 0,
   searchStored: async function (q, limit) {
     const t = this.terms(q);
     if (!t) return [];
+    const seq = ++this.storedSeq;
     const cap = (limit || CFG.ADDR_HITS) * 8;
     const out = this.search(q, limit);
     const seen = {};
     out.forEach(function (r) { seen[r.id] = 1; });
-    /* A suburb the query names but the phone does not hold is fetched here,
-       before the store is read. This is the one part of the search that
-       wants a connection - the tile exists, it is named in the manifest,
-       and nothing has ever had a reason to ask for it. */
-    await this.reachFor(q);
-    let tiles;
-    try { tiles = await DB.all("addr"); } catch (e) { return out; }
-    const wider = [];
-    for (const tile of tiles) {
-      if (!tile || !tile.a) continue;            /* the manifest lives here too */
-      this.scan(tile, t, wider, cap);
-      if (wider.length >= cap) break;
+    const reach = await this.reachFor(q);
+    const wider = [], read = new Set(reach);
+    for (const k of reach) {
+      if (seq !== this.storedSeq || wider.length >= cap) break;
+      let tile = null;
+      try { tile = await DB.get("addr", k); } catch (e) { /* not stored */ }
+      if (tile && tile.a) this.scan(tile, t, wider, cap);
+    }
+    if (seq === this.storedSeq && !wider.length) {
+      try {
+        await DB.each("addr", 100, (tile, k) => {
+          if (seq !== this.storedSeq) return false;
+          if (read.has(k) || !tile || !tile.a) return true;   /* the manifest lives here too */
+          this.scan(tile, t, wider, cap);
+          return wider.length < cap;
+        });
+      } catch (e) { /* what was read stands */ }
     }
     wider.forEach(function (r) { if (!seen[r.id]) { seen[r.id] = 1; out.push(r); } });
     return out;
@@ -13992,6 +14110,140 @@ function isOutOfSpace(e) {
     e.code === 22 || e.code === 1014;
 }
 
+/* ---------------------------------------------------------------------
+   The data packs for a box - addresses, roads and POIs - pulled through
+   one queue. A drawn area and a whole state both come through here.
+
+   They used to come down one kind after another, one file at a time. A
+   pack file is about 2 KB and a request about 270 ms, so it was never the
+   bytes that cost: at one at a time South Australia was 2.3 hours, and at
+   PACK_CONC it is six minutes.
+   --------------------------------------------------------------------- */
+
+/* Each kind of pack a box can hold: where it is on the server and in
+   storage, and the cut a stored file must carry to count as current. The
+   tertiary roads are their own kind because they are cut on their own
+   grid, and an area used to come down without them - its streets and the
+   spine, and none of the minor rural roads between the two. */
+function packKinds() {
+  const r = Route.manifest;
+  return [
+    { s: "addr", u: CFG.ADDR_URL, z: CFG.ADDR_Z, pre: CFG.ADDR_Z + "/",
+      m: Addr.manifest && Addr.manifest.tiles, c: Addr.cut() || "" },
+    { s: "route", u: CFG.ROUTE_URL, z: CFG.ROUTE_Z, pre: CFG.ROUTE_Z + "/",
+      m: r && r.tiles, c: Route.cut() || "" },
+    { s: "route", u: CFG.ROUTE_URL, z: CFG.ROUTE_REGION_Z, pre: "r" + CFG.ROUTE_REGION_Z + "/",
+      m: r && r.region && r.region.tiles, c: Route.cut() || "" },
+    { s: "poipack", u: CFG.POI_PACK_URL, z: CFG.POI_PACK_Z, pre: CFG.POI_PACK_Z + "/",
+      m: Pack.manifest && Pack.manifest.tiles, c: (Pack.manifest && Pack.manifest.cut) || "" }
+  ];
+}
+
+/* The tiles a box spans at z, as [x0, x1, y0, y1]. A box is south, west,
+   north, east throughout. */
+function boxTiles(box, z) {
+  return [lon2tile(box[1], z), lon2tile(box[3], z), lat2tile(box[2], z), lat2tile(box[0], z)];
+}
+
+/* Every pack file in a box, one at a time, off the manifests - so ocean
+   and empty desert cost nothing. A generator rather than a list: New South
+   Wales is 81,559 files, and a list of them would be a dozen megabytes of
+   heap held for half an hour on a phone whose heap is what runs out. */
+function* packFiles(box) {
+  for (const k of packKinds()) {
+    if (!k.m) continue;
+    const t = boxTiles(box, k.z);
+    for (let x = t[0]; x <= t[1]; x++) {
+      const col = k.m[x];
+      if (!col) continue;
+      for (const y of col) {
+        if (y >= t[2] && y <= t[3]) yield { s: k.s, u: k.u, k: k.pre + x + "/" + y, c: k.c };
+      }
+    }
+  }
+}
+
+function packCount(box) {
+  const it = packFiles(box);
+  let n = 0;
+  while (!it.next().done) n++;
+  return n;
+}
+
+/* One file. Stored and current is a skip, so running a box again picks up
+   where the last run stopped. The write is not caught here: a full disk
+   has to reach packRun, which is the only thing that can stop the rest. */
+async function packFile(f) {
+  let held = null;
+  try { held = await DB.get(f.s, f.k); } catch (e) { /* ask the server */ }
+  if (held && (held.__cut || "") === f.c) return false;
+  const ctl = new AbortController();
+  const bail = setTimeout(function () { ctl.abort(); }, CFG.PACK_TIMEOUT);
+  try {
+    /* no-store: eighty thousand files through the HTTP cache would push
+       out everything else it holds, for copies nothing asks for twice. */
+    const r = await fetch(f.u + f.k + ".json", { cache: "no-store", signal: ctl.signal });
+    if (!r.ok) throw new Error("http " + r.status);
+    const v = await r.json();
+    v.__cut = f.c;
+    await DB.put(f.s, v, f.k);
+    return true;
+  } finally {
+    clearTimeout(bail);
+  }
+}
+
+/* The whole box, PACK_CONC at a time, stopping on dlAbort. What did not
+   arrive gets one more try at the end, which is what a dropped bar halfway
+   through a state needs - a few dozen files, not a second pass over all
+   of it. onTick is handed the running tally after every file. */
+async function packRun(box, onTick) {
+  const st = { total: packCount(box), done: 0, fetched: 0, cached: 0, failed: 0, full: false };
+  const again = [];
+  async function one(f, second) {
+    try {
+      const got = await packFile(f);
+      if (second) st.failed--;
+      if (got) st.fetched++; else st.cached++;
+    } catch (e) {
+      if (isOutOfSpace(e)) { st.full = true; dlAbort = true; }
+      else if (!second) { st.failed++; if (again.length < 2000) again.push(f); }
+    }
+  }
+  function workers(next, second) {
+    const w = [];
+    for (let i = 0; i < CFG.PACK_CONC; i++) {
+      w.push((async function () {
+        for (let f = next(); f && !dlAbort; f = next()) {
+          await one(f, second);
+          if (!second) st.done++;
+          if (onTick) onTick(st);
+        }
+      })());
+    }
+    return Promise.all(w);
+  }
+  const it = packFiles(box);
+  await workers(function () { const s = it.next(); return s.done ? null : s.value; }, false);
+  let i = 0;
+  if (again.length && !dlAbort) await workers(function () { return i < again.length ? again[i++] : null; }, true);
+  if (onTick) onTick(st);
+  return st;
+}
+
+/* Paint no more than four times a second. A file lands every few
+   milliseconds at PACK_CONC, and each one repainting the bar would be the
+   download spending its time on the screen. */
+function throttle(fn, ms) {
+  let last = 0;
+  return function (st) {
+    const now = Date.now();
+    if (now - last < ms && st.done < st.total) return;
+    last = now;
+    fn(st);
+  };
+}
+
 let amEstSeq = 0;
 async function updateAreaEstimate() {
   if (!pendingBounds) return;
@@ -14020,12 +14272,17 @@ async function updateAreaEstimate() {
       "an area you have finished with.";
 }
 
+/* One download at a time. The area and the state share dlAbort, and two
+   queues of twenty-four would halve each other anyway. */
+let dlBusy = false;
+
 async function runAreaDownload() {
   const z = parseInt($("#amZoom").value, 10);
   const name = ($("#amName").value || "").trim() || "Area";
   const bounds = pendingBounds;
   const total = tileCountFor(bounds, z, S.hillshade);
   if (!total) return;
+  if (dlBusy) { toast("A download is already running - wait for it or stop it", "warn"); return; }
 
   /* Asked again here rather than trusting the dialog. The estimate was
      taken when the box was drawn, and a camera roll, another tab or a
@@ -14039,6 +14296,8 @@ async function runAreaDownload() {
   }
 
   dlAbort = false;
+  dlBusy = true;
+  Wake.pin(true);
   let outOfSpace = false;
   $("#amSetup").classList.add("hidden");
   $("#amProgress").classList.remove("hidden");
@@ -14093,65 +14352,37 @@ async function runAreaDownload() {
   for (let i = 0; i < CFG.DL_CONC; i++) workers.push(worker());
   await Promise.all(workers);
   tally();
-  /* The addresses for the same ground, pulled without being asked for and
-     without a progress line of their own. They are a rounding error beside
-     the imagery - the whole of Hawker is 8.9 KB against a few megabytes of
-     tiles - and an area downloaded for the bush is exactly where looking an
-     address up over the air is not going to work.
+  /* The data for the same ground - addresses, roads and POIs - pulled
+     without being asked for. They are a rounding error beside the imagery,
+     the whole of Hawker's addresses 8.9 KB against megabytes of tiles, and
+     an area is downloaded because somebody is about to be out of range in
+     it: exactly where looking an address up, routing or finding the water
+     over the air is not going to work.
+
+     The national spine comes first whether or not it was already here -
+     without it the streets in this box lead nowhere - and then everything
+     in the box through the one queue, the tertiary roads included, which
+     the area used to leave out.
 
      A failure here never fails the area. The imagery is what it is for. */
-  let addrTiles = 0;
+  let packs = null;
   if (!dlAbort) {
+    const box = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()];
+    $("#amStatus").textContent = "Roads, addresses and POIs";
+    $("#amBar").style.width = "0%";
+    $("#amPct").textContent = "0%";
     try {
-      await Addr.loadManifest();
-      const want = Addr.cover(bounds.getSouth(), bounds.getWest(),
-                              bounds.getNorth(), bounds.getEast());
-      for (const t of want) {
-        if (dlAbort) break;
-        await Addr.fetchTile(t[0], t[1], false);
-        addrTiles++;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  /* And the roads, for the same reasons and one more: an area is downloaded
-     because somebody is about to be out of range in it, and a route is the
-     thing they will want most once they are. The national spine comes with
-     it whether or not it was already here - it is four megabytes against
-     the several this has just spent on imagery, and without it the streets
-     in this box lead nowhere. */
-  let routeTiles = 0;
-  if (!dlAbort) {
-    try {
+      await Promise.all([Addr.loadManifest(), Route.loadManifest(), Pack.loadManifest()]);
       await Route.keepSpine();
-      await Route.loadManifest();
-      for (const t of Route.cover(bounds.getSouth(), bounds.getWest(),
-                                  bounds.getNorth(), bounds.getEast())) {
-        if (dlAbort) break;
-        await Route.fetchTile(t[0], t[1], false);
-        routeTiles++;
-      }
+      packs = await packRun(box, throttle(function (st) {
+        const pct = st.total ? Math.round(st.done / st.total * 100) : 100;
+        $("#amBar").style.width = pct + "%";
+        $("#amPct").textContent = pct + "%";
+        $("#amTally").textContent = st.fetched + " / " + st.cached + " / " + st.failed;
+      }, 250));
+      if (packs.full) outOfSpace = true;
     } catch (e) { /* ignore */ }
   }
-
-  /* And the POIs, which are the cheapest thing in this whole download and
-     the one most likely to be wanted: the water, the fuel and the camps in
-     the box somebody has just told us they are about to be out of range
-     in. A tile is twenty kilobytes at its worst against the megabytes of
-     imagery above it. */
-  let poiTiles = 0;
-  if (!dlAbort) {
-    try {
-      await Pack.loadManifest();
-      for (const t of Pack.cover(bounds.getSouth(), bounds.getWest(),
-                                 bounds.getNorth(), bounds.getEast())) {
-        if (dlAbort) break;
-        await Pack.fetchTile(t[0], t[1], false);
-        poiTiles++;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
 
   /* An area that filled the device is still saved, under a name that says
      what it is. The tiles are on the phone either way; without a record the
@@ -14168,33 +14399,290 @@ async function runAreaDownload() {
          attempted: the five or so workers with a tile in flight when the
          first refusal landed all fail too, and counting them would put a
          size on the card that is not on the disk. */
-      maxZoom: z, tiles: outOfSpace ? fetched + cached : total, addr: addrTiles,
-      route: routeTiles, ts: Date.now(),
+      maxZoom: z, tiles: outOfSpace ? fetched + cached : total,
+      packs: packs ? packs.fetched + packs.cached : 0, ts: Date.now(),
       bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]
     };
     try { await DB.put("areas", area); } catch (e) { /* ignore */ }
     await renderAreas();
     if (outOfSpace)
-      toast("Ran out of free space - " + fetched + " of " + total + " tiles saved", "err");
+      toast("Ran out of free space - " + (fetched + cached) + " of " + total + " tiles saved", "err");
     else
       toast("Area saved: " + fetched + " new, " + cached + " already cached" +
-            (addrTiles ? ", " + addrTiles + " address pack" + (addrTiles > 1 ? "s" : "") : "") +
-            (routeTiles ? ", " + routeTiles + " road pack" + (routeTiles > 1 ? "s" : "") : ""), "ok");
+            (area.packs ? ", " + area.packs + " data file" + (area.packs > 1 ? "s" : "") : ""), "ok");
   } else {
     toast("Download stopped", "warn");
   }
+  dlBusy = false;
+  Wake.pin(false);
   closeAreaModal();
   refreshStorageStats();
+}
+
+/* ---------------------------------------------------------------------
+   A state at a time: every address, road and POI in one of CFG.STATES,
+   through packRun. What is on the phone is recorded per state with the
+   cut of each pack it came from, so a state the server has since rebuilt
+   says so in the list rather than being found out at a roadhouse. The
+   data still works when it is behind - it is only older.
+   --------------------------------------------------------------------- */
+let stRun = null;          /* the state coming down: { s, phase, st, t0 } */
+
+function stateById(id) { return CFG.STATES.find(function (s) { return s.id === id; }) || null; }
+function stateRecs() { return loadLS(LS.states, {}) || {}; }
+
+/* On the phone, not on the wire. */
+function stateBytes(s) { return s.mb * 1048576 * CFG.PACK_STORED; }
+
+function fmtAbout(sec) {
+  if (sec < 60) return "under a minute";
+  const m = Math.round(sec / 60);
+  if (m < 60) return "about " + m + " min";
+  return "about " + Math.floor(m / 60) + " h" + (m % 60 ? " " + (m % 60) + " min" : "");
+}
+
+/* The cut each pack is on right now, null where there is no manifest to
+   say. A state recorded against a different one is behind. */
+function packCuts() {
+  return { a: Addr.manifest ? Addr.cut() : null, r: Route.manifest ? Route.cut() : null,
+           p: Pack.manifest ? (Pack.manifest.cut || "") : null };
+}
+
+/* Where a state stands: none, part (a run that stopped or lost files),
+   old (whole, from data since rebuilt) or ok. */
+function stateStatus(rec) {
+  if (!rec) return { k: "none" };
+  if (!rec.done) return { k: "part", pct: rec.total ? Math.floor(rec.got / rec.total * 100) : 0 };
+  const now = packCuts(), old = [];
+  if (now.a !== null && rec.cuts.a !== now.a) old.push("addresses");
+  if (now.r !== null && rec.cuts.r !== now.r) old.push("roads");
+  if (now.p !== null && rec.cuts.p !== now.p) old.push("POIs");
+  return old.length ? { k: "old", what: old } : { k: "ok" };
+}
+
+function andList(w) {
+  return w.length < 2 ? w.join("") : w.slice(0, -1).join(", ") + " and " + w[w.length - 1];
+}
+
+/* What a state's card says about it, shared by the drawer and the picker. */
+function stateNote(s, rec) {
+  if (stRun && stRun.s === s) return "Downloading";
+  const st = stateStatus(rec);
+  if (st.k === "part") return "Part downloaded, " + st.pct + "%" + (rec.failed ? " - " + rec.failed + " files did not arrive" : "");
+  if (st.k === "old") return "Newer " + andList(st.what) + " are out";
+  return "";
+}
+
+function stateAction(rec) {
+  const st = stateStatus(rec);
+  return st.k === "none" ? "Download" : st.k === "part" ? "Resume" : st.k === "old" ? "Update" : "";
+}
+
+async function loadPackManifests() {
+  await Promise.all([Addr.loadManifest(), Route.loadManifest(), Pack.loadManifest()]);
+}
+
+async function openStateModal() {
+  $("#stateModal").classList.remove("hidden");
+  if (stRun) { showStateProgress(); return; }
+  $("#smTitle").textContent = "Download A State";
+  $("#smSetup").classList.remove("hidden");
+  $("#smProgress").classList.add("hidden");
+  $("#smClose").textContent = "Close";
+  $("#smStop").classList.add("hidden");
+  $("#smList").innerHTML = '<div class="empty">Checking what is on this phone&hellip;</div>';
+  await loadPackManifests();
+  const free = await freeSpace();
+  if (stRun) return;                     /* one started while this was reading */
+  $("#smFree").textContent = free === null ? "Unknown" : fmtBytes(free);
+  const recs = stateRecs();
+  $("#smList").innerHTML = CFG.STATES.map(function (s) {
+    const rec = recs[s.id], act = stateAction(rec), note = stateNote(s, rec);
+    const short = act && free !== null && stateBytes(s) + CFG.DL_RESERVE > free;
+    return '<div class="card" data-state="' + s.id + '">' +
+      '<div class="card-top"><div class="card-t">' + esc(s.name) + "</div>" +
+      (rec && rec.done ? '<span class="tag easy">On phone</span>' : "") + "</div>" +
+      '<div class="card-m"><span>about ' + fmtBytes(stateBytes(s)) + "</span><span>" +
+      fmtAbout(s.files / CFG.PACK_RATE) + "</span></div>" +
+      (note ? '<div class="card-n">' + esc(note) + "</div>" : "") +
+      (short ? '<div class="card-n bad-note">Not enough free space</div>' : "") +
+      (act ? '<div class="card-acts"><button class="btn xs ghost" data-act="get"' + (short ? " disabled" : "") + ">" + act + "</button></div>" : "") +
+      "</div>";
+  }).join("");
+}
+
+function closeStateModal() { $("#stateModal").classList.add("hidden"); }
+
+function showStateProgress() {
+  $("#smSetup").classList.add("hidden");
+  $("#smProgress").classList.remove("hidden");
+  $("#smClose").textContent = "Hide";
+  $("#smStop").classList.remove("hidden");
+  paintStateRun();
+}
+
+function paintStateRun() {
+  const r = stRun;
+  if (!r) return;
+  const st = r.st;
+  const pct = st && st.total ? Math.floor(st.done / st.total * 100) : 0;
+  $("#smTitle").textContent = r.s.name;
+  $("#smStatus").textContent = r.phase;
+  $("#smBar").style.width = pct + "%";
+  $("#smPct").textContent = pct + "%";
+  $("#smFiles").textContent = st ? st.done.toLocaleString() + " / " + st.total.toLocaleString() : "--";
+  /* From the rate this run is actually getting, once there is enough of
+     it to be a rate. The estimate in the list is a guess about phones in
+     general; this is this phone on this signal. */
+  const secs = (Date.now() - r.t0) / 1000;
+  $("#smLeft").textContent = st && st.done > 200 && secs > 5
+    ? fmtAbout((st.total - st.done) / (st.done / secs)) : "--";
+  if (st) $("#smTally").textContent = st.fetched + " / " + st.cached + " / " + st.failed;
+  const live = $("#stLive");
+  if (live) live.textContent = "Downloading, " + pct + "%";
+}
+
+async function runStateDownload(id) {
+  const s = stateById(id);
+  if (!s) return;
+  if (dlBusy) { toast("A download is already running - wait for it or stop it", "warn"); return; }
+  /* Asked again here rather than trusting the list: a camera roll can
+     have spent the difference since it was drawn. */
+  const free = await freeSpace();
+  if (free !== null && stateBytes(s) + CFG.DL_RESERVE > free) {
+    toast("Not enough free space for " + s.name, "err");
+    return;
+  }
+  dlAbort = false;
+  dlBusy = true;
+  Wake.pin(true);
+  stRun = { s: s, phase: "Checking what is here", st: null, t0: Date.now() };
+  showStateProgress();
+  renderAreas();
+  let st = null, cuts = null;
+  try {
+    await loadPackManifests();
+    cuts = packCuts();
+    /* The two files that belong to no box. The spine, without which the
+       streets in a state lead nowhere, and the suburb index, which is what
+       lets a search that names a suburb read that suburb's tiles rather
+       than every tile on the phone. */
+    stRun.phase = "Main roads";
+    paintStateRun();
+    await Route.keepSpine();
+    if (!dlAbort) {
+      stRun.phase = "Suburb index";
+      paintStateRun();
+      try { await Addr.side("localities.json", "localities"); } catch (e) { /* search still reads the tiles */ }
+    }
+    if (!dlAbort) {
+      stRun.phase = "Addresses, roads and POIs";
+      stRun.t0 = Date.now();
+      st = await packRun(s.box, throttle(function (x) { stRun.st = x; paintStateRun(); }, 250));
+    }
+  } catch (e) { /* recorded below as far as it got */ }
+
+  const got = st ? st.fetched + st.cached : 0;
+  const recs = stateRecs();
+  if (st && st.total && (got || recs[s.id])) {
+    recs[s.id] = { ts: Date.now(), done: !dlAbort && st.failed === 0, total: st.total,
+                   got: got, failed: st.failed, cuts: cuts };
+    saveLS(LS.states, recs);
+  }
+  if (st && st.full)
+    toast("Ran out of free space - " + got.toLocaleString() + " of " + st.total.toLocaleString() + " files saved", "err");
+  else if (dlAbort)
+    toast("Download stopped - Resume picks up where it left off", "warn");
+  else if (!st || !st.total)
+    toast("Could not reach the server for " + s.name + " - try again with a signal", "err");
+  else if (st.failed)
+    toast(s.name + ": " + st.failed + " files did not arrive - Resume tries them again", "warn");
+  else
+    toast(s.name + " is on this phone", "ok");
+
+  stRun = null;
+  dlBusy = false;
+  Wake.pin(false);
+  renderAreas();
+  refreshStorageStats();
+  if (!$("#stateModal").classList.contains("hidden")) openStateModal();
+}
+
+/* The files a state's box holds, less any another state or a drawn area
+   still covers - a VIC download takes in the Riverina, and deleting NSW
+   must not take it back out from under it. The spine and the suburb index
+   are shared by everything and stay. */
+async function deleteState(id) {
+  const s = stateById(id);
+  if (!s || (stRun && stRun.s === s)) return;
+  const recs = stateRecs();
+  const keep = [];
+  Object.keys(recs).forEach(function (k) { const o = stateById(k); if (o && o !== s) keep.push(o.box); });
+  let areas = [];
+  try { areas = (await DB.all("areas")) || []; } catch (e) { areas = []; }
+  areas.forEach(function (a) { keep.push([a.bounds[0][0], a.bounds[0][1], a.bounds[1][0], a.bounds[1][1]]); });
+  const inside = function (t, x, y) { return x >= t[0] && x <= t[1] && y >= t[2] && y <= t[3]; };
+  const byStore = {};
+  packKinds().forEach(function (k) {
+    (byStore[k.s] = byStore[k.s] || []).push({
+      pre: k.pre, mine: boxTiles(s.box, k.z), kept: keep.map(function (b) { return boxTiles(b, k.z); })
+    });
+  });
+  for (const store of Object.keys(byStore)) {
+    let keys = [];
+    try { keys = await DB.keys(store); } catch (e) { continue; }
+    const drop = [];
+    for (const key of keys) {
+      if (typeof key !== "string") continue;
+      const kind = byStore[store].find(function (k) { return key.indexOf(k.pre) === 0; });
+      if (!kind) continue;
+      const p = key.slice(kind.pre.length).split("/");
+      if (p.length !== 2) continue;
+      const x = +p[0], y = +p[1];
+      if (!inside(kind.mine, x, y)) continue;
+      if (kind.kept.some(function (t) { return inside(t, x, y); })) continue;
+      drop.push(key);
+    }
+    for (let i = 0; i < drop.length; i += 1000) {
+      try { await DB.delMany(store, drop.slice(i, i + 1000)); } catch (e) { /* what is left is only cache */ }
+    }
+  }
+  delete recs[id];
+  saveLS(LS.states, recs);
+  await renderAreas();
+  refreshStorageStats();
+  toast(s.name + " removed from this phone", "warn");
+}
+
+function stateCard(s, rec) {
+  const run = stRun && stRun.s === s;
+  const note = stateNote(s, rec), act = run ? "" : stateAction(rec);
+  return '<div class="card" data-state="' + s.id + '">' +
+    '<div class="card-top"><div class="card-t">' + esc(s.name) + '</div><span class="tag cat">State</span></div>' +
+    '<div class="card-m"><span>about ' + fmtBytes(stateBytes(s)) + "</span>" +
+    (rec ? "<span>" + fmtDate(rec.ts) + "</span>" : "") + "</div>" +
+    (note ? '<div class="card-n"' + (run ? ' id="stLive"' : "") + ">" + esc(note) + "</div>" : "") +
+    '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
+    (act ? '<button class="btn xs ghost" data-act="get">' + act + "</button>" : "") +
+    (run ? '<button class="btn xs ghost" data-act="show">Progress</button>'
+         : '<button class="btn xs ghost" data-act="del">Delete</button>') +
+    "</div></div>";
 }
 
 async function renderAreas() {
   let list = [];
   try { list = (await DB.all("areas")) || []; } catch (e) { list = []; }
   list.sort((a, b) => b.ts - a.ts);
-  $("#cntAreas").textContent = list.length;
+  const recs = stateRecs();
+  const states = CFG.STATES.filter(function (s) { return recs[s.id] || (stRun && stRun.s === s); });
+  /* Whether a state is behind is a question for the manifests, which are
+     stored - so this reads storage, not the network. Only asked when there
+     is a state to ask it about. */
+  if (states.length) await loadPackManifests();
+  $("#cntAreas").textContent = list.length + states.length;
   const box = $("#areaList");
-  if (!list.length) { box.innerHTML = '<div class="empty">No offline areas downloaded.</div>'; return; }
-  box.innerHTML = list.map(function (a) {
+  if (!list.length && !states.length) { box.innerHTML = '<div class="empty">No offline areas downloaded.</div>'; return; }
+  box.innerHTML = states.map(function (s) { return stateCard(s, recs[s.id]); }).join("") + list.map(function (a) {
     return '<div class="card" data-id="' + a.id + '">' +
       '<div class="card-top"><div class="card-t">' + esc(a.name) + "</div>" +
       '<span class="tag medium">z' + a.maxZoom + "</span></div>" +
@@ -16003,7 +16491,16 @@ const Wake = {
      that gets noticed. The system takes the lock back whenever the page is
      hidden, so nothing is held once the driver leaves the app. */
   wanted: function () {
-    return !!S.keepAwake;
+    return !!S.keepAwake || this.pins > 0;
+  },
+  /* Held for a download as well, whatever the setting says. A state is
+     tens of thousands of files and Android freezes a page whose screen has
+     gone dark, so a phone left on the bench to fetch New South Wales would
+     sleep a minute in and finish nothing. */
+  pins: 0,
+  pin: function (on) {
+    this.pins = Math.max(0, this.pins + (on ? 1 : -1));
+    this.apply();
   },
 
   apply: async function () {
@@ -16040,7 +16537,7 @@ const Wake = {
 
   status: function () {
     if (!this.supported) return "not supported by this browser";
-    if (!S.keepAwake) return "switched off";
+    if (!S.keepAwake && !this.pins) return "switched off";
     if (this.lock) return "holding the screen on";
     return this.note || "not held";
   }
@@ -16708,6 +17205,13 @@ $("#amCancel").addEventListener("click", function () {
   else { dlAbort = true; }
 });
 $("#amGo").addEventListener("click", runAreaDownload);
+$("#btnNewState").addEventListener("click", openStateModal);
+$("#smClose").addEventListener("click", closeStateModal);
+$("#smStop").addEventListener("click", function () { if (stRun) dlAbort = true; });
+$("#smList").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-act]");
+  if (b && b.dataset.act === "get") runStateDownload(b.closest(".card").dataset.state);
+});
 $("#btnClearTiles").addEventListener("click", async function () {
   if (!(await ask("Every offline area's cached map tiles will be deleted, not just one. Re-downloading them needs a connection."))) return;
   clearTileCache();
@@ -16791,6 +17295,26 @@ $("#favList").addEventListener("click", function (e) {
 $("#areaList").addEventListener("click", async function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
+  const state = stateById(b.closest(".card").dataset.state);
+  if (state) {
+    if (b.dataset.act === "go") {
+      if (S.follow) pauseFollow();
+      resyncing = true;
+      fitVisible(L.latLngBounds([state.box[0], state.box[1]], [state.box[2], state.box[3]]));
+      resyncing = false;
+      closeDrawer();
+    } else if (b.dataset.act === "get") {
+      openStateModal();
+      runStateDownload(state.id);
+    } else if (b.dataset.act === "show") {
+      openStateModal();
+    } else if (b.dataset.act === "del") {
+      if (!(await ask(state.name + "'s addresses, roads and POIs will be removed from this phone. " +
+                      "Areas you drew keep theirs.", "Delete", "Delete State?", "Keep"))) return;
+      deleteState(state.id);
+    }
+    return;
+  }
   const id = b.closest(".card").dataset.id;
   if (b.dataset.act === "go") {
     const a = await DB.get("areas", id);
@@ -16825,6 +17349,7 @@ function anyOverlayOpen() {
          !$("#trackModal").classList.contains("hidden") ||
          navModalOpen() ||
          !$("#areaModal").classList.contains("hidden") ||
+         !$("#stateModal").classList.contains("hidden") ||
          drawMode ||
          $("#drawer").classList.contains("open") ||
          poiPanelOpen() || wptPanelOpen();
@@ -16840,6 +17365,8 @@ function dismissTop() {
   }
   if (navModalOpen()) { closeNavModal(); return; }
   if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
+  /* Only the box: a state coming down carries on behind it. */
+  if (!$("#stateModal").classList.contains("hidden")) { closeStateModal(); return; }
   if (drawMode) { endDrawMode(); return; }
   closeDrawer();
 }
