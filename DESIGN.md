@@ -1093,8 +1093,9 @@ never shown empty.
 the next sign, so the roundel does too:
 
 - **Posted:** the road under the vehicle, going the way the vehicle is
-  going, carries a limit - including one signed a direction at a time, as
-  OpenStreetMap does where the two directions differ.
+  going, carries a limit. A limit signed one direction at a time is not in
+  the road packs - one way in about two thousand - and driving onto one from
+  the same road, the last limit carries on as below.
 - **Carried on:** a stretch with no limit of its own that continues the road
   already signed - the same route number, or the same name - keeps the last
   limit.
@@ -1103,11 +1104,12 @@ the next sign, so the roundel does too:
   while still heading the same way.
 - **Gone:** a turn onto a road with no limit posted, or nothing known at all.
 
-The roads come from the map extract and are kept, merged, within 12km of the
-vehicle, so panning the map to look ahead, or a fetch the extract cannot
-answer, never takes them away. Where only a small box could be loaded - a
-dense town, a slow connection - more is fetched before the vehicle reaches
-its edge.
+The roads come from the road packs the router already holds - every drivable
+road in the country, with the limit OpenStreetMap had for it at the monthly
+cut - so the sign needs no signal and nothing is fetched for it. Where the
+road under the wheels has neither a name nor a limit - a slip lane, a piece
+of a roundabout - the nearest road that does post one answers, rather than
+the sign blanking at every junction.
 
 **The over-speed alert.** A roundel in the corner of the display is no use to
 somebody whose eyes are on the road, so the same limit is heard as well as

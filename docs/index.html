@@ -3848,23 +3848,18 @@ const CFG = {
   HILLSHADE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
   SHADE_STRENGTH: 0.85,    /* how hard the relief is pressed into the map */
   SHADE_MAX_Z: 13,         /* past this Esri has no relief, only a placeholder */
-  /* POIs come from OpenStreetMap's own API, which returns a full map extract
-     with every tag intact - that is what lets a free camp be told apart from
-     a paid one. Overpass used to sit in front of it, but every public mirror
-     was unreachable from the field, so it is gone. */
-  OSM_API: "https://api.openstreetmap.org/api/0.6/map",
-  OSM_TIMEOUT: 45000,     /* the longest any one attempt may run */
-  /* ...and the longest the whole ladder may run. A timeout buys exactly one
-     more attempt, at the smallest box; the search index answers in about a
-     second and the driver is waiting. */
-  OSM_BUDGET: 60000,
-  OSM_MIN_TRY: 6000,      /* too little left on the clock to bother starting */
-  /* the OSM API refuses a box holding more than 50000 nodes, which a 5 km
-     radius does in any town, so fall back through smaller radii */
-  OSM_RADII: [5000, 2500, 1200, 700],
-  /* Overpass is the standby: it queries OpenStreetMap by tag, so unlike a
-     geocoder it can see the 93% of POIs out here that carry no name, and
-     it hands back every tag rather than the headline. See overpassPois.
+  /* POIs come from the offline pack (see Pack), which covers the country.
+     Overpass is for ground the pack does not: it queries OpenStreetMap by
+     tag, so unlike a geocoder it can see the 93% of POIs out here that carry
+     no name, and it hands back every tag rather than the headline. See
+     overpassPois.
+
+     OpenStreetMap's own map API used to answer first, around the vehicle,
+     and it is gone. That API is for editing the map, not for serving it to
+     every phone that drives past, and in town each answer was 4 to 9 MB
+     fetched again every few hundred metres. Against the pack over the same
+     ground it gave the same POIs to the character, bar a week or two of
+     freshness and the car parks the pack leaves out by design.
 
      Two hosts, tried in order and only ever one at a time. The second is
      there because the first returned a 504 under load while this was being
@@ -4046,17 +4041,11 @@ const CFG = {
   ALERT_REPEAT: 5000,      /* ms between reminders while the speed stays over */
   ALERT_STALE: 10000,      /* ms - a fix older than this says nothing about now */
   SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
-  /* How much further the extract's road may be than the pack's and still be
-     the same road: the packs' lines are thinned to within five metres of
-     the surveyed road, the extract's are not. See roadHere. */
-  SPEED_SAME_M: 8,
   /* A limit rides over a short gap - a fix that wanders out of the snap, a
      bend whose mapped line cuts the corner - for this far and this long, and
      only while still heading the same way. A turn is a new road. */
   SPEED_HOLD_M: 150,
   SPEED_HOLD_MS: 12000,
-  ROAD_KEEP_M: 12000,      /* roads further than this from the vehicle are let go */
-  ROAD_EDGE_M: 300,        /* fetch more before the vehicle is this close to the edge of what is loaded */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
@@ -6132,130 +6121,60 @@ function cardinal(deg) {
    The posted speed limit of the road under the vehicle.
    ===================================================================== */
 
-/* Distance in metres from p to the segment ab, and the bearing of ab.
-   Flat earth: the segments are tens of metres, where the error does not
-   reach the first decimal place. */
-function pointSegMetres(p, a, b) {
-  const mLat = 111320, mLng = 111320 * Math.cos(rad(p.lat));
-  const ax = (a[1] - p.lng) * mLng, ay = (a[0] - p.lat) * mLat;
-  const bx = (b[1] - p.lng) * mLng, by = (b[0] - p.lat) * mLat;
-  const dx = bx - ax, dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  /* p is the origin, so the nearest point on the segment is at
-     t = -(a.d)/|d|^2, clamped to the segment's own ends */
-  const t = len2 ? clamp(-(ax * dx + ay * dy) / len2, 0, 1) : 0;
-  const cx = ax + t * dx, cy = ay + t * dy;
-  return { d: Math.sqrt(cx * cx + cy * cy),
-           brg: (deg(Math.atan2(dx, dy)) + 360) % 360 };
-}
+/* The limit a road posts for the way you are going along it, or null.
 
-/* The nearest road you are plausibly travelling along, and which way along
-   it - {road, fwd} - or null. Null is a real answer here and the common one
-   on a station track: no limit is posted, so none is shown. fwd is true
-   going the way the road was drawn, false against it, null when there is no
-   direction to go on. */
-function roadUnder(p, hdg, moving, snap) {
-  let best = null, bestD = snap || CFG.SPEED_SNAP_M, fwd = null;
-  /* Walked over the store rather than over a copy of it, because the store
-     already holds each way's bounding box and the copy threw it away. Only
-     ways whose box comes within the snap are opened up and measured segment
-     by segment, and at thirty to fifty metres that is a handful of the
-     couple of thousand ways within ROAD_KEEP_M of a vehicle that has been
-     driving through suburbs for an hour. The box is in the same hundred
-     thousandths of a degree the rest of this file measures in, widened by
-     the snap, and generous north-south and east-west rather than round -
-     the only cost of being generous is measuring a way that turns out not
-     to be the nearest. */
-  const dLat = bestD / 111320, dLng = bestD / (111320 * Math.cos(rad(p.lat)));
-  for (const e of roadStore.values()) {
-    const bb = e.bb;
-    if (p.lat < bb[0] - dLat || p.lat > bb[2] + dLat ||
-        p.lng < bb[1] - dLng || p.lng > bb[3] + dLng) continue;
-    const pts = e.r.pts;
-    for (let j = 1; j < pts.length; j++) {
-      const seg = pointSegMetres(p, pts[j - 1], pts[j]);
-      if (seg.d >= bestD) continue;
-      /* A road you are not driving along is not the road you are on. The
-         distance test alone would happily snap to a service road beside a
-         highway, or to the cross street at an intersection. Direction is
-         only evidence while actually moving. */
-      let along = null;
-      if (moving && hdg != null) {
-        const turn = Math.abs(((hdg - seg.brg + 540) % 360) - 180);   /* 0 with the drawing, 180 against */
-        if (Math.min(turn, 180 - turn) > CFG.SPEED_HDG_TOL) continue;  /* either way along it counts */
-        along = turn <= 90;
-      }
-      bestD = seg.d; best = e.r; fwd = along;
-    }
-  }
-  return best ? { road: best, fwd: fwd } : null;
-}
-
-/* The limit a road posts for the way you are going along it. OSM signs a
-   road one way at a time where the two directions differ - just north of
-   Hawker the Outback Highway carries maxspeed:backward=110 and no plain
-   maxspeed, the 110 for traffic coming into town - and those ways used to
-   be dropped whole, so the sign went dark for two kilometres of the B83. A
+   OSM signs a road one way at a time where the two directions differ -
+   just north of Hawker the Outback Highway carries maxspeed:backward=110
+   and no plain maxspeed - and the road packs carry those beside the plain
+   limit (f and b, see packDirs). They are not rare on the main roads: 585
+   of South Australia's 49,148 spine edges. Without them the sign carried
+   the town's 80 a kilometre up a 110 road, driving north out of Hawker,
+   because the last limit holds along a road that posts nothing of its
+   own - a low number with the chime armed, which is worse than none. A
    way signed only in the other direction, or with no direction to go on,
    posts nothing here. */
 function postedLimit(hit) {
   const r = hit.road;
-  if (hit.fwd === true && r.f != null) return r.f;
-  if (hit.fwd === false && r.b != null) return r.b;
+  if (hit.fwd === true && r.f) return r.f;
+  if (hit.fwd === false && r.b) return r.b;
   if (r.v != null) return r.v;
-  return (hit.fwd == null && r.f != null && r.f === r.b) ? r.f : null;
+  return (hit.fwd == null && r.f && r.f === r.b) ? r.f : null;
 }
 
-/* Two ways are one road if they share a route number, or failing that a name.
-   Across the two sources as well: a pack carries one string per road, the
-   name or the route number where there is no name, so "B83" in a pack is
-   the extract's ref. */
+/* Two ways are one road if they share a name. A pack carries one string
+   per road, the name or the route number where there is no name, so "B83"
+   is a name here. */
 function sameRoad(a, b) {
-  return !!((a.ref && (a.ref === b.ref || a.ref === b.name)) ||
-            (a.name && (a.name === b.name || a.name === b.ref)));
+  return !!(a.name && a.name === b.name);
 }
 
-/* The road under the vehicle, in roadUnder's {road, fwd} shape, from
-   whichever source can answer here.
+/* The road under the vehicle and which way along it - {road, fwd} - or
+   null, read off the road packs the router already holds. They carry every
+   drivable road in the country with the limit OpenStreetMap had for it at
+   the monthly cut. fwd is true going the way the road was drawn, false
+   against it, null when there is no direction to go on.
 
-   The road packs first. They are on the phone already, they carry every
-   drivable road with the limit OpenStreetMap had for it at the monthly
-   cut, and they cover the country. The limit used to come only from the
-   map extract, which in town is 4 to 9 MB fetched again every few hundred
-   metres to keep roads under the wheels - that is what fed the renderer
-   2.3 GB on a city drive, and it is gone wherever the packs hold the
-   ground.
+   It used to come off the map extract, which held only the roads with a
+   limit on them for a box around the vehicle: in town 4 to 9 MB fetched
+   again every few hundred metres to keep roads under the wheels. The
+   extract is gone.
 
-   Where the packs hold it, their answer stands, including no road at all.
-   The extract is asked only when the pack's road posts nothing, for the
-   two things a pack cannot know: a limit signed one direction at a time
-   (the B83 north of Hawker, one way in 2,094 across the four extracts
-   measured) and a limit tagged since the cut. It has to be the same road -
-   within a few metres of where the pack put it and not named differently -
-   because the extract holds only roads with limits, and its nearest can
-   be the arterial beside the side street you are actually on.
+   Null is a real answer where the packs hold the ground (Route.holds): no
+   road near is no road. Where they do not yet - the first seconds after
+   launch, a tile that has not come down - there is nothing to say, and the
+   last limit rides the gap for as long as it is allowed to.
 
-   A pack road with neither a limit nor a name says nothing about which
-   road you are on: a slip lane, a piece of a roundabout, a car park aisle,
-   a short unnamed link at an intersection. There the answer is the one the
-   sign has always given - the extract's nearest limit, or no road, which
-   lets the last limit ride over the gap - rather than blanking the sign at
-   every junction. Measured over 16,791 points around the CBD,
-   Torrensville, Mount Barker and Hawker, that was most of the difference.
-
-   Where the packs do not hold the ground yet - the first seconds after
-   launch, or a tile that has not come down - it is the extract as before. */
+   A pack road with no limit either way and no name says nothing about which
+   road you are on: a slip lane, a piece of a roundabout, a short unnamed
+   link at an intersection. There the nearest road that does post a limit
+   answers - which is what the sign did when it read the extract, because
+   the extract held nothing else - rather than the sign blanking at every
+   junction. */
 function roadHere(p, hdg, moving, snap) {
-  if (!Route.holds(p)) return roadStore.size ? roadUnder(p, hdg, moving, snap) : null;
-  const h = Route.roadAt(p, hdg, moving, snap);
-  if (!h) return null;
-  if (!h.v && !h.name) return roadStore.size ? roadUnder(p, hdg, moving, snap) : null;
-  const road = { name: h.name, v: h.v || null, mph: false };
-  if (road.v == null && roadStore.size) {
-    const x = roadUnder(p, hdg, moving, h.d + CFG.SPEED_SAME_M);
-    if (x && (!road.name || (!x.road.name && !x.road.ref) || sameRoad(x.road, road))) return x;
-  }
-  return { road: road, fwd: h.fwd };
+  if (!Route.holds(p)) return null;
+  let h = Route.roadAt(p, hdg, moving, snap);
+  if (h && !h.v && !h.fw && !h.bw && !h.name) h = Route.roadAt(p, hdg, moving, snap, true);
+  return h ? { road: { name: h.name, v: h.v || null, f: h.fw, b: h.bw }, fwd: h.fwd } : null;
 }
 
 /* The sign is hidden whenever the limit is not known, and never shown
@@ -6397,15 +6316,15 @@ const OverSpeed = {
      A null limit is the sign being hidden, and is the only honest moment to
      forget that anybody was over anything: off a road with a known limit,
      there is nothing to be over. */
-  check: function (limit, mph) {
+  check: function (limit) {
     if (limit == null || !S.speedAlert) { this.mark(false); return; }
     /* a fix this old says nothing about how fast the vehicle is going now */
     if (!view.has || Date.now() - view.lastFixAt > CFG.ALERT_STALE) { this.mark(false); return; }
     const spd = view.speed;
     if (!isFinite(spd) || spd <= CFG.SPEED_MIN_MOVE) { this.mark(false); return; }
 
-    /* the limit is the number on the sign, in the sign's own units */
-    const lim = limit * (mph ? 0.44704 : 1 / 3.6);
+    /* the limit is in km/h: the road packs convert a limit tagged in mph */
+    const lim = limit / 3.6;
 
     /* At or under the posted limit is silent, always. */
     if (spd <= lim) { this.mark(false); return; }
@@ -6432,11 +6351,7 @@ const OverSpeed = {
 
 function updateSpeedSign() {
   const sign = $("#speedSign");
-  /* `src` is the way the limit came off, kept only so the alert knows
-     whether the number is km/h or mph - nothing in Australia posts mph, but
-     the parser records the tag either way and a limit read in the wrong
-     unit would chime at 100 on a 65 mph road. */
-  let v = null, src = null;
+  let v = null;
   if (view.has) {
     const moving = view.speed > CFG.SPEED_MIN_MOVE && view.hdgFrom !== "compass";
     const snap = clamp(view.acc || 0, CFG.SPEED_SNAP_M, CFG.SPEED_SNAP_MAX);
@@ -6444,14 +6359,12 @@ function updateSpeedSign() {
     const h = speedHold;
     if (hit) {
       v = postedLimit(hit);
-      src = hit.road;
       if (v == null && h && sameRoad(hit.road, h.road)) v = h.v;
       speedHold = v == null ? null
         : { v: v, road: hit.road, at: { lat: view.cur.lat, lng: view.cur.lng }, hdg: view.hdgCur, t: Date.now() };
     } else if (h && haversine(h.at, view.cur) < CFG.SPEED_HOLD_M && Date.now() - h.t < CFG.SPEED_HOLD_MS &&
                (!moving || Math.abs(((view.hdgCur - h.hdg + 540) % 360) - 180) <= CFG.SPEED_HDG_TOL)) {
       v = h.v;                 /* the hold is not renewed: it runs from the last road matched */
-      src = h.road;
     } else {
       speedHold = null;
     }
@@ -6463,11 +6376,11 @@ function updateSpeedSign() {
   /* The alert is told the limit here rather than working one out for
      itself, so the chime and the roundel can never be about different
      roads - including when the sign is hidden, which is what clears it. */
-  OverSpeed.check(posted, !!(src && src.mph));
+  OverSpeed.check(posted);
   if (posted == null) { sign.classList.add("hidden"); return; }
+  /* the number a driver reads off the roadside, whichever units the app is
+     set to */
   $("#speedLimit").textContent = String(posted);
-  /* the number a driver reads off the roadside, not a converted one: a
-     65 mph road posts 65, whichever units the app is set to */
   sign.classList.toggle("wide", String(posted).length > 2);
   sign.classList.remove("hidden");
 }
@@ -7928,7 +7841,12 @@ const POI_META = {
   viewpoint:   { label: "Viewpoint",   icon: "viewpoint",   color: "#D8CBAA" },
   info:        { label: "Information", icon: "info",        color: "#C77B9E" }
 };
-const POI_ORDER = Object.keys(POI_META);
+/* Every category with a chip, in the order they rank. Parking stays in
+   POI_META only so a car park kept as a favourite before the category went
+   still draws as one: nothing the app reads carries car parks now - the
+   pack leaves them out by design and the map extract that did is gone - so
+   it has no chip and poiKind files nothing under it. */
+const POI_ORDER = Object.keys(POI_META).filter(function (k) { return k !== "parking"; });
 function poiIcon(kind) { return (POI_META[kind] || {}).icon || kind; }
 
 /* What silence about the price means depends entirely on where you are.
@@ -8253,7 +8171,6 @@ function poiKind(tags) {
   if (a === "atm") return "atm";
   if (a === "bank") return (tags.atm || "").toLowerCase() === "no" ? null : "atm";
   if (a === "bbq") return "bbq";
-  if (a === "parking") return "parking";
   if (t === "wilderness_hut") return "campfree";
   /* an alpine hut is staffed and charges for a bunk - it is only a free
      camp in the sense that a hotel is. Barely exists in Australia, which
@@ -8449,7 +8366,8 @@ function poiInfoLine(tags, kind) {
 
 /* A house number and a street, said the way it is spoken. Shared because
    three sources hand back the same two fields and each used to compose
-   them itself: the map extract, the search index, and the suggestion list.
+   them itself: the map extract that has since gone, the search index, and
+   the suggestion list.
 
    OSM sometimes carries the whole address in the house number - "112A
    Rundle Mall", with Rundle Mall as the street - and appending the street
@@ -8463,9 +8381,9 @@ function fmtAddress(num, street) {
   return num.toLowerCase().indexOf(street.toLowerCase()) >= 0 ? num : num + " " + street;
 }
 
-/* The address off a full map extract. These tags are already on the wire -
-   the extract carries every tag of everything in the box - so this costs
-   nothing but the reading of it.
+/* The address off a POI's own tags. The pack and Overpass both carry the
+   addr: tags with everything else, so this costs nothing but the reading
+   of it.
 
    addr:place stands in for addr:street out here, where a property is
    addressed to a locality rather than to a road: it is the tag that
@@ -8568,64 +8486,6 @@ let poiSourcedAt = null;      /* where that list was gathered around */
 let poiFar = [];
 let poiFarAt = null;          /* the anchor poiFar was worked out for */
 let poiFuelAdded = 0;         /* scheme servos OSM had no pin for */
-/* Roads with a posted limit, and the ways that carry one of them on, from
-   the extract only - the offline pack and the map query carry no limits.
-
-   Merged by way, not replaced by whichever fetch ran last. Replacing was how
-   the sign went dark without a road changing: pan the map away while
-   driving and the fetch around the map took the vehicle's roads with it; a
-   fetch the extract failed and the pack answered wrote an empty set over
-   them, and cached the empty set for the cell for a week. Roads more than
-   ROAD_KEEP_M from the vehicle are let go as it moves on.
-
-   roadCover remembers the boxes loaded, because the extract is not always
-   5 km: a dense town, or a connection too slow for the big box, gets 700 m,
-   and the fetch used to wait for 3.5 km of driving regardless - so for most
-   of every 3.5 km there were no roads under the vehicle at all. Near the
-   edge of what is loaded is now reason enough to fetch again. */
-const roadStore = new Map();   /* way id -> {r, bb} */
-let roadCover = [];            /* {lat, lng, r} */
-const ROAD_SHAPE = 2;          /* cached roads older than this lack direction and continuation */
-/* A cached cell keeps two lists. `roads` stays in the shape every earlier
-   version reads - a plain posted limit on each way, nothing else - and
-   `roads2` holds the full set: ways signed one direction at a time and the
-   unsigned ways that carry a signed road on. They are not merged into one
-   list because an earlier copy of the app can still meet this cache - one
-   left open through an update, running the shell it loaded - and that code
-   prints whatever `v` it finds: a way with no plain limit came up on the
-   sign as "undefined". */
-function legacyRoads(list) {
-  return (list || []).filter(function (r) { return r.v != null; })
-    .map(function (r) { return { v: r.v, mph: r.mph, pts: r.pts }; });
-}
-function cellRoads(cell) {
-  return (cell && (cell.roads2 || cell.roads)) || [];
-}
-function addRoads(list, cover) {
-  (list || []).forEach(function (r) {
-    if (!r || !r.pts || r.pts.length < 2) return;
-    let bb = [90, 180, -90, -180];
-    r.pts.forEach(function (p) {
-      bb = [Math.min(bb[0], p[0]), Math.min(bb[1], p[1]), Math.max(bb[2], p[0]), Math.max(bb[3], p[1])];
-    });
-    const last = r.pts[r.pts.length - 1];
-    roadStore.set(r.id || (r.pts[0].join() + "|" + last.join() + "|" + r.v), { r: r, bb: bb });
-  });
-  if (cover && cover.r) roadCover.push(cover);
-  const here = view.has ? view.cur : cover;
-  if (here) {
-    const mLng = 111320 * Math.cos(rad(here.lat));
-    roadStore.forEach(function (e, k) {
-      const dy = Math.max(e.bb[0] - here.lat, 0, here.lat - e.bb[2]) * 111320;
-      const dx = Math.max(e.bb[1] - here.lng, 0, here.lng - e.bb[3]) * mLng;
-      if (Math.sqrt(dx * dx + dy * dy) > CFG.ROAD_KEEP_M) roadStore.delete(k);
-    });
-    roadCover = roadCover.filter(function (c) { return haversine(here, c) < CFG.ROAD_KEEP_M; });
-  }
-}
-function roadsCovered(p) {
-  return roadCover.some(function (c) { return haversine(c, p) <= c.r - CFG.ROAD_EDGE_M; });
-}
 let hiddenPoi = new Set(loadLS(LS.hiddenPoi, []));
 /* whole categories switched off, e.g. every car park in a town centre */
 let hiddenKinds = new Set(loadLS(LS.hiddenKinds, []));
@@ -8686,11 +8546,22 @@ function poiAnchor() {
    v12 when an information office stopped being read as whatever else was
    tagged on it. A v11 cell holds Hawker's visitor centre as a servo - or
    rather does not hold it at all, since being a servo is what got it
-   thrown away by the price merge. */
+   thrown away by the price merge.
+   v13 when the map extract went and the store came to hold Overpass
+   answers only, past the offline pack. A v12 cell is an extract answer,
+   car parks and the roads the speed sign used to read among it. */
 function poiKey(a) {
   const g = 0.02;                                   /* ~2.2km cache grid */
-  return "v12:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
+  return "v13:r" + Math.round(CFG.POI_RADIUS / 1000) + ":" +
          (Math.round(a.lat / g) * g).toFixed(2) + "," + (Math.round(a.lng / g) * g).toFixed(2);
+}
+/* Every version above left its cells behind when the key moved on - only
+   Clear POI Cache ever removed them - so a phone that has been driving
+   since v1 still holds all twelve generations. Cleared once, now that the
+   store is down to what is asked of Overpass. */
+LS.poiCells = "tt.poiCells";
+if (loadLS(LS.poiCells, "") !== "v13") {
+  DB.clear("poi").then(function () { saveLS(LS.poiCells, "v13"); }).catch(function () {});
 }
 
 function schedulePoi() {
@@ -8719,9 +8590,9 @@ function schedulePoi() {
    Measured on the same box: 105 KB gzipped, 4,043 POIs, the full 5 km. The
    cost is latency and its spread - 7s on a quiet run, 16 to 22s on a busy
    one - which is the price of a shared free service doing real work rather
-   than serving an index. It is a standby; it runs when the extract could
-   not, or to fill the edges of a town dense enough to shrink the extract's
-   box, and a slow answer with everything in it beats a fast one without.
+   than serving an index. It is a standby, for ground the offline pack does
+   not cover, and a slow answer with everything in it beats a fast one
+   without.
 
    Fair use, learned the hard way from the service this replaced: one
    request per search, a second only if the first host fails, and never a
@@ -8739,15 +8610,14 @@ function schedulePoi() {
    written out, and the duty to keep it in step with poiKind is real but
    small - these are the tags OSM has used for a decade.
 
-   Getting it wrong is not fatal either way: this is the standby, and the
-   primary extract hands poiKind every tag in the box regardless. A tag
-   missing here costs coverage in a dense town, not correctness. */
+   Getting it wrong costs coverage past the pack, not correctness: this is
+   the standby, and a tag missing here is a POI not asked for rather than
+   one filed wrongly. */
 const OVERPASS_TAGS = [
   /* No amenity=parking. It was 78% of everything this query brought back in
      a city - 3,511 car parks against 967 of everything else - for a category
-     nobody opens this app to find. The extract still returns them inside its
-     own radius and poiKind still files them, so the Parking chip is
-     unchanged; this is about what we go and ask a server for. */
+     nobody opens this app to find. Nothing else carries them either now:
+     the category has gone - see POI_ORDER. */
   ["amenity", ["fuel", "drinking_water", "water_point", "toilets",
                "sanitary_dump_station", "shower", "hospital", "pharmacy",
                "doctors", "clinic", "telephone", "post_office", "bbq",
@@ -8783,8 +8653,8 @@ function overpassQuery(a) {
       lines.push('nwr["' + pair[0] + '"="' + v + '"];');
     });
   });
-  /* out center, so a shop mapped as its building arrives as one point the
-     way the extract path already averages one. */
+  /* out center, so a shop mapped as its building arrives as one point, the
+     way the pack stores one. */
   return "[out:json][timeout:" + Math.round(CFG.OVERPASS_TIMEOUT / 1000) +
          "][bbox:" + bbox + "];(" + lines.join("") + ");out center tags;";
 }
@@ -8835,12 +8705,12 @@ async function overpassPois(a) {
     seen[id] = 1;
     const item = {
       id: id, kind: kind, lat: lat, lng: lng,
-      /* the same order the extract path uses, for the same reason: the
-         brand is what is on the sign, the operator is the company behind it */
+      /* the same order the pack uses, for the same reason: the brand is
+         what is on the sign, the operator is the company behind it */
       ...poiTitle(tags, kind),
       info: poiInfoLine(tags, kind),
       addr: poiAddress(tags)
-      /* not thin: this carries every tag the extract does, fee included,
+      /* not thin: this carries every tag the pack does, fee included,
          which is the whole reason for the change */
     };
     if (haversine(a, item) <= CFG.POI_RADIUS * 1.05) out.push(item);
@@ -8849,477 +8719,88 @@ async function overpassPois(a) {
            secs: Math.round((Date.now() - t0) / 100) / 10 };
 }
 
-/* Two sources, one list. Where both know a place the extract wins, because
-   it is the one carrying the fee tag that tells a free camp from a paid one. */
-function mergePois(primary, extra) {
-  const byId = {};
-  primary.forEach(function (p) { byId[p.id] = p; });
-  extra.forEach(function (p) { if (!byId[p.id]) byId[p.id] = p; });
-  return Object.keys(byId).map(function (k) { return byId[k]; });
-}
-
-/* Speed limits ride on this same extract. A posted limit is a driving
-   readout and a POI pin is a browsing convenience, so they had no business
-   sharing a switch: turning pins off stopped roads loading and the speed
-   sign went dark with nothing to say why.
-
-   The fetch now always runs and only the publishing is gated - which does
-   mean switching pins off no longer avoids the download. */
 async function fetchPois(force) {
   if (poiBusy) return;
   const show = S.poiOn;
   const a = poiAnchor();
-  /* cheap to call on every fix: returns unless you have travelled far
-     enough, or - following the vehicle - it is near the edge of the roads
-     loaded around it (see roadCover). Near that edge is no reason to fetch
-     where the road packs hold the ground, because there the sign reads
-     them (see roadHere): in town the extract's box is 700 m, and this is
-     what fetched it again every few hundred metres. */
+  /* cheap to call on every fix: returns unless you have travelled far enough */
   const moved = !poiCentre || haversine(poiCentre, a) >= CFG.POI_REFETCH;
-  const roadsThin = S.follow && view.has && !roadsCovered(view.cur) && !Route.holds(view.cur);
-  if (!force && !moved && !roadsThin) return;
+  if (!force && !moved) return;
   /* Addresses and roads ride the same movement trigger, but nothing waits
      on them and a POI failure must not hold them up - the packs come off
      our own origin and have no reason to be unreachable when a map server
      is. Route.ensure also brings down the national road spine the first time it
      runs, which is the one download that has to happen before the signal
      goes rather than after. */
-  if (force || moved) { Addr.ensure(a); Route.ensure(a); }
+  Addr.ensure(a); Route.ensure(a);
+  /* Pins switched off, nothing to fetch: the switch fetches when it is
+     turned back on. */
+  if (!show) { poiCentre = a; return; }
   if (!force && Date.now() < poiRetryAt) return;
 
   poiBusy = true;
   try {
+    /* The offline pack, which inside Australia is the whole answer. It is
+       on the phone, it carries every tag poiKind and the cards read, and it
+       costs a read rather than a request - no signal, no rate limit, no
+       waiting on somebody else's server. Checked against the live map
+       extract it replaced, over the CBD, Torrensville, Mount Barker and
+       Hawker: the same POIs to the character, bar a week or two of
+       freshness and the car parks it leaves out by design. */
+    const pk = await Pack.around(a, CFG.POI_RADIUS);
+    if (pk) {
+      poiCentre = a;
+      poiRetryAt = 0;
+      setPois(pk.items, a);
+      offerPoiLoad(false);
+      poiStatusNote = "offline pack" + (pk.built ? ", cut " + pk.built : "");
+      setPoiStatus(poiStatusText());
+      return;
+    }
+
+    /* Beyond the pack, Overpass, and its answers kept for a week so ground
+       driven once is not asked about again. */
     const key = poiKey(a);
     let cached = null;
     try { cached = await DB.get("poi", key); } catch (e) { /* idb unavailable */ }
     const cachedTtl = (cached && cached.items && cached.items.length)
       ? CFG.POI_TTL : CFG.POI_EMPTY_TTL;
-    /* a cached cell's roads count as loaded only in the current shape; an
-       older cell still serves its POIs, and is fetched again for its roads
-       wherever the vehicle is short of them */
-    const cachedCover = cached && cached.rv === ROAD_SHAPE && cached.roads2 && cached.rr
-      ? { lat: cached.rlat, lng: cached.rlng, r: cached.rr } : null;
-    if (cached && !force && (Date.now() - cached.ts) < cachedTtl &&
-        (!roadsThin || (cachedCover && haversine(cachedCover, a) <= cachedCover.r - CFG.ROAD_EDGE_M))) {
+    if (cached && !force && (Date.now() - cached.ts) < cachedTtl) {
       poiCentre = a;
-      if (show) setPois(cached.items, a);
-      addRoads(cellRoads(cached), cachedCover);
-      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
+      setPois(cached.items, a);
+      setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached)");
       return;
     }
 
-    /* The extract first: it is the only source that records whether a camp
-       charges. If the box is too dense even at the smallest radius, or the
-       API is down, the search index takes over. */
-    if (show) setPoiStatus("Loading map data within " + poiRadiusText() + "...");
-    const osm = await osmApiPois(a);
-    let items = null, note = "", found = [];
-
-    if (!osm.error) {
-      items = osm.items;
-      found = osm.roads || [];
-      note = "OpenStreetMap, " + fmtBytes(osm.bytes) + " uncompressed, " + osm.secs + "s";
-      /* A dense town shrinks the box, so widen the net again. The pack
-         first: it is on the phone, it is complete, and it costs a read
-         rather than eighteen seconds of somebody else's server. Overpass
-         is for the ground the pack does not cover. */
-      if (osm.radius < CFG.POI_RADIUS) {
-        if (show) setPoiStatus("Dense area - filling out to 5 km...");
-        const pk = await Pack.around(a, CFG.POI_RADIUS);
-        if (pk) {
-          const before = items.length;
-          items = mergePois(items, pk.items);
-          note = "full detail within " + (osm.radius / 1000) + " km, " +
-                 (items.length - before) + " more from the offline pack";
-        } else {
-          const ph = await overpassPois(a);
-          if (!ph.error) {
-            const before = items.length;
-            items = mergePois(items, ph.items);
-            note = "full detail within " + (osm.radius / 1000) + " km, " +
-                   (items.length - before) + " more out to 5 km, " + ph.secs + "s";
-          } else {
-            note = "OpenStreetMap, full detail within " + (osm.radius / 1000) +
-                   " km only - " + ph.error;
-          }
-        }
-      }
-    } else {
-      /* No extract. Inside the state that is not a problem any more: the
-         pack is the whole answer and it does not need a signal to give it,
-         which is the case this app was written for. */
-      const pk = await Pack.around(a, CFG.POI_RADIUS);
-      if (pk) {
-        items = pk.items;
-        note = "offline pack" + (pk.built ? ", cut " + pk.built : "");
-      } else {
-        if (show) setPoiStatus("Map data unavailable - asking the map query service...");
-        const ph = await overpassPois(a);
-        if (!ph.error) {
-          items = ph.items;
-          note = "map query, " + fmtBytes(ph.bytes) + " uncompressed, " + ph.secs + "s";
-        } else {
-          note = osm.error + "; " + ph.error;
-        }
-      }
-    }
-
-    if (items) {
+    setPoiStatus("Outside the offline pack - asking the map query service...");
+    const ph = await overpassPois(a);
+    if (!ph.error) {
       poiCentre = a;
-      /* Without the extract there are no roads in this answer, so the cell
-         keeps the ones it had rather than caching an empty set over them,
-         and the roads are not asked for again for a while. */
-      const rd = osm.error
-        ? { roads: (cached && cached.roads) || [], roads2: cached && cached.roads2, rv: cached && cached.rv,
-            rr: cached && cached.rr, rlat: cached && cached.rlat, rlng: cached && cached.rlng }
-        : { roads: legacyRoads(found), roads2: found, rv: ROAD_SHAPE, rr: osm.radius, rlat: a.lat, rlng: a.lng };
-      poiRetryAt = osm.error ? Date.now() + CFG.POI_BACKOFF : 0;
-      await DB.put("poi", Object.assign({ ts: Date.now(), items: items, lat: a.lat, lng: a.lng }, rd), key)
+      poiRetryAt = 0;
+      await DB.put("poi", { ts: Date.now(), items: ph.items, lat: a.lat, lng: a.lng }, key)
         .catch(function () {});
-      if (show) setPois(items, a);
-      addRoads(cellRoads(rd), osm.error ? null : { lat: a.lat, lng: a.lng, r: osm.radius });
+      setPois(ph.items, a);
       refreshStorageStats();
-      if (show) offerOsmPois(false);
-      /* count what is actually on the map, after copies of the same place
-         have been folded together, not what came back off the wire */
+      offerPoiLoad(false);
       /* Remembered as its parts rather than a finished string, so switching
          units rewrites it instead of leaving "within 5 km" sitting under a
          list that now reads in miles. */
-      poiStatusNote = note;
-      if (show) setPoiStatus(poiStatusText());
+      poiStatusNote = "map query, " + fmtBytes(ph.bytes) + " uncompressed, " + ph.secs + "s";
+      setPoiStatus(poiStatusText());
     } else if (cached) {
-      /* both sources are unreachable but we have been here before - stale
-         beats empty, and poiCentre stays unset so a later attempt happens */
-      if (show) setPois(cached.items, a);
-      addRoads(cellRoads(cached), null);
+      /* unreachable, but we have been here before - stale beats empty, and
+         poiCentre stays unset so a later attempt happens */
+      setPois(cached.items, a);
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      if (show) setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + note + ")");
+      setPoiStatus(pois.length + " within " + poiRadiusText() + " (cached - " + ph.error + ")");
     } else {
       poiRetryAt = Date.now() + CFG.POI_BACKOFF;
-      if (show) setPoiStatus("No POIs: " + note);
-      if (show) offerOsmPois(true);
+      setPoiStatus("No POIs: " + ph.error);
+      offerPoiLoad(true);
     }
   } finally {
     poiBusy = false;
   }
-}
-
-
-/* ---------------------------------------------------------------------
-   The map extract from OpenStreetMap's own API. Every tag survives, which
-   is what lets a free camp be told apart from a paid one, but /map hands
-   back the whole box - roughly 130 KB over the wire for a 5 km radius in
-   open country, since the XML compresses hard.
-   --------------------------------------------------------------------- */
-function bboxAround(a, m) {
-  const dLat = m / 111320;
-  const dLng = m / (111320 * Math.cos(rad(a.lat)));
-  return [(a.lng - dLng).toFixed(5), (a.lat - dLat).toFixed(5),
-          (a.lng + dLng).toFixed(5), (a.lat + dLat).toFixed(5)].join(",");
-}
-
-/* Ways that carry a maxspeed but are not somewhere you drive at it. */
-const NOT_DRIVABLE = {
-  footway: 1, path: 1, cycleway: 1, steps: 1, pedestrian: 1, bridleway: 1,
-  corridor: 1, platform: 1, construction: 1, proposed: 1
-};
-
-/* OSM records a limit as a bare number in km/h, a number with a unit, or
-   a country code standing for an implicit default. Only a posted number
-   is any use here: "AU:urban" is a rule you are expected to know rather
-   than a sign you can read, and "none", "walk" and "variable" are not
-   numbers at all. Anything unrecognised is dropped rather than guessed. */
-function parseMaxspeed(v) {
-  const t = String(v || "").trim().toLowerCase();
-  let m = t.match(/^(\d{1,3})$/);          if (m) return { v: +m[1], mph: false };
-  m = t.match(/^(\d{1,3})\s*km\/?h$/);     if (m) return { v: +m[1], mph: false };
-  m = t.match(/^(\d{1,3})\s*mph$/);        if (m) return { v: +m[1], mph: true };
-  return null;
-}
-
-/* An attribute value as a parser would hand it back: a literal tab, newline
-   or return reads as a space, and the five named entities and the numeric
-   character references are the characters they stand for. The API writes a
-   newline inside a value as &#10;, and that one stays a newline. */
-const XML_ENT = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" };
-function xmlValue(s) {
-  if (/[\t\n\r]/.test(s)) s = s.replace(/\r\n?/g, "\n").replace(/[\t\n]/g, " ");
-  if (s.indexOf("&") < 0) return s;
-  return s.replace(/&(?:#x([0-9a-fA-F]+)|#([0-9]+)|(amp|lt|gt|quot|apos));/g, function (m, hex, dec, name) {
-    return name ? XML_ENT[name] : String.fromCodePoint(parseInt(hex || dec, hex ? 16 : 10));
-  });
-}
-
-/* Read off the text, not through DOMParser.
-
-   The extract is every node, way and relation in the box, and in a city
-   the box is big even when it is small: 700 m around Victoria Square is
-   8.6 MB, 23,096 nodes, 4,112 ways and 370 relations with 35,876 members
-   between them. DOMParser made a whole document of that - an element and
-   its attributes for every one - to find the 322 POIs and 349 roads kept
-   out of it. Measured on the desktop with that extract, five parses in a
-   row took the page's private memory up 154 to 331 MB, and it stayed there
-   until a full collection came round; the scan below peaks at 52 MB of
-   short-lived garbage and runs in 57 ms against 429. On a phone that is a
-   second or more of frozen map each time, and in town the extract comes
-   down every few hundred metres - the box is 700 m and the roads are
-   fetched again at 300 m from its edge.
-
-   The shape is fixed and flat - elements, attributes, no text content that
-   matters - so one pass finds the same things. Checked against DOMParser
-   over four real extracts, Adelaide CBD to Hawker, and the output is
-   identical to the character. What the parser did that is worth keeping is
-   kept: a body that is not a whole extract, an HTML error page under a 200
-   or a download cut short, is refused rather than read as far as it goes. */
-function parseOsmXml(text, a, radius) {
-  const reach = (radius || CFG.POI_RADIUS) * 1.05;
-  const head = text.indexOf("<osm");
-  if (head < 0 || !/<\/osm>\s*$/.test(text)) throw new Error("unparseable");
-
-  const coords = new Map();        /* node id -> the node */
-  const nodes = [], ways = [], rels = [];
-  let cur = null;                  /* the node, way or relation being read */
-  const open = /<(\/?)(node|way|relation|tag|nd|member)\b/g;
-  /* the rest of a start tag, stepping over quoted values whole */
-  const rest = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
-  let s = 0, e = 0;
-  /* One attribute of the tag between s and e. Only the ones read are ever
-     cut out of the text: a node carries eight and three of them matter, and
-     collecting all of them spent most of the time and memory on user names
-     and timestamps nothing looks at. */
-  const get = function (name) {
-    let k = text.indexOf(" " + name + "=\"", s);
-    let q = "\"";
-    if (k < 0 || k >= e) {
-      k = text.indexOf(" " + name + "='", s);
-      if (k < 0 || k >= e) return "";
-      q = "'";
-    }
-    const v = k + name.length + 3;
-    return xmlValue(text.slice(v, text.indexOf(q, v)));
-  };
-  open.lastIndex = head;
-  let m;
-  while ((m = open.exec(text))) {
-    const name = m[2];
-    if (m[1]) {                                   /* </node>, </way>, </relation> */
-      if (cur && cur.type === name) cur = null;
-      continue;
-    }
-    s = open.lastIndex;
-    rest.lastIndex = s;
-    if (!rest.test(text)) throw new Error("unparseable");
-    e = rest.lastIndex;
-    open.lastIndex = e;
-    const alone = text.charCodeAt(e - 2) === 47;  /* <node .../> has no children */
-
-    if (name === "tag") {
-      if (cur) (cur.tags || (cur.tags = {}))[get("k")] = get("v");
-    } else if (name === "nd") {
-      if (cur && cur.refs) cur.refs.push(get("ref"));
-    } else if (name === "member") {
-      if (cur && cur.members && get("type") === "way") cur.members.push({ ref: get("ref"), role: get("role") });
-    } else {
-      const id = get("id");
-      let el;
-      if (name === "node") {
-        el = { type: "node", id: id, lat: +get("lat"), lng: +get("lon"), tags: null };
-        coords.set(id, el);
-        nodes.push(el);
-      } else if (name === "way") {
-        el = { type: "way", id: id, refs: [], tags: null };
-        ways.push(el);
-      } else {
-        el = { type: "relation", id: id, members: [], tags: null };
-        rels.push(el);
-      }
-      cur = alone ? null : el;
-    }
-  }
-
-  const out = [];
-  /* The extract is already on the wire for the POIs, and every road in it
-     carries its geometry and whatever limit a mapper recorded. Keeping the
-     posted ones costs about 9 KB per 5 km cell against a 1.8 MB download
-     that was happening anyway.
-
-     A limit signed one direction at a time (maxspeed:forward, :backward)
-     counts as posted - see postedLimit. A road with no limit at all is kept
-     only where it carries on one that has one, by route number or name, so
-     the limit can hold along it (see updateSpeedSign); any other untagged
-     road cannot answer the question, and storing it would only slow the
-     search. Each way keeps its OSM id, which is what lets fetches merge. */
-  const roads = [], unsigned = [];
-  function collectRoad(w) {
-    const tags = w.tags || {};
-    if (!tags.highway || NOT_DRIVABLE[tags.highway]) return;
-    const lim = parseMaxspeed(tags.maxspeed);
-    const fw = parseMaxspeed(tags["maxspeed:forward"]), bw = parseMaxspeed(tags["maxspeed:backward"]);
-    if (!lim && !fw && !bw && !tags.ref && !tags.name) return;
-    const pts = [];
-    for (let j = 0; j < w.refs.length; j++) {
-      const p = coords.get(w.refs[j]);
-      /* five decimals is close to a metre, and a third of the bytes */
-      if (p) pts.push([+p.lat.toFixed(5), +p.lng.toFixed(5)]);
-    }
-    if (pts.length < 2) return;
-    const r = { id: +w.id, pts: pts };
-    if (tags.ref) r.ref = tags.ref;
-    if (tags.name) r.name = tags.name;
-    if (lim) { r.v = lim.v; r.mph = lim.mph; }
-    if (fw) r.f = fw.v;
-    if (bw) r.b = bw.v;
-    (lim || fw || bw ? roads : unsigned).push(r);
-  }
-  /* summed into acc, so a multipolygon's outer ways add up to one centre */
-  function centre(refs, acc) {
-    for (let j = 0; j < refs.length; j++) {
-      const p = coords.get(refs[j]);
-      if (p) { acc.la += p.lat; acc.lo += p.lng; acc.c++; }
-    }
-  }
-  function collect(el, wayById) {
-    const tags = el.tags || {};
-    const kind = poiKind(tags);
-    if (!kind) return;
-    let lat, lng;
-    if (el.type === "node") {
-      lat = el.lat; lng = el.lng;
-    } else {
-      const acc = { la: 0, lo: 0, c: 0 };
-      if (el.type === "way") {
-        centre(el.refs, acc);                    /* a way's centre is good enough to pin */
-      } else {
-        /* A multipolygon: its centre is the average of its outer ways'
-           points, which the extract has already handed over - it carries
-           every way a relation in the box is made of. Lyell McEwin Hospital
-           is one of these, twelve outer ways and no node of its own. */
-        if (tags.type !== "multipolygon") return;
-        const outer = el.members.filter(function (m) { return m.role === "outer"; });
-        (outer.length ? outer : el.members).forEach(function (m) {
-          const w = wayById.get(m.ref);
-          if (w) centre(w.refs, acc);
-        });
-      }
-      if (!acc.c) return;
-      lat = acc.la / acc.c; lng = acc.lo / acc.c;
-    }
-    const p = {
-      id: el.type + "/" + el.id, kind: kind, lat: lat, lng: lng,
-      /* Brand before operator: the brand is what is on the sign - IGA,
-         Foodland, Woolworths - while the operator is the company behind
-         it, so operator first turned a nameless IGA into "Metcash Trading
-         Limited". */
-      ...poiTitle(tags, kind),
-      info: poiInfoLine(tags, kind),
-      /* The address tags ride in on the same extract as everything else,
-         so a place that carries one now says where it is as well as what
-         it is. Most will not: OSM has a small fraction of Australian
-         addresses, and the fraction is thinnest out here. */
-      addr: poiAddress(tags)
-    };
-    if (haversine(a, p) <= reach) out.push(p);
-  }
-  for (let i = 0; i < nodes.length; i++) collect(nodes[i]);
-  for (let i = 0; i < ways.length; i++) collect(ways[i]);
-  /* And places mapped as multipolygon relations. These used to be skipped
-     on the strength of a sample in which every relation was a road, a trail
-     or a boundary - and that sample missed the Lyell McEwin, one of
-     Adelaide's major hospitals, which is a multipolygon with no node of its
-     own. Across South Australia four hospitals are mapped that way. The
-     same goes for the odd servo, surgery and caravan park. */
-  if (rels.length) {
-    const wayById = new Map();
-    for (let i = 0; i < ways.length; i++) wayById.set(ways[i].id, ways[i]);
-    for (let i = 0; i < rels.length; i++) collect(rels[i], wayById);
-  }
-  for (let i = 0; i < ways.length; i++) collectRoad(ways[i]);
-  const refs = new Set(), names = new Set();
-  roads.forEach(function (r) { if (r.ref) refs.add(r.ref); if (r.name) names.add(r.name); });
-  unsigned.forEach(function (r) {
-    if ((r.ref && refs.has(r.ref)) || (r.name && names.has(r.name))) roads.push(r);
-  });
-  return { pois: out, roads: roads };
-}
-
-/* Returns {items,bytes,secs,radius} or {error}. The API refuses any box
-   holding more than 50000 nodes, which a 5 km radius does in any built up
-   area, so shrink the radius until it fits rather than giving up. */
-async function osmApiPois(a) {
-  const t0 = Date.now();
-  const deadline = t0 + CFG.OSM_BUDGET;
-  let lastError = "could not reach the server";
-  let retryWhy = "";
-
-  for (let i = 0; i < CFG.OSM_RADII.length; i++) {
-    const radius = CFG.OSM_RADII[i];
-    /* No sense starting a fetch there is no time left to finish. */
-    const left = deadline - Date.now();
-    if (i > 0 && left < CFG.OSM_MIN_TRY) break;
-    if (i > 0) setPoiStatus(retryWhy + " - retrying within " + (radius / 1000) + " km...");
-    const url = CFG.OSM_API + "?bbox=" + bboxAround(a, radius);
-    const ctl = new AbortController();
-    const bail = setTimeout(function () { ctl.abort(); }, Math.min(CFG.OSM_TIMEOUT, left));
-    let resp;
-    try {
-      resp = await fetch(url, { signal: ctl.signal });
-    } catch (e) {
-      clearTimeout(bail);
-      const secs = Math.round((Date.now() - t0) / 1000);
-      if (e.name !== "AbortError") {
-        return { error: "could not reach the server (" + secs + "s) - blocked or offline" };
-      }
-      /* A smaller box is worth one more try, because full detail in a
-         tight circle beats headline tags in a wide one - the extract is
-         the only source that says whether a camp charges, and Photon
-         fills the rest of the 5 km back in afterwards.
-
-         Straight to the smallest box, though, not down the ladder rung by
-         rung. Shrinking the radius barely shrinks the download: measured
-         at Hawker the 5 km box is 1.72 MB and the 700 m box is still
-         0.71 MB, because the extract carries every node of every way that
-         crosses the box and a highway drags its whole length in whatever
-         the radius. The rungs between cost seconds to save a third of the
-         bytes; the smallest box is the only one with a real chance of
-         landing on a link that just failed. (Density is the other story -
-         node counts do scale with area, so that ladder is walked in full.) */
-      lastError = "timed out after " + secs + "s - the connection is too slow";
-      if (i === CFG.OSM_RADII.length - 1) break;   /* nothing smaller left */
-      retryWhy = "Connection is slow";
-      i = CFG.OSM_RADII.length - 2;                /* the loop lands on the last */
-      continue;
-    }
-    if (!resp.ok) {
-      let why = "";
-      try { why = await resp.text(); } catch (e) { /* body is optional */ }
-      clearTimeout(bail);
-      /* too many nodes: worth another go over a smaller box */
-      if (resp.status === 400 && /too many nodes/i.test(why)) {
-        lastError = "even a " + (radius / 1000) + " km box is too dense here";
-        retryWhy = "Area too dense";
-        continue;
-      }
-      return { error: resp.status === 509
-        ? "rate limited (509) - try again in a few minutes"
-        : "server returned HTTP " + resp.status };
-    }
-    let text;
-    try {
-      text = await resp.text();
-    } catch (e) {
-      clearTimeout(bail);
-      return { error: "download interrupted after " + Math.round((Date.now() - t0) / 1000) + "s" };
-    }
-    clearTimeout(bail);
-    try {
-      const parsed = parseOsmXml(text, a, radius);
-      return { items: parsed.pois, roads: parsed.roads, bytes: text.length,
-               secs: Math.round((Date.now() - t0) / 1000), radius: radius };
-    } catch (e) {
-      return { error: "could not read the map extract (" + fmtBytes(text.length) + ")" };
-    }
-  }
-  return { error: lastError };
 }
 
 /* The manual retry, reached from the menu button and from the chip that
@@ -9352,7 +8833,7 @@ function poiOfferLabel() {
   return "Load POIs here";
 }
 
-function offerOsmPois(show) {
+function offerPoiLoad(show) {
   $("#poiOsmRow").classList.toggle("hidden", !show);
   $("#poiOfferChip").classList.toggle("hidden", !show);
   if (show) $("#poiOfferText").textContent = poiOfferLabel();
@@ -9380,8 +8861,8 @@ function hasRealName(p) {
    Matching on name within POI_DUP_M keeps distinct branches of a chain, and
    the survivor is whichever category ranks highest in POI_ORDER, which is
    ordered by what matters to a driver: the supermarket beats the supplies.
-   Full detail from the map extract beats a thin hit from the search index,
-   since only the extract carries the fee tag. */
+   A full record beats a thin one - a scheme servo that is only its prices -
+   since only the full record carries the fee tag. */
 function dedupeByName(items) {
   /* Captions and real names are separated first. A caption cannot cluster
      with another caption - three car parks all read "Parking" and are
@@ -9508,10 +8989,7 @@ function farKey(a, missing) {
 async function fillFarKinds(a) {
   const have = new Set();
   pois.forEach(function (p) { if (!p.far) have.add(p.kind); });
-  /* Not parking: the pack leaves car parks out on purpose (see build-poi),
-     so the nearest one it could name is whatever odd corner is tagged that
-     way 40 km off - an answer that looks like a fact and is not one. */
-  const missing = POI_ORDER.filter(function (k) { return !have.has(k) && k !== "parking"; });
+  const missing = POI_ORDER.filter(function (k) { return !have.has(k); });
   const key = farKey(a, missing);
   if (!key || key === poiFarAt) return;
   poiFarAt = key;
@@ -10073,14 +9551,14 @@ const Fuel = {
      scheme says which BP. Two were simply out of date, still reading Coles
      Express after the rebrand to Reddy Express.
 
-     Coverage is the other half. The extract found 17 servos around Mount
-     Gambier where the scheme lists 19, and 12 around Port Augusta against
-     13. In a city it fails differently: the extract refuses any box holding
-     more than 50000 nodes, so Adelaide shrinks it to 700 m and one servo
-     comes back while 49 stand within 5 km. The search index fills that, but
-     only when the box shrank - so a country town where the extract
-     succeeded never asks it, which is exactly where the servos went
-     missing.
+     Coverage was the other half. The map extract the app read then found
+     17 servos around Mount Gambier where the scheme lists 19, and 12 around
+     Port Augusta against 13. In a city it failed differently: it refused
+     any box holding more than 50000 nodes, so Adelaide shrank it to 700 m
+     and one servo came back while 49 stood within 5 km. The search index
+     filled that, but only when the box shrank - so a country town where
+     the extract succeeded never asked it, which is exactly where the
+     servos went missing.
 
      So where a scheme covers the ground the scheme is the servo list, and
      OSM is asked only where the pin stands and when the place is open.
@@ -10171,7 +9649,7 @@ const Fuel = {
       lng: osm ? osm.lng : st.x,
       name: name,
       /* thin, honestly: a servo, its prices, and whatever OSM knew about its
-         hours - which is less than a full extract record carries. */
+         hours - which is less than a full record off the pack carries. */
       thin: true,
       info: bits.join(" · "),
       /* The scheme registers each servo against an address, which is the
@@ -11523,10 +11001,10 @@ const Addr = {
 /* =====================================================================
    POIs with nothing on the other end of it.
 
-   Both network sources under-report, in ways that took a long time to see.
-   The map extract refuses a box over 50,000 nodes, so in a town the radius
-   collapses - 1.2 km at Torrensville against the 5 km asked for - and
-   everything past that has to come from somewhere else. Overpass is a good
+   Both network sources under-reported, in ways that took a long time to
+   see. The map extract refused a box over 50,000 nodes, so in a town the
+   radius collapsed - 1.2 km at Torrensville against the 5 km asked for -
+   and everything past that had to come from somewhere else. Overpass is a good
    somewhere else and it is still a request to another server, over the
    signal this app exists because you do not have.
 
@@ -11545,9 +11023,9 @@ const Addr = {
    thousand car parks cost almost nothing.
 
    The OpenStreetMap id rides along because the phone needs it: a favourite
-   is stored against it, Hide remembers it, and the merge with a live
-   extract folds two copies of a place by it. Without it a starred camp
-   would be lost every time the pack was rebuilt.
+   is stored against it, Hide remembers it, and a place that arrives from
+   two sources is folded into one by it. Without it a starred camp would be
+   lost every time the pack was rebuilt.
    ===================================================================== */
 const Pack = {
   manifest: null,
@@ -11716,9 +11194,9 @@ const Pack = {
   },
 
   /* One row, back in the shape everything downstream speaks. The same
-     fields the map extract fills in, from the same tags, through the same
-     poiKind - a POI off the pack and the same POI off the wire are the
-     same object but for where it came from. */
+     fields Overpass fills in, from the same tags, through the same poiKind -
+     a POI off the pack and the same POI off the wire are the same object
+     but for where it came from. */
   row: function (tile, r) {
     const tags = {};
     for (let i = 4; i < r.length; i += 2) tags[tile.k[r[i]]] = tile.v[r[i + 1]];
@@ -11726,8 +11204,8 @@ const Pack = {
     if (!kind) return null;
     const title = poiTitle(tags, kind);
     return {
-      /* 2 is a multipolygon relation (see build-poi.mjs), named the way the
-         live extract names it so the two copies of a place fold together */
+      /* 2 is a multipolygon relation (see build-poi.mjs), named the way
+         OpenStreetMap names it, so a favourite or a hidden pin finds it */
       id: (r[2] === 2 ? "relation" : r[2] ? "way" : "node") + "/" + r[3],
       kind: kind,
       lat: (tile.o[0] + r[0]) / 1e5,
@@ -11951,7 +11429,24 @@ function packSpine(pk) {
     for (let i = 0; i < row.length; i++) f[at++] = row[i] == null ? 0 : row[i];
   }
   x[pk.e.length] = at;
-  return { o: pk.o, n: pk.n, f: f, x: x, __cut: pk.__cut };
+  return pk.d ? { o: pk.o, n: pk.n, f: f, x: x, d: pk.d, __cut: pk.__cut }
+              : { o: pk.o, n: pk.n, f: f, x: x, __cut: pk.__cut };
+}
+
+/* A pack's limits signed one direction at a time, as a Map from row to
+   [row, forward, backward] - see pack in build-routing.mjs. Built once a
+   pack and kept beside it rather than on it, because the pack itself goes
+   back into storage. null for the nearly every pack that has none. */
+const packDirMaps = new WeakMap();
+function packDirs(pk) {
+  if (!pk.d) return null;
+  let m = packDirMaps.get(pk);
+  if (!m) {
+    m = new Map();
+    for (const q of pk.d) m.set(q[0], q);
+    packDirMaps.set(pk, m);
+  }
+  return m;
 }
 
 /* How many rows a pack holds, in either shape. */
@@ -12010,18 +11505,20 @@ const Route = {
        eCost  Float64  seconds, already weighted for surface and ferries
        eA/eB  Float64  the node keys at each end - 7.2e14, so not an Int32
        eV     Uint8    the posted limit in km/h, 0 where none is posted
+       eFw/eBw Uint8   a limit signed one direction at a time, forward and
+                       backward along the edge as drawn, 0 where none is
        eBox   Int32 x4 the edge's extent - south, west, north, east - in
                        the same hundred-thousandths of a degree as geo
 
      cls is carried and read only to keep ferries off the speed sign. name
      is what the turn instructions are written from - see navBuildTurns -
-     and what the sign carries a limit along. eV and eBox are the sign's:
-     seventeen bytes an edge, so that the limit under the wheels is read off
-     the roads already here rather than fetched - see roadAt. */
+     and what the sign carries a limit along. eV, eFw, eBw and eBox are the
+     sign's: nineteen bytes an edge, so that the limit under the wheels is
+     read off the roads already here rather than fetched - see roadAt. */
   eCap: 0,                 /* how many edges the columns have room for */
   nE: 0,                   /* how many they hold */
   eCls: null, eF: null, eName: null, eOff: null, eNp: null,
-  eM: null, eCost: null, eA: null, eB: null, eV: null, eBox: null,
+  eM: null, eCost: null, eA: null, eB: null, eV: null, eFw: null, eBw: null, eBox: null,
   /* Interned road names, shared across packs - which is what this always
      said and was not doing. Every named edge pushed its own entry, so the
      graph around Adelaide held 551,414 of them for 16,321 distinct names:
@@ -12520,6 +12017,8 @@ const Route = {
     this.eA = grow(Float64Array, this.eA, cap);
     this.eB = grow(Float64Array, this.eB, cap);
     this.eV = grow(Uint8Array, this.eV, cap);
+    this.eFw = grow(Uint8Array, this.eFw, cap);
+    this.eBw = grow(Uint8Array, this.eBw, cap);
     const box = new Int32Array(cap * 4);
     if (this.eBox) box.set(this.eBox.subarray(0, this.nE * 4));
     this.eBox = box;
@@ -12585,6 +12084,7 @@ const Route = {
   addRows: function (pk, from, to, near) {
     const oLat = pk.o[0], oLng = pk.o[1];
     const flat = pk.x ? pk.f : null, at = pk.x;
+    const dir = packDirs(pk);
     /* near is the spine's window, and nothing else passes one. A box rather
        than a circle and measured off the row's first point, both because
        this runs over half a million rows and because neither costs anything
@@ -12656,6 +12156,9 @@ const Route = {
       /* the posted limit alone: row[2] is 0 where none is, and v above
          has already stood a class speed in for pricing */
       this.eV[i] = row[2] || 0;
+      const dd = dir && dir.get(r);
+      this.eFw[i] = dd ? dd[1] : 0;
+      this.eBw[i] = dd ? dd[2] : 0;
       this.eBox[i * 4] = s; this.eBox[i * 4 + 1] = w;
       this.eBox[i * 4 + 2] = no; this.eBox[i * 4 + 3] = ea;
       this.nE++;
@@ -12750,10 +12253,8 @@ const Route = {
 
   /* Whether the graph holds every road there is at p: the spine's window
      reaches it, and its tertiary and street tiles are folded in or do not
-     exist. Only then is "no road here" an answer rather than a gap, and
-     only then does the sign stop needing the map extract - see
-     fetchPois, where this is what stops the extract being fetched again
-     every few hundred metres in town. */
+     exist. Only then is "no road here" an answer rather than a gap - see
+     roadHere. */
   holds: function (p) {
     if (!this.manifest || !this.packs.has("sp") || !this.spineHas(p, 0)) return false;
     const x = lon2tile(p.lng, CFG.ROUTE_Z), y = lat2tile(p.lat, CFG.ROUTE_Z);
@@ -12764,11 +12265,11 @@ const Route = {
   },
 
   /* The road under the vehicle and which way along it, off the packs:
-     {i, v, name, fwd, d} or null. The same test roadUnder makes of the
-     extract - nearest within the snap, and while moving only a road
-     running within SPEED_HDG_TOL of the heading, either way along it - but
-     over every drivable road rather than only the ones with a limit on
-     them, so a side street beside an arterial is the side street.
+     {i, v, fw, bw, name, fwd, d} or null. Nearest within the snap, and while moving
+     only a road running within SPEED_HDG_TOL of the heading, either way
+     along it - over every drivable road, so a side street beside an
+     arterial is the side street. posted asks for the nearest road that
+     posts a limit instead, for roadHere to fall back on.
 
      This runs two and a half times a second, so it does not use snapAll,
      which is built for a route: that measures every edge in a 3x3 block of
@@ -12776,7 +12277,7 @@ const Route = {
      town. This opens only the tile the snap circle is in - one, or up to
      four on a boundary - and only the edges whose box comes within the
      snap, and measures those in metres off p with no allocation. */
-  roadAt: function (p, hdg, moving, snap) {
+  roadAt: function (p, hdg, moving, snap, posted) {
     if (!this.nE) return null;
     const mLat = 111320, mLng = 111320 * Math.cos(rad(p.lat));
     const dLat = snap / mLat, dLng = snap / mLng;
@@ -12794,6 +12295,7 @@ const Route = {
           if (la < box[b] - bLa || la > box[b + 2] + bLa ||
               lo < box[b + 1] - bLo || lo > box[b + 3] + bLo) continue;
           if (this.eCls[i] === ferry) continue;      /* the punt has no limit to show */
+          if (posted && !this.eV[i] && !this.eFw[i] && !this.eBw[i]) continue;
           const off = this.eOff[i], n = this.eNp[i];
           for (let k = 1; k < n; k++) {
             const q = off + k * 2;
@@ -12817,7 +12319,7 @@ const Route = {
       }
     }
     if (best < 0) return null;
-    return { i: best, v: this.eV[best], d: bestD, fwd: fwd,
+    return { i: best, v: this.eV[best], fw: this.eFw[best], bw: this.eBw[best], d: bestD, fwd: fwd,
              name: this.eName[best] >= 0 ? this.names[this.eName[best]] : "" };
   },
 
@@ -14160,10 +13662,10 @@ function geoAction(act, card) {
         return haversine(p, { lat: lat, lng: lng }) <= CFG.POI_RADIUS * 1.1;
       }).length;
       if (near) {
-        offerOsmPois(false);
+        offerPoiLoad(false);
         toast(near + " POIs around " + place, "ok");
       } else {
-        offerOsmPois(true);
+        offerPoiLoad(true);
         toast("No POIs for " + place + " yet - tap the chip to fetch them", "warn");
       }
     });
@@ -14778,10 +14280,12 @@ async function runDiagnostics() {
   rows.push(await probe("Map tiles (Esri)",
     CFG.TILE_URL.replace("{z}", "8").replace("{x}", "230").replace("{y}", "150"), { mode: "cors" }));
 
-  /* a deliberately tiny box, so this measures reachability rather than the
-     size of the extract the real fetch would pull down */
-  rows.push(await probe("POIs: OpenStreetMap",
-    CFG.OSM_API + "?bbox=138.4200,-31.8880,138.4230,-31.8860", null, 20000));
+  /* Only asked for beyond the offline pack, which inside Australia is
+     nowhere - so red here costs nothing at home. A deliberately tiny query,
+     so this measures reachability rather than a real answer. */
+  rows.push(await probe("POIs past the pack: Overpass",
+    CFG.OVERPASS[0] + "?data=" + encodeURIComponent("[out:json][timeout:10];node(-31.889,138.422,-31.887,138.424)[amenity=fuel];out 1;"),
+    null, 20000));
   rows.push(await probe("POIs: Photon index",
     CFG.PHOTON + "?lat=-31.88753&lon=138.42284&radius=1&limit=1&osm_tag=amenity:fuel"));
 
@@ -16874,8 +16378,9 @@ function syncPoiSwitch() {
 $("#swPoi").addEventListener("click", function () {
   S.poiOn = !S.poiOn;
   saveSettings(); syncPoiSwitch(); renderPois();
-  /* Roads come back with the same extract, so the fetch runs either way -
-     this switch is only about the pins. */
+  /* On, the POIs are fetched at once. Off, fetchPois still keeps the
+     addresses and roads coming as the vehicle moves - the speed sign and
+     routing need those whether or not there are pins. */
   fetchPois(true);
 });
 /* The box filters the POIs already loaded, and nothing else. Searching for a
