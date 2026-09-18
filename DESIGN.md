@@ -1452,20 +1452,28 @@ into the three that are markup, so the shape cannot drift between them.
 
 ### Orientation
 
-North Up / Heading Up sits with the map controls, between Recentre and the
+The N Up toggle sits with the map controls, between Recentre and the
 simulated drive — not on the action bar. The bar is for what you are looking
 for: somewhere to go, what is around you, what you saved. Which way the map
 faces is a property of the map, and it belongs in the column that already
 holds zoom and recentre.
 
-The mode is still spelled out under the needle, because the needle points at
-true north in both states and the two would otherwise differ by colour alone.
-The label takes the **label-sm** step rather than micro: micro is for a word
-sitting above a big number, where the number is the reading and the word only
-names it, and here the word is half the reading. It is below the detector’s
-11px floor and stays there — the step above overflows the 34px button a fine
-pointer gets, and the label is reinforcement rather than the only signal, since
-the needle also fills Burnt Orange when heading-up is on.
+**Heading up is the default, and N Up is a toggle.** Off, the map turns with
+the vehicle; on, it locks north up and the button lights Burnt Orange — the
+needle’s filled half and the word both. It used to be a switch between two
+labels, HDG and N Up, which lit the button in the mode everybody drives in and
+made the driver read a word that changed under the finger to know which one
+they were in. Now the everyday state is the dark one, and the button is lit
+only for the choice somebody made. The name holds still for screen readers and
+voice control (“N Up - lock the map north up”) and `aria-pressed` carries on
+and off. Phones that had saved north up by never touching it are moved to
+heading up once (`headUpDefaultApplied`, the same one-off the relief default
+used); turning N Up on again sticks.
+
+The word under the needle is **micro**, the app’s size for a word under a
+glyph: at 10px N UP crowded its button, the 34px one a fine pointer gets, and
+micro leaves it 5px clear each side there and 10px at 44. It is below the
+detector’s 11px floor and stays there.
 
 **The vehicle sits in the lower third while heading up.** Following in heading
 up, the vehicle is held two thirds of the way down the open map — from the
