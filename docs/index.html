@@ -1308,9 +1308,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   font-size:var(--t-zoom);line-height:1;color:var(--sand);display:flex;align-items:center;justify-content:center}
 #zoomCtl button:active{background:var(--rust)}
 /* One control in this stack says a word as well as drawing a glyph, because
-   its two states draw the same needle. Micro type at the stat bar’s size and
-   tracking, which is what the rest of the app reads at speed. The needle
-   shrinks to make room rather than the label being squeezed under it. */
+   a needle alone does not say what tapping it does: N Up, lit rust when it
+   is on - the needle's filled half and the word both. Micro type at the
+   stat bar’s size and tracking, which is what the rest of the app reads at
+   speed. The needle shrinks to make room rather than the label being
+   squeezed under it. */
 #zoomCtl #btnOrient{flex-direction:column;gap:1px;line-height:1}
 #zoomCtl #btnOrient svg{width:19px;height:19px;stroke:var(--sand);fill:none;
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -1326,7 +1328,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    catch in sunlight - but that was a wash, not a fill, and a fill is what
    the rest of the column already proves reads in full sun. Solid at the
    same weight the pressed state uses, just in amber rather than rust: Sim
-   is a caution, not a chosen mode, and rust is spent on Heading Up now -
+   is a caution, not a chosen mode, and rust is spent on N Up now -
    the one persistent toggle in this view that actually is one. The ink
    swaps to the same near-black .btn.warnb already puts on amber, since
    sand on amber is two light colours and reads at barely a point of
@@ -1364,7 +1366,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #btnOrient.on .solid{fill:var(--rust)}
 /* Favourites does not light up when the list is not empty. .act.on paints a
    button in Burnt Orange, and this system spends that on the one persistent
-   mode the driver actually chose - Heading Up, over in the map controls.
+   mode the driver actually chose - N Up, over in the map controls.
    Having kept something is a fact about a list, not a mode you are in, and
    The One Accent Rule allows exactly one orange control in a view. */
 /* Every floating label on the map lives in this one column. They used to be
@@ -1409,7 +1411,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* A filter being on is not a caution and nobody chose it as the one mode
    in play - it is the same fact a selected category chip states in the
    drawer, so it wears that chip's own sand-on-dark rather than a colour
-   that would compete with Heading Up for the one rust slot in this view. */
+   that would compete with N Up for the one rust slot in this view. */
 #poiFilterChip{border-color:var(--sand);color:var(--sand)}
 
 /* ---------- markers ---------- */
@@ -3246,10 +3248,9 @@ input[type=date],input[type=time]{color-scheme:dark}
       <!-- Orientation is a map control, so it sits with the map controls. It
            was on the action bar, which is for places and things you keep;
            this is which way the map faces, which belongs with zoom and
-           recentre. The mode is still spelled out under the needle - the
-           needle points at true north either way, so north-up and heading-up
-           would differ by colour alone, and this system does not allow that
-           anywhere. -->
+           recentre. It is the N Up toggle: lit when north up is locked on,
+           dark while the map turns with the vehicle, which is the default.
+           Its name holds still and aria-pressed carries on and off. -->
       <button id="btnOrient">
         <svg viewBox="0 0 24 24">
           <path d="M12 4.4 17 14.2 12 20.4 7 14.2Z"/>
@@ -4697,7 +4698,7 @@ const DB = (function () {
    App state
    ===================================================================== */
 const S = Object.assign({
-  northLock: true,      /* true = north up, false = heading up */
+  northLock: false,     /* true = north up, false = heading up - the default */
   follow: true,
   poiOn: true,
   keepAwake: true,      /* hold the screen on the whole time the app is open */
@@ -4724,11 +4725,21 @@ if (!S.shadeDefaultApplied) {
   S.shadeDefaultApplied = true;
 }
 
+/* Heading up is the default now, north up the toggle - and every phone that
+   has opened the app carries a saved northLock:true it never chose, for the
+   same reason relief did. Applied once, the same way; a driver who turns N
+   Up back on keeps it. */
+if (!S.headUpDefaultApplied) {
+  S.northLock = false;
+  S.headUpDefaultApplied = true;
+}
+
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         zoom: S.zoom, hillshade: S.hillshade,
                         shadeDefaultApplied: S.shadeDefaultApplied,
+                        headUpDefaultApplied: S.headUpDefaultApplied,
                         textScale: S.textScale });
 }
 
@@ -16867,21 +16878,23 @@ function discloseToggle(det) {
 });
 
 /* Map orientation lives on the map itself, bottom right, the same size as
-   the zoom buttons. Active (heading up) turns rust, and the needle rotates
-   to keep pointing at true north - so it doubles as a north indicator. */
+   the zoom buttons. Heading up is the default and the button is N Up, a
+   toggle: on locks the map north up and turns rust, off lets it turn with
+   the vehicle. It used to be a switch between two labels, HDG and N Up,
+   which made the one mode anybody drives in the one that lit up - and a
+   label that changes under the finger is a thing to read, where a toggle
+   that is lit or not is a thing to glance at. */
 function syncNorthUI() {
-  const headingUp = !S.northLock;
-  $("#btnOrient").classList.toggle("on", headingUp);
-  $("#orientLabel").textContent = headingUp ? "HDG" : "N Up";
-  $("#btnOrient").setAttribute("aria-pressed", headingUp ? "true" : "false");
+  const on = S.northLock;
+  $("#btnOrient").classList.toggle("on", on);
+  $("#orientLabel").textContent = "N Up";
+  $("#btnOrient").setAttribute("aria-pressed", on ? "true" : "false");
   /* The accessible name has to contain the word on the button, or voice
-     control cannot ask for the thing the driver can see. The static label
-     named both modes and so matched neither of the two words the button
-     ever wears. This one leads with the label it is wearing; the state
-     stays where it was, on aria-pressed. */
-  $("#btnOrient").setAttribute("aria-label",
-    headingUp ? "HDG - map orientation, heading up" : "N Up - map orientation, north up");
-  $("#btnOrient").title = headingUp ? "Heading up - tap for north up" : "North up - tap for heading up";
+     control cannot ask for the thing the driver can see. The name stays
+     the same; on and off are aria-pressed's to say. */
+  $("#btnOrient").setAttribute("aria-label", "N Up - lock the map north up");
+  $("#btnOrient").title = on ? "North up is on - tap to turn the map with you"
+                             : "North up is off - tap to lock north up";
 }
 
 function setNorthLock(lock, announce) {
