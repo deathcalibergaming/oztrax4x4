@@ -5507,9 +5507,8 @@ function applyFollowTransform(allowResync) {
      frame at whatever rate the screen refreshes - 90 or 120 a second on a
      modern phone, not 60 - and a parked vehicle produces the same three
      strings every time. Putting a transform back that is already there is
-     not free: it is a style invalidation the compositor has to answer, and
-     --maprot sits on the root element, where a change invalidates every
-     rule in the document that reads it.
+     not free: it is a style invalidation the compositor has to answer. The
+     pins' counter-turn has a guard of its own - see pinTurn.
 
      The comparison is on the string that would be written rather than on
      the numbers behind it, so it is exactly the question being asked. The
@@ -5530,15 +5529,37 @@ function applyFollowTransform(allowResync) {
   if (rot !== applyFollowTransform.rot) {
     applyFollowTransform.rot = rot;
     rotWrap.style.transform = "rotate(" + rot + ")";
-    document.documentElement.style.setProperty("--maprot", rot);
+    pinTurn(view.mapRot);
   }
+}
+
+/* The pins turn back against the map so they stay upright, and --maprot
+   is how far. It used to be written to the root element, to the hundredth
+   of a degree, on every frame the heading moved - and a change there
+   restyles every element in the document, drawer and lists and all, to
+   turn five hundred pins. Measured heading-up on the freeway curves with
+   553 pins on the map, that was 3.0 to 5.4 seconds of style work in every
+   ten on the desktop, which on a phone is a main thread with nothing left
+   over.
+
+   Now it is set on the marker pane, the only place .upright is used, and
+   in whole degrees. Half a degree of lean on a 22px badge is not a thing
+   anyone can see, and it means a pin is restyled when the heading crosses
+   a degree rather than on every frame of a bend: 0.6 to 1.2 seconds in
+   ten on the same drive. The map itself still turns to the hundredth. */
+function pinTurn(deg) {
+  const r = Math.round(deg) + "deg";
+  if (r === pinTurn.was) return;
+  pinTurn.was = r;
+  if (!pinTurn.pane) pinTurn.pane = map.getPane("markerPane");
+  pinTurn.pane.style.setProperty("--maprot", r);
 }
 
 function clearFollowTransform() {
   panDx = 0; panDy = 0; view.mapRot = 0;
   panWrap.style.transform = "";
   rotWrap.style.transform = "";
-  document.documentElement.style.setProperty("--maprot", "0deg");
+  pinTurn(0);
   /* what was just written, so the guard above agrees with the screen */
   applyFollowTransform.pan = "";
   applyFollowTransform.rot = "0deg";
@@ -5747,7 +5768,7 @@ function frame(ts) {
   if (S.follow) applyFollowTransform(true);
   else if (applyFollowTransform.rot !== "0deg") {
     applyFollowTransform.rot = "0deg";
-    document.documentElement.style.setProperty("--maprot", "0deg");
+    pinTurn(0);
   }
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
