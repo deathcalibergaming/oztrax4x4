@@ -2604,7 +2604,15 @@ input[type=date],input[type=time]{color-scheme:dark}
 .kv b{color:var(--sand);font-weight:600}
 
 /* ---------- draw box ---------- */
-#drawHint{position:absolute;top:12px;left:12px;right:60px;z-index:470;background:rgba(23,28,25,.95);
+/* Under the heads-up display, where the map chips sit, not 12px from the top
+   of the map. The stat bar is drawn over the top of the map at 600, so a hint
+   placed there came up behind the heading tape, the speed and the readings,
+   Cancel included. The same 12px either side, where it used to keep 60px on
+   the right for the zoom buttons. Upright they sit lower down the map than
+   this does; on a phone on its side they reach up into its rows, and there
+   drawHintFit narrows it and keeps it centred instead - the turn bar's rule. */
+#drawHint{position:absolute;top:calc(var(--hudStage) + 10px + var(--turnDrop, 0px));left:12px;right:12px;
+  margin-inline:auto;z-index:470;background:rgba(23,28,25,.95);
   border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--t-note);line-height:1.4;color:var(--sand)}
 #drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--t-label-sm);display:block;margin-bottom:3px;text-transform:uppercase}
 #drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
@@ -5170,6 +5178,7 @@ function layoutDial() {
   zc.style.top = Math.round(Math.min(Math.max(mid, lo), hi > lo ? hi : lo)) + "px";
   zc.style.transform = "none";
   navTurnFit();              /* the turn bar's right edge stands off this column */
+  drawHintFit();             /* and so does the draw hint's, while it is up */
   Dial.geo = { cx: cx, cy: cy, P: P, R: R };
   fitPanels();               /* the room beside Navigate may have changed with it */
   if (!Dial.open) bar.classList.add("shut");
@@ -13998,7 +14007,30 @@ function startDrawArea() {
   drawMode = true;
   map.dragging.disable();
   $("#drawHint").classList.remove("hidden");
+  drawHintFit();
   stageEl.classList.add("drawing");
+}
+
+/* Where the zoom column reaches up into the hint's rows - a phone on its
+   side - the hint stops 8px short of it and stays centred, the same gap on
+   the left as on the right, which is navTurnFit's rule for the turn bar.
+   Measured at full width first, so the answer cannot change the question.
+   Too narrow to centre and still read, it takes the room on the left.
+
+   Asked of the hint's own class rather than drawMode: layoutDial calls this
+   during the first layout, before that let has been initialised. */
+function drawHintFit() {
+  const h = $("#drawHint"), zc = $("#zoomCtl");
+  if (!h || h.classList.contains("hidden")) return;
+  h.style.maxWidth = "";
+  h.style.right = "";
+  if (!zc) return;
+  const b = h.getBoundingClientRect(), z = zc.getBoundingClientRect();
+  if (!(z.top < b.bottom && z.bottom > b.top && z.left < b.right)) return;
+  const st = stageEl.getBoundingClientRect(), edge = z.left - 8;
+  const w = Math.round(2 * edge - st.left - st.right);
+  if (w >= 280) h.style.maxWidth = w + "px";
+  else h.style.right = Math.round(st.right - edge) + "px";
 }
 function endDrawMode() {
   drawMode = false;
