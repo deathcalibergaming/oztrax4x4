@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v231";
+const CACHE = "trailtracker-v232";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -73,8 +73,14 @@ self.addEventListener("fetch", function (e) {
   const url = new URL(req.url);
 
   /* A launch must not wait on the network. Serve the cached page straight
-     away and refresh the copy in the background for next time. */
-  if (req.mode === "navigate") {
+     away and refresh the copy in the background for next time.
+
+     Only for the app's own page. Every navigation in scope used to be
+     answered with the cached index.html, so a page anywhere under it - the
+     MapLibre preview at next/ - could never be reached: it came up as the
+     app. Judged on the path, not the whole URL, so a launch with a query
+     string on it is still the app. */
+  if (req.mode === "navigate" && isShell(url.origin + url.pathname)) {
     /* One request, shared by both halves. respondWith can answer from cache
        and settle in a millisecond, and once it settles the browser is free to
        shut the worker down - so the refresh, the comparison and the flag have

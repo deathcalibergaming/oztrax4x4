@@ -27,6 +27,13 @@ what that costs you.
                                JSON per z13 tile for the streets and tracks,
                                plus index.json
 
+    docs/next/                 the MapLibre GL preview: the same app with the
+                               map layer rebuilt on vector tiles, at
+                               /oztrax4x4/next/ beside the real one. Shares
+                               the origin, so it sees the same tracks,
+                               waypoints, settings and downloaded data.
+                               lib/ holds MapLibre GL JS 5.24.0 (BSD-3)
+
 ## Publishing
 
 GitHub Pages serves from `main` / `/docs`, so only that folder is published:
