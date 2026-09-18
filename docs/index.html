@@ -8893,16 +8893,106 @@ function parseMaxspeed(v) {
   return null;
 }
 
+/* An attribute value as a parser would hand it back: a literal tab, newline
+   or return reads as a space, and the five named entities and the numeric
+   character references are the characters they stand for. The API writes a
+   newline inside a value as &#10;, and that one stays a newline. */
+const XML_ENT = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" };
+function xmlValue(s) {
+  if (/[\t\n\r]/.test(s)) s = s.replace(/\r\n?/g, "\n").replace(/[\t\n]/g, " ");
+  if (s.indexOf("&") < 0) return s;
+  return s.replace(/&(?:#x([0-9a-fA-F]+)|#([0-9]+)|(amp|lt|gt|quot|apos));/g, function (m, hex, dec, name) {
+    return name ? XML_ENT[name] : String.fromCodePoint(parseInt(hex || dec, hex ? 16 : 10));
+  });
+}
+
+/* Read off the text, not through DOMParser.
+
+   The extract is every node, way and relation in the box, and in a city
+   the box is big even when it is small: 700 m around Victoria Square is
+   8.6 MB, 23,096 nodes, 4,112 ways and 370 relations with 35,876 members
+   between them. DOMParser made a whole document of that - an element and
+   its attributes for every one - to find the 322 POIs and 349 roads kept
+   out of it. Measured on the desktop with that extract, five parses in a
+   row took the page's private memory up 154 to 331 MB, and it stayed there
+   until a full collection came round; the scan below peaks at 52 MB of
+   short-lived garbage and runs in 57 ms against 429. On a phone that is a
+   second or more of frozen map each time, and in town the extract comes
+   down every few hundred metres - the box is 700 m and the roads are
+   fetched again at 300 m from its edge.
+
+   The shape is fixed and flat - elements, attributes, no text content that
+   matters - so one pass finds the same things. Checked against DOMParser
+   over four real extracts, Adelaide CBD to Hawker, and the output is
+   identical to the character. What the parser did that is worth keeping is
+   kept: a body that is not a whole extract, an HTML error page under a 200
+   or a download cut short, is refused rather than read as far as it goes. */
 function parseOsmXml(text, a, radius) {
   const reach = (radius || CFG.POI_RADIUS) * 1.05;
-  const doc = new DOMParser().parseFromString(text, "application/xml");
-  if (doc.getElementsByTagName("parsererror").length) throw new Error("unparseable");
-  const coords = {};
-  const nodes = doc.getElementsByTagName("node");
-  for (let i = 0; i < nodes.length; i++) {
-    coords[nodes[i].getAttribute("id")] =
-      { lat: +nodes[i].getAttribute("lat"), lng: +nodes[i].getAttribute("lon") };
+  const head = text.indexOf("<osm");
+  if (head < 0 || !/<\/osm>\s*$/.test(text)) throw new Error("unparseable");
+
+  const coords = new Map();        /* node id -> the node */
+  const nodes = [], ways = [], rels = [];
+  let cur = null;                  /* the node, way or relation being read */
+  const open = /<(\/?)(node|way|relation|tag|nd|member)\b/g;
+  /* the rest of a start tag, stepping over quoted values whole */
+  const rest = /[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/y;
+  let s = 0, e = 0;
+  /* One attribute of the tag between s and e. Only the ones read are ever
+     cut out of the text: a node carries eight and three of them matter, and
+     collecting all of them spent most of the time and memory on user names
+     and timestamps nothing looks at. */
+  const get = function (name) {
+    let k = text.indexOf(" " + name + "=\"", s);
+    let q = "\"";
+    if (k < 0 || k >= e) {
+      k = text.indexOf(" " + name + "='", s);
+      if (k < 0 || k >= e) return "";
+      q = "'";
+    }
+    const v = k + name.length + 3;
+    return xmlValue(text.slice(v, text.indexOf(q, v)));
+  };
+  open.lastIndex = head;
+  let m;
+  while ((m = open.exec(text))) {
+    const name = m[2];
+    if (m[1]) {                                   /* </node>, </way>, </relation> */
+      if (cur && cur.type === name) cur = null;
+      continue;
+    }
+    s = open.lastIndex;
+    rest.lastIndex = s;
+    if (!rest.test(text)) throw new Error("unparseable");
+    e = rest.lastIndex;
+    open.lastIndex = e;
+    const alone = text.charCodeAt(e - 2) === 47;  /* <node .../> has no children */
+
+    if (name === "tag") {
+      if (cur) (cur.tags || (cur.tags = {}))[get("k")] = get("v");
+    } else if (name === "nd") {
+      if (cur && cur.refs) cur.refs.push(get("ref"));
+    } else if (name === "member") {
+      if (cur && cur.members && get("type") === "way") cur.members.push({ ref: get("ref"), role: get("role") });
+    } else {
+      const id = get("id");
+      let el;
+      if (name === "node") {
+        el = { type: "node", id: id, lat: +get("lat"), lng: +get("lon"), tags: null };
+        coords.set(id, el);
+        nodes.push(el);
+      } else if (name === "way") {
+        el = { type: "way", id: id, refs: [], tags: null };
+        ways.push(el);
+      } else {
+        el = { type: "relation", id: id, members: [], tags: null };
+        rels.push(el);
+      }
+      cur = alone ? null : el;
+    }
   }
+
   const out = [];
   /* The extract is already on the wire for the POIs, and every road in it
      carries its geometry and whatever limit a mapper recorded. Keeping the
@@ -8916,25 +9006,20 @@ function parseOsmXml(text, a, radius) {
      road cannot answer the question, and storing it would only slow the
      search. Each way keeps its OSM id, which is what lets fetches merge. */
   const roads = [], unsigned = [];
-  function collectRoad(el) {
-    const tags = {};
-    const kids = el.children;
-    for (let j = 0; j < kids.length; j++) {
-      if (kids[j].tagName === "tag") tags[kids[j].getAttribute("k")] = kids[j].getAttribute("v");
-    }
+  function collectRoad(w) {
+    const tags = w.tags || {};
     if (!tags.highway || NOT_DRIVABLE[tags.highway]) return;
     const lim = parseMaxspeed(tags.maxspeed);
     const fw = parseMaxspeed(tags["maxspeed:forward"]), bw = parseMaxspeed(tags["maxspeed:backward"]);
     if (!lim && !fw && !bw && !tags.ref && !tags.name) return;
     const pts = [];
-    for (let j = 0; j < kids.length; j++) {
-      if (kids[j].tagName !== "nd") continue;
-      const p = coords[kids[j].getAttribute("ref")];
+    for (let j = 0; j < w.refs.length; j++) {
+      const p = coords.get(w.refs[j]);
       /* five decimals is close to a metre, and a third of the bytes */
       if (p) pts.push([+p.lat.toFixed(5), +p.lng.toFixed(5)]);
     }
     if (pts.length < 2) return;
-    const r = { id: +el.getAttribute("id"), pts: pts };
+    const r = { id: +w.id, pts: pts };
     if (tags.ref) r.ref = tags.ref;
     if (tags.name) r.name = tags.name;
     if (lim) { r.v = lim.v; r.mph = lim.mph; }
@@ -8942,53 +9027,41 @@ function parseOsmXml(text, a, radius) {
     if (bw) r.b = bw.v;
     (lim || fw || bw ? roads : unsigned).push(r);
   }
-  function collect(el, type, wayById) {
-    const tags = {};
-    const kids = el.children;
-    for (let j = 0; j < kids.length; j++) {
-      if (kids[j].tagName === "tag") tags[kids[j].getAttribute("k")] = kids[j].getAttribute("v");
+  /* summed into acc, so a multipolygon's outer ways add up to one centre */
+  function centre(refs, acc) {
+    for (let j = 0; j < refs.length; j++) {
+      const p = coords.get(refs[j]);
+      if (p) { acc.la += p.lat; acc.lo += p.lng; acc.c++; }
     }
+  }
+  function collect(el, wayById) {
+    const tags = el.tags || {};
     const kind = poiKind(tags);
     if (!kind) return;
     let lat, lng;
-    if (type === "node") {
-      lat = +el.getAttribute("lat"); lng = +el.getAttribute("lon");
-    } else if (type === "way") {
-      let sla = 0, slo = 0, c = 0;                 /* a way's centre is good enough to pin */
-      for (let j = 0; j < kids.length; j++) {
-        if (kids[j].tagName !== "nd") continue;
-        const p = coords[kids[j].getAttribute("ref")];
-        if (p) { sla += p.lat; slo += p.lng; c++; }
-      }
-      if (!c) return;
-      lat = sla / c; lng = slo / c;
+    if (el.type === "node") {
+      lat = el.lat; lng = el.lng;
     } else {
-      /* A multipolygon: its centre is the average of its outer ways' points,
-         which the extract has already handed over - it carries every way a
-         relation in the box is made of. Lyell McEwin Hospital is one of
-         these, twelve outer ways and no node of its own. */
-      if (tags.type !== "multipolygon") return;
-      const members = [];
-      for (let j = 0; j < kids.length; j++) {
-        if (kids[j].tagName === "member" && kids[j].getAttribute("type") === "way") members.push(kids[j]);
+      const acc = { la: 0, lo: 0, c: 0 };
+      if (el.type === "way") {
+        centre(el.refs, acc);                    /* a way's centre is good enough to pin */
+      } else {
+        /* A multipolygon: its centre is the average of its outer ways'
+           points, which the extract has already handed over - it carries
+           every way a relation in the box is made of. Lyell McEwin Hospital
+           is one of these, twelve outer ways and no node of its own. */
+        if (tags.type !== "multipolygon") return;
+        const outer = el.members.filter(function (m) { return m.role === "outer"; });
+        (outer.length ? outer : el.members).forEach(function (m) {
+          const w = wayById.get(m.ref);
+          if (w) centre(w.refs, acc);
+        });
       }
-      const outer = members.filter(function (m) { return m.getAttribute("role") === "outer"; });
-      let sla = 0, slo = 0, c = 0;
-      (outer.length ? outer : members).forEach(function (m) {
-        const w = wayById[m.getAttribute("ref")];
-        if (!w) return;
-        const nds = w.children;
-        for (let j = 0; j < nds.length; j++) {
-          if (nds[j].tagName !== "nd") continue;
-          const p = coords[nds[j].getAttribute("ref")];
-          if (p) { sla += p.lat; slo += p.lng; c++; }
-        }
-      });
-      if (!c) return;
-      lat = sla / c; lng = slo / c;
+      if (!acc.c) return;
+      lat = acc.la / acc.c; lng = acc.lo / acc.c;
     }
     const p = {
-      id: type + "/" + el.getAttribute("id"), kind: kind, lat: lat, lng: lng,
+      id: el.type + "/" + el.id, kind: kind, lat: lat, lng: lng,
       /* Brand before operator: the brand is what is on the sign - IGA,
          Foodland, Woolworths - while the operator is the company behind
          it, so operator first turned a nameless IGA into "Metcash Trading
@@ -9003,20 +9076,18 @@ function parseOsmXml(text, a, radius) {
     };
     if (haversine(a, p) <= reach) out.push(p);
   }
-  for (let i = 0; i < nodes.length; i++) collect(nodes[i], "node");
-  const ways = doc.getElementsByTagName("way");
-  for (let i = 0; i < ways.length; i++) collect(ways[i], "way");
+  for (let i = 0; i < nodes.length; i++) collect(nodes[i]);
+  for (let i = 0; i < ways.length; i++) collect(ways[i]);
   /* And places mapped as multipolygon relations. These used to be skipped
      on the strength of a sample in which every relation was a road, a trail
      or a boundary - and that sample missed the Lyell McEwin, one of
      Adelaide's major hospitals, which is a multipolygon with no node of its
      own. Across South Australia four hospitals are mapped that way. The
      same goes for the odd servo, surgery and caravan park. */
-  const rels = doc.getElementsByTagName("relation");
   if (rels.length) {
-    const wayById = {};
-    for (let i = 0; i < ways.length; i++) wayById[ways[i].getAttribute("id")] = ways[i];
-    for (let i = 0; i < rels.length; i++) collect(rels[i], "relation", wayById);
+    const wayById = new Map();
+    for (let i = 0; i < ways.length; i++) wayById.set(ways[i].id, ways[i]);
+    for (let i = 0; i < rels.length; i++) collect(rels[i], wayById);
   }
   for (let i = 0; i < ways.length; i++) collectRoad(ways[i]);
   const refs = new Set(), names = new Set();
