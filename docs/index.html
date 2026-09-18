@@ -4045,6 +4045,10 @@ const CFG = {
   ALERT_REPEAT: 5000,      /* ms between reminders while the speed stays over */
   ALERT_STALE: 10000,      /* ms - a fix older than this says nothing about now */
   SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
+  /* How much further the extract's road may be than the pack's and still be
+     the same road: the packs' lines are thinned to within five metres of
+     the surveyed road, the extract's are not. See roadHere. */
+  SPEED_SAME_M: 8,
   /* A limit rides over a short gap - a fix that wanders out of the snap, a
      bend whose mapped line cuts the corner - for this far and this long, and
      only while still heading the same way. A turn is a new road. */
@@ -6133,9 +6137,56 @@ function postedLimit(hit) {
   return (hit.fwd == null && r.f != null && r.f === r.b) ? r.f : null;
 }
 
-/* Two ways are one road if they share a route number, or failing that a name. */
+/* Two ways are one road if they share a route number, or failing that a name.
+   Across the two sources as well: a pack carries one string per road, the
+   name or the route number where there is no name, so "B83" in a pack is
+   the extract's ref. */
 function sameRoad(a, b) {
-  return !!((a.ref && a.ref === b.ref) || (a.name && a.name === b.name));
+  return !!((a.ref && (a.ref === b.ref || a.ref === b.name)) ||
+            (a.name && (a.name === b.name || a.name === b.ref)));
+}
+
+/* The road under the vehicle, in roadUnder's {road, fwd} shape, from
+   whichever source can answer here.
+
+   The road packs first. They are on the phone already, they carry every
+   drivable road with the limit OpenStreetMap had for it at the monthly
+   cut, and they cover the country. The limit used to come only from the
+   map extract, which in town is 4 to 9 MB fetched again every few hundred
+   metres to keep roads under the wheels - that is what fed the renderer
+   2.3 GB on a city drive, and it is gone wherever the packs hold the
+   ground.
+
+   Where the packs hold it, their answer stands, including no road at all.
+   The extract is asked only when the pack's road posts nothing, for the
+   two things a pack cannot know: a limit signed one direction at a time
+   (the B83 north of Hawker, one way in 2,094 across the four extracts
+   measured) and a limit tagged since the cut. It has to be the same road -
+   within a few metres of where the pack put it and not named differently -
+   because the extract holds only roads with limits, and its nearest can
+   be the arterial beside the side street you are actually on.
+
+   A pack road with neither a limit nor a name says nothing about which
+   road you are on: a slip lane, a piece of a roundabout, a car park aisle,
+   a short unnamed link at an intersection. There the answer is the one the
+   sign has always given - the extract's nearest limit, or no road, which
+   lets the last limit ride over the gap - rather than blanking the sign at
+   every junction. Measured over 16,791 points around the CBD,
+   Torrensville, Mount Barker and Hawker, that was most of the difference.
+
+   Where the packs do not hold the ground yet - the first seconds after
+   launch, or a tile that has not come down - it is the extract as before. */
+function roadHere(p, hdg, moving, snap) {
+  if (!Route.holds(p)) return roadStore.size ? roadUnder(p, hdg, moving, snap) : null;
+  const h = Route.roadAt(p, hdg, moving, snap);
+  if (!h) return null;
+  if (!h.v && !h.name) return roadStore.size ? roadUnder(p, hdg, moving, snap) : null;
+  const road = { name: h.name, v: h.v || null, mph: false };
+  if (road.v == null && roadStore.size) {
+    const x = roadUnder(p, hdg, moving, h.d + CFG.SPEED_SAME_M);
+    if (x && (!road.name || (!x.road.name && !x.road.ref) || sameRoad(x.road, road))) return x;
+  }
+  return { road: road, fwd: h.fwd };
 }
 
 /* The sign is hidden whenever the limit is not known, and never shown
@@ -6317,10 +6368,10 @@ function updateSpeedSign() {
      the parser records the tag either way and a limit read in the wrong
      unit would chime at 100 on a 65 mph road. */
   let v = null, src = null;
-  if (roadStore.size && view.has) {
+  if (view.has) {
     const moving = view.speed > CFG.SPEED_MIN_MOVE && view.hdgFrom !== "compass";
     const snap = clamp(view.acc || 0, CFG.SPEED_SNAP_M, CFG.SPEED_SNAP_MAX);
-    const hit = roadUnder(view.cur, view.hdgCur, moving, snap);
+    const hit = roadHere(view.cur, view.hdgCur, moving, snap);
     const h = speedHold;
     if (hit) {
       v = postedLimit(hit);
@@ -8751,9 +8802,12 @@ async function fetchPois(force) {
   const a = poiAnchor();
   /* cheap to call on every fix: returns unless you have travelled far
      enough, or - following the vehicle - it is near the edge of the roads
-     loaded around it (see roadCover) */
+     loaded around it (see roadCover). Near that edge is no reason to fetch
+     where the road packs hold the ground, because there the sign reads
+     them (see roadHere): in town the extract's box is 700 m, and this is
+     what fetched it again every few hundred metres. */
   const moved = !poiCentre || haversine(poiCentre, a) >= CFG.POI_REFETCH;
-  const roadsThin = S.follow && view.has && !roadsCovered(view.cur);
+  const roadsThin = S.follow && view.has && !roadsCovered(view.cur) && !Route.holds(view.cur);
   if (!force && !moved && !roadsThin) return;
   /* Addresses and roads ride the same movement trigger, but nothing waits
      on them and a POI failure must not hold them up - the packs come off
@@ -11876,14 +11930,19 @@ const Route = {
        eM     Float64  metres
        eCost  Float64  seconds, already weighted for surface and ferries
        eA/eB  Float64  the node keys at each end - 7.2e14, so not an Int32
+       eV     Uint8    the posted limit in km/h, 0 where none is posted
+       eBox   Int32 x4 the edge's extent - south, west, north, east - in
+                       the same hundred-thousandths of a degree as geo
 
-     cls is carried and not read by anything yet. name is what the turn
-     instructions are written from - see navBuildTurns - which is what these
-     two columns were kept for. */
+     cls is carried and read only to keep ferries off the speed sign. name
+     is what the turn instructions are written from - see navBuildTurns -
+     and what the sign carries a limit along. eV and eBox are the sign's:
+     seventeen bytes an edge, so that the limit under the wheels is read off
+     the roads already here rather than fetched - see roadAt. */
   eCap: 0,                 /* how many edges the columns have room for */
   nE: 0,                   /* how many they hold */
   eCls: null, eF: null, eName: null, eOff: null, eNp: null,
-  eM: null, eCost: null, eA: null, eB: null,
+  eM: null, eCost: null, eA: null, eB: null, eV: null, eBox: null,
   /* Interned road names, shared across packs - which is what this always
      said and was not doing. Every named edge pushed its own entry, so the
      graph around Adelaide held 551,414 of them for 16,321 distinct names:
@@ -12381,6 +12440,10 @@ const Route = {
     this.eCost = grow(Float64Array, this.eCost, cap);
     this.eA = grow(Float64Array, this.eA, cap);
     this.eB = grow(Float64Array, this.eB, cap);
+    this.eV = grow(Uint8Array, this.eV, cap);
+    const box = new Int32Array(cap * 4);
+    if (this.eBox) box.set(this.eBox.subarray(0, this.nE * 4));
+    this.eBox = box;
     const next = new Int32Array(cap * 2).fill(-1);
     if (this.adjNext) next.set(this.adjNext.subarray(0, this.nE * 2));
     this.adjNext = next;
@@ -12465,12 +12528,17 @@ const Route = {
       const off = this.geoN;
       this.room(n * 2);
       let la = oLat, lng = oLng, m = 0, pLa = 0, pLng = 0;
+      let s = Infinity, w = Infinity, no = -Infinity, ea = -Infinity;
       for (let i = 0; i < n; i++) {
         la += row[4 + i * 2];
         lng += row[5 + i * 2];
         if (i) m += haversine({ lat: pLa / 1e5, lng: pLng / 1e5 }, { lat: la / 1e5, lng: lng / 1e5 });
         this.geo[this.geoN++] = la;
         this.geo[this.geoN++] = lng;
+        if (la < s) s = la;
+        if (la > no) no = la;
+        if (lng < w) w = lng;
+        if (lng > ea) ea = lng;
         pLa = la; pLng = lng;
       }
       if (!m) { this.geoN = off; continue; }
@@ -12506,6 +12574,11 @@ const Route = {
       this.eCost[i] = cost;
       this.eA[i] = this.nodeKey(this.geo[off], this.geo[off + 1]);
       this.eB[i] = this.nodeKey(this.geo[off + n * 2 - 2], this.geo[off + n * 2 - 1]);
+      /* the posted limit alone: row[2] is 0 where none is, and v above
+         has already stood a class speed in for pricing */
+      this.eV[i] = row[2] || 0;
+      this.eBox[i * 4] = s; this.eBox[i * 4 + 1] = w;
+      this.eBox[i * 4 + 2] = no; this.eBox[i * 4 + 3] = ea;
       this.nE++;
       this.link(i);
     }
@@ -12592,6 +12665,81 @@ const Route = {
     this.packs.clear();
     if (keep) this.packs.add("sp");
     for (let i = 0; i < this.nE; i++) this.link(i);
+  },
+
+  /* ---- the speed sign ---- */
+
+  /* Whether the graph holds every road there is at p: the spine's window
+     reaches it, and its tertiary and street tiles are folded in or do not
+     exist. Only then is "no road here" an answer rather than a gap, and
+     only then does the sign stop needing the map extract - see
+     fetchPois, where this is what stops the extract being fetched again
+     every few hundred metres in town. */
+  holds: function (p) {
+    if (!this.manifest || !this.packs.has("sp") || !this.spineHas(p, 0)) return false;
+    const x = lon2tile(p.lng, CFG.ROUTE_Z), y = lat2tile(p.lat, CFG.ROUTE_Z);
+    if (this.exists(x, y) && !this.packs.has(this.key(x, y))) return false;
+    const rz = CFG.ROUTE_REGION_Z;
+    const rx = lon2tile(p.lng, rz), ry = lat2tile(p.lat, rz);
+    return !(this.regionExists(rx, ry) && !this.packs.has(this.regionKey(rx, ry)));
+  },
+
+  /* The road under the vehicle and which way along it, off the packs:
+     {i, v, name, fwd, d} or null. The same test roadUnder makes of the
+     extract - nearest within the snap, and while moving only a road
+     running within SPEED_HDG_TOL of the heading, either way along it - but
+     over every drivable road rather than only the ones with a limit on
+     them, so a side street beside an arterial is the side street.
+
+     This runs two and a half times a second, so it does not use snapAll,
+     which is built for a route: that measures every edge in a 3x3 block of
+     z13 tiles, twelve kilometres across and tens of thousands of edges in
+     town. This opens only the tile the snap circle is in - one, or up to
+     four on a boundary - and only the edges whose box comes within the
+     snap, and measures those in metres off p with no allocation. */
+  roadAt: function (p, hdg, moving, snap) {
+    if (!this.nE) return null;
+    const mLat = 111320, mLng = 111320 * Math.cos(rad(p.lat));
+    const dLat = snap / mLat, dLng = snap / mLng;
+    const la = p.lat * 1e5, lo = p.lng * 1e5, bLa = dLat * 1e5, bLo = dLng * 1e5;
+    const x0 = lon2tile(p.lng - dLng, CFG.ROUTE_Z), x1 = lon2tile(p.lng + dLng, CFG.ROUTE_Z);
+    const y0 = lat2tile(p.lat + dLat, CFG.ROUTE_Z), y1 = lat2tile(p.lat - dLat, CFG.ROUTE_Z);
+    const box = this.eBox, geo = this.geo, ferry = ROAD_CLASSES.indexOf("ferry");
+    let best = -1, bestD = snap, fwd = null;
+    for (let x = x0; x <= x1; x++) {
+      for (let y = y0; y <= y1; y++) {
+        let at = this.binHead.get(this.binKey(x, y));
+        if (at === undefined) continue;
+        for (; at >= 0; at = this.binNext[at]) {
+          const i = this.binEdge[at], b = i * 4;
+          if (la < box[b] - bLa || la > box[b + 2] + bLa ||
+              lo < box[b + 1] - bLo || lo > box[b + 3] + bLo) continue;
+          if (this.eCls[i] === ferry) continue;      /* the punt has no limit to show */
+          const off = this.eOff[i], n = this.eNp[i];
+          for (let k = 1; k < n; k++) {
+            const q = off + k * 2;
+            const ax = (geo[q - 1] / 1e5 - p.lng) * mLng, ay = (geo[q - 2] / 1e5 - p.lat) * mLat;
+            const dx = (geo[q + 1] / 1e5 - p.lng) * mLng - ax, dy = (geo[q] / 1e5 - p.lat) * mLat - ay;
+            const len2 = dx * dx + dy * dy;
+            const t = len2 ? clamp(-(ax * dx + ay * dy) / len2, 0, 1) : 0;
+            const cx = ax + t * dx, cy = ay + t * dy;
+            const d = Math.sqrt(cx * cx + cy * cy);
+            if (d >= bestD) continue;
+            let along = null;
+            if (moving && hdg != null) {
+              const brg = (deg(Math.atan2(dx, dy)) + 360) % 360;
+              const turn = Math.abs(((hdg - brg + 540) % 360) - 180);
+              if (Math.min(turn, 180 - turn) > CFG.SPEED_HDG_TOL) continue;
+              along = turn <= 90;
+            }
+            bestD = d; best = i; fwd = along;
+          }
+        }
+      }
+    }
+    if (best < 0) return null;
+    return { i: best, v: this.eV[best], d: bestD, fwd: fwd,
+             name: this.eName[best] >= 0 ? this.names[this.eName[best]] : "" };
   },
 
   /* ---- snapping ---- */
