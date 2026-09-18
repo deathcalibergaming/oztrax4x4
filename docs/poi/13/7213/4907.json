@@ -1,1 +1,1 @@
-{"o":[-3354139,13697754],"k":["amenity","shelter_type","highway"],"v":["shelter","picnic_shelter","rest_area"],"p":[[-465,4000,0,9671447571,0,0,1,1],[-492,4015,0,9671447579,2,2]]}
+{"o":[-3354139,13697754],"k":["amenity","shelter_type","highway","informal"],"v":["shelter","picnic_shelter","rest_area","no"],"p":[[-465,4000,0,9671447571,0,0,1,1],[-492,4015,0,9671447579,2,2,3,3]]}

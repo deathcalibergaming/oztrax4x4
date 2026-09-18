@@ -1,1 +1,1 @@
-{"o":[-3157854,12968262],"k":["highway"],"v":["rest_area"],"p":[[-3303,3868,0,10235326526,0,0]]}
+{"o":[-3157854,12968262],"k":["highway","informal","note"],"v":["rest_area","yes","reverted rest area deletion https://www.openstreetmap.org/way/1069822420"],"p":[[-3303,3868,0,10235326526,0,0,1,1,2,2]]}

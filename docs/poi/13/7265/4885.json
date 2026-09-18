@@ -1,1 +1,1 @@
-{"o":[-3273184,13926270],"k":["access","name","tents","toilets","tourism","highway"],"v":["yes","Nackara East Rest Area","no","camp_site","rest_area"],"p":[[-3561,2478,0,316602130,0,0,1,1,2,0,3,2,4,3],[-3551,2476,0,9731641230,5,4,1,1]]}
+{"o":[-3273184,13926270],"k":["access","caravans","name","tents","toilets","tourism","highway","informal"],"v":["yes","Nackara East Rest Area","no","camp_site","rest_area"],"p":[[-3561,2478,0,316602130,0,0,1,0,2,1,3,0,4,2,5,3],[-3551,2476,0,9731641230,6,4,7,2,2,1]]}
