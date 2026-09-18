@@ -850,7 +850,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
      chips. The values here only hold until the first measure. */
   --hudBottom:calc(var(--topH) + 100px);
   --hudStage:100px;
-  --maprot:0deg;
   --safeT:env(safe-area-inset-top,0px);
   --safeB:env(safe-area-inset-bottom,0px);
   color-scheme:dark;
@@ -1414,7 +1413,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #poiFilterChip{border-color:var(--sand);color:var(--sand)}
 
 /* ---------- markers ---------- */
-.upright{transform:rotate(calc(-1 * var(--maprot)));transform-origin:50% 50%}
+/* The counter-turn is set on each .upright by pinTurn, not read from a
+   custom property - see pinTurn for why. */
+.upright{transform-origin:50% 50%}
 /* Counter-rotation must pivot on the anchor, not the icon centre, or the
    teardrop tip swings off its coordinate as the map turns. */
 .pin .upright{transform-origin:13px 31px}
@@ -4128,6 +4129,11 @@ const CFG = {
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
   RESYNC_FRAC: 0.30,
+  /* Pixels past the edge of the turning screen that a pin is already
+     brought round within, and how often the pins catch up with the map -
+     see pinTurn. */
+  PIN_TURN_MARGIN: 80,
+  PIN_TURN_MS: 125,
   LERP_POS: 0.16, LERP_HDG: 0.13,
   SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
   SIM_TICK: 100, SIM_SCALE: 2
@@ -5533,37 +5539,86 @@ function applyFollowTransform(allowResync) {
   if (rot !== applyFollowTransform.rot) {
     applyFollowTransform.rot = rot;
     rotWrap.style.transform = "rotate(" + rot + ")";
-    pinTurn(view.mapRot);
   }
 }
 
-/* The pins turn back against the map so they stay upright, and --maprot
-   is how far. It used to be written to the root element, to the hundredth
-   of a degree, on every frame the heading moved - and a change there
-   restyles every element in the document, drawer and lists and all, to
-   turn five hundred pins. Measured heading-up on the freeway curves with
-   553 pins on the map, that was 3.0 to 5.4 seconds of style work in every
-   ten on the desktop, which on a phone is a main thread with nothing left
-   over.
+/* The pins turn back against the map so they stay upright, in whole
+   degrees. Half a degree of lean on a 22px badge is not a thing anyone can
+   see, and it means a pin is restyled when the heading crosses a degree
+   rather than on every frame of a bend. The map itself still turns to the
+   hundredth.
 
-   Now it is set on the marker pane, the only place .upright is used, and
-   in whole degrees. Half a degree of lean on a 22px badge is not a thing
-   anyone can see, and it means a pin is restyled when the heading crosses
-   a degree rather than on every frame of a bend: 0.6 to 1.2 seconds in
-   ten on the same drive. The map itself still turns to the hundredth. */
-function pinTurn(deg) {
-  const r = Math.round(deg) + "deg";
-  if (r === pinTurn.was) return;
-  pinTurn.was = r;
-  if (!pinTurn.pane) pinTurn.pane = map.getPane("markerPane");
-  pinTurn.pane.style.setProperty("--maprot", r);
+   Written on each .upright directly, and that is the whole point. It was a
+   custom property, --maprot, set on the marker pane - and a custom property
+   is inherited, so every change restyled every element inside every pin,
+   the badge and the icon's SVG and each of its paths: 2,874 elements in the
+   pane to turn 561 pins. Each restyle makes new style objects in the
+   page's DOM heap, and the old ones stay until a full collection. Measured
+   with 561 pins, one degree was 1.7 MB of them, so one corner driven
+   heading-up was 150 MB; a city drive took that heap from 25 MB to 336 in
+   four kilometres, and it is most of why the renderer sat at 600 MB when a
+   collection brings it back to 215. transform is not inherited, so written
+   on the .upright alone it restyles those 561 and nothing under them: 0.55
+   MB a degree. It was on the root element before that, which restyled the
+   whole document on every frame.
+
+   And only the pins near the screen, which is most of the rest of it. The
+   pane holds every pin in five kilometres; at driving zoom in the CBD 146
+   of 561 are inside the circle the screen turns in, and turning those is
+   0.21 MB a degree - an eighth of where this started. The others are brought
+   round by pinSweep as they come near, and at 100 km/h the map moves under
+   two pixels between sweeps against the PIN_TURN_MARGIN they are caught
+   within. Leaving follow - a drag - and any zoom turn every pin at once,
+   because either can put any of them on screen.
+
+   And eight times a second rather than every frame. After a fix the map
+   swings to the new heading over a third of a second or so, and the pins
+   followed it a degree at a time; now they catch up in two or three steps
+   and land exactly where the map settles. Nobody reads a pin in the middle
+   of a swing.
+
+   New pins are drawn at the current angle by pinIcon and clusterIcon - see
+   pinUpright - so a pin added after a turn does not stand crooked until the
+   next one. */
+function pinTurn(deg, all) {
+  const r = Math.round(deg);
+  if (r === pinTurn.deg && !all) return;
+  pinTurn.deg = r;
+  pinSweep(!!all);
+}
+pinTurn.deg = 0;
+
+/* Every .upright near the screen - or every one at all - at pinTurn's angle.
+   Each remembers the angle it was last given, so one already there is left
+   alone and costs a comparison. */
+function pinSweep(all) {
+  if (!pinTurn.ups) pinTurn.ups = map.getPane("markerPane").getElementsByClassName("upright");
+  const r = pinTurn.deg, t = r ? "rotate(" + (-r) + "deg)" : "";
+  /* the middle of what is visible, where the map turns: the canvas is hung
+     with its centre there, less the follow transform's offset */
+  const c = map.containerPointToLayerPoint([mapW / 2 - panDx, mapH / 2 - panDy]);
+  const reach = Math.hypot(stageW, stageH) / 2 + CFG.PIN_TURN_MARGIN;
+  const ups = pinTurn.ups;
+  for (let i = 0; i < ups.length; i++) {
+    const u = ups[i];
+    if (u._turn === r) continue;
+    const p = u.parentNode && u.parentNode._leaflet_pos;
+    if (!all && p && Math.hypot(p.x - c.x, p.y - c.y) > reach) continue;
+    u.style.transform = t;
+    u._turn = r;
+  }
+}
+
+/* The style attribute a new .upright is born with: the turn the rest are at. */
+function pinUpright() {
+  return pinTurn.deg ? ' style="transform:rotate(' + (-pinTurn.deg) + 'deg)"' : "";
 }
 
 function clearFollowTransform() {
   panDx = 0; panDy = 0; view.mapRot = 0;
   panWrap.style.transform = "";
   rotWrap.style.transform = "";
-  pinTurn(0);
+  pinTurn(0, true);
   /* what was just written, so the guard above agrees with the screen */
   applyFollowTransform.pan = "";
   applyFollowTransform.rot = "0deg";
@@ -5634,9 +5689,15 @@ map.on("zoomend", function () {
   saveSettings();
   renderPois();
   schedulePoi();
+  pinSweep(true);
 });
+/* Zooming out can bring any pin on screen, turned or not - see pinTurn. */
+map.on("zoomstart", function () { pinSweep(true); });
 map.on("moveend", function () {
   if (!resyncing) schedulePoi();
+  /* a jump - Go To, a search result - lands among pins the sweep had not
+     reached yet */
+  pinSweep(false);
   /* Dragging the map moves the anchor when you are not following it; the
      animation loop covers the case where you are. */
   if (wptPanelOpen()) renderNearbyWaypoints();
@@ -5732,7 +5793,7 @@ const Compass = {
 };
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
-let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0;
+let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0, pinTick = 0;
 let nearAnchor = null;   /* where the waypoint list was last drawn from */
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -5772,7 +5833,7 @@ function frame(ts) {
   if (S.follow) applyFollowTransform(true);
   else if (applyFollowTransform.rot !== "0deg") {
     applyFollowTransform.rot = "0deg";
-    pinTurn(0);
+    pinTurn(0, true);
   }
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
@@ -5798,6 +5859,14 @@ function frame(ts) {
 
   /* a posted limit changes at a sign, not at 60 fps */
   if (ts - spdTick > CFG.SPEED_TICK) { spdTick = ts; updateSpeedSign(); }
+
+  /* The pins catch up with the map's turn, and pins coming near the screen
+     take it - eight times a second rather than every frame. See pinTurn. */
+  if (ts - pinTick > CFG.PIN_TURN_MS) {
+    pinTick = ts;
+    if (S.follow) pinTurn(view.mapRot);
+    pinSweep(false);
+  }
 
 
   if (ts - gpsTick > 250 && $("#drawer").classList.contains("open")) {
@@ -7413,7 +7482,7 @@ function pinIcon(color, kind, isPoi) {
     iconSize: isPoi ? [22, 22] : [26, 26],
     iconAnchor: isPoi ? [11, 11] : [13, 31],   /* the tip, now pointing down, marks the spot */
     popupAnchor: [0, isPoi ? -12 : -34],
-    html: '<div class="upright"><div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div></div>"
+    html: '<div class="upright"' + pinUpright() + '><div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div></div>"
   });
 }
 
@@ -10432,7 +10501,7 @@ function clusterIcon(group) {
        anchored to, which is what read as the number sitting off-centre.
        Same three numbers the shared pin builder uses for a POI. */
     iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12],
-    html: '<div class="upright"><div class="badge" style="background:' + c + '">' +
+    html: '<div class="upright"' + pinUpright() + '><div class="badge" style="background:' + c + '">' +
           '<span class="cnum">' + group.length + "</span></div></div>"
   });
 }
@@ -10587,15 +10656,25 @@ function renderPois() {
   }
   $("#cntPois").textContent = poiQuery ? hits.length + "/" + vis.length : vis.length;
 
-  renderPoiFilters();
-
   /* The chip exists because a filter hides pins on the map, so it only earns
      its place while pins are actually hidden. */
   const hidingPins = filtering && hits.length < vis.length;
   $("#poiFilterChip").classList.toggle("hidden", !hidingPins);
   if (hidingPins) $("#poiFilterText").textContent = hits.length + " of " + vis.length + ": " + poiQuery;
 
+  /* The category chips and the list of cards are inside the Nearby POIs
+     sheet, and were rebuilt with every redraw whether it was open or not:
+     a hundred and twenty cards and thirty chips, every fetch, every zoom,
+     for a sheet nobody was looking at while driving. Opening it redraws,
+     so while it is shut they are emptied instead and cost nothing. */
   const box = $("#poiList");
+  if (!poiPanelOpen()) {
+    if (box.firstChild) box.textContent = "";
+    const kinds = $("#poiKinds");
+    if (kinds && kinds.firstChild) kinds.textContent = "";
+    return;
+  }
+  renderPoiFilters();
   if (!hits.length) {
     box.innerHTML = '<div class="empty">' +
       (!S.poiOn ? "POI display is off."
