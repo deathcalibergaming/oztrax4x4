@@ -1440,6 +1440,20 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .leaflet-popup-content{margin:10px 12px;font-size:var(--t-body);line-height:1.4}
 .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line2)}
 .leaflet-popup-close-button{color:var(--dim) !important}
+/* The card drawn over the map in place of a Leaflet popup - see Card. The
+   same panel, rim, radius and shadow the popup wore, and the same inset,
+   so what is inside it reads exactly as it did. Under the heads-up display
+   and the drawer, over the map, the zoom column and the panels. */
+.map-card{position:absolute;left:0;top:0;z-index:520;background:var(--panel);color:var(--sand);
+  border:1px solid var(--line2);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);
+  font-size:var(--t-body);line-height:1.4;will-change:transform}
+.map-card-body{padding:10px 12px}
+/* the tip, pointing at the pin from whichever side the card is on */
+.map-card-tip{position:absolute;left:calc(var(--tipX, 50%) - 7px);bottom:-7px;width:14px;height:14px;
+  background:var(--panel);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);
+  transform:rotate(45deg);pointer-events:none}
+.map-card.below .map-card-tip{bottom:auto;top:-7px;border:0;border-left:1px solid var(--line2);border-top:1px solid var(--line2)}
+.map-card.gone{visibility:hidden}
 .pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:var(--t-body);margin-bottom:3px}
 /* The second line of a sign, where a place has one. Sits right under the
    name and above the category, because it is part of what the place calls
@@ -6028,6 +6042,8 @@ function frame(ts) {
     applyFollowTransform.rot = "0deg";
     pinTurn(0, true);
   }
+  /* an open card rides with its pin while the map is carried along */
+  if (Card.open && S.follow) Card.place();
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
   /* The arrow lives inside the rotated map, so the map rotation is already
@@ -6093,6 +6109,7 @@ requestAnimationFrame(frame);
 window.addEventListener("resize", function () {
   sizeMap();
   if (S.follow) applyFollowTransform(true);
+  Card.place();
 });
 
 /* What the on-screen keyboard has taken, published to CSS.
@@ -7918,6 +7935,116 @@ function saveWpForm() {
   toast(keep ? "Waypoint saved and kept" : "Waypoint saved", "ok");
 }
 
+/* =====================================================================
+   Cards on the screen, not in the map.
+
+   A Leaflet popup lives in the map's own pane, and following heading up
+   turns that pane with CSS - so every card opened while driving came up
+   turned with the map, text on a slant, and it always opened above its
+   pin whether there was room or not: a pin just under the stat bar put its
+   card behind the heading tape, the speed and the readings. Leaflet's
+   autoPan cannot help. It moves the map, and following moves it straight
+   back.
+
+   So a card is drawn over the map instead, in the stage, upright. It goes
+   above its pin when there is room under the heads-up display and below
+   the pin when there is not, stays inside the stage side to side, and is
+   carried along with the pin while the map moves under it - by the frame
+   loop while following, by the map's own move events otherwise.
+
+   It is anchored to a place and a pin shape rather than to the marker
+   element, because the POI layer is rebuilt on every zoom and every fetch,
+   and a card that held on to a marker would be left pointing at nothing.
+   ===================================================================== */
+const Card = {
+  el: null, body: null, open: false,
+  at: null,                 /* the place, as a LatLng */
+  box: null,                /* the pin around it: { w, h, ax, ay } as a divIcon has them */
+  GAP: 8,
+
+  mount: function () {
+    if (this.el) return;
+    const el = document.createElement("div");
+    el.id = "mapCard";
+    el.className = "map-card hidden";
+    el.innerHTML = '<div class="map-card-body"></div><i class="map-card-tip"></i>';
+    stageEl.appendChild(el);
+    /* a tap or a scroll inside the card is the card's, not the map's */
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+    this.el = el;
+    this.body = el.firstChild;
+  },
+
+  /* content: html, or a function that builds it at the moment of opening */
+  show: function (content, opts, latlng, icon) {
+    this.mount();
+    this.at = L.latLng(latlng);
+    const sz = (icon && icon.iconSize) || [22, 22];
+    const an = (icon && icon.iconAnchor) || [sz[0] / 2, sz[1] / 2];
+    this.box = { w: sz[0], h: sz[1], ax: an[0], ay: an[1] };
+    this.body.innerHTML = typeof content === "function" ? content() : content;
+    this.el.style.maxWidth = ((opts && opts.maxWidth) || popOpts().maxWidth) + "px";
+    this.el.classList.remove("hidden", "gone");
+    this.open = true;
+    this.place();
+    map.fire("popupopen");
+  },
+
+  close: function () {
+    if (!this.open) return;
+    this.open = false;
+    this.el.classList.add("hidden");
+    this.body.textContent = "";
+    this.at = null;
+  },
+
+  place: function () {
+    if (!this.open || !this.at) return;
+    const p = latLngToStage(this.at), b = this.box, el = this.el;
+    /* the pin's own box around its point; a teardrop's tip is the point */
+    const top = p.y - b.ay, bottom = Math.max(p.y - b.ay + b.h, p.y);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const ceiling = hudStagePx + turnDropPx + 6, floor = stageH - viewInsY - 6;
+    const roomAbove = top - this.GAP - ceiling, roomBelow = floor - (bottom + this.GAP);
+    const below = roomAbove < h && roomBelow > roomAbove;
+    const y = below ? bottom + this.GAP : top - this.GAP - h;
+    const x = Math.max(8, Math.min(stageW - viewInsX - 8 - w, p.x - w / 2));
+    el.style.transform = "translate(" + Math.round(x) + "px," + Math.round(y) + "px)";
+    el.style.setProperty("--tipX", Math.round(p.x - x) + "px");
+    el.classList.toggle("below", below);
+    /* A pin driven off the screen takes its card with it rather than
+       leaving it pinned to the edge, and brings it back if it returns. */
+    el.classList.toggle("gone", p.x < 0 || p.x > stageW || p.y < 0 || p.y > stageH);
+  }
+};
+
+/* A place on the map, to a point on the stage: the follow transform, then
+   the turn about the vehicle - stageToCanvas run forwards. */
+function latLngToStage(ll) {
+  const c = map.latLngToContainerPoint(ll), o = turnOrigin(), off = mapOffset();
+  const qx = c.x - off.x + panDx - o.x, qy = c.y - off.y + panDy - o.y;
+  const a = view.mapRot * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+  return { x: qx * ca - qy * sa + o.x, y: qx * sa + qy * ca + o.y };
+}
+
+/* Every card the app opens comes through here: a marker's bindPopup opens a
+   Card at the marker, sized to its pin; map.closePopup closes it. */
+L.Marker.include({
+  bindPopup: function (content, opts) {
+    this._card = { content: content, opts: opts || {} };
+    if (!this._cardOn) {
+      this._cardOn = true;
+      this.on("click", function () { Card.show(this._card.content, this._card.opts, this.getLatLng(), this.options.icon.options); });
+    }
+    return this;
+  }
+});
+map.closePopup = function () { Card.close(); return map; };
+/* Not following, the map moves by itself - a drag, a zoom - and the card
+   goes with it. Following, the frame loop carries it. */
+map.on("move zoom zoomend moveend", function () { Card.place(); });
+
 /* A tap that lands off an open card is a tap that dismisses the card, and
    nothing else. Leaflet closes the popup during preclick, which runs before
    the click handler does - so by the time the handler thinks to ask, there is
@@ -7929,7 +8056,8 @@ function saveWpForm() {
    second tap does after closing one. */
 let dismissedPopup = false;
 map.on("preclick", function () {
-  dismissedPopup = !!document.querySelector(".leaflet-popup");
+  dismissedPopup = Card.open;
+  Card.close();
 });
 /* Going straight from one pin to another closes the first card and opens the
    second without the map's own click ever running, so the note has to be torn
@@ -10204,10 +10332,7 @@ function showPoi(id) {
   const p = pois.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
   const here = (view.has ? view.cur : poiAnchor());
-  L.popup({ className: "tt-pop", closeButton: false })
-    .setLatLng([p.lat, p.lng])
-    .setContent(poiPopupHtml(p, here))
-    .openOn(map);
+  Card.show(function () { return poiPopupHtml(p, here); }, popOpts(), [p.lat, p.lng], null);
 }
 window.showPoi = showPoi;
 
@@ -16137,7 +16262,7 @@ const Manual = {
 stageEl.addEventListener("pointerdown", function (e) {
   if (e.button != null && e.button !== 0) return;
   if (drawMode || wpFormOpen) return;
-  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #speedSign, #drawHint, .leaflet-marker-icon, .leaflet-popup")) return;
+  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #speedSign, #drawHint, .leaflet-marker-icon, #mapCard")) return;
   Manual.down(e);
 }, true);
 

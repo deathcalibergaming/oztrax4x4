@@ -1350,6 +1350,17 @@ makes a dense town cheap to draw. A screenful of Adelaide is five hundred and
 sixty-eight pins, and building all five hundred and sixty-eight cards for the
 one that gets tapped was 17ms of every redraw.
 
+**A card is drawn on the screen, not in the map.** A Leaflet popup lives in
+the map's pane, and heading up turns that pane — so a card opened while
+driving came up tilted with the map, and always above its pin, which for a pin
+just under the stats bar meant behind the heading tape, the speed and the
+readings. Cards are an upright layer over the map now (`Card`): above the pin
+when there is room under the heads-up display, below it when there is not,
+held inside the stage side to side, with the tip pointing at the pin from
+whichever side the card is on. The card rides with its pin while the map
+moves, hides if the pin is driven off the screen and comes back with it, and a
+tap anywhere off it closes it and does nothing else.
+
 ### Dialogs
 
 Panel fill in a 10px box on a near-black scrim, capped at 360px wide and at
