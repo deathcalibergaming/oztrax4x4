@@ -4711,9 +4711,21 @@ const L = (function () {
     closePop();
     const o = opts || {}, at = llOf(ll);
     const html = typeof content === "function" ? content() : content;
+    /* MapLibre picks the side: above the pin by preference, below it when
+       the card would run into the padding - which along the top is the
+       heads-up display, so a pin just under the stats bar opens its card
+       beneath it rather than behind the speed and the heading tape. The gap
+       to the pin is the pin's own: `offset` above it, `below` under it. */
+    const up = o.offset ? -o.offset[1] : 0;
+    const down = o.below != null ? o.below : up;
+    const side = Math.round(Math.max(up, down) * 0.6);
     const p = new maplibregl.Popup({
-      closeButton: false, closeOnClick: false, closeOnMove: false, anchor: "bottom",
-      offset: o.offset || [0, 0], maxWidth: (o.maxWidth || 300) + "px",
+      closeButton: false, closeOnClick: false, closeOnMove: false,
+      offset: { "bottom": [0, -up], "bottom-left": [0, -up], "bottom-right": [0, -up],
+                "top": [0, down], "top-left": [0, down], "top-right": [0, down],
+                "left": [side, 0], "right": [-side, 0], "center": [0, 0] },
+      padding: { top: hudStagePx + turnDropPx + 6, bottom: viewInsY + 6, left: 8, right: viewInsX + 8 },
+      maxWidth: (o.maxWidth || 300) + "px",
       className: o.className || "tt-pop", focusAfterOpen: false
     }).setLngLat([at.lng, at.lat]).setHTML(html).addTo(gl);
     open = p;
@@ -4829,7 +4841,13 @@ const L = (function () {
   Marker.prototype.openPopup = function () {
     if (!this.pop) return this;
     const ic = this.o.icon || {};
-    openPop(this.ll, this.pop.content, Object.assign({ offset: ic.popupAnchor || [0, 0] }, this.pop.opts));
+    const sz = ic.iconSize || [0, 0], an = ic.iconAnchor || [sz[0] / 2, sz[1] / 2];
+    openPop(this.ll, this.pop.content, Object.assign({
+      offset: ic.popupAnchor || [0, 0],
+      /* hung below, the gap is what of the pin sits below its point - a
+         round POI badge half of itself, a teardrop only its tip */
+      below: Math.max(0, sz[1] - an[1]) + 4
+    }, this.pop.opts));
     return this;
   };
 
@@ -5089,7 +5107,7 @@ const Pins = {
     if (!spot) return false;
     const group = spot.group, at = spot.at || group[0];
     const here = (view.has ? view.cur : poiAnchor());
-    const o = Object.assign({ offset: [0, -12] }, popOpts());
+    const o = Object.assign({ offset: [0, -12], below: 13 }, popOpts());
     L._openPop(at, group.length === 1
       ? function () { return poiPopupHtml(group[0], here); }
       : function () { return clusterPopupHtml(group, here); }, o);
