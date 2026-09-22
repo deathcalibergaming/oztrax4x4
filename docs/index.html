@@ -4703,6 +4703,18 @@ const DB = (function () {
         })();
       }));
     },
+    /* Many keys read in one transaction, in the order asked, a missing one
+       undefined. A town's fifty address tiles one get at a time was fifty
+       transactions on every pause in the typing. */
+    getMany: function (s, keys) {
+      return open().then((db) => new Promise((res, rej) => {
+        const t = db.transaction(s, "readonly"), os = t.objectStore(s);
+        const reqs = keys.map((k) => os.get(k));
+        t.oncomplete = () => res(reqs.map((r) => r.result));
+        t.onerror = () => rej(t.error);
+        t.onabort = () => rej(t.error);
+      }));
+    },
     /* Many keys in one transaction, rather than one each. */
     delMany: (s, keys) => tx(s, "readwrite", (os) => { keys.forEach((k) => os.delete(k)); return null; })
   };
@@ -10835,6 +10847,27 @@ const Addr = {
     }
   },
 
+  /* Every band of the street index a box spans, stored - for a state
+     download, so a street named without its suburb can be found with no
+     signal wherever it is in the state, not only near the vehicle. 36
+     bands and 1.7 MB for South Australia's longitudes. true once all of
+     them are held. */
+  keepStreets: async function (box) {
+    await this.loadManifest();
+    const m = this.manifest && this.manifest.streets;
+    if (!m || !m.w || !m.bands) return false;
+    const b0 = Math.floor(lon2tile(box[1], CFG.ADDR_Z) / m.w);
+    const b1 = Math.floor(lon2tile(box[3], CFG.ADDR_Z) / m.w);
+    const want = m.bands.filter(function (b) { return b >= b0 && b <= b1; });
+    let ok = true;
+    for (let i = 0; i < want.length && !dlAbort; i += 6) {
+      const got = await Promise.all(want.slice(i, i + 6).map((b) =>
+        this.side("streets/" + b + ".json", "streets" + b).catch(function () { return null; })));
+      if (got.some(function (x) { return !x; })) ok = false;
+    }
+    return ok && !dlAbort;
+  },
+
   exists: function (x, y) {
     if (!this.manifest || !this.manifest.tiles) return false;
     const col = this.manifest.tiles[x];
@@ -10882,7 +10915,7 @@ const Addr = {
 
      Capped, because a rural locality can span ninety tiles - though they
      are the sparse kind, a few hundred addresses between them. */
-  reachFor: async function (q) {
+  reachFor: async function (q, noFetch) {
     const t = this.terms(q);
     if (!t) return [];
     const want = [];
@@ -10896,7 +10929,7 @@ const Addr = {
       }
     }
     const named = want.length > 0;
-    if (named && navigator.onLine) {
+    if (named && navigator.onLine && !noFetch) {
       for (const k of want) {
         const p = k.split("/");
         await this.fetchTile(+p[0], +p[1], false);
@@ -10918,7 +10951,7 @@ const Addr = {
         if (want.length >= cap) break;
         if (had.has(k)) continue;
         want.push(k);
-        if (!named && navigator.onLine) {
+        if (!named && navigator.onLine && !noFetch) {
           const p = k.split("/");
           await this.fetchTile(+p[0], +p[1], false);
         }
@@ -11000,7 +11033,7 @@ const Addr = {
     const cx = lon2tile(here.lng, CFG.ADDR_Z), cy = lat2tile(here.lat, CFG.ADDR_Z);
     const seen = {}, out = [];
     for (const name in streets) {
-      if (this.mask(name, t.words) !== t.all) continue;
+      if (this.mask(name, t.words, t.alts) !== t.all) continue;
       for (const k of streets[name]) {
         if (seen[k]) continue;
         seen[k] = 1;
@@ -11223,8 +11256,11 @@ const Addr = {
     const words = text.split(/[^a-z0-9]+/).filter(Boolean).slice(0, 8);
     if (!words.length) return null;
     const num = m ? this.numKey(m[1]) : "";
+    const abbr = this.ABBR;
     return {
       num: num,
+      /* what each word also stands for, or "" - see ABBR */
+      alts: words.map(function (w) { return abbr[w] || ""; }),
       numParts: this.numParts(num),
       /* set only when a plain number was typed, which is the one case
          allowed to reach inside a stored range */
@@ -11234,11 +11270,31 @@ const Addr = {
     };
   },
 
+  /* The short forms a street is typed with, against the word G-NAF spells
+     out - "12 Smith Rd" never met Smith Road, because "rd" is not inside
+     "road". Matched as well as what was typed, never instead of it: half
+     way through Grange the box holds "gr", and reading that only as Grove
+     would lose the right answer until the next letter. St is not here -
+     it is already inside Street, and St Peters is spelt St. */
+  ABBR: { rd: "road", tce: "terrace", hwy: "highway", dr: "drive", pde: "parade",
+          cres: "crescent", ct: "court", pl: "place", cct: "circuit", cl: "close",
+          gr: "grove", gve: "grove", blvd: "boulevard", bvd: "boulevard",
+          esp: "esplanade", sq: "square", mt: "mount", av: "avenue", hts: "heights",
+          ln: "lane" },
+
   /* Which of the query's words a name accounts for, as a bit per word. */
-  mask: function (name, words) {
+  mask: function (name, words, alts) {
     const n = name.toLowerCase();
     let m = 0;
-    for (let i = 0; i < words.length; i++) if (n.indexOf(words[i]) >= 0) m |= (1 << i);
+    for (let i = 0; i < words.length; i++) {
+      /* A short form is matched as the word it stands for, or as the start
+         of a word, never from inside one: "port rd" found Portland Street
+         in Windsor Gardens, whose rd is in Gardens. */
+      const hit = alts && alts[i]
+        ? n.indexOf(alts[i]) >= 0 || (" " + n).indexOf(" " + words[i]) >= 0
+        : n.indexOf(words[i]) >= 0;
+      if (hit) m |= (1 << i);
+    }
     return m;
   },
 
@@ -11267,8 +11323,8 @@ const Addr = {
     if (!t.num) return;
     const sMask = [], tMask = [];
     let anyS = 0, anyT = 0;
-    for (let i = 0; i < tile.s.length; i++) { sMask[i] = this.mask(tile.s[i], t.words); anyS |= sMask[i]; }
-    for (let i = 0; i < tile.t.length; i++) { tMask[i] = this.mask(tile.t[i], t.words); anyT |= tMask[i]; }
+    for (let i = 0; i < tile.s.length; i++) { sMask[i] = this.mask(tile.s[i], t.words, t.alts); anyS |= sMask[i]; }
+    for (let i = 0; i < tile.t.length; i++) { tMask[i] = this.mask(tile.t[i], t.words, t.alts); anyT |= tMask[i]; }
     if ((anyS | anyT) !== t.all) return;
     for (let i = 0; i < tile.a.length && out.length < cap; i++) {
       const rec = tile.a[i];
@@ -11312,7 +11368,11 @@ const Addr = {
   storedSeq: 0,
   searchStored: async function (q, limit) {
     const t = this.terms(q);
-    if (!t) return [];
+    /* An address answers a house number (see scan), so with none typed
+       there is nothing here to find - and finding nothing used to mean
+       walking every tile on the phone to be sure of it, on every pause in
+       the typing of "Hawker". */
+    if (!t || !t.num) return [];
     const seq = ++this.storedSeq;
     const cap = (limit || CFG.ADDR_HITS) * 8;
     const out = this.search(q, limit);
@@ -11340,12 +11400,190 @@ const Addr = {
     return out;
   },
 
+  /* Streets, suburbs and towns answered off the packs, for a search with no
+     signal. Anything without a house number used to go to the geocoder and
+     nowhere else, so in flight mode with South Australia on the phone
+     "Hawker", "Dernancourt", "Waterford Avenue" and "Rundle Mall" all came
+     back "Place search needs a connection" - with every street and suburb
+     in the state sitting in storage.
+
+     A suburb or town is found by name in the suburb index a state download
+     keeps, and put where most of its addresses are: the tile holding the
+     most of them, and the address nearest the middle of those. A rural
+     locality runs to fifty tiles of scattered lots and the middle of all
+     of them is a paddock; the busiest tile is the township.
+
+     A street is found the way an address is - street and suburb between
+     them account for every word typed - except that the street has to
+     carry a word the suburb does not, or "Dernancourt" would answer with
+     every street in Dernancourt. One line per street per suburb, at the
+     address nearest the middle of that stretch, so Navigate is given a
+     doorway on the street rather than a point beside it.
+
+     wide walks the rest of the store when the targeted tiles hold nothing,
+     the fallback searchStored uses; the list under the box never does,
+     since it runs on every pause in the typing. A newer call abandons an
+     older one. */
+  placeSeq: 0,
+  PLACE_GROUPS: 300,       /* street-and-suburb pairs held while looking */
+  places: async function (q, limit, wide) {
+    const t = this.terms(q);
+    if (!t) return [];
+    const seq = ++this.placeSeq;
+    const stale = () => seq !== this.placeSeq;
+    const out = [];
+    const flat = sugFlat(t.words.join(" "));
+    const flatAlt = sugFlat(t.words.map(function (w, i) { return t.alts[i] || w; }).join(" "));
+    const same = function (name) { const n = sugFlat(name); return n === flat || n === flatAlt; };
+
+    /* Suburbs and towns. The index names each once whatever state it is
+       in - Richmond is one entry for five of them - so the addresses are
+       grouped by state as they are read, and each state's gets a line. */
+    const locs = await this.loadLocalities();
+    if (locs) {
+      const hits = [];
+      for (const name in locs) {
+        const n = sugFlat(name);
+        if (n.indexOf(flat) === 0 || n.indexOf(flatAlt) === 0) hits.push(name);
+      }
+      hits.sort(function (a, b) { return (same(a) ? 0 : 1) - (same(b) ? 0 : 1) || a.length - b.length; });
+      for (const name of hits.slice(0, wide ? 6 : 3)) {
+        const keys = locs[name].slice(0, CFG.ADDR_REACH_MAX).map(function (k) { return CFG.ADDR_Z + "/" + k; });
+        const tiles = await this.storedMany(keys);
+        if (stale()) return [];
+        const best = {};
+        for (const tile of tiles) {
+          if (!tile || !tile.a) continue;
+          const ti = tile.t.indexOf(name);
+          if (ti < 0) continue;
+          const here = {};
+          for (const rec of tile.a) {
+            if (rec[3] !== ti) continue;
+            const st = tile.st ? tile.st[rec[6]] : "SA";
+            (here[st] = here[st] || []).push(this.pt(tile, rec));
+          }
+          for (const st in here) if (!best[st] || here[st].length > best[st].length) best[st] = here[st];
+        }
+        for (const st in best) {
+          const p = this.middle(best[st]);
+          out.push({ id: "gnafl" + st + p[0].toFixed(5) + p[1].toFixed(5), name: name, kind: "place",
+            where: [p[2], this.STATE_NAME[st] || st].filter(Boolean).join(", "),
+            lat: p[0], lng: p[1], order: same(name) ? 0 : 3,
+            addrKey: ("place|" + name + "|" + st).toLowerCase() });
+        }
+      }
+    }
+
+    /* Streets: the bubble the vehicle is in, the tiles the query points at,
+       and with wide and nothing yet, everything else on the phone. */
+    const groups = new Map();
+    for (const tile of this.mem.values()) this.streetsIn(tile, t, groups);
+    const read = new Set(this.mem.keys());
+    const reach = (await this.reachFor(q, true)).filter(function (k) { return !read.has(k); });
+    reach.forEach(function (k) { read.add(k); });
+    for (const tile of await this.storedMany(reach)) this.streetsIn(tile, t, groups);
+    if (stale()) return [];
+    /* Everything else on the phone, when what the targeted tiles found does
+       not include the thing asked for by name. Stopping at any match at
+       all let Portview Road, round the corner, stand in for Port Road
+       across town. */
+    const named = out.some(function (r) { return r.order === 0; }) ||
+      Array.from(groups.values()).some(function (g) { return same(g.street); });
+    if (wide && !named) {
+      try {
+        await DB.each("addr", 100, (tile, k) => {
+          if (stale()) return false;
+          if (!read.has(k)) this.streetsIn(tile, t, groups);
+          return groups.size < this.PLACE_GROUPS;
+        });
+      } catch (e) { /* what was read stands */ }
+      if (stale()) return [];
+    }
+    for (const g of groups.values()) {
+      const p = this.middle(g.pts);
+      out.push({ id: "gnafs" + p[0].toFixed(5) + p[1].toFixed(5), name: g.street, kind: "street",
+        where: [g.town, p[2], this.STATE_NAME[g.st] || g.st].filter(Boolean).join(", "),
+        lat: p[0], lng: p[1], order: same(g.street) ? 1 : 2,
+        addrKey: ("street|" + g.street + "|" + g.town).toLowerCase() });
+    }
+    /* A town named outright first, then a street named outright, then the
+       rest; nearest first within each. */
+    out.sort(function (a, b) { return a.order - b.order || geoDist(a) - geoDist(b); });
+    return out.slice(0, limit || 8);
+  },
+
+  /* One tile's streets that answer the query, into groups keyed street,
+     suburb and state. */
+  streetsIn: function (tile, t, groups) {
+    if (!tile || !tile.a) return;
+    const sM = [], tM = [];
+    let anyS = 0, anyT = 0;
+    for (let i = 0; i < tile.s.length; i++) { sM[i] = this.mask(tile.s[i], t.words, t.alts); anyS |= sM[i]; }
+    if (!anyS) return;
+    for (let i = 0; i < tile.t.length; i++) { tM[i] = this.mask(tile.t[i], t.words, t.alts); anyT |= tM[i]; }
+    if ((anyS | anyT) !== t.all) return;
+    for (const rec of tile.a) {
+      const sm = sM[rec[2]] | 0, tm = tM[rec[3]] | 0;
+      if ((sm | tm) !== t.all || !(sm & ~tm)) continue;
+      const st = tile.st ? tile.st[rec[6]] : "SA";
+      const key = tile.s[rec[2]] + "|" + tile.t[rec[3]] + "|" + st;
+      let g = groups.get(key);
+      if (!g) {
+        if (groups.size >= this.PLACE_GROUPS) continue;
+        g = { street: tile.s[rec[2]], town: tile.t[rec[3]], st: st, pts: [] };
+        groups.set(key, g);
+      }
+      if (g.pts.length < 500) g.pts.push(this.pt(tile, rec));
+    }
+  },
+
+  /* An address as [lat, lng, postcode]. */
+  pt: function (tile, rec) {
+    return [(tile.o[0] + rec[0]) / 1e5, (tile.o[1] + rec[1]) / 1e5, tile.p[rec[4]] || ""];
+  },
+
+  /* The address nearest the middle of a set - a real doorway, not an
+     average that can land in a creek between two streets. */
+  middle: function (pts) {
+    const la = pts.map(function (p) { return p[0]; }).sort(function (a, b) { return a - b; })[pts.length >> 1];
+    const lo = pts.map(function (p) { return p[1]; }).sort(function (a, b) { return a - b; })[pts.length >> 1];
+    let best = pts[0], bd = Infinity;
+    for (const p of pts) {
+      const d = (p[0] - la) * (p[0] - la) + (p[1] - lo) * (p[1] - lo);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  },
+
+  /* Tiles by store key, from memory where held and in one read for the rest. */
+  storedMany: async function (keys) {
+    const out = [], miss = [], at = [];
+    keys.forEach((k, i) => {
+      const m = this.mem.get(k);
+      out[i] = m || null;
+      if (!m) { miss.push(k); at.push(i); }
+    });
+    if (miss.length) {
+      let got = [];
+      try { got = await DB.getMany("addr", miss); } catch (e) { got = []; }
+      at.forEach(function (i, j) { out[i] = got[j] || null; });
+    }
+    return out;
+  },
+
+  /* The query flattened with its short forms spelt out - "12 smith rd" as
+     "12 smith road" - for telling an exact answer from a near one. */
+  spelt: function (q) {
+    const abbr = this.ABBR;
+    return sugFlat(q).split(" ").map(function (w) { return abbr[w] || w; }).join(" ");
+  },
+
   /* What is stored, for the storage panel. */
   stats: async function () {
     try {
       const keys = await DB.keys("addr");
       return keys.filter(function (k) {
-        return k !== "index" && k !== "localities" && k !== "streets";
+        return k !== "index" && k !== "localities" && !/^streets/.test(k);
       }).length;
     } catch (e) { return 0; }
   }
@@ -13454,7 +13692,8 @@ function sugMatches(s, q) {
   return sugFlat(q).split(" ").every(function (t) {
     if (!t) return true;
     if (/^\d+[a-z]?$/.test(t)) return true;
-    return hay.indexOf(t) >= 0;
+    /* "Rd" is Road on the line - see Addr.ABBR */
+    return hay.indexOf(t) >= 0 || (!!Addr.ABBR[t] && hay.indexOf(Addr.ABBR[t]) >= 0);
   });
 }
 
@@ -13510,7 +13749,11 @@ function showSuggest(q, list) {
 
      Sorted on every render rather than once when fetched, so narrowing
      the list cannot leave it in the order of an older position. */
-  const near = list.concat(mine).sort(function (a, b) { return geoDist(a) - geoDist(b); });
+  /* The packs' own streets and towns carry an order (Addr.places): a town
+     named outright stays above a street of the same name that is nearer.
+     Nothing else carries one, so with a signal this is distance alone. */
+  const ord = function (s) { return s.order == null ? 5 : s.order; };
+  const near = list.concat(mine).sort(function (a, b) { return ord(a) - ord(b) || geoDist(a) - geoDist(b); });
   sugItems = (local ? [local] : []).concat(near).slice(0, CFG.SUGGEST_MAX);
   renderSuggest();
 }
@@ -13582,7 +13825,12 @@ let sugPacks = [], sugPacksQ = "";
 
 async function suggestFromPacks(q) {
   try {
-    const hits = await Addr.searchStored(q, CFG.ADDR_HITS);
+    let hits = await Addr.searchStored(q, CFG.ADDR_HITS);
+    /* No signal, so Photon has nothing to offer: the streets, suburbs and
+       towns the packs hold stand in for it. Only then - with a signal the
+       geocoder names them better, and has the parks and the shops the
+       packs have never heard of. */
+    if (!navigator.onLine && !hits.length) hits = await Addr.places(q, CFG.SUGGEST_MAX, false);
     /* The box may have moved on while tiles were coming down. */
     if ($("#nmQuery").value.trim() !== q) return;
     sugPacks = hits;
@@ -13773,10 +14021,19 @@ async function geoSearch(q) {
                 suggestion list already reconciles the two */
              addrKey: r.addrKey };
   });
+  /* No signal: the phone is the whole answer, and saying so beats asking
+     for a connection there is no way to give. navigator.onLine false is
+     certain; true is only a hope, which is why a search that fails on the
+     network lands in the same place below. */
+  if (!navigator.onLine) {
+    if (poiQuery) { poiQuery = ""; renderPois(); }
+    await answerFromPhone(q, localCards, "");
+    return;
+  }
+
   if (localCards.length) {
     geoResults = localCards;
-    geoNote = localCards.length + " on this phone" +
-              (navigator.onLine ? ", still looking..." : "");
+    geoNote = localCards.length + " on this phone, still looking...";
     renderNavList();
   }
 
@@ -13971,13 +14228,35 @@ async function geoSearch(q) {
       : "Nothing found for “" + q + "”" +
         (country ? " in " + country.name : "");
   } catch (e) {
-    /* With addresses already on screen this is not a failure, it is the
-       limit of what the network could add to what the phone already knew. */
-    geoNote = localCards.length
-      ? localCards.length + " on this phone - no connection for a wider search"
-      : "Place search needs a connection";
+    /* With answers from the phone this is not a failure, it is the limit of
+       what the network could add to what the phone already knew. */
+    await answerFromPhone(q, localCards, " - no signal to search wider");
   }
   geoBusy = false;
+  renderNavList();
+}
+
+/* A search the phone answers alone. An address with its number is answered
+   as it always was; a street, a suburb or a town comes out of the same
+   packs (Addr.places); and a numbered address the packs do not hold falls
+   back to its street, so "22 Waterford Avenue" with no 22 on record still
+   gets you to Waterford Avenue. */
+async function answerFromPhone(q, localCards, why) {
+  /* The address asked for above the ones that merely share its words -
+     12 Smith Road before Lot 12 Main North Road, Smithfield - then nearest. */
+  const asked = " " + Addr.spelt(q) + " ";
+  const exact = function (r) { return asked.indexOf(" " + sugFlat(r.name) + " ") >= 0 ? 0 : 1; };
+  let cards = localCards.slice().sort(function (a, b) { return exact(a) - exact(b) || geoDist(a) - geoDist(b); });
+  if (!cards.length) {
+    geoResults = [];
+    geoNote = "Searching this phone...";
+    renderNavList();
+    try { cards = await Addr.places(q, 8, true); } catch (e) { cards = []; }
+  }
+  geoResults = cards;
+  geoNote = cards.length
+    ? cards.length + " found on this phone" + why
+    : "Nothing on this phone for “" + q + "” - a wider search needs a signal";
   renderNavList();
 }
 
@@ -14716,7 +14995,9 @@ function stateStatus(rec) {
   if (now.a !== null && rec.cuts.a !== now.a) old.push("addresses");
   if (now.r !== null && rec.cuts.r !== now.r) old.push("roads");
   if (now.p !== null && rec.cuts.p !== now.p) old.push("POIs");
-  return old.length ? { k: "old", what: old } : { k: "ok" };
+  /* Downloaded before the street index came with a state. */
+  const nostreets = !rec.streets && !!(Addr.manifest && Addr.manifest.streets);
+  return old.length || nostreets ? { k: "old", what: old, nostreets: nostreets } : { k: "ok" };
 }
 
 function andList(w) {
@@ -14728,6 +15009,7 @@ function stateNote(s, rec) {
   if (stRun && stRun.s === s) return "Downloading";
   const st = stateStatus(rec);
   if (st.k === "part") return "Part downloaded, " + st.pct + "%" + (rec.failed ? " - " + rec.failed + " files did not arrive" : "");
+  if (st.k === "old" && !st.what.length) return "Update adds street search with no signal";
   if (st.k === "old") return "Newer " + andList(st.what) + " are out";
   return "";
 }
@@ -14818,7 +15100,7 @@ async function runStateDownload(id) {
   stRun = { s: s, phase: "Checking what is here", st: null, t0: Date.now() };
   showStateProgress();
   renderAreas();
-  let st = null, cuts = null;
+  let st = null, cuts = null, streetsOk = false;
   try {
     await loadPackManifests();
     cuts = packCuts();
@@ -14835,6 +15117,11 @@ async function runStateDownload(id) {
       try { await Addr.side("localities.json", "localities"); } catch (e) { /* search still reads the tiles */ }
     }
     if (!dlAbort) {
+      stRun.phase = "Street index";
+      paintStateRun();
+      try { streetsOk = await Addr.keepStreets(s.box); } catch (e) { /* Search still walks the tiles */ }
+    }
+    if (!dlAbort) {
       stRun.phase = "Addresses, roads and POIs";
       stRun.t0 = Date.now();
       st = await packRun(s.box, throttle(function (x) { stRun.st = x; paintStateRun(); }, 250));
@@ -14845,7 +15132,7 @@ async function runStateDownload(id) {
   const recs = stateRecs();
   if (st && st.total && (got || recs[s.id])) {
     recs[s.id] = { ts: Date.now(), done: !dlAbort && st.failed === 0, total: st.total,
-                   got: got, failed: st.failed, cuts: cuts };
+                   got: got, failed: st.failed, cuts: cuts, streets: streetsOk };
     saveLS(LS.states, recs);
   }
   if (st && st.full)
