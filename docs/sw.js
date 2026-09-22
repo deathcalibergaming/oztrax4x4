@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v233";
+const CACHE = "trailtracker-v234";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -151,6 +151,20 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
+  /* The MapLibre preview under next/ - its page, library, style, fonts and
+     icons. None of it is the app's shell: a phone that never opens the
+     preview never stores it. One that has keeps it, so the preview can be
+     opened with no signal - which is the point of the offline map it is
+     there to try. The page comes from the network first, so a new preview
+     shows on the next open with a signal; everything else from the cache
+     first, refreshed when CACHE moves. A state's map pieces are under
+     vmap/, not here, and go straight out: they are stored by the page. */
+  const next = new URL("./next/", self.registration.scope);
+  if (url.origin === next.origin && url.pathname.indexOf(next.pathname) === 0) {
+    e.respondWith(req.mode === "navigate" ? nextPage(req) : nextFile(req));
+    return;
+  }
+
   if (!isShell(url.href)) return;      /* tiles and POI calls go straight out */
 
   e.respondWith((async function () {
@@ -167,6 +181,32 @@ self.addEventListener("fetch", function (e) {
   })());
 });
 
+
+async function nextPage(req) {
+  const cache = await caches.open(CACHE);
+  const key = new URL("./next/", self.registration.scope).href;
+  try {
+    const r = await fetch(req);
+    if (r && r.ok) { await cache.put(key, r.clone()); return r; }
+  } catch (err) { /* no signal: the stored copy below */ }
+  const hit = await cache.match(key);
+  return hit || new Response(
+    "<h1>OzTrax Recon preview</h1><p>Not stored yet - open it once with a connection.</p>",
+    { headers: { "Content-Type": "text/html" }, status: 503 });
+}
+
+async function nextFile(req) {
+  const cache = await caches.open(CACHE);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  try {
+    const r = await fetch(req);
+    if (r && r.ok) cache.put(req, r.clone());
+    return r;
+  } catch (err) {
+    return new Response("", { status: 504, statusText: "offline" });
+  }
+}
 
 /* Tell every open copy of the page that what it is running is no longer what
    is on the server. The page decides what to do about it - it does not get
