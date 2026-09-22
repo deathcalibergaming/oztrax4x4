@@ -1,1 +1,1 @@
-{"o":[-2133032,14906250],"k":["amenity","shelter_type"],"v":["shelter","public_transport"],"p":[[-1127,1314,0,13993888591,0,0,1,1]]}
+{"o":[-2133032,14906250],"k":["addr:housenumber","addr:street","amenity","name","opening_hours","shelter_type"],"v":["157","Running Creek Road","bar","Kickstart Saloon","Fr-Su 10:00-23:30","shelter","public_transport"],"p":[[-1127,1314,0,13993888591,2,5,5,6]],"n":[[-3265,1243,0,6814790978,0,0,1,1,2,2,3,3,4,4]]}

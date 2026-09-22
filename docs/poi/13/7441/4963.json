@@ -1,1 +1,1 @@
-{"o":[-3556798,14699707],"k":["amenity","highway","name","operator","toilets"],"v":["toilets","rest_area","The Henty Man Rest Area","Transport for NSW","yes"],"p":[[-1076,4351,0,1459642474,0,0],[-1050,4359,0,12395009959,1,1,2,2,3,3,4,4]]}
+{"o":[-3556798,14699707],"k":["name","toilets","tourism","amenity","highway","operator"],"v":["Henty Man","yes","attraction","toilets","rest_area","The Henty Man Rest Area","Transport for NSW"],"p":[[-1076,4351,0,1459642474,3,3],[-1050,4359,0,12395009959,4,4,0,5,5,6,1,1]],"n":[[-1087,4352,0,1459641556,0,0,1,1,2,2]]}

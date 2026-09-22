@@ -1,1 +1,1 @@
-{"o":[-3161597,11737793],"k":["highway"],"v":["rest_area"],"p":[[-2590,2880,1,1102735099,0,0]]}
+{"o":[-3161597,11737793],"k":["addr:housenumber","addr:street","name","shop","website","highway"],"v":["695","Barrack Road","Chatfields Tree Nursery","garden_centre","https://www.chatfields.com.au/","rest_area"],"p":[[-2590,2880,1,1102735099,5,5]],"n":[[-2743,3436,0,13912208822,0,0,1,1,2,2,3,3,4,4]]}

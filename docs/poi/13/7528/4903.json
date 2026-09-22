@@ -1,1 +1,1 @@
-{"o":[-3339476,15082031],"k":["amenity","operator"],"v":["telephone","Telstra"],"p":[[-3363,997,0,2093204396,0,0,1,1]]}
+{"o":[-3339476,15082031],"k":["amenity","operator","addr:housenumber","addr:postcode","addr:street","addr:suburb","name"],"v":["telephone","Telstra","1826","2756","Putty Road","Colo","cafe","Colo Riverside"],"p":[[-3363,997,0,2093204396,0,0,1,1]],"n":[[-3354,1021,1,537038752,2,2,3,3,4,4,5,5,0,6,6,7]]}

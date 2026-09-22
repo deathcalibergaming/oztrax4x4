@@ -1,1 +1,1 @@
-{"o":[-3339476,15011719],"k":["name","tourism"],"v":["Lost City","viewpoint","Fernbrook Campground","camp_site"],"p":[[-1243,4214,0,1645236409,0,0,1,1],[-3626,1983,0,9521336861,0,2,1,3]]}
+{"o":[-3339476,15011719],"k":["name","tourism","addr:housenumber","addr:street"],"v":["Lost City","viewpoint","165","Reserve Road","Fernbrook Cottage","chalet","Fernbrook Campground","camp_site"],"p":[[-1243,4214,0,1645236409,0,0,1,1],[-3626,1983,0,9521336861,0,6,1,7]],"n":[[-3593,1733,0,9521336755,2,2,3,3,0,4,1,5]]}

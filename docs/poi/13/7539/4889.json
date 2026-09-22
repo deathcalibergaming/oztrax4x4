@@ -1,1 +1,1 @@
-{"o":[-3287959,15130371],"k":["amenity","man_made"],"v":["drinking_water","tap","telephone"],"p":[[-3593,1064,0,9207632781,0,0,1,1],[-3468,710,0,11282606550,0,2]]}
+{"o":[-3287959,15130371],"k":["amenity","man_made","addr:housenumber","addr:postcode","addr:street","addr:suburb","name"],"v":["drinking_water","tap","telephone","80","2325","Helena Street","Ellalong","pub","Ellalong Hotel"],"p":[[-3593,1064,0,9207632781,0,0,1,1],[-3468,710,0,11282606550,0,2]],"n":[[-3472,297,1,59060060,2,3,3,4,4,5,5,6,0,7,6,8]]}

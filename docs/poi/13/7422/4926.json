@@ -1,1 +1,1 @@
-{"o":[-3423451,14616211],"k":["addr:housenumber","addr:street","amenity","brand","name"],"v":["2","North Avenue","post_office","Australia Post","Yenda Post Office"],"p":[[-1435,3323,0,4303462331,0,0,1,1,2,2,3,3,4,4]]}
+{"o":[-3423451,14616211],"k":["amenity","name","operator","addr:housenumber","addr:street","brand"],"v":["police","Yenda Police Station","NSW Police Force","2","North Avenue","post_office","Australia Post","Yenda Post Office"],"p":[[-1435,3323,0,4303462331,3,3,4,4,0,5,5,6,1,7]],"n":[[-1502,3247,0,3712962455,0,0,1,1,2,2]]}

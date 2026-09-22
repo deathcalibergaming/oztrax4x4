@@ -1,1 +1,1 @@
-{"o":[-3184023,11619141],"k":["amenity"],"v":["shelter"],"p":[[-3388,2932,1,1183679293,0,0]]}
+{"o":[-3184023,11619141],"k":["addr:housenumber","addr:street","amenity","name","opening_hours","phone","website"],"v":["1825","Keane Street East","fast_food","Mount Helena Deli","Sa-Th 06:30-20:30; Fr 06:30-21:00","+61 8 9572 1164","https://www.mthelenadeli.com.au/","shelter"],"p":[[-3388,2932,1,1183679293,2,7]],"n":[[-3588,2576,0,567363519,0,0,1,1,2,2,3,3,4,4,5,5,6,6]]}

@@ -1,1 +1,1 @@
-{"o":[-3408906,14787598],"k":["amenity"],"v":["toilets"],"p":[[-2996,427,0,2982253694,0,0]]}
+{"o":[-3408906,14787598],"k":["amenity","addr:housenumber","addr:postcode","addr:street","addr:suburb","name"],"v":["toilets","27","2594","Railway Street","Bribbaree","pub","Rusty Horse Hotel"],"p":[[-2996,427,0,2982253694,0,0]],"n":[[-3049,402,0,14001548323,1,1,2,2,3,3,4,4,0,5,5,6]]}

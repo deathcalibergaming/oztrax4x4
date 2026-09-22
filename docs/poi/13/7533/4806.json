@@ -1,1 +1,1 @@
-{"o":[-2976438,15104004],"k":["name","tourism"],"v":["Mcilveen Park","camp_site","Inverell Lookout","viewpoint"],"p":[[-1534,3802,0,1811186415,0,0,1,1],[-1584,3855,0,4378249126,0,2,1,3]]}
+{"o":[-2976438,15104004],"k":["name","tourism","addr:housenumber","addr:postcode","addr:street","addr:suburb"],"v":["Mcilveen Park","camp_site","Inverell Lookout","viewpoint","14","2360","Kookaburra Lane","Inverell","Rumbalara Cottage","guest_house"],"p":[[-1534,3802,0,1811186415,0,0,1,1],[-1584,3855,0,4378249126,0,2,1,3]],"n":[[-670,3716,1,1006307412,2,4,3,5,4,6,5,7,0,8,1,9]]}

@@ -1,1 +1,1 @@
-{"o":[-3265788,14893066],"k":["highway"],"v":["rest_area"],"p":[[-2463,1671,0,4873113184,0,0]]}
+{"o":[-3265788,14893066],"k":["addr:housenumber","addr:street","name","shop","tourism","highway"],"v":["8428","Mitchell Highway","Bell River Estate Winery","wine","winery","rest_area"],"p":[[-2463,1671,0,4873113184,5,5]],"n":[[-2985,1446,0,2630544576,0,0,1,1,2,2,3,3,4,4]]}

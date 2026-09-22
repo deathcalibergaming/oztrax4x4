@@ -1,1 +1,1 @@
-{"o":[-3463321,13869141],"k":["amenity"],"v":["toilets"],"p":[[-2554,2420,0,10818880109,0,0]]}
+{"o":[-3463321,13869141],"k":["amenity","addr:housenumber","addr:street","name","phone","shop","website"],"v":["toilets","9","Gale Road","Storage Lord - Gawler","+61 8 8284 1000","storage_rental","https://storagelord.com.au/locations/gawler-storage-units/"],"p":[[-2554,2420,0,10818880109,0,0]],"n":[[-1585,2616,1,1424933574,1,1,2,2,3,3,4,4,5,5,6,6]]}

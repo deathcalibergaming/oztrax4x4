@@ -1,1 +1,1 @@
-{"o":[-3820366,14550293],"k":["amenity"],"v":["bbq","shelter"],"p":[[-1228,19,0,2263689818,0,0],[-1237,38,0,11074623817,0,1]]}
+{"o":[-3820366,14550293],"k":["amenity","addr:housenumber","addr:street","name","opening_hours","tourism","website"],"v":["bbq","4170","South Gippsland Highway","Warrook Farm","Mo-Su 10:00-16:00","attraction","http://warrook.com.au","shelter"],"p":[[-1228,19,0,2263689818,0,0],[-1237,38,0,11074623817,0,7]],"n":[[-2502,344,0,4334121608,1,1,2,2,3,3,4,4,5,5,6,6]]}

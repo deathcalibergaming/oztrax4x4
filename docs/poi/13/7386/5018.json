@@ -1,1 +1,1 @@
-{"o":[-3750973,14458008],"k":["amenity"],"v":["toilets"],"p":[[-874,4359,0,286895164,0,0],[-865,4152,0,289888739,0,0]]}
+{"o":[-3750973,14458008],"k":["amenity","addr:housenumber","addr:street","craft","name","opening_hours","shop","website"],"v":["toilets","69","Short Road","winery","Gisborne Peak Winery","\"by appointment\"","wine","https://www.gisbornepeakwines.com.au/"],"p":[[-874,4359,0,286895164,0,0],[-865,4152,0,289888739,0,0]],"n":[[-1332,1555,0,7080978541,1,1,2,2,3,3,4,4,5,5,6,6,7,7]]}

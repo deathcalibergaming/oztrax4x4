@@ -1,1 +1,1 @@
-{"o":[-4124477,14646973],"k":["amenity"],"v":["fuel"],"p":[[-2177,923,0,3975242062,0,0]]}
+{"o":[-4124477,14646973],"k":["amenity","addr:housenumber","addr:postcode","addr:street","addr:suburb","name"],"v":["fuel","269","7307","Chapel Road","Sassafras","restaurant","Eastford Creek Vineyard"],"p":[[-2177,923,0,3975242062,0,0]],"n":[[-2293,3757,1,1093721233,1,1,2,2,3,3,4,4,0,5,5,6]]}

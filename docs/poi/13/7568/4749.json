@@ -1,1 +1,1 @@
-{"o":[-2756672,15257813],"k":["name","tourism"],"v":["Marburg Showground","camp_site"],"p":[[-467,1909,0,1811185368,0,0,1,1]]}
+{"o":[-2756672,15257813],"k":["name","tourism","addr:housenumber","addr:postcode","addr:street","addr:suburb","amenity"],"v":["Marburg Showground","camp_site","2320","4306","Warrego Highway","Haigslea","pub","Sundowner Hotel"],"p":[[-467,1909,0,1811185368,0,0,1,1]],"n":[[-191,4393,1,497319054,2,2,3,3,4,4,5,5,6,6,0,7]]}

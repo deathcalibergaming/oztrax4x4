@@ -1,1 +1,1 @@
-{"o":[-2999300,14805176],"k":["highway","informal"],"v":["rest_area","yes"],"p":[[-1195,383,0,4832493714,0,0,1,1]]}
+{"o":[-2999300,14805176],"k":["highway","informal","addr:housenumber","addr:street","name","tourism","website"],"v":["rest_area","yes","38449","Kamilaroi Highway","The Barwon Inn","hotel","https://barwoninn.com.au/"],"p":[[-1195,383,0,4832493714,0,0,1,1]],"n":[[-1464,225,1,825735492,2,2,3,3,4,4,5,5,6,6]]}

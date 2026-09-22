@@ -1,1 +1,1 @@
-{"o":[-3743997,14282227],"k":["amenity"],"v":["telephone"],"p":[[-27,3690,0,821388921,0,0]]}
+{"o":[-3743997,14282227],"k":["amenity","addr:housenumber","addr:postcode","addr:street","addr:suburb","name"],"v":["telephone","7340","3377","Mortlake - Ararat Road","Maroona","pub","Maroona Hotel"],"p":[[-27,3690,0,821388921,0,0]],"n":[[-61,3753,1,309193751,1,1,2,2,3,3,4,4,0,5,5,6]]}
