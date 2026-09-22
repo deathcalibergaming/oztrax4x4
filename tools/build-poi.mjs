@@ -144,6 +144,35 @@ const WANT = {
     "laundry"])
 };
 
+/* Named businesses the map has no pin for, carried so that search can find
+   them with no signal: the pub, the motel, the cafe, the winery, any shop
+   with a name. With a signal the geocoder answers these; without one the
+   phone has to, and before this it could only find what the map shows.
+
+   They ride in each tile's n rather than its p (see pack), because the map
+   holds up to twenty tiles in memory around the vehicle and in a city these
+   are most of a tile - Melbourne's centre goes from 88 KB to 423 KB with
+   them in. The app keeps n in storage for search and strips it from what
+   it holds for the map. poiKind files every one of them under nothing, so
+   none can turn into a pin either way.
+
+   Only with a name or a brand: an unnamed shop cannot be searched for.
+   Churches and community halls were tried and left out - 10,500 rows
+   nationally, and not what a traveller types. Not mirrored in
+   OVERPASS_TAGS, which fills the map, not the search.
+
+   Measured over Australia: 188,219 POIs and 13.6 MB before, about 306,000
+   and 24.5 MB with these. */
+const SEARCH = {
+  amenity: new Set(["restaurant", "cafe", "fast_food", "pub", "bar", "biergarten",
+    "ice_cream", "food_court", "car_wash", "car_rental", "veterinary", "dentist",
+    "police", "library", "marketplace"]),
+  tourism: new Set(["hotel", "motel", "guest_house", "hostel", "chalet", "apartment",
+    "attraction", "museum", "gallery", "zoo", "theme_park", "wine_cellar", "aquarium"]),
+  craft: new Set(["winery", "brewery", "distillery"]),
+  shop: null                 /* any shop at all */
+};
+
 /* The tags worth keeping once something has qualified. poiKind reads all of
    these, poiInfoLine and poiAddress read the rest, and everything else in
    OpenStreetMap - the survey dates, the wikidata ids, the source notes - is
@@ -161,7 +190,7 @@ const WANT = {
 const KEEP = new Set([
   /* what it is */
   "amenity", "man_made", "natural", "tourism", "highway", "healthcare",
-  "emergency", "shop", "information", "shelter_type", "healthcare:speciality",
+  "emergency", "shop", "craft", "information", "shelter_type", "healthcare:speciality",
   "camp_site", "informal", "operational_status",
   /* what it is called */
   "name", "brand", "operator",
@@ -201,9 +230,13 @@ function cutStamp(source) {
   const shape = JSON.stringify(Object.keys(WANT).sort().map(function (k) {
     return [k, [...WANT[k]].sort()];
   })) + "|" + [...KEEP].sort().join(",") + "|" + KEEP_SOCKET.source +
+    "|" + JSON.stringify(Object.keys(SEARCH).sort().map(function (k) {
+      return [k, SEARCH[k] ? [...SEARCH[k]].sort() : "*"];
+    })) +
     /* the reader, not just the tag list: mp1 is the first pack to carry
-       multipolygons, and a phone holding an older one has to fetch again */
-    "|mp1";
+       multipolygons, and n1 the first with search-only rows, and a phone
+       holding an older one has to fetch again */
+    "|mp1|n1";
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
 
@@ -213,6 +246,22 @@ function wanted(tags) {
     if (v !== undefined && WANT[k].has(v)) return true;
   }
   return false;
+}
+
+/* A named business worth finding by search - see SEARCH. */
+function searchable(tags) {
+  if (!tags.name && !tags.brand) return false;
+  for (const k in SEARCH) {
+    const v = tags[k];
+    if (v !== undefined && v !== "no" && (SEARCH[k] === null || SEARCH[k].has(v))) return true;
+  }
+  return false;
+}
+
+/* Either, for the reader. Which of the two a row is gets decided when the
+   tile is packed, from the trimmed tags, which keep every key both read. */
+function taken(tags) {
+  return wanted(tags) || searchable(tags);
 }
 
 /* ---------------------------------------------------------------------
@@ -577,10 +626,12 @@ async function main() {
   }
 
   const index = {};
-  let bytes = 0, biggest = 0, biggestAt = "";
+  let bytes = 0, biggest = 0, biggestAt = "", named = 0;
   for (const t of tiles.values()) {
     const origin = tileOrigin(t.x, t.y, Z);
-    const body = JSON.stringify(pack(t.p, origin));
+    const tile = pack(t.p, origin);
+    named += tile.n ? tile.n.length : 0;
+    const body = JSON.stringify(tile);
     await mkdir(join(OUT, String(Z), String(t.x)), { recursive: true });
     await writeFile(join(OUT, String(Z), String(t.x), t.y + ".json"), body);
     bytes += body.length;
@@ -605,6 +656,7 @@ async function main() {
     tiles: index
   }));
   for (const h of held) console.log(`${h.state.padEnd(4)} ${h.count}`);
+  console.log(`${named} of them named businesses carried for search alone`);
   console.log(`${tiles.size} tiles, ${(bytes / 1048576).toFixed(1)} MB on disk, ` +
               `biggest ${(biggest / 1024).toFixed(0)} KB at ${biggestAt}`);
   console.log(`wrote ${OUT}/`);
@@ -638,20 +690,20 @@ async function readExtract(path, pois, seen) {
   for await (const block of blocks(buf)) {
     readBlock(block,
       (id, la, lo, tags) => {
-        if (!wanted(tags)) return;
+        if (!taken(tags)) return;
         if (take({ id: id, w: 0,
                    lat: Math.round(la * PRECISION), lng: Math.round(lo * PRECISION),
                    tags: trim(tags) })) nodePois++;
       },
       (tags, refs, wid) => {
-        if (!wanted(tags)) return;
+        if (!taken(tags)) return;
         if (seen.has("1:" + wid)) return;   /* already had from the other side */
         wantWays.push({ id: wid, tags: trim(tags), start: refsFlat.n, n: refs.length });
         for (const r of refs) refsFlat.push(r);
       },
       null,
       (tags, members, rid) => {
-        if (tags.type !== "multipolygon" || !wanted(tags)) return;
+        if (tags.type !== "multipolygon" || !taken(tags)) return;
         if (seen.has("2:" + rid)) return;   /* already had from the other side */
         const ways = members.filter((m) => m.type === 1);
         const outer = ways.filter((m) => m.role === "outer");
@@ -760,7 +812,10 @@ async function readExtract(path, pois, seen) {
    full of car parks is the same six strings over and over.
 
    Row: [dLat, dLng, kind, osmId, k,v, k,v, ...], kind 0 a node, 1 a way,
-   2 a multipolygon relation. */
+   2 a multipolygon relation. The map's POIs are in p; the named businesses
+   carried for search alone are in n (see SEARCH), in the same shape and
+   against the same interned strings, and n is left out of a tile with
+   none. */
 function pack(list, origin) {
   const keys = [], kIdx = new Map();
   const vals = [], vIdx = new Map();
@@ -769,7 +824,7 @@ function pack(list, origin) {
     if (i === undefined) { i = arr.length; arr.push(s); map.set(s, i); }
     return i;
   };
-  const out = [];
+  const out = [], names = [];
   for (const p of list) {
     /* The OpenStreetMap id rides along because the phone needs it: a
        favourite is stored against it, Hide remembers it, and the merge
@@ -780,9 +835,11 @@ function pack(list, origin) {
     for (const k in p.tags) {
       row.push(intern(keys, kIdx, k), intern(vals, vIdx, p.tags[k]));
     }
-    out.push(row);
+    (wanted(p.tags) ? out : names).push(row);
   }
-  return { o: origin, k: keys, v: vals, p: out };
+  const tile = { o: origin, k: keys, v: vals, p: out };
+  if (names.length) tile.n = names;
+  return tile;
 }
 
 main().catch((e) => {
