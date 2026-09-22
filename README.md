@@ -89,7 +89,9 @@ Menu → Downloaded Areas holds two downloads, and they cover different things:
   It also keeps the street index for the state's longitudes (1.7 MB for
   South Australia), so with no signal Search finds a street, suburb or town
   from the phone as well as an address with its number. A state downloaded
-  before that offers Update to add it.
+  before that offers Update to add it. Roadhouses, pubs, motels, shops and
+  the rest are found by name from the POI pack the same way, and a town in
+  the query ("fuel coober pedy") is where to look.
 * **Download New Area** is a box you draw, for the map imagery, and it brings
   the same data for that box with it.
 
@@ -150,7 +152,9 @@ land on the very next launch.
   packs under `docs/poi/` covering every state and territory on the mainland
   and Tasmania, served off this origin and built monthly by
   `tools/build-poi.mjs`, and Overpass covers anywhere the pack does not
-  reach. Car parks are left out by design
+  reach. Car parks are left out by design. Named businesses the map has no
+  pin for - pubs, motels, cafes, any named shop - ride in each tile's `n`,
+  so Search can find them with no signal; the map never holds them
 * Addresses — Geoscape G-NAF, every state and territory, cut into z13 packs
   under `docs/addr/` and served off this origin; 11.4 million addresses in
   80,382 tiles, built quarterly by `tools/build-gnaf.mjs`
