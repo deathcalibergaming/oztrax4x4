@@ -86,6 +86,10 @@ Menu → Downloaded Areas holds two downloads, and they cover different things:
   Each state is recorded with the build it came from, so a state the monthly
   rebuild has moved on from says so and offers an update, and Delete keeps
   whatever another downloaded state or a drawn area still covers.
+  It also keeps the street index for the state's longitudes (1.7 MB for
+  South Australia), so with no signal Search finds a street, suburb or town
+  from the phone as well as an address with its number. A state downloaded
+  before that offers Update to add it.
 * **Download New Area** is a box you draw, for the map imagery, and it brings
   the same data for that box with it.
 
