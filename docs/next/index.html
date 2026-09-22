@@ -3149,16 +3149,16 @@ input[type=date],input[type=time]{color-scheme:dark}
     <div class="modal-head"><h2 class="t" id="smTitle">Download A State</h2></div>
     <div class="modal-body">
       <div id="smSetup">
-        <div class="hint">Addresses, roads and POIs for the whole state, so search, routes and the speed sign work with no signal. Map imagery is not included: draw an area for that.</div>
+        <div class="hint">The map, addresses, roads and POIs for the whole state, so the map, search, routes and the speed sign all work with no signal.</div>
         <div class="kv"><span>Free space</span><b id="smFree">--</b></div>
         <div id="smList" class="list"></div>
       </div>
       <div id="smProgress" class="hidden">
         <div class="prog"><i id="smBar"></i></div>
         <div class="kv"><span id="smStatus">Starting&hellip;</span><b id="smPct">0%</b></div>
-        <div class="kv"><span>Files</span><b id="smFiles">--</b></div>
+        <div class="kv"><span id="smFilesK">Files</span><b id="smFiles">--</b></div>
         <div class="kv"><span>Time left</span><b id="smLeft">--</b></div>
-        <div class="kv"><span>New / already here / failed</span><b id="smTally">0 / 0 / 0</b></div>
+        <div class="kv" id="smTallyRow"><span>New / already here / failed</span><b id="smTally">0 / 0 / 0</b></div>
         <div class="note">Keep OzTrax open until it finishes. The screen stays on by itself, and you can close this box and use the map.</div>
       </div>
     </div>
@@ -3184,6 +3184,7 @@ input[type=date],input[type=time]{color-scheme:dark}
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="lib/maplibre-gl.js"></script>
+<script src="lib/pmtiles.js"></script>
 <script>
 /* =====================================================================
    OzTrax Recon - single file offline 4x4 trail tracker
@@ -3191,12 +3192,22 @@ input[type=date],input[type=time]{color-scheme:dark}
 "use strict";
 
 const CFG = {
-  /* The MapLibre preview's map: OpenFreeMap's hosted OpenStreetMap vector
-     tiles - free, no key, commercial use allowed, OpenMapTiles schema, so a
-     state built offline later with the same schema takes the same style -
-     and relief shaded on the phone from Mapzen's terrain tiles on AWS Open
-     Data. Both need a signal for now; the offline packs are stage 3. */
-  GL_STYLE: "https://tiles.openfreemap.org/styles/liberty",
+  /* The MapLibre preview's map: OpenFreeMap's Liberty style, copied beside
+     the page with its icons and fonts (tools/build-vmap-style.mjs) so it
+     draws with no signal. Its tiles come from a downloaded state where
+     there is one and from OpenFreeMap where there is not - see VMap. The
+     relief is shaded on the phone from Mapzen's terrain tiles on AWS Open
+     Data, and still needs a signal. */
+  GL_STYLE: "style/liberty.json",
+  /* Where each state's map is, in pieces, with a manifest saying which
+     cut of OpenStreetMap it is and how many pieces - tools/build-vmap.mjs.
+     On Pages beside the other packs for now; the hosting move changes
+     this one line. */
+  VMAP_URL: "../vmap/",
+  /* What a map download is guessed to manage, for the time a state is
+     said to take before it starts: a fair 4G signal. Not measured on a
+     phone yet. The run itself reports what it is actually getting. */
+  VMAP_RATE: 1.5 * 1048576,
   GL_DEM: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
   GL_SHADE: 0.35,
   GL_FOLLOW_MS: 50,        /* the follow camera, 20 moves a second - see followCamera */
@@ -3541,7 +3552,9 @@ const LS = {
   home: "tt.home",
   fuelSel: "tt.fuelSel",
   favs: "tt.favs",
-  states: "tt.states"      /* which states' data is on this phone, and from which cut */
+  states: "tt.states",     /* which states' data is on this phone, and from which cut */
+  vmaps: "tt.vmaps",       /* which states' maps are stored, and from which cut - see VMap */
+  vmapMan: "tt.vmapMan"    /* the last map manifest seen, for a launch with no signal */
 };
 
 /* ---------- tiny helpers ---------- */
@@ -4894,6 +4907,258 @@ function worldLL(pt, z) {
   return { lat: 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))), lng: lng };
 }
 
+/* ---------------------------------------------------------------------
+   The map with no signal. A state's map is one PMTiles archive - every
+   vector tile from z0 to z14 over the state's box, built off OpenStreetMap
+   by tools/build-vmap.mjs - downloaded in pieces and kept in the browser's
+   own file storage, the origin private file system. MapLibre asks for
+   every tile through ozt://, and this answers from a stored state where one
+   covers the tile and from OpenFreeMap where none does. Both are the
+   OpenMapTiles schema off the same Planetiler profile, so one style draws
+   either and the join between them does not show.
+
+   Files rather than IndexedDB because a piece is 32 MB, and a file can be
+   written as it arrives: the network streams straight to the disk and
+   nothing the size of a piece is ever held in the page, whose heap is what
+   runs out on the S22. A stored piece is read a tile at a time by slicing
+   the file, which reads only the slice.
+   --------------------------------------------------------------------- */
+const VMap = (function () {
+  const LIVE = "https://tiles.openfreemap.org/planet";
+  const TRIES = 3;
+  const packs = {};           /* id -> { pm, cut, z0, z1, box, at: {z: tile range} } */
+  let manifest = null, live = null;
+  /* A state's map is found through directories of about 4,000 tiles each,
+     48 of them for South Australia. The reader keeps 100 by default, which
+     for SA alone is all of them - some 12 MB of heap. A drive only ever
+     needs the few around it, so 16, shared by every state. */
+  const dirs = new pmtiles.SharedPromiseCache(16);
+
+  function recs() { return loadLS(LS.vmaps, {}) || {}; }
+
+  /* Writing a file as it streams in needs createWritable, which every
+     Chrome the app is meant for has. A browser without it keeps the online
+     map and is not offered a download it cannot store. */
+  function can() {
+    return !!(navigator.storage && navigator.storage.getDirectory &&
+      window.FileSystemFileHandle && FileSystemFileHandle.prototype.createWritable);
+  }
+  async function root(create) {
+    const r = await navigator.storage.getDirectory();
+    return r.getDirectoryHandle("vmap", { create: !!create });
+  }
+  /* One folder per state per cut, so an update comes down beside the map
+     in use and replaces it only once it is whole. */
+  function dirName(id, cut) { return id + "-" + cut; }
+
+  /* An archive in pieces, read as one file. A read across a join - a
+     directory or a tile that straddles a 32 MB mark - is put together from
+     both sides. */
+  function Pieces(key, files, size) { this.key = key; this.files = files; this.size = size; }
+  Pieces.prototype.getKey = function () { return this.key; };
+  Pieces.prototype.getBytes = async function (off, len) {
+    const P = this.size, i = Math.floor(off / P), j = Math.floor((off + len - 1) / P);
+    if (i === j) {
+      const a = off - i * P;
+      return { data: await this.files[i].slice(a, a + len).arrayBuffer() };
+    }
+    const out = new Uint8Array(len);
+    let at = 0;
+    for (let k = i; k <= j; k++) {
+      const a = Math.max(0, off - k * P), b = Math.min(P, off + len - k * P);
+      out.set(new Uint8Array(await this.files[k].slice(a, b).arrayBuffer()), at);
+      at += b - a;
+    }
+    return { data: out.buffer };
+  };
+
+  async function openPack(id, rec) {
+    const d = await (await root(false)).getDirectoryHandle(dirName(id, rec.cut));
+    const files = [];
+    for (let i = 0; i < rec.pieces; i++) files.push(await (await d.getFileHandle(i + ".bin")).getFile());
+    const pm = new pmtiles.PMTiles(new Pieces("vmap:" + id + ":" + rec.cut, files, rec.piece), dirs);
+    const h = await pm.getHeader();
+    packs[id] = { pm: pm, cut: rec.cut, z0: h.minZoom, z1: h.maxZoom,
+                  box: [h.minLat, h.minLon, h.maxLat, h.maxLon], at: {} };
+  }
+
+  /* Every stored state, opened once at launch. One that will not open -
+     its files cleared by the browser, say - is forgotten rather than left
+     to fail every tile it covers. */
+  const ready = (async function () {
+    if (!can()) return;
+    const r = recs();
+    for (const id of Object.keys(r)) {
+      try { await openPack(id, r[id]); }
+      catch (e) { delete r[id]; saveLS(LS.vmaps, r); }
+    }
+  })();
+
+  /* The stored state that holds z/x/y, if one does. Its tile range at each
+     zoom is worked out the first time that zoom is asked for. */
+  function packFor(z, x, y) {
+    for (const id in packs) {
+      const p = packs[id];
+      if (z < p.z0 || z > p.z1) continue;
+      const t = p.at[z] || (p.at[z] = boxTiles(p.box, z));
+      if (x >= t[0] && x <= t[1] && y >= t[2] && y <= t[3]) return p;
+    }
+    return null;
+  }
+
+  /* OpenFreeMap's tiles move to a new dated address every week or so. The
+     address is asked for once a session, the first time a tile is wanted
+     that no stored state holds. */
+  function liveUrl() {
+    if (!live) {
+      live = fetch(LIVE)
+        .then(function (r) { if (!r.ok) throw new Error("tilejson " + r.status); return r.json(); })
+        .then(function (j) { return j.tiles[0]; })
+        .catch(function (e) { live = null; throw e; });
+    }
+    return live;
+  }
+
+  /* MapLibre's ozt:// handler. */
+  async function tile(params, ac) {
+    const m = /(\d+)\/(\d+)\/(\d+)$/.exec(params.url);
+    const z = +m[1], x = +m[2], y = +m[3];
+    await ready;
+    const p = packFor(z, x, y);
+    if (p) {
+      const t = await p.pm.getZxy(z, x, y, ac.signal);
+      /* Planetiler writes no tile where there is nothing to draw, so one
+         the state covers and does not hold is empty ground, not a hole. */
+      return { data: t && t.data ? t.data : new ArrayBuffer(0) };
+    }
+    const u = (await liveUrl()).replace("{z}", z).replace("{x}", x).replace("{y}", y);
+    const r = await fetch(u, { signal: ac.signal });
+    if (!r.ok) throw new Error("tile " + r.status);
+    return { data: await r.arrayBuffer() };
+  }
+
+  /* The manifest, like the other packs': a stored copy answers at once and
+     the server is asked behind it. fresh waits for the server - a download
+     is about to fetch what it names - and still settles for the stored
+     copy with no signal. */
+  async function loadManifest(fresh) {
+    if (!manifest) manifest = loadLS(LS.vmapMan, null);
+    const ask = fetch(CFG.VMAP_URL + "manifest.json", { cache: "no-cache" })
+      .then(function (r) { if (!r.ok) throw new Error("http " + r.status); return r.json(); })
+      .then(function (j) { manifest = j; saveLS(LS.vmapMan, j); return j; })
+      .catch(function () { return manifest; });
+    return fresh || !manifest ? ask : manifest;
+  }
+
+  /* What the server has for a state, or null. */
+  function offered(id) { return can() && manifest && manifest.states && manifest.states[id] || null; }
+
+  /* none: the server has no map for it (or this browser cannot store one).
+     missing / old / ok: against what is stored. */
+  function status(id) {
+    const m = offered(id);
+    if (!m) return "none";
+    const r = recs()[id];
+    if (!r || !packs[id]) return "missing";
+    return r.cut === m.cut ? "ok" : "old";
+  }
+
+  /* One piece, streamed to its file. A piece already there at its full
+     size is kept - that is the whole of resuming. The last piece is short
+     and is judged against its own size. */
+  async function piece(d, id, m, i, want, onBytes, stop) {
+    const fh = await d.getFileHandle(i + ".bin", { create: true });
+    if ((await fh.getFile()).size === want) { onBytes(want); return; }
+    const ctl = new AbortController();
+    const poll = setInterval(function () { if (stop()) ctl.abort(); }, 250);
+    try {
+      /* Not through the browser's HTTP cache: a 32 MB piece kept there as
+         well as on disk would be the map twice. */
+      const r = await fetch(CFG.VMAP_URL + id + "/" + m.cut + "/" + i + ".bin",
+        { signal: ctl.signal, cache: "no-store" });
+      if (!r.ok) throw new Error("piece " + i + ": http " + r.status);
+      const w = await fh.createWritable();
+      let got = 0;
+      await r.body.pipeThrough(new TransformStream({
+        transform: function (c, q) { got += c.byteLength; onBytes(got); q.enqueue(c); }
+      })).pipeTo(w);
+      if ((await fh.getFile()).size !== want) throw new Error("piece " + i + " came short");
+    } finally { clearInterval(poll); }
+  }
+
+  /* A state's map down, piece by piece. onBytes({ done, total }) as it goes;
+     stop() is asked throughout. Resolves true once the map is whole,
+     recorded and open; throws a full disk so the caller can say so. */
+  async function download(id, onBytes, stop) {
+    const m = offered(id);
+    if (!m) return false;
+    const P = manifest.piece;
+    const d = await (await root(true)).getDirectoryHandle(dirName(id, m.cut), { create: true });
+    let done = 0;
+    for (let i = 0; i < m.pieces; i++) {
+      const want = Math.min(P, m.bytes - i * P);
+      for (let t = 1; ; t++) {
+        if (stop()) return false;
+        try {
+          await piece(d, id, m, i, want, function (n) { onBytes({ done: done + n, total: m.bytes }); }, stop);
+          break;
+        } catch (e) {
+          if (isOutOfSpace(e)) throw e;
+          if (stop() || t >= TRIES) return false;
+        }
+      }
+      done += want;
+    }
+    const r = recs(), old = r[id];
+    r[id] = { cut: m.cut, pieces: m.pieces, piece: P, bytes: m.bytes };
+    try { await openPack(id, r[id]); } catch (e) { return false; }
+    saveLS(LS.vmaps, r);
+    if (old && old.cut !== m.cut) await sweep(id, m.cut);
+    refresh();
+    return true;
+  }
+
+  /* A state's folders other than keep - an older cut, or one a stopped
+     download left behind. */
+  async function sweep(id, keep) {
+    try {
+      const d = await root(false);
+      const drop = [];
+      for await (const name of d.keys()) {
+        if (name.indexOf(id + "-") === 0 && name !== (keep ? dirName(id, keep) : null)) drop.push(name);
+      }
+      for (const name of drop) await d.removeEntry(name, { recursive: true });
+    } catch (e) { /* nothing stored yet */ }
+  }
+
+  async function remove(id) {
+    const r = recs();
+    delete packs[id];
+    delete r[id];
+    saveLS(LS.vmaps, r);
+    await sweep(id, null);
+    refresh();
+  }
+
+  /* Tiles MapLibre already holds were fetched, or failed, before the state
+     was stored or after it went; ask for them again from wherever they now
+     come from. */
+  function refresh() {
+    whenStyled(function () {
+      const src = gl.getSource("openmaptiles");
+      if (src && src.setTiles) src.setTiles(["ozt://{z}/{x}/{y}"]);
+    });
+  }
+
+  return {
+    ready: ready, tile: tile, loadManifest: loadManifest, offered: offered, status: status,
+    download: download, remove: remove, can: can,
+    bytes: function (id) { const m = offered(id); return m ? m.bytes : 0; },
+    stored: function () { return Object.keys(packs); }
+  };
+})();
+maplibregl.addProtocol("ozt", VMap.tile);
+
 /* Experiments, off the query string: ?workers=1&cache=40. */
 const GLQ = new URLSearchParams(location.search);
 if (GLQ.get("workers")) maplibregl.setWorkerCount(+GLQ.get("workers"));
@@ -4901,7 +5166,6 @@ gl = new maplibregl.Map({
   container: mapEl,
   pixelRatio: Math.min(window.devicePixelRatio || 1, CFG.GL_MAX_DPR),
   maxTileCacheSize: GLQ.get("cache") ? +GLQ.get("cache") : null,
-  style: CFG.GL_STYLE,
   center: [startCenter[1], startCenter[0]],
   zoom: clamp(S.zoom, CFG.MIN_Z, CFG.MAX_Z) - ZOOM_OFF,
   minZoom: CFG.MIN_Z - ZOOM_OFF, maxZoom: CFG.MAX_Z - ZOOM_OFF,
@@ -4914,6 +5178,20 @@ gl = new maplibregl.Map({
   doubleClickZoom: false, boxZoom: false, keyboard: false,
   attributionControl: false,
   fadeDuration: 0
+});
+/* The style is the copy beside the page, and it names its icons and fonts
+   relative to itself. MapLibre refuses an icon sheet at anything but a
+   whole address, and only setStyle - not the constructor - will let the
+   style be changed as it loads, so the style is set here rather than
+   passed in above. */
+gl.setStyle(CFG.GL_STYLE, {
+  transformStyle: function (prev, next) {
+    const base = new URL(CFG.GL_STYLE, location.href).href.replace(/[^/]*$/, "");
+    if (next.sprite && !/^[a-z-]+:/.test(next.sprite)) next.sprite = base + next.sprite;
+    /* joined, not resolved: URL() would escape the {fontstack} braces */
+    if (next.glyphs && !/^[a-z-]+:/.test(next.glyphs)) next.glyphs = base + next.glyphs;
+    return next;
+  }
 });
 gl.touchZoomRotate.disableRotation();
 /* OpenFreeMap asks for its credit, and OpenStreetMap's licence wants one
@@ -14050,8 +14328,12 @@ let stRun = null;          /* the state coming down: { s, phase, st, t0 } */
 function stateById(id) { return CFG.STATES.find(function (s) { return s.id === id; }) || null; }
 function stateRecs() { return loadLS(LS.states, {}) || {}; }
 
-/* On the phone, not on the wire. */
-function stateBytes(s) { return s.mb * 1048576 * CFG.PACK_STORED; }
+/* On the phone, not on the wire. The map is stored as it comes. */
+function stateBytes(s) { return s.mb * 1048576 * CFG.PACK_STORED + VMap.bytes(s.id); }
+
+/* How long a state is guessed to take: the data packs are latency-bound
+   and counted in files, the map is one stream and counted in bytes. */
+function stateSecs(s) { return s.files / CFG.PACK_RATE + VMap.bytes(s.id) / CFG.VMAP_RATE; }
 
 function fmtAbout(sec) {
   if (sec < 60) return "under a minute";
@@ -14068,14 +14350,19 @@ function packCuts() {
 }
 
 /* Where a state stands: none, part (a run that stopped or lost files),
-   old (whole, from data since rebuilt) or ok. */
-function stateStatus(rec) {
+   old (whole, from data since rebuilt, or with no map where one is now
+   offered) or ok. The map keeps its own record - see VMap - so a map that
+   did not finish leaves the data whole and the state asking for it. */
+function stateStatus(s, rec) {
   if (!rec) return { k: "none" };
   if (!rec.done) return { k: "part", pct: rec.total ? Math.floor(rec.got / rec.total * 100) : 0 };
   const now = packCuts(), old = [];
   if (now.a !== null && rec.cuts.a !== now.a) old.push("addresses");
   if (now.r !== null && rec.cuts.r !== now.r) old.push("roads");
   if (now.p !== null && rec.cuts.p !== now.p) old.push("POIs");
+  const map = VMap.status(s.id);
+  if (map === "old") old.push("map");
+  if (map === "missing") return { k: "old", what: old, nomap: true };
   return old.length ? { k: "old", what: old } : { k: "ok" };
 }
 
@@ -14086,19 +14373,23 @@ function andList(w) {
 /* What a state's card says about it, shared by the drawer and the picker. */
 function stateNote(s, rec) {
   if (stRun && stRun.s === s) return "Downloading";
-  const st = stateStatus(rec);
-  if (st.k === "part") return "Part downloaded, " + st.pct + "%" + (rec.failed ? " - " + rec.failed + " files did not arrive" : "");
-  if (st.k === "old") return "Newer " + andList(st.what) + " are out";
+  const st = stateStatus(s, rec);
+  if (st.k === "part") return "Part downloaded" + (rec.total ? ", " + st.pct + "%" : "") + (rec.failed ? " - " + rec.failed + " files did not arrive" : "");
+  if (st.nomap) return "The map is not on this phone yet" + (st.what.length ? ", and newer " + andList(st.what) + " are out" : "");
+  if (st.k === "old") return st.what.length === 1 && st.what[0] === "map" ? "A newer map is out" : "Newer " + andList(st.what) + " are out";
+  /* Only South Australia's map is on the server while the maps are on
+     GitHub Pages - see the README. */
+  if (VMap.can() && VMap.status(s.id) === "none") return "No offline map for this state yet";
   return "";
 }
 
-function stateAction(rec) {
-  const st = stateStatus(rec);
+function stateAction(s, rec) {
+  const st = stateStatus(s, rec);
   return st.k === "none" ? "Download" : st.k === "part" ? "Resume" : st.k === "old" ? "Update" : "";
 }
 
 async function loadPackManifests() {
-  await Promise.all([Addr.loadManifest(), Route.loadManifest(), Pack.loadManifest()]);
+  await Promise.all([Addr.loadManifest(), Route.loadManifest(), Pack.loadManifest(), VMap.loadManifest(), VMap.ready]);
 }
 
 async function openStateModal() {
@@ -14116,13 +14407,13 @@ async function openStateModal() {
   $("#smFree").textContent = free === null ? "Unknown" : fmtBytes(free);
   const recs = stateRecs();
   $("#smList").innerHTML = CFG.STATES.map(function (s) {
-    const rec = recs[s.id], act = stateAction(rec), note = stateNote(s, rec);
+    const rec = recs[s.id], act = stateAction(s, rec), note = stateNote(s, rec);
     const short = act && free !== null && stateBytes(s) + CFG.DL_RESERVE > free;
     return '<div class="card" data-state="' + s.id + '">' +
       '<div class="card-top"><div class="card-t">' + esc(s.name) + "</div>" +
       (rec && rec.done ? '<span class="tag easy">On phone</span>' : "") + "</div>" +
       '<div class="card-m"><span>about ' + fmtBytes(stateBytes(s)) + "</span><span>" +
-      fmtAbout(s.files / CFG.PACK_RATE) + "</span></div>" +
+      fmtAbout(stateSecs(s)) + "</span></div>" +
       (note ? '<div class="card-n">' + esc(note) + "</div>" : "") +
       (short ? '<div class="card-n bad-note">Not enough free space</div>' : "") +
       (act ? '<div class="card-acts"><button class="btn xs ghost" data-act="get"' + (short ? " disabled" : "") + ">" + act + "</button></div>" : "") +
@@ -14143,19 +14434,28 @@ function showStateProgress() {
 function paintStateRun() {
   const r = stRun;
   if (!r) return;
-  const st = r.st;
-  const pct = st && st.total ? Math.floor(st.done / st.total * 100) : 0;
+  const st = r.st, mp = r.map;
+  const pct = mp && mp.total ? Math.floor(mp.done / mp.total * 100)
+    : st && st.total ? Math.floor(st.done / st.total * 100) : 0;
   $("#smTitle").textContent = r.s.name;
   $("#smStatus").textContent = r.phase;
   $("#smBar").style.width = pct + "%";
   $("#smPct").textContent = pct + "%";
-  $("#smFiles").textContent = st ? st.done.toLocaleString() + " / " + st.total.toLocaleString() : "--";
+  $("#smFilesK").textContent = mp ? "Downloaded" : "Files";
+  $("#smTallyRow").classList.toggle("hidden", !!mp);   /* files, which the map is not */
+  $("#smFiles").textContent = mp ? fmtBytes(mp.done) + " / " + fmtBytes(mp.total)
+    : st ? st.done.toLocaleString() + " / " + st.total.toLocaleString() : "--";
   /* From the rate this run is actually getting, once there is enough of
      it to be a rate. The estimate in the list is a guess about phones in
-     general; this is this phone on this signal. */
+     general; this is this phone on this signal. The map's rate leaves out
+     what a resumed run found already here, which took no time, and while
+     it comes down the files still to follow are added at the list's guess
+     - time left is for the whole state, not the phase. */
   const secs = (Date.now() - r.t0) / 1000;
-  $("#smLeft").textContent = st && st.done > 200 && secs > 5
-    ? fmtAbout((st.total - st.done) / (st.done / secs)) : "--";
+  $("#smLeft").textContent = mp
+    ? (r.mapBase >= 0 && mp.done - r.mapBase > 1048576 && secs > 3
+      ? fmtAbout((mp.total - mp.done) / ((mp.done - r.mapBase) / secs) + r.s.files / CFG.PACK_RATE) : "--")
+    : st && st.done > 200 && secs > 5 ? fmtAbout((st.total - st.done) / (st.done / secs)) : "--";
   if (st) $("#smTally").textContent = st.fetched + " / " + st.cached + " / " + st.failed;
   const live = $("#stLive");
   if (live) live.textContent = "Downloading, " + pct + "%";
@@ -14178,7 +14478,7 @@ async function runStateDownload(id) {
   stRun = { s: s, phase: "Checking what is here", st: null, t0: Date.now() };
   showStateProgress();
   renderAreas();
-  let st = null, cuts = null;
+  let st = null, cuts = null, mapOk = true, mapFull = false;
   try {
     await loadPackManifests();
     cuts = packCuts();
@@ -14194,6 +14494,28 @@ async function runStateDownload(id) {
       paintStateRun();
       try { await Addr.side("localities.json", "localities"); } catch (e) { /* search still reads the tiles */ }
     }
+    /* The map, if the server has one for the state and the phone does not
+       already hold that cut of it. */
+    await VMap.loadManifest(true);
+    const want = VMap.status(s.id);
+    if (!dlAbort && (want === "missing" || want === "old")) {
+      stRun.phase = "Map";
+      stRun.t0 = Date.now();
+      stRun.mapBase = -1;
+      stRun.map = { done: 0, total: VMap.bytes(s.id) };
+      paintStateRun();
+      try {
+        mapOk = await VMap.download(s.id, throttle(function (m) {
+          if (stRun.mapBase < 0) { stRun.mapBase = m.done; stRun.t0 = Date.now(); }
+          stRun.map = m;
+          paintStateRun();
+        }, 250), function () { return dlAbort; });
+      } catch (e) {
+        mapOk = false;
+        if (isOutOfSpace(e)) { mapFull = true; dlAbort = true; }
+      }
+      stRun.map = null;
+    }
     if (!dlAbort) {
       stRun.phase = "Addresses, roads and POIs";
       stRun.t0 = Date.now();
@@ -14207,8 +14529,16 @@ async function runStateDownload(id) {
     recs[s.id] = { ts: Date.now(), done: !dlAbort && st.failed === 0, total: st.total,
                    got: got, failed: st.failed, cuts: cuts };
     saveLS(LS.states, recs);
+  } else if (!st && !mapOk && dlAbort && !recs[s.id]) {
+    /* Stopped during the map, before a single file: recorded as begun, so
+       the drawer lists it with Resume, as the stop's message promises. The
+       map's finished pieces are kept and a resume starts after them. */
+    recs[s.id] = { ts: Date.now(), done: false, total: 0, got: 0, failed: 0, cuts: cuts };
+    saveLS(LS.states, recs);
   }
-  if (st && st.full)
+  if (mapFull)
+    toast("Ran out of free space for the " + s.name + " map", "err");
+  else if (st && st.full)
     toast("Ran out of free space - " + got.toLocaleString() + " of " + st.total.toLocaleString() + " files saved", "err");
   else if (dlAbort)
     toast("Download stopped - Resume picks up where it left off", "warn");
@@ -14216,6 +14546,8 @@ async function runStateDownload(id) {
     toast("Could not reach the server for " + s.name + " - try again with a signal", "err");
   else if (st.failed)
     toast(s.name + ": " + st.failed + " files did not arrive - Resume tries them again", "warn");
+  else if (!mapOk)
+    toast(s.name + ": the map did not finish - Update tries it again", "warn");
   else
     toast(s.name + " is on this phone", "ok");
 
@@ -14268,6 +14600,7 @@ async function deleteState(id) {
   }
   delete recs[id];
   saveLS(LS.states, recs);
+  await VMap.remove(id);
   await renderAreas();
   refreshStorageStats();
   toast(s.name + " removed from this phone", "warn");
@@ -14275,7 +14608,7 @@ async function deleteState(id) {
 
 function stateCard(s, rec) {
   const run = stRun && stRun.s === s;
-  const note = stateNote(s, rec), act = run ? "" : stateAction(rec);
+  const note = stateNote(s, rec), act = run ? "" : stateAction(s, rec);
   return '<div class="card" data-state="' + s.id + '">' +
     '<div class="card-top"><div class="card-t">' + esc(s.name) + '</div><span class="tag cat">State</span></div>' +
     '<div class="card-m"><span>about ' + fmtBytes(stateBytes(s)) + "</span>" +
@@ -16933,7 +17266,7 @@ $("#areaList").addEventListener("click", async function (e) {
     } else if (b.dataset.act === "show") {
       openStateModal();
     } else if (b.dataset.act === "del") {
-      if (!(await ask(state.name + "'s addresses, roads and POIs will be removed from this phone. " +
+      if (!(await ask(state.name + "'s map, addresses, roads and POIs will be removed from this phone. " +
                       "Areas you drew keep theirs.", "Delete", "Delete State?", "Keep"))) return;
       deleteState(state.id);
     }

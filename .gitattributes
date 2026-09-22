@@ -13,3 +13,11 @@ docs/route/** linguist-generated=true
 # state to the whole country, written by tools/build-poi.mjs and rewritten
 # whole every month.
 docs/poi/** linguist-generated=true
+
+# Each state's offline vector map, in pieces, written by tools/build-vmap.mjs
+# and replaced whole on every rebuild. Binary, and nothing a diff can show.
+docs/vmap/**/*.bin binary linguist-generated=true
+
+# The preview's copy of OpenFreeMap's style, icons and fonts, re-copied by
+# tools/build-vmap-style.mjs.
+docs/next/style/** linguist-generated=true

@@ -32,7 +32,14 @@ what that costs you.
                                /oztrax4x4/next/ beside the real one. Shares
                                the origin, so it sees the same tracks,
                                waypoints, settings and downloaded data.
-                               lib/ holds MapLibre GL JS 5.24.0 (BSD-3)
+                               lib/ holds MapLibre GL JS 5.24.0 and the
+                               PMTiles reader 4.5.0 (both BSD-3); style/
+                               holds OpenFreeMap's Liberty style with its
+                               icons and fonts, so the map draws with no
+                               signal (licences in style/LICENSE.md)
+    docs/vmap/                 each state's offline vector map, in 32 MB
+                               pieces, plus manifest.json - see
+                               "Offline maps" below
 
 ## Publishing
 
@@ -82,9 +89,44 @@ Menu → Downloaded Areas holds two downloads, and they cover different things:
 * **Download New Area** is a box you draw, for the map imagery, and it brings
   the same data for that box with it.
 
+In the MapLibre preview (`docs/next/`) Download A State brings the state's
+map as well - see "Offline maps" - and Download New Area is hidden, because
+the imagery it stores is Esri's and the preview does not draw Esri.
+
 Both pull the data files 24 at a time. They are about 2 KB each and the cost
 is the round trip, not the bytes: one at a time South Australia took over two
 hours, and at 24 about six minutes.
+
+## Offline maps
+
+The preview's map with no signal. Each state is one PMTiles archive of every
+vector tile from z0 to z14 over the state's box, built off OpenStreetMap with
+Planetiler's OpenMapTiles profile - the same schema OpenFreeMap serves, so
+one style draws a stored state and the online map alike. South Australia is
+116.8 MB. The phone downloads it in 32 MB pieces straight to the browser's
+own file storage and reads tiles out of them there; anywhere no stored state
+covers comes from OpenFreeMap as before.
+
+    node tools/build-vmap-style.mjs      the style, re-copied from OpenFreeMap
+    node tools/build-vmap.mjs SA         a state's map, into docs/vmap/
+
+`build-vmap.mjs` needs a folder outside the repo (`OZT_TILES`, default
+`E:/OzTrax Tiles`) holding Java 21 and Planetiler under `tools/`, and under
+`sources/` Geofabrik's `australia.osm.pbf` with the three files Planetiler
+draws the sea, the zoomed-out map and lake names from:
+`water-polygons-split-3857.zip`, `natural_earth_vector.sqlite.zip` and
+`lake_centerline.shp.zip`. A state builds in about a minute and a half. The
+map's cut is the date of the OpenStreetMap data in it, and a phone holding an
+older cut is offered Update.
+
+**Only South Australia is on the server**, on purpose. GitHub refuses a file
+over 100 MB (so the pieces), the site as a whole must stay under 1 GB, and
+every rebuild of a map stays in the repository's history for good. The other
+states wait for the hosting move; `CFG.VMAP_URL` in `docs/next/index.html`
+is the one line that changes then.
+
+The relief still needs a signal: it is shaded on the phone from terrain
+tiles that are not part of the state's map.
 
 ## Updating
 
@@ -96,7 +138,10 @@ land on the very next launch.
 
 ## Data sources
 
-* Map tiles — Esri World Topo, cached in IndexedDB for offline use
+* Map tiles — Esri World Topo, cached in IndexedDB for offline use. The
+  MapLibre preview draws OpenStreetMap vector tiles instead: OpenFreeMap's
+  online, and a downloaded state's own map offline, built by
+  `tools/build-vmap.mjs`
 * POIs — OpenStreetMap via the seven Geofabrik state extracts, cut into z13
   packs under `docs/poi/` covering every state and territory on the mainland
   and Tasmania, served off this origin and built monthly by
