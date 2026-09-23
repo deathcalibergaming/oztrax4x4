@@ -45,7 +45,8 @@ the user:
   rough country rather than adapted from a desktop interface.
 
 Deliberately *not* positioned on South Australian local knowledge, despite
-that being where the data currently is — see Capabilities and Constraints.
+the app having been built there — see Capabilities and Constraints for what
+the data actually covers.
 
 ## Operating Context
 
@@ -64,13 +65,13 @@ that being where the data currently is — see Capabilities and Constraints.
 ## Capabilities and Constraints
 
 **Confirmed capabilities:** GPS trail recording with GPX export; named
-waypoints in six categories; offline map tiles cached to IndexedDB with
-bulk area download; OpenStreetMap POIs across 24 categories including
-free-camp detection; offline address search over Geoscape G-NAF packs;
-on-device routing over committed road packs with a public router as fallback
-for destinations outside coverage and a bearing-and-distance fallback behind
-that; posted speed limits read from map data; daily South Australian fuel
-prices; a simulated drive for demonstration.
+waypoints in six categories; a stored vector map downloaded a state at a
+time; OpenStreetMap POIs across 24 categories including free-camp detection;
+offline address search over Geoscape G-NAF packs; on-device routing over
+committed road packs with a public router as fallback for destinations
+outside coverage and a bearing-and-distance fallback behind that; posted
+speed limits read from map data; daily fuel prices from five state schemes; a
+simulated drive for demonstration.
 
 **Hard constraints — future work must not break these:**
 
@@ -96,12 +97,23 @@ account, no subscription, no in-app purchase, nothing locked. "No paywall"
 constrains what happens *inside* the product; it is not a claim that the app
 is free to acquire.
 
-**Geographic scope (confirmed):** an Australian product whose data coverage
-is currently South Australian. Addresses, the routing network and fuel prices
-are all SA today. This is a stated limitation to be described honestly, not
-part of the identity — future work must not hard-code South Australia into
-the product's name, framing or interface. Australia-wide fuel prices are the
-stated direction; no date is set.
+**Geographic scope (confirmed):** an Australian product, and the data is now
+Australian too. 11.4 million addresses across every state and territory; the
+road network the phone routes over, and the POIs, across the mainland and
+Tasmania. Fuel prices come from five state schemes — South Australia's own,
+FuelWatch, FuelCheck, Fuel Prices QLD and Servo Saver — covering six state
+codes and reaching everywhere but the Northern Territory. The ACT rides on
+New South Wales' FuelCheck, where reporting is opt-in for retailers rather
+than required, so coverage there is partial. The Territory has no documented
+public feed and is not expected to gain one.
+
+**The stored map is the exception, and it is the one to be honest about.**
+Only South Australia is on the server: it alone is 117 MB of vector tiles,
+against a 1 GB limit where the site is hosted today. Everywhere else
+the map itself needs a connection, while everything the app carries — search,
+routing, the speed sign, the POIs — keeps working without one. Say that
+plainly rather than implying the map is offline everywhere, and do not
+hard-code South Australia into the product's name, framing or interface.
 
 ## Brand Commitments
 
@@ -135,12 +147,14 @@ Real, verifiable, and safe to reference:
 
 - A deployed, working application at
   <https://deathcalibergaming.github.io/oztrax4x4/>.
-- Genuine third-party data pipelines: OpenStreetMap (POIs, roads), Geoscape
-  G-NAF (addresses), the South Australian fuel price scheme, Esri World Topo
-  (tiles). All attributed in the interface.
-- Measured performance figures produced during development, e.g. the state
-  road backbone at 1.3 MB gzipped and on-device routes computed in tens of
-  milliseconds.
+- Genuine third-party data pipelines: OpenStreetMap (POIs, roads, and the map
+  itself through OpenMapTiles and OpenFreeMap), Geoscape G-NAF (addresses),
+  and five state fuel price schemes. All attributed in the interface. Esri drew
+  the map until the vector rebuild and draws nothing now, so it is no longer
+  something to cite.
+- Measured performance figures produced during development, e.g. South
+  Australia's whole touring network at 1.3 MB gzipped and on-device routes
+  computed in tens of milliseconds.
 
 **Absences future work must not fabricate:** there are no customers, no
 testimonials, no reviews, no press coverage, no download or user numbers, no
