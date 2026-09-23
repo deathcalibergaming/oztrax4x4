@@ -226,7 +226,25 @@ function fixes() {
   }
 }
 const FIXED = fixes();
-const isFixed = st => FIXED.some(f =>
+
+/* And the ones Fuel.moved carries, which is the same job done by scheme id
+   rather than by name. Read with a pattern rather than evaluated, because it
+   lives inside an object literal and there is nothing to hand a Function. */
+function movedIds() {
+  const src = readFileSync(join(ROOT, "index.html"), "utf8");
+  const a = src.indexOf("\n  moved: {");
+  if (a < 0) return new Set();
+  const b = src.indexOf("\n  },", a);
+  if (b < 0) return new Set();
+  const out = new Set();
+  const re = /"([a-z]+)\/(\d+)"\s*:\s*\[/g;
+  let m;
+  while ((m = re.exec(src.slice(a, b)))) out.add(Number(m[2]));
+  return out;
+}
+const MOVED = movedIds();
+
+const isFixed = st => MOVED.has(st.i) || FIXED.some(f =>
   f.is.test(String(st.n || "").trim()) &&
   hav({ lat: f.at[0], lng: f.at[1] }, { lat: st.y, lng: st.x }) <= f.within);
 
