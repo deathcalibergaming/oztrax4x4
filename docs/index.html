@@ -603,16 +603,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #rotWrap{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
 #panWrap{position:absolute;inset:0;will-change:transform}
 #map{position:absolute;inset:0;background:#0D100F}
-/* No picture tiles to keep: the map is vector, and stored a state at a time
-   in Download A State rather than a drawn box at a time. The button and the
-   Esri layer behind it are still here, dark, because the tiles a phone
-   downloaded before this are still in storage and Clear Tile Cache has to
-   go on being able to see them. */
-#btnNewArea{display:none}
 .maplibregl-map{background:#0D100F;font-family:var(--ui);outline:none}
-.maplibregl-ctrl-attrib.maplibregl-compact{background:rgba(23,28,25,.85);color:var(--dim)}
-.maplibregl-ctrl-attrib a{color:var(--sand)}
-.maplibregl-ctrl-bottom-left{bottom:calc(var(--safeB) + 2px)}
 .leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
 /* Leaflet adds tiles together (plus-lighter) so that two half-covered edge
    pixels sum to one whole one. That only holds while tiles abut exactly;
@@ -2748,9 +2739,11 @@ input[type=date],input[type=time]{color-scheme:dark}
       </summary>
       <div class="sec-body">
         <div id="areaList" class="list"></div>
+        <!-- Download New Area is gone from here. It drew a box and filled
+             it with Esri picture tiles, and nothing draws those now. A
+             state at a time is the whole of it. -->
         <div class="row">
-          <button class="btn sm primary" id="btnNewArea">Download New Area</button>
-          <button class="btn sm ghost" id="btnNewState">Download A State</button>
+          <button class="btn sm primary" id="btnNewState">Download A State</button>
         </div>
       </div>
     </details>
@@ -2856,7 +2849,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         Storage <span class="chev"></span>
       </summary>
       <div class="sec-body">
-        <div class="kv"><span>Cached tiles</span><b id="kvTiles">--</b></div>
         <div class="kv"><span>Cached POI cells</span><b id="kvPoi">--</b></div>
         <div class="kv"><span>Address packs</span><b id="kvAddr">--</b></div>
         <div class="kv"><span>Road packs</span><b id="kvRoute">--</b></div>
@@ -2865,14 +2857,12 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
           <button class="btn sm ghost" id="btnDiag">Test Connection</button>
+          <!-- Clear Tile Cache stood here. It emptied the store of Esri
+               picture tiles, which nothing draws now, and which is swept
+               once on the first launch after the change - see
+               sweepOldTiles. A button that can only ever say nought is not
+               a button. -->
           <button class="btn sm ghost" id="btnClearPoi">Clear POI Cache</button>
-          <!-- Ghost like everything either side of it. A filled red button
-               was the only one of its kind in the whole menu - Test
-               Connection and Clear POI Cache sit in the same row, Delete on
-               a track card is ghost too - so the fill was not marking this
-               out as destructive, it was marking it out as the odd one. The
-               confirm in front of it is what guards it now. -->
-          <button class="btn sm ghost" id="btnClearTiles">Clear Tile Cache</button>
         </div>
       </div>
     </details>
@@ -2883,15 +2873,15 @@ input[type=date],input[type=time]{color-scheme:dark}
            whatever is being recorded - to read a page about privacy. -->
       OzTrax Recon &middot; offline 4x4 trail log &middot;
       <a href="./privacy.html" target="_blank" rel="noopener">Privacy</a><br>
-      <!-- Esri drew this map for two years and draws none of it now. The
-           map is OpenStreetMap through Planetiler, served by OpenFreeMap
-           where no state is stored and off the phone where one is, and the
-           style is OpenFreeMap's Liberty. The control at the bottom of the
-           map carries the same credit; this is the one you can read at a
-           stop. -->
-      Map &copy; OpenStreetMap contributors (ODbL) &middot; style and online
-      tiles by OpenFreeMap &middot; relief from Mapzen terrain tiles on AWS
-      Open Data<br>
+      <!-- Every credit the map owes, in the one place. Esri drew this map
+           for two years and draws none of it now, so it is gone from here.
+           What replaced it wants three: the data is OpenStreetMap's, the
+           schema and the tiles are OpenMapTiles' and OpenFreeMap's, and the
+           relief is Mapzen's. This is the whole of what MapLibre's own (i)
+           used to show over the map. -->
+      Map data &copy; OpenStreetMap contributors (ODbL) &middot; vector tiles
+      &copy; OpenMapTiles &middot; style and online tiles by OpenFreeMap
+      &middot; relief from Mapzen terrain tiles on AWS Open Data<br>
       Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
       Australia, licensed under the Open G-NAF end user licence agreement.
       Not verified for mail delivery.
@@ -3431,8 +3421,20 @@ const CFG = {
   SPEED_SNAP_M: 30,
   SPEED_HDG_TOL: 45,       /* degrees a road may differ from your travel */
   SPEED_MIN_MOVE: 2,       /* m/s below which a heading is noise, not travel */
+  /* Standing still. A parked phone's fixes wander a few metres one way and
+     back, every second, and its magnetometer never sits still either - and
+     on a map held to the vehicle neither of those reads as a marker
+     twitching. It reads as the whole map creeping and rocking, because the
+     camera follows the marker and the heading, twenty redraws a second of
+     a picture that has not changed. Both are held below these figures and
+     both let go the moment the vehicle really moves. */
+  STILL_SPD: 0.7,          /* m/s - under this it is stopped, not crawling */
+  STILL_M: 4,              /* metres a stopped fix may wander before the marker follows */
+  STILL_ACC: 0.5,          /* or this much of the fix's own accuracy, whichever is more */
+  STILL_HDG: 6,            /* degrees the compass may wander before the arrow follows */
   SPEED_TICK: 400,         /* a posted limit does not need 60 fps */
   ALERT_OVER: 3,           /* km/h past the posted limit before the chime sounds */
+  ALERT_CLEAR: 2,          /* and back under this much over before it stops */
   ALERT_REPEAT: 5000,      /* ms between reminders while the speed stays over */
   ALERT_STALE: 10000,      /* ms - a fix older than this says nothing about now */
   SPEED_SNAP_MAX: 50,      /* the snap widens with a poor fix, up to this */
@@ -3572,6 +3574,7 @@ const LS = {
   fuelSel: "tt.fuelSel",
   favs: "tt.favs",
   states: "tt.states",     /* which states' data is on this phone, and from which cut */
+  swept: "tt.swept",       /* the old map's picture tiles have been cleared - see sweepOldTiles */
   vmaps: "tt.vmaps",       /* which states' maps are stored, and from which cut - see VMap */
   vmapMan: "tt.vmapMan"    /* the last map manifest seen, for a launch with no signal */
 };
@@ -5221,9 +5224,13 @@ gl.setStyle(CFG.GL_STYLE, {
   }
 });
 gl.touchZoomRotate.disableRotation();
-/* OpenFreeMap asks for its credit, and OpenStreetMap's licence wants one
-   where the map is. Compact: an (i) in the corner, open on a tap. */
-gl.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+/* No credit drawn on the map. OpenFreeMap asks for one and OpenStreetMap's
+   licence wants one, and both are at the foot of the menu with the rest of
+   them - see the drawer foot - which is where this app has kept its credits
+   since Leaflet's own control came off the map years ago. One tap away and
+   readable at a stop beats an (i) in the corner of a moving map, competing
+   for the glance the map is there to get. The constructor already asks for
+   no attribution control, so there is nothing here to remove. */
 
 /* The facade the app calls "map". */
 const map = {
@@ -5293,11 +5300,6 @@ gl.on("load", function () {
     }
   }, firstRoad ? firstRoad.id : glLineBefore);
   Pins.install();
-  /* The credit opens itself on first load and stays open across the bottom
-     of the map until something is touched. It is an (i) that opens on a
-     tap, from the start. */
-  const attrib = document.querySelector(".maplibregl-ctrl-attrib");
-  if (attrib) attrib.classList.remove("maplibregl-compact-show");
   glStyled = true;
   glQueue.splice(0).forEach(function (fn) { fn(); });
   renderPois();
@@ -5801,7 +5803,15 @@ function frame(ts) {
      not upset by the steel of the vehicle; stopped, it reports nothing at
      all, so the magnetometer takes over and the arrow turns on the spot. */
   if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN) {
-    view.hdgTgt = Compass.heading;
+    /* The same hold as the position, for the same reason: a magnetometer
+       standing still still reads a degree or two either way, and heading
+       up that rocks the map. Under the deadband the arrow keeps what it
+       has; a real turn clears it on the first reading past it, and a brisk
+       one clears it again every few degrees, which the lerp below smooths
+       back into one sweep. A very slow turn on the spot is the one thing
+       this costs, and it costs it in six degree steps. */
+    const off = Math.abs(((Compass.heading - view.hdgTgt + 540) % 360) - 180);
+    if (view.hdgFrom !== "compass" || off > CFG.STILL_HDG) view.hdgTgt = Compass.heading;
     view.hdgFrom = "compass";
   } else if (view.has) {
     view.hdgFrom = Sim.active ? "simulated" : "gps course";
@@ -6024,7 +6034,18 @@ function pushPosition(fix) {
     }
     schedulePoi();
   }
-  view.tgt = { lat: pt.lat, lng: pt.lng };
+  /* Stopped, a fix this close to where the marker already stands says
+     nothing about the vehicle - it is the receiver wandering. Followed, it
+     walks the marker about and takes the map with it. Moving, every fix
+     counts: the hold is only ever applied at a standstill, and it breaks
+     as soon as a fix lands further off than the noise could put it.
+
+     Only the marker is held. The recording, the POI bubble, the route
+     progress and the speed all still see the fix that actually arrived. */
+  const fixSpd = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : view.speed;
+  const still = view.has && !fix.sim && fixSpd <= CFG.STILL_SPD;
+  const slack = Math.max(CFG.STILL_M, (fix.acc || 0) * CFG.STILL_ACC);
+  if (!still || haversine(view.tgt, pt) > slack) view.tgt = { lat: pt.lat, lng: pt.lng };
   if (hdg != null) view.hdgTgt = hdg;
   view.sim = !!fix.sim;
   view.speed = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : 0;
@@ -6331,18 +6352,19 @@ const OverSpeed = {
     /* the limit is in km/h: the road packs convert a limit tagged in mph */
     const lim = limit / 3.6;
 
-    /* At or under the posted limit is silent, always. */
-    if (spd <= lim) { this.mark(false); return; }
+    /* Within the clear mark of the limit: silent, and re-armed. Three over
+       to start and two over to stop, so a cruise sitting on the limit
+       cannot chatter at it, and easing off a touch actually stops the
+       reminder instead of having to come all the way back to the sign. */
+    if (spd <= lim + CFG.ALERT_CLEAR / 3.6) { this.mark(false); return; }
 
-    /* Over it, but not yet by the margin, and not already sounding: still
-       silent. The three km/h is a threshold to start at, so a cruise
-       holding the limit cannot chatter at it.
-
-       It is not a band to fall quiet in, which is what it had become: once
-       sounding, easing back to a km/h over used to stop the reminder
-       without re-arming it, so picking the speed back up said nothing.
-       Between that and the thirty second gap, a driver sitting a few over
-       heard the chime once and then nothing. */
+    /* Between the two marks and not already sounding: still silent, and
+       still armed. That one km/h is the whole of the gap - once it is
+       sounding it keeps sounding until the speed is back inside the clear
+       mark, which is what a band without memory got wrong before: easing
+       back to a km/h over stopped the reminder without re-arming it, so
+       picking the speed up again said nothing at all. mark(false) is what
+       re-arms it, and it is only ever reached above. */
     if (!this.over && spd <= lim + CFG.ALERT_OVER / 3.6) return;
 
     this.mark(true);
@@ -6469,7 +6491,11 @@ const Rec = {
     this.saved = 0; this.seq = 0; this.savedDist = 0;
     if (view.has) this.push({ lat: view.tgt.lat, lng: view.tgt.lng, alt: view.alt, spd: view.speed, t: Date.now() });
     this.persist(); this.ui();
-    toast(view.has ? "Recording started" : "Recording started - waiting for GPS fix", view.has ? "ok" : "warn");
+    /* No chip for a recording that started properly: the red dot in the
+       header and the distance counting up say it, and keep saying it.
+       Starting without a fix is a different thing - nothing is being
+       logged yet and nothing else on the screen says so. */
+    if (!view.has) toast("Recording started - waiting for GPS fix", "warn");
   },
 
   pause: function () {
@@ -15164,29 +15190,47 @@ function stateCard(s, rec) {
     "</div></div>";
 }
 
+/* States only. The drawn boxes that used to be listed here held picture
+   tiles and nothing else, and nothing draws those - see sweepOldTiles. */
 async function renderAreas() {
-  let list = [];
-  try { list = (await DB.all("areas")) || []; } catch (e) { list = []; }
-  list.sort((a, b) => b.ts - a.ts);
   const recs = stateRecs();
   const states = CFG.STATES.filter(function (s) { return recs[s.id] || (stRun && stRun.s === s); });
   /* Whether a state is behind is a question for the manifests, which are
      stored - so this reads storage, not the network. Only asked when there
      is a state to ask it about. */
   if (states.length) await loadPackManifests();
-  $("#cntAreas").textContent = list.length + states.length;
+  $("#cntAreas").textContent = states.length;
   const box = $("#areaList");
-  if (!list.length && !states.length) { box.innerHTML = '<div class="empty">No offline areas downloaded.</div>'; return; }
-  box.innerHTML = states.map(function (s) { return stateCard(s, recs[s.id]); }).join("") + list.map(function (a) {
-    return '<div class="card" data-id="' + a.id + '">' +
-      '<div class="card-top"><div class="card-t">' + esc(a.name) + "</div>" +
-      '<span class="tag medium">z' + a.maxZoom + "</span></div>" +
-      '<div class="card-m"><span>' + a.tiles + " tiles</span><span>" + fmtBytes(a.tiles * CFG.TILE_BYTES) +
-      "</span><span>" + fmtDate(a.ts) + "</span></div>" +
-      '<div class="card-acts"><button class="btn xs ghost" data-act="go">Go To</button>' +
-      '<button class="btn xs ghost" data-act="del">Delete</button></div>' +
-      '</div>';
-  }).join("");
+  if (!states.length) { box.innerHTML = '<div class="empty">Nothing downloaded for offline use yet.</div>'; return; }
+  box.innerHTML = states.map(function (s) { return stateCard(s, recs[s.id]); }).join("");
+}
+
+/* The picture tiles the old map kept, and the drawn areas that indexed
+   them. The map is vector now and nothing can draw one of them again; with
+   the rows that showed them gone from the menu there is no longer a way to
+   get that space back by hand either, and on a phone that downloaded a few
+   areas it is hundreds of megabytes. So they go, once, on the first launch
+   after this - and the driver is told what was freed rather than finding
+   the space back with no explanation.
+
+   The flag is what makes it once. A phone that never drew a box has
+   nothing to clear and is never told anything. A failure leaves the flag
+   unset so the next launch tries again, rather than recording a sweep that
+   did not happen. */
+async function sweepOldTiles() {
+  if (loadLS(LS.swept, null)) return;
+  let n = 0;
+  try { n = await DB.count("tiles"); }
+  catch (e) { saveLS(LS.swept, 1); return; }    /* no such store: nothing to sweep, ever */
+  try {
+    if (n) await DB.clear("tiles");
+    await DB.clear("areas");
+  } catch (e) { return; }
+  saveLS(LS.swept, 1);
+  if (!n) return;
+  renderAreas();
+  refreshStorageStats();
+  toast("Freed " + fmtBytes(n * CFG.TILE_BYTES) + " of map pictures the new map cannot use", "warn");
 }
 
 async function deleteArea(id) {
@@ -15208,7 +15252,6 @@ async function deleteArea(id) {
 }
 
 async function refreshStorageStats() {
-  try { $("#kvTiles").textContent = await DB.count("tiles"); } catch (e) { $("#kvTiles").textContent = "--"; }
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
   try { $("#kvAddr").textContent = await Addr.stats(); } catch (e) { $("#kvAddr").textContent = "--"; }
   try { $("#kvRoute").textContent = await Route.stats(); } catch (e) { $("#kvRoute").textContent = "--"; }
@@ -16100,10 +16143,10 @@ async function navigateTo(dest, quiet) {
   setNavNote(Nav.standing);
   showNavPanel();
   navProgress();
-  if (!quiet) {
-    closeDrawer();
-    toast("Navigating to " + Nav.dest.name, "ok");
-  }
+  /* No chip for starting a route. The panel that just came up names the
+     destination and goes on naming it, which the chip did for two seconds
+     over the top of the map you were about to drive. */
+  if (!quiet) closeDrawer();
 }
 
 /* Progress is measured against the nearest point on the route. The cursor
@@ -17583,12 +17626,13 @@ function syncAlertButtons() {
   $("#btnAlertOn").classList.toggle("on", !!S.speedAlert);
   $("#btnAlertOff").classList.toggle("on", !S.speedAlert);
   $("#alertState").textContent = alertStateLine();
-  /* the margin in the driver's own units: 3 km/h, or 2 mph */
+  /* the two marks in the driver's own units: 3 and 2 km/h, or 2 and 1 mph */
   const over = Math.round(dispSpeed(CFG.ALERT_OVER / 3.6)) + " " + unitLabel("speed");
+  const clear = Math.round(dispSpeed(CFG.ALERT_CLEAR / 3.6)) + " " + unitLabel("speed");
   $("#alertNote").textContent =
     "A chime and red speed figures when you pass the posted limit by more than " + over +
     ", and the chime again every " + Math.round(CFG.ALERT_REPEAT / 1000) +
-    " seconds until you are back at or under it. Both only where the speed sign is showing a limit, and those " +
+    " seconds until you are back within " + clear + " of it. Both only where the speed sign is showing a limit, and those " +
     "limits come from OpenStreetMap - they are missing on many roads and can be out of date, so " +
     "the sign beside the road is the one that counts.";
 }
@@ -17700,8 +17744,12 @@ $("#btnPoiRestore").addEventListener("click", function () {
    does the same job from where the map already is, without the drawer
    having to close itself first to show you what you were placing on. */
 
-/* ---- offline areas ---- */
-$("#btnNewArea").addEventListener("click", startDrawArea);
+/* ---- offline areas ----
+   Draw A Box has no button any more, and the flow behind it - startDrawArea,
+   the area modal, runAreaDownload, deleteArea - is left standing rather
+   than pulled out. The states without a map of their own are the reason:
+   if one of them needs covering before its map is hosted, the picture
+   tiles are the fallback and this is what would be wired back up. */
 $("#btnDrawCancel").addEventListener("click", endDrawMode);
 $("#amZoom").addEventListener("change", updateAreaEstimate);
 $("#amCancel").addEventListener("click", function () {
@@ -17715,10 +17763,6 @@ $("#smStop").addEventListener("click", function () { if (stRun) dlAbort = true; 
 $("#smList").addEventListener("click", function (e) {
   const b = e.target.closest("button[data-act]");
   if (b && b.dataset.act === "get") runStateDownload(b.closest(".card").dataset.state);
-});
-$("#btnClearTiles").addEventListener("click", async function () {
-  if (!(await ask("Every offline area's cached map tiles will be deleted, not just one. Re-downloading them needs a connection."))) return;
-  clearTileCache();
 });
 $("#btnDiag").addEventListener("click", runDiagnostics);
 $("#btnClearPoi").addEventListener("click", async function () {
@@ -17814,23 +17858,10 @@ $("#areaList").addEventListener("click", async function (e) {
       openStateModal();
     } else if (b.dataset.act === "del") {
       if (!(await ask(state.name + "'s map, addresses, roads and POIs will be removed from this phone. " +
-                      "Areas you drew keep theirs.", "Delete", "Delete State?", "Keep"))) return;
+                      "Another downloaded state keeps whatever it covers too.", "Delete", "Delete State?", "Keep"))) return;
       deleteState(state.id);
     }
     return;
-  }
-  const id = b.closest(".card").dataset.id;
-  if (b.dataset.act === "go") {
-    const a = await DB.get("areas", id);
-    if (!a) return;
-    if (S.follow) pauseFollow();
-    resyncing = true;
-    fitVisible(L.latLngBounds(a.bounds[0], a.bounds[1]));
-    resyncing = false;
-    closeDrawer();
-  } else if (b.dataset.act === "del") {
-    if (!(await ask("This area and the offline map tiles it cached will be deleted."))) return;
-    deleteArea(id);
   }
 });
 
@@ -17999,6 +18030,9 @@ document.addEventListener("keydown", function (e) {
   renderTracks();
   renderAreas();
   refreshStorageStats();
+  /* After the splash is out of the way, and after the stores it reads are
+     not competing with the launch for them. */
+  setTimeout(sweepOldTiles, 5000);
   startGeo();
   Compass.start().then(renderGpsPanel);
   Wake.apply();                 /* the screen is wanted from the moment it opens */
