@@ -763,24 +763,50 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pin.poi .badge{width:22px;height:22px;border-radius:50%;transform:none;opacity:.92;border-style:dashed}
 .pin.poi .badge svg{width:12px;height:12px;transform:none;stroke-width:2.2}
 .maplibregl-popup-content{background:var(--panel);color:var(--sand);border:1px solid var(--line2);
-  border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);padding:10px 12px;font-size:var(--t-body);line-height:1.4;
+  border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.6);padding:8px 10px;font-size:var(--t-body);line-height:1.4;
   font-family:var(--ui)}
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip{border-top-color:var(--line2)}
-.maplibregl-popup-anchor-top .maplibregl-popup-tip{border-bottom-color:var(--line2)}
+/* A card taller than the clear stretch of map is held to it and scrolls
+   inside itself, rather than hanging its foot behind the console - which is
+   where the Navigate and Go To buttons are. A phone on its side is where
+   this bites: 334px of stage, 73 of heads-up display and 92 of console
+   leaves 153 for a card that wants 233. popFit sets the height, because it
+   is the one that has measured what is standing on screen at the time.
+   contain, so reaching the end of the card does not start panning the map. */
+.maplibregl-popup-content{overflow-y:auto;overscroll-behavior:contain}
+/* The arrow is the card, not its edge: the panel fill, so it reads as the
+   corner of the card being pulled down to the pin rather than a wedge of
+   something else sitting under it.
+
+   At every anchor, which is the other half of this. MapLibre has eight and
+   the app had named two - straight up and straight down - so the six with a
+   corner or a side in them kept the library's own white. Those are not the
+   rare ones: the side is chosen against half the card's width, so on a 375px
+   phone any pin within about 158px of either edge gets `left` or `right`,
+   and the arrow on it was white. The triangle is drawn as one coloured
+   border against three transparent ones, so each anchor has to name the
+   side it is actually showing - colouring all four would draw a square. */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip{border-bottom-color:var(--panel)}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip{border-top-color:var(--panel)}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip{border-right-color:var(--panel)}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip{border-left-color:var(--panel)}
 /* above every marker, the vehicle included - Leaflet kept cards in a pane over
    the markers, and a card with the arrow across it cannot be read */
 .maplibregl-popup{z-index:2000}
-.pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:var(--t-body);margin-bottom:3px}
+.pop-t{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:var(--t-body);margin-bottom:2px}
 /* The second line of a sign, where a place has one. Sits right under the
    name and above the category, because it is part of what the place calls
    itself rather than something the app worked out about it - and not
    uppercased, so the two lines read as a sign rather than as one heading
    that ran on. */
-.pop-sub{font-weight:600;font-size:var(--t-note);color:var(--sand);opacity:.9;margin:-1px 0 4px}
+.pop-sub{font-weight:600;font-size:var(--t-note);color:var(--sand);opacity:.9;margin:-1px 0 3px}
 .pop-m{font-variant-numeric:tabular-nums;font-size:var(--t-meta);color:var(--dim);letter-spacing:.05em}
-.pop-n{margin-top:5px;color:var(--sand);opacity:.85;font-size:var(--t-note)}
-.pop-ad{margin-top:5px;color:var(--sand);opacity:.95;font-size:var(--t-note)}
-.pop-a{display:flex;gap:6px;margin-top:9px}
+.pop-n{margin-top:4px;color:var(--sand);opacity:.85;font-size:var(--t-note)}
+.pop-ad{margin-top:4px;color:var(--sand);opacity:.95;font-size:var(--t-note)}
+.pop-a{display:flex;gap:6px;margin-top:7px}
 /* Three actions share the row in equal parts, the way a card's do, so the
    popup does not end in a stretch of empty panel. Fewer than three keep
    their own width: the waypoint popup carries only Delete, and a lone
@@ -813,7 +839,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pin.poi.cluster .cnum{font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);font-weight:700;color:#14181B;
   letter-spacing:0;line-height:1}
 /* the list a cluster popup shows: one tappable row per place underneath */
-.pop-rows{margin-top:7px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+.pop-rows{margin-top:5px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
   -webkit-overflow-scrolling:touch}
 .pop-row{display:flex;align-items:center;gap:8px;width:100%;min-height:var(--tap);text-align:left;
   background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:5px;padding:6px 8px;
@@ -1620,13 +1646,13 @@ details.sub > .sec-body{padding:12px 0 0}
    No dollar sign and no unit on a price - a fuel price in this country is
    cents a litre and has been all along, and the roadside board does not
    print them either. */
-.pop-facts{margin-top:7px;border-top:1px solid var(--line);padding-top:6px}
-.pop-facts > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
+.pop-facts{margin-top:5px;border-top:1px solid var(--line);padding-top:5px}
+.pop-facts > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .pop-facts > div > span{font-size:var(--t-note);color:var(--sand);opacity:.85;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .pop-facts > div > b{font-variant-numeric:tabular-nums;font-size:var(--t-body);color:var(--sand);
   letter-spacing:-.02em;flex:0 0 auto;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pop-facts > i{display:block;margin-top:3px;font-style:normal;
+.pop-facts > i{display:block;margin-top:2px;font-style:normal;
   font-size:var(--t-micro);letter-spacing:.09em;color:var(--dim);text-transform:uppercase}
 /* A price is the one value on a card that is the reason the card was opened,
    so it keeps the colour the fuel pin and the fuel chip already wear while
@@ -4674,7 +4700,7 @@ function fitBand(sb, cells, sign) {
    navigates, and a tap anywhere else puts it away. Sizes come from the
    --dial-* tokens, which change with the screen, so this reads them each
    time it runs. */
-const DIAL_STILL = window.matchMedia("(prefers-reduced-motion: reduce)");
+const LESS_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
 const Dial = { open: false, ready: false };
 /* the tallest the stage has been at this width - see the zoom buttons below */
 const zoomBase = { w: 0, h: 0 };
@@ -4910,7 +4936,7 @@ function openDial() {
   $("#actionRow").classList.add("open");
   $("#btnNavTo").setAttribute("aria-expanded", "true");
   stageEl.classList.add("dial-open");          /* the zoom column steps aside on a short screen */
-  if (!DIAL_STILL.matches && document.visibilityState === "visible") {
+  if (!LESS_MOTION.matches && document.visibilityState === "visible") {
     $("#btnNavTo").animate([{ transform: "scale(.9)" }, { transform: "none" }],
       { duration: 220, easing: "cubic-bezier(.3,.7,.3,1)" });
   }
@@ -5027,15 +5053,123 @@ const L = (function () {
 
   /* ---- popups: one at a time, as Leaflet had them ---- */
   let open = null;
+  /* The clear stretch of map: what is left between the heads-up display
+     along the top and whatever is standing along the bottom - the console,
+     the action row while it is up, Navigate itself. Measured off the boxes
+     rather than added up out of tokens, so it holds whatever those are set
+     to and whichever of them is on screen at the time. Held to a third of
+     the map, because a stretch narrower than that is not worth moving a
+     card into.
+
+     The bottom is one band across the whole width rather than the three
+     boxes it is made of. Navigate stands in the corner and a card in the
+     other one would clear it, but the console is full width whenever a bar
+     is up, so the band is what the bottom of the screen is most of the
+     time and dodging each box in turn would buy a few pixels for a lot of
+     arithmetic. */
+  function popClear(st) {
+    let bottom = 0;
+    ["#panelStack", "#btnNavTo", "#actionRow"].forEach(function (sel) {
+      const el = $(sel);
+      if (!el) return;
+      if (sel === "#actionRow" && !el.classList.contains("open")) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      bottom = Math.max(bottom, st.bottom - r.top);
+    });
+    return { top: hudStagePx + turnDropPx, bottom: Math.min(bottom, st.height / 3) };
+  }
+
+  /* Moving the map so the card can be read.
+
+     MapLibre picks which side of the pin its card opens on, and picks it
+     against the map's own box. That is the right choice made against the
+     wrong rectangle: the top of the map is under the heads-up display and
+     the bottom of it is under the console, so a pin near either edge opens
+     a card that is inside the map and behind the furniture. Measured on a
+     375x812 phone - a pin at the top opened a card with 49 px of its head
+     behind the display, one at the bottom put 25 px of its foot behind the
+     console, and in both the pin itself was under there with it.
+
+     So the map moves instead, by the least that brings the pin and the
+     whole card into the clear stretch. The least, and only when it has to:
+     a card that already fits moves nothing, because a map that jumps every
+     time it is touched is worse than a card sitting near an edge. A card
+     taller than the stretch keeps its head on screen, that being the name
+     of the place.
+
+     Not while the map is following the vehicle. The camera belongs to the
+     vehicle there - followCamera writes the centre twenty times a second -
+     and anything moved here would be taken straight back on the next fix.
+     The side MapLibre picked is measured against the same stretch below,
+     so a card opened while driving still opens on the side that fits. */
+  /* Held to the room there is, before anything measures it. Not only when
+     the map can be moved: a card opened while the map is following the
+     vehicle cannot be panned into view, so being able to reach the bottom
+     of it matters more there, not less. */
+  function popFit(el, st, clear) {
+    const box = el.querySelector(".maplibregl-popup-content");
+    if (!box) return;
+    /* Measured rather than worked out: the card carries a tip and a border
+       besides its own content, and the theme can move either. Cleared
+       first, so a card reopened at a bigger size is not held to the last
+       screen it was drawn on. */
+    box.style.maxHeight = "";
+    const chrome = el.getBoundingClientRect().height - box.getBoundingClientRect().height;
+    /* the stretch, less the margin at each end, less the gap the card keeps
+       off its pin and the pin itself */
+    const room = st.height - clear.top - clear.bottom - 16 - 28 - chrome;
+    box.style.maxHeight = Math.max(120, Math.round(room)) + "px";
+  }
+  function popInView(pop, at) {
+    if (S.follow) return;
+    const el = pop.getElement && pop.getElement();
+    if (!el) return;
+    const st = stageEl.getBoundingClientRect(), b = el.getBoundingClientRect();
+    if (!b.width || !b.height) return;
+    const clear = popClear(st), M = 8;
+    const pin = gl.project([at.lng, at.lat]);
+    /* the pin and its card as one box, so bringing either in cannot push
+       the other out */
+    const l = Math.min(b.left - st.left, pin.x - 12), r = Math.max(b.right - st.left, pin.x + 12);
+    const t = Math.min(b.top - st.top, pin.y - 12), z = Math.max(b.bottom - st.top, pin.y + 12);
+    const lo = clear.top + M, hi = st.height - clear.bottom - M;
+    /* How far the box is out, which is also how far the camera moves: pan
+       the camera down and the map comes up. Where the box is out at both
+       ends it is taller than the stretch, and the smaller of the two is
+       the one that keeps its head. */
+    let dx = 0, dy = 0;
+    if (t < lo) dy = t - lo;
+    else if (z > hi) dy = Math.min(z - hi, t - lo);
+    if (l < M) dx = l - M;
+    else if (r > st.width - M) dx = Math.min(r - (st.width - M), l - M);
+    /* a pin a pixel outside is a pin on the edge of the margin, not a card
+       anyone is struggling to read, and it is not worth a quarter of a
+       second of moving map to fix */
+    if (Math.abs(dx) < 2) dx = 0;
+    if (Math.abs(dy) < 2) dy = 0;
+    if (!dx && !dy) return;
+    /* Straight there for anyone who asked for less motion, and for a page
+       nobody is looking at: a hidden page runs no frames, so an eased move
+       started as the screen goes off sits at its first frame and then
+       finishes itself whenever the phone comes back - a card that jumps
+       minutes after it was opened. */
+    const still = LESS_MOTION.matches || document.visibilityState !== "visible";
+    gl.panBy([dx, dy], { duration: still ? 0 : 260 });
+  }
   function openPop(ll, content, opts) {
     closePop();
     const o = opts || {}, at = llOf(ll);
     const html = typeof content === "function" ? content() : content;
     /* MapLibre picks the side: above the pin by preference, below it when
-       the card would run into the padding - which along the top is the
-       heads-up display, so a pin just under the stats bar opens its card
-       beneath it rather than behind the speed and the heading tape. The gap
-       to the pin is the pin's own: `offset` above it, `below` under it. */
+       the card would run into the padding - which is the clear stretch
+       popClear measures, the heads-up display along the top and the console
+       and its company along the bottom - so a pin just under the stats bar
+       opens its card beneath it rather than behind the speed and the heading
+       tape. The gap to the pin is the pin's own: `offset` above it, `below`
+       under it. Picking the side is not enough on its own; popInView below
+       says why. */
+    const clear = popClear(stageEl.getBoundingClientRect());
     const up = o.offset ? -o.offset[1] : 0;
     const down = o.below != null ? o.below : up;
     const side = Math.round(Math.max(up, down) * 0.6);
@@ -5044,12 +5178,15 @@ const L = (function () {
       offset: { "bottom": [0, -up], "bottom-left": [0, -up], "bottom-right": [0, -up],
                 "top": [0, down], "top-left": [0, down], "top-right": [0, down],
                 "left": [side, 0], "right": [-side, 0], "center": [0, 0] },
-      padding: { top: hudStagePx + turnDropPx + 6, bottom: viewInsY + 6, left: 8, right: viewInsX + 8 },
+      padding: { top: clear.top + 6, bottom: clear.bottom + 6, left: 8, right: viewInsX + 8 },
       maxWidth: (o.maxWidth || 300) + "px",
       className: o.className || "tt-pop", focusAfterOpen: false
     }).setLngLat([at.lng, at.lat]).setHTML(html).addTo(gl);
     open = p;
     p.on("close", function () { if (open === p) open = null; });
+    const el = p.getElement && p.getElement();
+    if (el) popFit(el, stageEl.getBoundingClientRect(), clear);
+    popInView(p, at);
     fire("popupopen", {});
     return p;
   }
@@ -9359,7 +9496,22 @@ const POI_FIXES = [
     at: [-31.88692, 138.42330], within: 120,
     is: /^(repco:\s*)?chris'?s mechanical/i,
     name: "Repco: Chris's Mechanical & Tyres",
-    kind: "mechanic"
+    kind: "mechanic",
+    /* And moved onto the workshop. The scheme registers the place against
+       12 Wilpena Road, and its coordinate for that address landed 0.8 m from
+       the centreline - so the pin stood in the middle of the road the place
+       fronts, with the road's own name running under it. Nothing was wrong
+       with the drawing: a pin marks where it is told, and it was told the
+       road.
+
+       Where it stands now is node 5936800120, the same node this entry is
+       written around: a mapper put it on the workshop in 2018, 26 m west of
+       the registered address and 14.0 m clear of the centreline. Borrowed
+       rather than invented, which is the rule the fuel pins already follow -
+       pinFor takes the scheme for what a place is and OpenStreetMap for
+       where it stands. This one could not, because that node carries
+       highway=services and poiKind drops it before it is ever a POI. */
+    move: [-31.8869286, 138.4231728]
   },
   {
     /* Cobbler Creek's car park, where the map has two water points and
@@ -10329,12 +10481,24 @@ window.showPoi = showPoi;
    map surface does - and on a phone it is a 12 px target sitting where a
    thumb reaching for the card lands anyway. The waypoint and destination
    cards keep theirs; they are opened deliberately and closed the same way. */
-/* Leaflet's default content cap is 300px, and the wrapper adds about 29 more
-   in margin, border and tip - so a popup on a 320px phone is nine pixels
-   wider than the screen it has to fit on, before autoPan has anywhere to put
-   it. Measured from the stage rather than the window because the stage is
-   what the map is drawn in, and in landscape the rail has already taken a
-   bite out of it.
+/* 280, which is a measured number rather than an inherited one. It was 300,
+   Leaflet's own default content cap, and on a 375px phone that is four
+   fifths of the screen width for a card - too much of the map to give a
+   thing you opened to read one line off.
+
+   Narrowing a card usually costs height, since the title has to wrap: the
+   question is where that turns. Measured over the fourteen cards a screenful
+   of Hawker makes, at 280 one of them gains a line and thirteen are exactly
+   the height they were; at 270 three gain one. So 280 is as narrow as this
+   goes for free, and the card came down 20px without growing.
+
+   The floor is what the three actions need side by side - 184px of buttons
+   on a short name, 214 on a long one, plus the padding - so a screen too
+   narrow to hold that gets a card as wide as it can have. The wrapper adds
+   about 29px in margin, border and tip, which is what the 44 takes off.
+   Measured from the stage rather than the window because the stage is what
+   the map is drawn in, and in landscape the rail has already taken a bite
+   out of it.
 
    A function rather than a constant, because Leaflet copies the options
    object once when the popup is bound and never looks at it again: a getter
@@ -10364,7 +10528,7 @@ window.showPoi = showPoi;
 function popOpts() {
   const w = stageW || window.innerWidth;
   return { className: "tt-pop", closeButton: false,
-           maxWidth: Math.max(180, Math.min(300, w - 44)) };
+           maxWidth: Math.max(180, Math.min(280, w - 44)) };
 }
 
 function renderPois() {
@@ -16537,7 +16701,7 @@ function navArrive() {
    transitions, and without them there is no put-back to do. */
 function syncPanelStack() {
   const stack = $("#panelStack"), bars = [$("#navPanel"), $("#recPanel")];
-  const still = DIAL_STILL.matches, h0 = stack.clientHeight;
+  const still = LESS_MOTION.matches, h0 = stack.clientHeight;
   const fold = !still && h0 > 0;
   /* Measured from the console's foot, because that is the edge that does
      not move: a pair stands the gap taller than a single bar, so the head
