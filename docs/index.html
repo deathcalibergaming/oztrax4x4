@@ -4401,31 +4401,43 @@ const stageEl = $("#stage"), rotWrap = $("#rotWrap"), panWrap = $("#panWrap"), m
 let stageW = 0, stageH = 0, mapW = 0, mapH = 0;
 let mapReady = false;
 
-/* The action bar lies over the stage rather than shortening it, so the map
-   you can actually see is the stage less whatever that bar covers: its
-   height along the bottom in portrait, its width down the right in
-   landscape. Everything that means "the middle of the map" has to mean the
-   middle of that instead - where the vehicle is held, what the map turns
-   about, and what a screen point converts back to - or the vehicle sits low
-   by half a bar, and swings a half-bar arc every time the heading changes.
+/* The console lies over the stage rather than shortening it, so the map you
+   can actually see is the stage less the band it covers along the bottom.
+   Everything that means "the middle of the map" has to mean the middle of
+   that instead - where the vehicle is held, what the map turns about, and
+   what a screen point converts back to - or the vehicle sits low by half a
+   band and swings that much of an arc every time the heading changes.
 
-   Measured off the two boxes rather than worked out from any token, so it
-   holds whichever edge the bar is docked to and whatever
-   those are set to. Cached, because it only moves when the stage does. */
+   Measured off the console's box rather than worked out from a token, so it
+   holds whatever the tokens are set to. It used to measure #actionbar, and
+   #actionbar has been a zero-height strip with the disc hung above it since
+   the disc was put in the corner - so the guard on the next line was always
+   taken and both insets were always zero. The vehicle has been sitting in
+   the middle of the whole stage, half of it under the console, for as long
+   as the console has existed.
+
+   The console's band, not the disc's: the two are the same height by
+   construction, and the console is the full width, so it is the one box that
+   describes what is covered. Reserved whether a bar is up or not - the box
+   is always there and Navigate always stands in it, and an inset that came
+   and went with a recording would walk the vehicle up and down the screen
+   while somebody was driving.
+
+   Measured from the console's top down to the foot of the stage, not the
+   console's own height: it stands --stackB clear of the bottom edge, and
+   those few pixels are the safe area rather than map anybody is reading.
+
+   There is no rail down the side any more, so viewInsX is nothing and stays
+   for the popups and the camera padding that still read it. Cached, because
+   it only moves when the stage does. */
 let viewInsX = 0, viewInsY = 0;
 
 function measureViewInset(st) {
-  const bar = $("#actionbar");
-  const ab = bar && bar.getBoundingClientRect();
+  const con = $("#panelStack");
+  const cb = con && con.getBoundingClientRect();
   viewInsX = viewInsY = 0;
-  if (!ab || !ab.width || !ab.height) return;
-  /* spanning the stage means it is docked across the bottom; otherwise
-     it is the rail down the side */
-  if (ab.width >= st.width - 1) {
-    viewInsY = Math.max(0, Math.min(st.bottom, ab.bottom) - Math.max(st.top, ab.top));
-  } else {
-    viewInsX = Math.max(0, Math.min(st.right, ab.right) - Math.max(st.left, ab.left));
-  }
+  if (!cb || !cb.height) return;
+  viewInsY = Math.max(0, st.bottom - Math.max(st.top, cb.top));
 }
 
 function viewCenter() {
@@ -10163,28 +10175,50 @@ const Fuel = {
      nationally, which tools/check-pins.mjs lists and which is how these
      were found.
 
-     These are the South Australian ones. Each is the address the scheme
-     itself registered, answered by G-NAF instead - the same address, put on
-     the property by the state's cadastre rather than on the road by a
-     geocoder - and the app already ships all 11.4 million of them under
-     docs/addr, so this is its own data disagreeing with the scheme's, not a
-     directory's. They move 25 to 56 m and land 13 to 45 m off the
-     centreline. Where OpenStreetMap happened to have the business as well
-     the two agreed: 1 m apart at Glandore, 12 at Tumby Bay, 30 at
-     Callington.
+     Each is the address the scheme itself registered, answered by G-NAF
+     instead - the same address, put on the property by the state's cadastre
+     rather than on the road by a geocoder - and the app already ships all
+     11.4 million of them under docs/addr, so this is its own data
+     disagreeing with the scheme's, not a directory's. They move 11 to 79 m
+     and land 12 to 64 m off the centreline. Where OpenStreetMap happened to
+     have the business as well the two agreed: 1 m apart at Glandore, 12 at
+     Tumby Bay, 30 at Callington.
+
+     Three things decide whether a record gets one, and the second and third
+     are there because the first on its own placed servos badly.
+
+     The address has to parse. Queensland publishes a bare street line, "121
+     Gympie Road"; every other scheme appends the suburb, the state and the
+     postcode, so the line is cut at its first comma and a parenthetical
+     corner note dropped. A Lot number is refused outright - it is a parcel,
+     not a street number, and "Lot 4 Tumbi Creek Rd" read as number 4 puts a
+     servo on somebody else's block.
+
+     The town has to agree, where the scheme names one, because the same
+     street name turns up in the next suburb along.
+
+     And the answer has to be near. The point may not be more than 100 m from
+     the scheme's own, because past that the two are not describing one place
+     twice - it is a parse that has found the wrong parcel. That rule alone
+     turned away seven that had otherwise matched, one of them 248 m out.
+
+     Of the eighty-eight standing on a carriageway when this started,
+     thirty-five are placed here and fifty-two are left where they are, their
+     registered address being one nobody can answer: a street that does not
+     exist in the town, a corner rather than a number, a Lot, or a number the
+     street does not carry.
 
      Keyed by the scheme's id, not by name, because the name is whatever the
      scheme is calling it this week - and the id is already what a hidden pin
      is remembered by, so it is the one handle that holds still.
 
-     Five more are left where they are, having no address anyone can answer:
-     Lucindale is registered at 7 Gun Avenue and the street is Gum Avenue
-     with no number 7 on it, Karoonda at Lot 54 Peake Street which is a
-     parcel rather than a street number, Lyndhurst at 3 Short Street which
-     is not a street in Lyndhurst, Bordertown at 14 Dukes Highway where the
-     nearest numbered address is 328 m off, and Virginia North at 92 Old
-     Port Wakefield Road where that road runs through the 990s. Guessing at
-     those would be worse than leaving them.
+     South Australia's five are the shape of the rest: Lucindale registered
+     at 7 Gun Avenue where the street is Gum Avenue with no number 7 on it,
+     Karoonda at Lot 54 Peake Street, Lyndhurst at 3 Short Street which is
+     not a street in Lyndhurst, Bordertown at 14 Dukes Highway where the
+     nearest numbered address is 328 m off, and Virginia North at 92 Old Port
+     Wakefield Road where that road runs through the 990s. Guessing at those
+     would be worse than leaving them.
 
      Not a repair. The durable fix is the scheme registering a better
      coordinate, or the business being on the map. */
@@ -10201,7 +10235,29 @@ const Fuel = {
     "safpis/61577259": [-34.955350, 138.568900],   /* OTR Glandore, 134-136 Anzac Hwy */
     "safpis/61577392": [-35.688640, 139.337430],   /* Meningie Perrys Unmanned, 67 Princes Hwy */
     "safpis/61577295": [-35.116510, 139.037400],   /* Callington General Store, 14-16 Baker St */
-    "safpis/61501449": [-34.145360, 138.411970]    /* McCracken Ford, 1 Edith Tce, Balaklava */
+    "safpis/61501449": [-34.145360, 138.411970],   /* McCracken Ford, 1 Edith Tce, Balaklava */
+    "fuelcheck/146514298894459": [-33.771600, 150.858560],   /* 7-Eleven Bungarribee, 100 Eastern Road, Bungarribee */
+    "fuelcheck/62745077241616": [-31.189330, 152.974320],   /* Access Fuel, 10 Pacific Street, Crescent Head */
+    "fuelcheck/2132976088813": [-33.982660, 150.845820],   /* BP Denham Court, 505 Campbelltown Road, Denham Court */
+    "fuelcheck/245218201300164": [-33.023370, 151.605400],   /* Carey bay servo, 42 Ambrose Street, Carey Bay */
+    "fuelcheck/26400597034611": [-36.075110, 146.921300],   /* Shell Reddy Express Albury, 463-465 Guinea Street, Albury */
+    "fuelqld/61402349": [-25.550780, 152.676720],   /* Ampol Tinana, 121 Gympie Road, Tinana */
+    "fuelqld/61478289": [-27.531860, 151.191000],   /* Cecil Plains Shop, 61 Taylor Street, Cecil Plains */
+    "fuelqld/61402768": [-23.841180, 151.245490],   /* IOR Gladstone, 69 Hanson Road, Gladstone Central */
+    "fuelqld/61477950": [-12.021040, 141.903700],   /* Mapoon Aboriginal Shire Council, 8 Main Street, Mapoon */
+    "fuelqld/61401356": [-27.423720, 153.062960],   /* Mobil Driveway Service Hendra Motors, 154A Kitchener Road, Ascot */
+    "fuelqld/61401718": [-27.545160, 153.019620],   /* Moorooka Servo, 485 Beaudesert Road, Moorooka */
+    "fuelqld/61478105": [-27.852960, 151.902500],   /* Nobby General Store, 14 Tooth Street, Nobby */
+    "fuelqld/61470966": [-23.850320, 151.265920],   /* Pearl Energy Gladstone, 40 Toolooa Street, South Gladstone */
+    "fuelqld/61402800": [-17.577630, 146.006780],   /* Pearl Energy Wangan, 62-66 Meyer Avenue, Wangan */
+    "fuelqld/61402592": [-27.188150, 151.268300],   /* T & H Service Dalby, 99 Drayton Street, Dalby */
+    "fuelqld/61402576": [-17.223910, 145.479170],   /* The Tolga Garage, 56 Kennedy Highway, Tolga */
+    "fuelqld/61477810": [-26.175110, 152.680180],   /* The Victory Store, 46 Bath Terrace, Victory Heights */
+    "fuelqld/61478264": [-27.432830, 153.131580],   /* Woodham Petroleum Hemmant, 47 Wyuna Court, Hemmant */
+    "servosaver/214800402714232": [-37.780840, 144.872320],   /* 7-Eleven Maidstone, 12 Hampstead Road, Maidstone */
+    "servosaver/190257298978254": [-36.382820, 145.413370],   /* 7-Eleven Shepparton East, 1-5 Benalla Road, Shepparton */
+    "fuelwatch/85467925185284": [-32.104540, 115.803990],   /* BP Bibra Lake, 2 Wellard Street, Bibra Lake */
+    "fuelwatch/16791871362657": [-31.990650, 116.000070]   /* S24 Forrestfield, 155 Hale Road, Forrestfield */
   },
 
   pinFor: function (st, osm) {
