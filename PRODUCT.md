@@ -116,9 +116,14 @@ stated direction; no date is set.
   and waypoint on every installed copy, and renaming them would orphan that
   data on update rather than migrate it. They are internal identifiers no user
   ever sees; leave them alone.
-- Existing assets: `docs/icon-192.png`, `docs/icon-512.png`. Both carry a mark
-  the rename did not touch — the orange ridge line, the green summit dot, the
-  sand rule beneath them — so neither needs reissuing.
+- Existing assets: `docs/icon-192.png`, `docs/icon-512.png`. Both carry the
+  same mark the rename did not touch, and it is a **compass badge**: a thin
+  ring on near-black, four Sand cardinal ticks at the quarters with twelve
+  shorter ones between, and a solid Burnt Orange needle pointing north. No
+  ridge line, no summit dot, no rule beneath. The interface draws the same
+  mark in SVG — the splash's `.sp-mark`, and the menu button's badge — so the
+  paths are in `docs/index.html` rather than only in the PNGs, and anything
+  needing the mark should take them from there rather than redraw it.
 - **Explore The Roads Least Travelled** is the tagline (confirmed 2026-09-08),
   carried over from the splash it was written for. Beyond it and the wordmark,
   no voice, tone or identity system has been confirmed. Future work must not
