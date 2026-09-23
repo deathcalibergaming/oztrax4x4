@@ -39,13 +39,18 @@ style.sprite = "sprites/ofm";
    here means a B road carrying its badge four times a screen the whole way
    up the Flinders: at the zoom people drive at, 200 px is 800 m.
 
-   Counted in ground instead - fifty kilometres, which is a touring distance
-   rather than a suburb's. An exponential interpolation with base 2 against
-   the zoom is exactly 2^z, which is how the scale moves, so one pair of
-   stops holds the same ground gap all the way between them. The numbers are
-   worked at 32 degrees south, about the middle of the mainland; the gap runs
-   some 16% either side of fifty across a country this tall, which is nothing
-   against the 60-fold cut this is making.
+   Counted in ground instead - twenty-five kilometres, which is a touring
+   distance rather than a suburb's. An exponential interpolation with base 2
+   against the zoom is exactly 2^z, which is how the scale moves, so one pair
+   of stops holds the same ground gap all the way between them. The numbers
+   are worked at 32 degrees south, about the middle of the mainland; the gap
+   runs some 16% either side of twenty-five across a country this tall, which
+   is nothing against the thirtyfold cut this is making.
+
+   Fifty first, which was a shield so rarely on screen that the road's name
+   was carrying identification single-handed. Twenty-five keeps the name -
+   there is still far more room than the old 800 m left it - and puts the
+   badge back within reach of a screen at the zooms the map is read at.
 
    From zoom 11 because that is where Liberty stops placing the shield at a
    point and starts running it along the line - below that there is one to a
@@ -61,6 +66,6 @@ style.sprite = "sprites/ofm";
 const shield = style.layers.find(l => l.id === "highway-shield-non-us");
 if (!shield) throw new Error("highway-shield-non-us: upstream has renamed or dropped it");
 shield.layout["symbol-spacing"] =
-  ["interpolate", ["exponential", 2], ["zoom"], 11, 1543, 14, 12342];
+  ["interpolate", ["exponential", 2], ["zoom"], 11, 771, 14, 6171];
 fs.writeFileSync(OUT, JSON.stringify(style));
 console.log("wrote", OUT.pathname, style.layers.length, "layers");
