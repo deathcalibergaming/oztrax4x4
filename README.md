@@ -157,6 +157,17 @@ one line that changes then.
 The relief still needs a signal: it is shaded on the phone from terrain
 tiles that are not part of the state's map.
 
+**The highway shields are respaced on the way in.** Liberty puts one every
+200 screen pixels, which is a city's number — and, being pixels, it holds at
+every zoom: out here that is a B road wearing its badge four times a screen,
+800 m apart at the zoom people drive at. `tools/build-vmap-style.mjs` rewrites
+`symbol-spacing` on `highway-shield-non-us` as an exponential-base-2 zoom
+curve, which tracks the scale exactly and so holds a constant *ground* gap of
+about 50 km (worked at 32°S, and some 16% either side of that across a country
+this tall). What comes back for it is the road's name: `highway-name-major` was
+always there and losing its place to the badges, so the stretch that read
+B83 B83 B83 now reads Flinders Ranges Way.
+
 ## Updating
 
 Edit `docs/index.html` and push. Phones running the installed copy show the
