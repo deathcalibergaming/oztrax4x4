@@ -3730,13 +3730,23 @@ const CFG = {
      same tile and scales it. The app has been doing this for three steps
      already without anybody deciding to.
 
-     Counted at Hawker rather than reasoned about: one openmaptiles tile and
-     one relief tile on screen at z17, and one of each at z18. The only
-     numbers that moved were this app's own GeoJSON sources - the trail and
-     the pins - which MapLibre slices into a couple more internal tiles of
-     data already in memory. So the step is free, and the old ceiling was
-     holding back a limit that no longer exists. */
-  MIN_Z: 3, MAX_Z: 18,
+     Counted at Hawker rather than reasoned about, over every source on
+     screen: one openmaptiles tile and one relief tile at z17, and one of
+     each at z18, z19 and z20 alike. The totals run 108, 114, 106 and 58 -
+     they fall at the end, because the app's own GeoJSON sources need fewer
+     internal slices the further in you go. So the steps are free, and the
+     old ceiling was holding back a limit that stopped existing in #265.
+
+     Twenty, then, and stopping there for a reason rather than for want of
+     room: MapLibre would go to 22. Six steps above the data is already a
+     sixty-fourfold magnification, and what shows at that point is not blur
+     but generalisation - OpenMapTiles simplifies geometry for drawing at
+     z14, so a kerb line that was never surveyed round the corner will not
+     appear however far in you go. Looked at on the phone at Hawker: roads,
+     labels and buildings are all still crisp at z20, which is a couple of
+     buildings and a junction across the screen and as close as anybody has
+     a reason to be. */
+  MIN_Z: 3, MAX_Z: 20,
   /* TOPO_MAX_Z lived here: the deepest zoom Esri drew the topo map at, found
      by probing eighteen inland places from Adelaide to Mt Dare. It fed
      Leaflet's maxNativeZoom, which stopped asking past it and stretched the
@@ -3746,8 +3756,9 @@ const CFG = {
   /* The zoom at and above which POIs stop grouping. Its own number rather
      than MAX_Z: raising the ceiling should not quietly put the grouping
      back at the zoom where it was asked to stop. The ceiling has since been
-     raised - 17 to 18 - and this is what that sentence was written for, so
-     it stays at 17 and the two deepest zooms both show every pin. */
+     raised twice - 17 to 18, then to 20 - and this is what that sentence was
+     written for, so it stays at 17 and every zoom from there up shows every
+     pin. */
   POI_SPLIT_Z: 17,
   /* Below POI_SPLIT_Z the grouping guarantees no two pins are nearer than
      POI_CLUSTER_PX. At and above it nothing is grouped, so this is the
