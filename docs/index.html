@@ -2175,36 +2175,6 @@ input[type=date],input[type=time]{color-scheme:dark}
   letter-spacing:.06em;padding:3px 0}
 .kv b{color:var(--sand);font-weight:600}
 
-/* ---------- draw box ---------- */
-/* Under the heads-up display, where the map chips sit, not 12px from the top
-   of the map. The stat bar is drawn over the top of the map at 600, so a hint
-   placed there came up behind the heading tape, the speed and the readings,
-   Cancel included. The same 12px either side, where it used to keep 60px on
-   the right for the zoom buttons. Upright they sit lower down the map than
-   this does; on a phone on its side they reach up into its rows, and there
-   drawHintFit narrows it and keeps it centred instead - the turn bar's rule. */
-#drawHint{position:absolute;top:calc(var(--hudStage) + 10px + var(--turnDrop, 0px));left:12px;right:12px;
-  margin-inline:auto;z-index:470;background:rgba(23,28,25,.95);
-  border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:var(--t-note);line-height:1.4;color:var(--sand)}
-#drawHint b{color:var(--rust2);letter-spacing:.1em;font-size:var(--t-label-sm);display:block;margin-bottom:3px;text-transform:uppercase}
-#drawRect{position:absolute;z-index:460;border:2px dashed var(--rust);background:rgba(204,90,46,.15);pointer-events:none}
-/* Drawing the box needs the finger's whole gesture, and by default it does
-   not get it. #stage and Leaflet's own container both declare
-   touch-action:pan-x pan-y, which tells the browser a one-finger drag is a
-   pan it should handle itself - so it takes the gesture over, fires
-   pointercancel, and the box stops growing the moment the finger moves.
-   With a mouse none of that applies, which is why this worked at a desk and
-   not in a vehicle.
-
-   Turning dragging off in Leaflet does not help: that stops Leaflet panning
-   the map, not the browser claiming the touch. Only touch-action does that.
-   The descendants need it too, because the value that counts is the one on
-   the element the finger lands on, and the finger lands on a tile inside the
-   container, not on the stage. Scoped to .drawing, so the map pans normally
-   the rest of the time. */
-#stage.drawing{cursor:crosshair;touch-action:none}
-#stage.drawing *{touch-action:none}
-
 /* ---------- toast ---------- */
 /* Sits just under the stats row at the top of the map, where it is read
    without looking away from the road, rather than down by the action bar
@@ -2876,13 +2846,6 @@ input[type=date],input[type=time]{color-scheme:dark}
         <span>Simulated drive - tap to stop</span>
       </button>
     </div>
-    <div id="drawRect" class="hidden"></div>
-    <div id="drawHint" class="hidden">
-      <b>Select offline area</b>
-      Drag a box across the map to mark the region to download.
-      <div class="row" style="margin-top:9px">
-        <button class="btn sm ghost" id="btnDrawCancel">Cancel</button>
-      </div>
     </div>
 
     <!-- The console: the bar along the bottom edge that curves around the
@@ -3367,48 +3330,7 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
 </div>
 
-<div id="areaModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="amTitle">
-  <div class="modal-box">
-    <div class="modal-head"><h2 class="t" id="amTitle">Download Area</h2></div>
-    <div class="modal-body">
-      <div id="amSetup">
-        <div class="fld">
-          <label for="amName">Area name</label>
-          <input id="amName" type="text" maxlength="40" autocomplete="off">
-        </div>
-        <div class="fld">
-          <label for="amZoom">Detail level</label>
-          <select id="amZoom">
-            <option value="13">z13 &mdash; Region overview</option>
-            <option value="14">z14 &mdash; Main tracks</option>
-            <option value="15">z15 &mdash; Side tracks</option>
-            <!-- Stops at z16 because the basemap does. z17 and z18 were
-                 offered here and fetched an empty square per tile in the
-                 places that have no cartography that deep - paid for in
-                 bytes and in space, and never drawn, since the map does
-                 not ask past z16 either. -->
-            <option value="16" selected>z16 &mdash; Maximum detail</option>
-          </select>
-        </div>
-        <div class="hint">Tiles are downloaded from z12 up to the selected level and stored in this device's browser cache. The map still zooms closer than z16; past there it enlarges the z16 map rather than fetching tiles Esri does not draw.</div>
-        <div class="kv"><span>Tiles to fetch</span><b id="amCount" class="bignum">0</b></div>
-        <div class="kv"><span>Approx. size</span><b id="amSize">--</b></div>
-        <div class="kv"><span>Free space</span><b id="amFree">--</b></div>
-        <div id="amWarn" class="note bad-note hidden"></div>
-      </div>
-      <div id="amProgress" class="hidden">
-        <div class="prog"><i id="amBar"></i></div>
-        <div class="kv"><span id="amStatus">Downloading&hellip;</span><b id="amPct">0%</b></div>
-        <div class="kv"><span>Fetched / cached / failed</span><b id="amTally">0 / 0 / 0</b></div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn sm ghost" id="amCancel">Cancel</button>
-      <button class="btn sm primary" id="amGo">Download</button>
-    </div>
-  </div>
-</div>
-
+ The same modal holds the choice and then
 <!-- A whole state's data at once. The same modal holds the choice and then
      the progress, and it can be closed while the download carries on: New
      South Wales is half an hour, and the map is still wanted meanwhile. -->
@@ -3483,16 +3405,6 @@ const CFG = {
      pixel past 2 is GPU memory and fill for a line that was already sharp
      at 2 - vector is drawn, not stretched like the Esri tiles were. */
   GL_MAX_DPR: 2,
-  TILE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-  /* Esri's hillshade is a near-white image - measured mean
-     luminance 245 - meant to be multiplied into a map rather than laid
-     under one. Under the topo it did almost nothing; multiplied over it,
-     the slopes darken and the shape of the country comes up while the
-     roads, tracks and labels underneath stay legible. Same host as the
-     tiles already in use. */
-  HILLSHADE_URL: "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-  SHADE_STRENGTH: 0.85,    /* how hard the relief is pressed into the map */
-  SHADE_MAX_Z: 13,         /* past this Esri has no relief, only a placeholder */
   /* POIs come from the offline pack (see Pack), which covers the country.
      Overpass is for ground the pack does not: it queries OpenStreetMap by
      tag, so unlike a geocoder it can see the 93% of POIs out here that carry
@@ -3766,7 +3678,10 @@ const CFG = {
      wider than the 22 px a pin is drawn at, so there is a gap rather than
      a shared edge. */
   POI_FAN_PX: 28,
-  DL_MIN_Z: 12, DL_CONC: 6, TILE_BYTES: 22000,
+  /* What sweepOldTiles multiplies to tell a phone how much it just got
+     back. The picture tiles it sweeps averaged this, measured over the
+     downloads that produced them; nothing fetches one any more. */
+  TILE_BYTES: 22000,
   /* An area download is limited by the device and nothing else. There used
      to be a flat cap of 2500 tiles here, which is about 55 MB - a number
      picked to be safe on the smallest phone, and so the wrong number on
@@ -3806,7 +3721,7 @@ const CFG = {
      not bandwidth-bound: about 270 ms a file whatever its size. Measured
      cold against the live site, one at a time managed 3.7 files a second
      and 24 at a time 80.6 - South Australia in six minutes rather than two
-     hours. Imagery keeps DL_CONC; its tiles are ten times the size. */
+     hours. */
   PACK_CONC: 24,
   /* What the estimate assumes a phone manages at PACK_CONC. The desktop
      measured 80; a phone on 4G is 1.5 to 3 times slower. */
@@ -4933,7 +4848,6 @@ function layoutDial() {
   zc.style.top = Math.round(Math.min(Math.max(mid, lo), hi > lo ? hi : lo)) + "px";
   zc.style.transform = "none";
   navTurnFit();              /* the turn bar's right edge stands off this column */
-  drawHintFit();             /* and so does the draw hint's, while it is up */
   Dial.ready = true;
   fitPanels();               /* the room beside Navigate may have changed with it */
   nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
@@ -6453,9 +6367,7 @@ function clearFollowTransform() {
 /* Dragging stays enabled in every mode, turned or not: MapLibre drags a
    turned map correctly, which Leaflet could not. */
 function syncDragMode() {
-  /* box selection borrows the drag gesture, so leave it alone while armed */
-  if (typeof drawMode !== "undefined" && drawMode) return;
-  /* and so does dragging the vehicle */
+  /* dragging the vehicle borrows the drag gesture, so leave it alone */
   if (Manual.dragging) return;
   if (!gl.dragPan.isEnabled()) gl.dragPan.enable();
 }
@@ -8596,7 +8508,7 @@ map.on("preclick", function () {
 map.on("popupopen", function () { dismissedPopup = false; });
 
 map.on("click", function (e) {
-  if (drawMode || Date.now() < suppressMapClickUntil) return;
+  if (Date.now() < suppressMapClickUntil) return;
   if (dismissedPopup) { dismissedPopup = false; return; }
   if (wpFormOpen) { closeWpForm(); return; }
   const oe = e.originalEvent;
@@ -15329,170 +15241,8 @@ function lat2tile(lat, z) {
   const r = rad(clamp(lat, -85.05112878, 85.05112878));
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
 }
-/* The tiles a box covers, handed out one at a time rather than returned as
-   an array. An area is bounded by the device's free space now rather than
-   by a flat count, so a box can legitimately run to hundreds of thousands
-   of tiles - and listing them first spends tens of megabytes describing a
-   download before a byte of it has been fetched, on the phone that had the
-   least room to begin with. The download and the delete both pull from
-   here, so they cover exactly the same ground.
-
-   Relief is yielded beside the tile it shades rather than in a pass of its
-   own, so a download that is stopped part way leaves finished ground
-   behind instead of imagery still waiting to be shaded. */
-function* tileSeq(bounds, maxZ, withShade) {
-  for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
-    const x0 = lon2tile(bounds.getWest(), z), x1 = lon2tile(bounds.getEast(), z);
-    const y0 = lat2tile(bounds.getNorth(), z), y1 = lat2tile(bounds.getSouth(), z);
-    /* Relief only to zoom 13, because that is as deep as the data goes -
-       past it every square on earth returns the same placeholder, so
-       fetching them would spend the connection on a picture of the words
-       "map data not yet available". That ceiling is also why shading is
-       cheap: its share does not grow as the detail level does. */
-    const shade = withShade && z <= CFG.SHADE_MAX_Z;
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
-      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
-        yield { z: z, x: x, y: y };
-        if (shade) yield { z: z, x: x, y: y, hs: true };
-      }
-  }
-}
-
-/* The same number, reached by multiplying instead of counting. The dialog
-   asks for it again on every change of the detail level, and z16 over a
-   week's worth of country is a hundred thousand tiles and more: a rounding
-   error to multiply out, and a visible stall to walk. */
-function tileCountFor(bounds, maxZ, withShade) {
-  let n = 0;
-  for (let z = CFG.DL_MIN_Z; z <= maxZ; z++) {
-    const x0 = lon2tile(bounds.getWest(), z), x1 = lon2tile(bounds.getEast(), z);
-    const y0 = lat2tile(bounds.getNorth(), z), y1 = lat2tile(bounds.getSouth(), z);
-    const box = (Math.abs(x1 - x0) + 1) * (Math.abs(y1 - y0) + 1);
-    n += box + (withShade && z <= CFG.SHADE_MAX_Z ? box : 0);
-  }
-  return n;
-}
-function tileURL(t) {
-  const url = t.hs ? CFG.HILLSHADE_URL : CFG.TILE_URL;
-  return url.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y);
-}
-/* Matches the prefix the live layer caches under, so a tile downloaded for
-   an area is the same tile the map finds later. */
-function tileKey(t) { return (t.hs ? "hs:" : "") + t.z + "/" + t.x + "/" + t.y; }
-
-let drawMode = false, drawStart = null, pendingBounds = null, dlAbort = false;
-let suppressMapClickUntil = 0;   /* a finished box-drag must not also drop a waypoint */
-
-function startDrawArea() {
-  closeDrawer();
-  if (S.follow) pauseFollow();
-  drawMode = true;
-  map.dragging.disable();
-  $("#drawHint").classList.remove("hidden");
-  drawHintFit();
-  stageEl.classList.add("drawing");
-}
-
-/* Where the zoom column reaches up into the hint's rows - a phone on its
-   side - the hint stops 8px short of it and stays centred, the same gap on
-   the left as on the right, which is navTurnFit's rule for the turn bar.
-   Measured at full width first, so the answer cannot change the question.
-   Too narrow to centre and still read, it takes the room on the left.
-
-   Asked of the hint's own class rather than drawMode: layoutDial calls this
-   during the first layout, before that let has been initialised. */
-function drawHintFit() {
-  const h = $("#drawHint"), zc = $("#zoomCtl");
-  if (!h || h.classList.contains("hidden")) return;
-  h.style.maxWidth = "";
-  h.style.right = "";
-  if (!zc) return;
-  const b = h.getBoundingClientRect(), z = zc.getBoundingClientRect();
-  if (!(z.top < b.bottom && z.bottom > b.top && z.left < b.right)) return;
-  const st = stageEl.getBoundingClientRect(), edge = z.left - 8;
-  const w = Math.round(2 * edge - st.left - st.right);
-  if (w >= 280) h.style.maxWidth = w + "px";
-  else h.style.right = Math.round(st.right - edge) + "px";
-}
-function endDrawMode() {
-  drawMode = false;
-  drawStart = null;
-  map.dragging.enable();
-  $("#drawHint").classList.add("hidden");
-  $("#drawRect").classList.add("hidden");
-  stageEl.classList.remove("drawing");
-}
-
-stageEl.addEventListener("pointerdown", function (e) {
-  if (!drawMode) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
-  e.preventDefault(); e.stopPropagation();
-  const st = stageEl.getBoundingClientRect();
-  drawStart = { cx: e.clientX, cy: e.clientY, x: e.clientX - st.left, y: e.clientY - st.top };
-  /* The rest of the drag is delivered here whatever the finger passes over
-     on its way - a marker, a popup, the edge of a panel - instead of the
-     stream stopping the moment it leaves the element it started on. */
-  try { stageEl.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
-  const r = $("#drawRect");
-  r.classList.remove("hidden");
-  r.style.left = drawStart.x + "px"; r.style.top = drawStart.y + "px";
-  r.style.width = "0px"; r.style.height = "0px";
-}, true);
-
-stageEl.addEventListener("pointermove", function (e) {
-  if (!drawMode || !drawStart) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
-  e.preventDefault(); e.stopPropagation();
-  const st = stageEl.getBoundingClientRect();
-  const x = e.clientX - st.left, y = e.clientY - st.top;
-  const r = $("#drawRect");
-  r.style.left = Math.min(x, drawStart.x) + "px";
-  r.style.top = Math.min(y, drawStart.y) + "px";
-  r.style.width = Math.abs(x - drawStart.x) + "px";
-  r.style.height = Math.abs(y - drawStart.y) + "px";
-}, true);
-
-stageEl.addEventListener("pointerup", function (e) {
-  if (!drawMode || !drawStart) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
-  e.preventDefault(); e.stopPropagation();
-  const a = clientToLatLng(drawStart.cx, drawStart.cy);
-  const b = clientToLatLng(e.clientX, e.clientY);
-  const w = Math.abs(e.clientX - drawStart.cx), h = Math.abs(e.clientY - drawStart.cy);
-  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
-  endDrawMode();
-  suppressMapClickUntil = Date.now() + 500;
-  if (w < 24 || h < 24) { toast("Box too small - try again", "warn"); return; }
-  pendingBounds = L.latLngBounds(a, b);
-  openAreaModal();
-}, true);
-
-/* A gesture the system takes away - a second finger landing, a notification
-   sheet pulled down, the call that comes while you are choosing an area -
-   has to put the box away rather than leave a half-drawn rectangle on the
-   map and drawStart set behind it. Draw mode itself is kept, so the finger
-   can simply start again. */
-stageEl.addEventListener("pointercancel", function (e) {
-  if (!drawMode || !drawStart) return;
-  try { stageEl.releasePointerCapture(e.pointerId); } catch (err) { /* already gone */ }
-  drawStart = null;
-  $("#drawRect").classList.add("hidden");
-}, true);
-
-function openAreaModal() {
-  $("#areaModal").classList.remove("hidden");
-  $("#amSetup").classList.remove("hidden");
-  $("#amProgress").classList.add("hidden");
-  $("#amGo").classList.remove("hidden");
-  $("#amGo").textContent = "Download";
-  $("#amCancel").textContent = "Cancel";
-  $("#amTitle").textContent = "Download Area";
-  $("#amName").value = "Area " + fmtDate(Date.now()).slice(0, 10);
-  $("#amFree").textContent = "--";
-  $("#amWarn").classList.add("hidden");
-  updateAreaEstimate();
-}
-function closeAreaModal() { $("#areaModal").classList.add("hidden"); pendingBounds = null; }
+let dlAbort = false;
+let suppressMapClickUntil = 0;   /* a finished drag must not also drop a waypoint */
 
 /* How much this device will still let the app keep.
 
@@ -15658,180 +15408,13 @@ function throttle(fn, ms) {
   };
 }
 
-let amEstSeq = 0;
-async function updateAreaEstimate() {
-  if (!pendingBounds) return;
-  const seq = ++amEstSeq;
-  const z = parseInt($("#amZoom").value, 10);
-  /* Counted on the whole download, not just the map half: with relief
-     switched on it really is more tiles and more bytes. */
-  const n = tileCountFor(pendingBounds, z, S.hillshade);
-  const bytes = n * CFG.TILE_BYTES;
-  $("#amCount").textContent = n;
-  $("#amSize").textContent = fmtBytes(bytes);
 
-  const free = await freeSpace();
-  /* The detail level can have been changed again while that was in flight,
-     and the answer to the old question must not overwrite the new one. */
-  if (seq !== amEstSeq) return;
-  const short = free !== null && bytes + CFG.DL_RESERVE > free;
-  $("#amFree").textContent = free === null ? "Unknown" : fmtBytes(free);
-  $("#amCount").classList.toggle("over", short);
-  $("#amGo").disabled = n === 0 || short;
-  $("#amWarn").classList.toggle("hidden", !short);
-  if (short)
-    $("#amWarn").textContent =
-      "Not enough free space. This area needs " + fmtBytes(bytes) + " and there is " +
-      fmtBytes(free) + " free. Lower the detail level, draw a smaller box, or delete " +
-      "an area you have finished with.";
-}
 
-/* One download at a time. The area and the state share dlAbort, and two
-   queues of twenty-four would halve each other anyway. */
+/* One download at a time: two queues of twenty-four would halve each other.
+   It guarded the drawn-area download and the state download both, and now
+   only the state one is left. */
 let dlBusy = false;
 
-async function runAreaDownload() {
-  const z = parseInt($("#amZoom").value, 10);
-  const name = ($("#amName").value || "").trim() || "Area";
-  const bounds = pendingBounds;
-  const total = tileCountFor(bounds, z, S.hillshade);
-  if (!total) return;
-  if (dlBusy) { toast("A download is already running - wait for it or stop it", "warn"); return; }
-
-  /* Asked again here rather than trusting the dialog. The estimate was
-     taken when the box was drawn, and a camera roll, another tab or a
-     previous area can have spent the difference between then and the tap
-     on Download. */
-  const free = await freeSpace();
-  if (free !== null && total * CFG.TILE_BYTES + CFG.DL_RESERVE > free) {
-    updateAreaEstimate();
-    toast("Not enough free space for this area", "err");
-    return;
-  }
-
-  dlAbort = false;
-  dlBusy = true;
-  Wake.pin(true);
-  let outOfSpace = false;
-  $("#amSetup").classList.add("hidden");
-  $("#amProgress").classList.remove("hidden");
-  $("#amGo").classList.add("hidden");
-  $("#amCancel").textContent = "Stop";
-  $("#amTitle").textContent = "Downloading";
-
-  let done = 0, fetched = 0, cached = 0, failed = 0;
-  function tally() {
-    const pct = Math.round(done / total * 100);
-    $("#amBar").style.width = pct + "%";
-    $("#amPct").textContent = pct + "%";
-    $("#amTally").textContent = fetched + " / " + cached + " / " + failed;
-  }
-  tally();
-
-  /* Six workers taking turns from one sequence. Pulling rather than
-     indexing an array is what lets the box be any size: at no point does
-     the whole download exist anywhere but as the four numbers a tile is. */
-  const seq = tileSeq(bounds, z, S.hillshade);
-  async function worker() {
-    while (!dlAbort) {
-      const step = seq.next();
-      if (step.done) break;
-      const t = step.value;
-      const key = tileKey(t);
-      try {
-        const hit = await DB.get("tiles", key);
-        if (hit) { cached++; }
-        else {
-          const resp = await fetch(tileURL(t), { mode: "cors" });
-          if (!resp.ok) throw new Error("http");
-          const blob = await resp.blob();
-          await DB.put("tiles", blob, key);
-          fetched++;
-        }
-      } catch (e) {
-        /* A tile that will not arrive is a gap in the map. A tile that will
-           not fit is the end of the download, and every one after it would
-           fail the same way - so stop here and say so, rather than counting
-           a hundred thousand failures and calling the area saved. The
-           estimate is a good one, not a guarantee: tiles average 22 KB and
-           some ground is busier than that. */
-        if (isOutOfSpace(e)) { outOfSpace = true; dlAbort = true; }
-        else failed++;
-      }
-      done++;
-      if (done % 4 === 0 || done === total) tally();
-    }
-  }
-  const workers = [];
-  for (let i = 0; i < CFG.DL_CONC; i++) workers.push(worker());
-  await Promise.all(workers);
-  tally();
-  /* The data for the same ground - addresses, roads and POIs - pulled
-     without being asked for. They are a rounding error beside the imagery,
-     the whole of Hawker's addresses 8.9 KB against megabytes of tiles, and
-     an area is downloaded because somebody is about to be out of range in
-     it: exactly where looking an address up, routing or finding the water
-     over the air is not going to work.
-
-     The national spine comes first whether or not it was already here -
-     without it the streets in this box lead nowhere - and then everything
-     in the box through the one queue, the tertiary roads included, which
-     the area used to leave out.
-
-     A failure here never fails the area. The imagery is what it is for. */
-  let packs = null;
-  if (!dlAbort) {
-    const box = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()];
-    $("#amStatus").textContent = "Roads, addresses and POIs";
-    $("#amBar").style.width = "0%";
-    $("#amPct").textContent = "0%";
-    try {
-      await Promise.all([Addr.loadManifest(), Route.loadManifest(), Pack.loadManifest()]);
-      await Route.keepSpine();
-      packs = await packRun(box, throttle(function (st) {
-        const pct = st.total ? Math.round(st.done / st.total * 100) : 100;
-        $("#amBar").style.width = pct + "%";
-        $("#amPct").textContent = pct + "%";
-        $("#amTally").textContent = st.fetched + " / " + st.cached + " / " + st.failed;
-      }, 250));
-      if (packs.full) outOfSpace = true;
-    } catch (e) { /* ignore */ }
-  }
-
-  /* An area that filled the device is still saved, under a name that says
-     what it is. The tiles are on the phone either way; without a record the
-     only thing that can reach them is Clear All Tiles, and a device with no
-     room left is exactly where you want to delete one area rather than all
-     of them. The record covers the whole box it was asked for, which claims
-     more ground than arrived - deleteArea already tolerates a key that was
-     never written, and the alternative is a record that under-claims and
-     strands the rest. */
-  if (!dlAbort || outOfSpace) {
-    const area = {
-      id: uid(), name: outOfSpace ? name + " (partial)" : name,
-      /* What a partial area holds is what was written, not what was
-         attempted: the five or so workers with a tile in flight when the
-         first refusal landed all fail too, and counting them would put a
-         size on the card that is not on the disk. */
-      maxZoom: z, tiles: outOfSpace ? fetched + cached : total,
-      packs: packs ? packs.fetched + packs.cached : 0, ts: Date.now(),
-      bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]
-    };
-    try { await DB.put("areas", area); } catch (e) { /* ignore */ }
-    await renderAreas();
-    if (outOfSpace)
-      toast("Ran out of free space - " + (fetched + cached) + " of " + total + " tiles saved", "err");
-    else
-      toast("Area saved: " + fetched + " new, " + cached + " already cached" +
-            (area.packs ? ", " + area.packs + " data file" + (area.packs > 1 ? "s" : "") : ""), "ok");
-  } else {
-    toast("Download stopped", "warn");
-  }
-  dlBusy = false;
-  Wake.pin(false);
-  closeAreaModal();
-  refreshStorageStats();
-}
 
 /* ---------------------------------------------------------------------
    A state at a time: every address, road and POI in one of CFG.STATES,
@@ -16084,19 +15667,16 @@ async function runStateDownload(id) {
   if (!$("#stateModal").classList.contains("hidden")) openStateModal();
 }
 
-/* The files a state's box holds, less any another state or a drawn area
-   still covers - a VIC download takes in the Riverina, and deleting NSW
-   must not take it back out from under it. The spine and the suburb index
-   are shared by everything and stay. */
+/* The files a state's box holds, less any another state still covers - a
+   VIC download takes in the Riverina, and deleting NSW must not take it
+   back out from under it. The spine and the suburb index are shared by
+   everything and stay. */
 async function deleteState(id) {
   const s = stateById(id);
   if (!s || (stRun && stRun.s === s)) return;
   const recs = stateRecs();
   const keep = [];
   Object.keys(recs).forEach(function (k) { const o = stateById(k); if (o && o !== s) keep.push(o.box); });
-  let areas = [];
-  try { areas = (await DB.all("areas")) || []; } catch (e) { areas = []; }
-  areas.forEach(function (a) { keep.push([a.bounds[0][0], a.bounds[0][1], a.bounds[1][0], a.bounds[1][1]]); });
   const inside = function (t, x, y) { return x >= t[0] && x <= t[1] && y >= t[2] && y <= t[3]; };
   const byStore = {};
   packKinds().forEach(function (k) {
@@ -16189,23 +15769,6 @@ async function sweepOldTiles() {
   toast("Freed " + fmtBytes(n * CFG.TILE_BYTES) + " of map pictures the new map cannot use", "warn");
 }
 
-async function deleteArea(id) {
-  const a = await DB.get("areas", id);
-  if (!a) return;
-  const b = L.latLngBounds(a.bounds[0], a.bounds[1]);
-  /* Shade tiles asked for unconditionally, whatever the setting says now.
-     An area downloaded with relief on and deleted with it off would
-     otherwise leave its shade tiles behind for good, and deleting a key
-     that was never there costs nothing - which is also what makes a
-     partial area safe to delete. */
-  for (const t of tileSeq(b, a.maxZoom, true)) {
-    try { await DB.del("tiles", tileKey(t)); } catch (e) { /* ignore */ }
-  }
-  await DB.del("areas", id);
-  await renderAreas();
-  refreshStorageStats();
-  toast("Area and its tiles removed", "warn");
-}
 
 async function refreshStorageStats() {
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
@@ -17476,7 +17039,7 @@ const Manual = {
 
   hold: function () {
     this.timer = null;
-    if (drawMode || wpFormOpen) return;
+    if (wpFormOpen) return;
     if (Sim.active) Sim.stop();
     this.dragging = true;        /* claimed before anything can hand it back */
     /* The map has to hold still, or the ground travels under the finger as
@@ -17556,8 +17119,8 @@ const Manual = {
    pan is stopped by disabling the handler instead. */
 stageEl.addEventListener("pointerdown", function (e) {
   if (e.button != null && e.button !== 0) return;
-  if (drawMode || wpFormOpen) return;
-  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #actionRow, #speedSign, #drawHint, .maplibregl-marker, .maplibregl-popup")) return;
+  if (wpFormOpen) return;
+  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #actionRow, #speedSign, .maplibregl-marker, .maplibregl-popup")) return;
   Manual.down(e);
 }, true);
 
@@ -18783,19 +18346,13 @@ $("#btnPoiRestore").addEventListener("click", function () {
    does the same job from where the map already is, without the drawer
    having to close itself first to show you what you were placing on. */
 
-/* ---- offline areas ----
-   Draw A Box has no button any more, and the flow behind it - startDrawArea,
-   the area modal, runAreaDownload, deleteArea - is left standing rather
-   than pulled out. The states without a map of their own are the reason:
-   if one of them needs covering before its map is hosted, the picture
-   tiles are the fallback and this is what would be wired back up. */
-$("#btnDrawCancel").addEventListener("click", endDrawMode);
-$("#amZoom").addEventListener("change", updateAreaEstimate);
-$("#amCancel").addEventListener("click", function () {
-  if ($("#amProgress").classList.contains("hidden")) closeAreaModal();
-  else { dlAbort = true; }
-});
-$("#amGo").addEventListener("click", runAreaDownload);
+/* ---- offline maps ----
+   A state at a time, which is the only kind of download left. Draw A Box
+   went with the vector rebuild: it fetched Esri picture tiles, no raster
+   layer has existed to draw one since #265, and sweepOldTiles deletes any
+   a phone still holds. It was kept for a while as the fallback for states
+   with no map of their own, which it could not have been - a fallback that
+   deletes its own output is not one. */
 $("#btnNewState").addEventListener("click", openStateModal);
 $("#smClose").addEventListener("click", closeStateModal);
 $("#smStop").addEventListener("click", function () { if (stRun) dlAbort = true; });
@@ -18922,9 +18479,7 @@ function anyOverlayOpen() {
   return askOpen() || wpFormOpen ||
          !$("#trackModal").classList.contains("hidden") ||
          navModalOpen() ||
-         !$("#areaModal").classList.contains("hidden") ||
          !$("#stateModal").classList.contains("hidden") ||
-         drawMode ||
          $("#drawer").classList.contains("open") ||
          poiPanelOpen() || wptPanelOpen();
 }
@@ -18938,10 +18493,8 @@ function dismissTop() {
     return;                                          /* an unsaved recording is not */
   }
   if (navModalOpen()) { closeNavModal(); return; }
-  if (!$("#areaModal").classList.contains("hidden")) { closeAreaModal(); return; }
   /* Only the box: a state coming down carries on behind it. */
   if (!$("#stateModal").classList.contains("hidden")) { closeStateModal(); return; }
-  if (drawMode) { endDrawMode(); return; }
   closeDrawer();
 }
 
