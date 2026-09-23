@@ -74,7 +74,7 @@ without signal, which is what an APK would have bought you.
 
 ## Going out of range
 
-Menu → Downloaded Areas is where a trip is prepared:
+Menu → Offline Maps is where a trip is prepared:
 
 * **Download A State** stores a whole state's addresses, roads (spine,
   tertiary and streets) and POIs, so search, routing and the speed sign work

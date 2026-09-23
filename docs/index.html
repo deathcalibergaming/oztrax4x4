@@ -2953,13 +2953,14 @@ input[type=date],input[type=time]{color-scheme:dark}
     <details>
       <summary>
         <svg viewBox="0 0 24 24"><path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M4 17v3h16v-3"/></svg>
-        Downloaded Areas <span class="cnt" id="cntAreas">0</span><span class="chev"></span>
+        <!-- "Downloaded Areas" until the drawn boxes went. The only thing
+             that can be downloaded now is a state's map, and an area was
+             never what the list held anyway - it held the boxes, and they
+             held Esri picture tiles. -->
+        Offline Maps <span class="cnt" id="cntMaps">0</span><span class="chev"></span>
       </summary>
       <div class="sec-body">
-        <div id="areaList" class="list"></div>
-        <!-- Download New Area is gone from here. It drew a box and filled
-             it with Esri picture tiles, and nothing draws those now. A
-             state at a time is the whole of it. -->
+        <div id="mapList" class="list"></div>
         <div class="row">
           <button class="btn sm primary" id="btnNewState">Download A State</button>
         </div>
@@ -15580,7 +15581,7 @@ async function runStateDownload(id) {
   Wake.pin(true);
   stRun = { s: s, phase: "Checking what is here", st: null, t0: Date.now() };
   showStateProgress();
-  renderAreas();
+  renderOfflineMaps();
   let st = null, cuts = null, mapOk = true, mapFull = false, streetsOk = false;
   try {
     await loadPackManifests();
@@ -15662,7 +15663,7 @@ async function runStateDownload(id) {
   stRun = null;
   dlBusy = false;
   Wake.pin(false);
-  renderAreas();
+  renderOfflineMaps();
   refreshStorageStats();
   if (!$("#stateModal").classList.contains("hidden")) openStateModal();
 }
@@ -15706,7 +15707,7 @@ async function deleteState(id) {
   delete recs[id];
   saveLS(LS.states, recs);
   await VMap.remove(id);
-  await renderAreas();
+  await renderOfflineMaps();
   refreshStorageStats();
   toast(s.name + " removed from this phone", "warn");
 }
@@ -15726,17 +15727,18 @@ function stateCard(s, rec) {
     "</div></div>";
 }
 
-/* States only. The drawn boxes that used to be listed here held picture
-   tiles and nothing else, and nothing draws those - see sweepOldTiles. */
-async function renderAreas() {
+/* The maps on the phone, which are states and only states. It was
+   renderAreas, and listed drawn boxes beside them until those went - the
+   boxes held picture tiles and nothing draws one now. See sweepOldTiles. */
+async function renderOfflineMaps() {
   const recs = stateRecs();
   const states = CFG.STATES.filter(function (s) { return recs[s.id] || (stRun && stRun.s === s); });
   /* Whether a state is behind is a question for the manifests, which are
      stored - so this reads storage, not the network. Only asked when there
      is a state to ask it about. */
   if (states.length) await loadPackManifests();
-  $("#cntAreas").textContent = states.length;
-  const box = $("#areaList");
+  $("#cntMaps").textContent = states.length;
+  const box = $("#mapList");
   if (!states.length) { box.innerHTML = '<div class="empty">Nothing downloaded for offline use yet.</div>'; return; }
   box.innerHTML = states.map(function (s) { return stateCard(s, recs[s.id]); }).join("");
 }
@@ -15764,7 +15766,7 @@ async function sweepOldTiles() {
   } catch (e) { return; }
   saveLS(LS.swept, 1);
   if (!n) return;
-  renderAreas();
+  renderOfflineMaps();
   refreshStorageStats();
   toast("Freed " + fmtBytes(n * CFG.TILE_BYTES) + " of map pictures the new map cannot use", "warn");
 }
@@ -17668,7 +17670,7 @@ function openDrawer() {
   $("#drawer").classList.add("open");
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#scrim").classList.add("show");
-  renderTracks(); renderWaypoints(); renderAreas(); refreshStorageStats();
+  renderTracks(); renderWaypoints(); renderOfflineMaps(); refreshStorageStats();
   syncAwakeButtons();
   readGeoPermission().then(renderGpsPanel);
 }
@@ -18436,7 +18438,7 @@ $("#favList").addEventListener("click", function (e) {
   else if (b.dataset.act === "del") deleteWaypoint(id);
 });
 
-$("#areaList").addEventListener("click", async function (e) {
+$("#mapList").addEventListener("click", async function (e) {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const state = stateById(b.closest(".card").dataset.state);
@@ -18621,7 +18623,7 @@ document.addEventListener("keydown", function (e) {
   renderWaypoints();
   renderPois();
   renderTracks();
-  renderAreas();
+  renderOfflineMaps();
   refreshStorageStats();
   /* After the splash is out of the way, and after the stores it reads are
      not competing with the launch for them. */
