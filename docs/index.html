@@ -3713,43 +3713,41 @@ const CFG = {
      more point does not grow with the length of the track. */
   TRAIL_TIP: 200,
   REC_TAIL: 300,
-  /* The map stops one zoom above the last one Esri draws, so the worst
-     enlargement anyone ever looks at is 2x rather than 4x. z18 was reachable
-     and was a quarter of the detail stretched over the same screen: not a
-     closer look at the ground, just a bigger picture of the same tile.
+  /* The ceiling was 17 for as long as the map was a picture. Esri drew real
+     cartography to z16 and the map stopped one step past it, because past
+     there a zoom step was a quarter of the detail stretched over the same
+     screen - a bigger picture of the same tile, not a closer look at the
+     ground. Going deeper properly would have meant fetching the deeper
+     tiles, and the same ground costs four times the tiles per step: the
+     Flinders box measured 408 MB at z16 against 1.56 GB at z17, which is not
+     a download anyone makes for half a degree of country.
 
-     There is a fix for the sharpness and it is the wrong trade. Esri does
-     have real cartography at z17 in most places - sixteen of the eighteen
-     inland places probed - so the map could ask for it and be genuinely
-     sharp there, falling back to the enlarged tile in the two that come
-     back empty. But the same ground costs four times the tiles per zoom
-     step: the Flinders box measured 408 MB at z16 and 1.56 GB at z17. An
-     app that exists to work with no signal cannot put its detail behind
-     having one, and nobody is downloading 1.56 GB for half a degree of
-     country. So the cartography ceiling stays where every place has it,
-     and the map stops one step past it. */
-  MIN_Z: 3, MAX_Z: 17,
-  /* The deepest zoom Esri actually draws the topo map at. It answers past
-     this too, but with one of two empty tiles: a blank white square, or the
-     grey one with "Map data not yet available" printed across it - the same
-     placeholder the relief runs out into at z14.
+     None of that survived the vector rebuild. The map is drawn from geometry
+     now, not from pictures of geometry: roads, labels and buildings are
+     shapes the phone draws at whatever size is asked for, so a zoom step
+     past the data costs no sharpness. And it costs no tiles either - the
+     openmaptiles source stops at z14, so every zoom above that reads the
+     same tile and scales it. The app has been doing this for three steps
+     already without anybody deciding to.
 
-     Where it runs out depends on where you are, which is why this is a
-     floor rather than a guess. Probed tile by tile over eighteen inland
-     places from Adelaide to Mt Dare: every one of them draws to z16. Past
-     that it starts going: Blinman is blank at z17, and Arkaroola - a place
-     people drive to precisely to look at the ground - prints "Map data not
-     yet available" at z18.
-
-     The map still zooms to MAX_Z. maxNativeZoom stops asking past this and
-     stretches the last real tile, so the deep zooms show a coarse map
-     instead of no map, and the things you are actually zooming in on - the
-     GPS dot, the trail behind you, waypoints and pins - are drawn by this
-     app and stay sharp all the way down. */
-  TOPO_MAX_Z: 16,
+     Counted at Hawker rather than reasoned about: one openmaptiles tile and
+     one relief tile on screen at z17, and one of each at z18. The only
+     numbers that moved were this app's own GeoJSON sources - the trail and
+     the pins - which MapLibre slices into a couple more internal tiles of
+     data already in memory. So the step is free, and the old ceiling was
+     holding back a limit that no longer exists. */
+  MIN_Z: 3, MAX_Z: 18,
+  /* TOPO_MAX_Z lived here: the deepest zoom Esri drew the topo map at, found
+     by probing eighteen inland places from Adelaide to Mt Dare. It fed
+     Leaflet's maxNativeZoom, which stopped asking past it and stretched the
+     last real tile. Leaflet went in #265 and nothing has read it since - it
+     is removed with the ceiling it was the argument for, rather than left
+     sitting here explaining a decision that has been reversed. */
   /* The zoom at and above which POIs stop grouping. Its own number rather
      than MAX_Z: raising the ceiling should not quietly put the grouping
-     back at the zoom where it was asked to stop. */
+     back at the zoom where it was asked to stop. The ceiling has since been
+     raised - 17 to 18 - and this is what that sentence was written for, so
+     it stays at 17 and the two deepest zooms both show every pin. */
   POI_SPLIT_Z: 17,
   /* Below POI_SPLIT_Z the grouping guarantees no two pins are nearer than
      POI_CLUSTER_PX. At and above it nothing is grouped, so this is the
