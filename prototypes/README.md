@@ -225,14 +225,25 @@ the top.
 
 ## tilt-and-hillshade-prototype.patch
 
-A 3D tilted map, discarded. CSS perspective on the map pane, with the pins,
-cards and POIs counter-rotated so they stand upright and pivot on their anchors.
+Superseded — the real thing shipped in #274 as the Map Tilt setting. Kept as a
+record of the attempt that was turned down.
+
+A 3D tilted map, faked. CSS perspective on the map pane, with the pins, cards
+and POIs counter-rotated so they stand upright and pivot on their anchors.
 
 It works, and it is the wrong road. Every marker needs correcting individually,
 the correction is never quite exact — roughly 20% residual on badges — and tap
 coordinates have to be run back through an inverse projection read off the live
 CSS matrix. Real tilt needs a vector basemap, which is a rebuild rather than a
 patch.
+
+That rebuild is #265. MapLibre does pitch in the projection, so none of the
+above is needed: the POIs are a GL symbol layer that stands itself up, and the
+only marker work left was splitting one `pitchAlignment` line so the vehicle's
+arrow lies on the road while waypoints stand in it. The measured cost is not
+what this note feared either — 52 tiles flat against 60 leaning, because
+MapLibre covers the far half of a pitched view with coarse tiles. See the Map
+Tilt passage under Orientation in DESIGN.md.
 
 ---
 
