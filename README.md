@@ -11,7 +11,13 @@ what that costs you.
 
 ## Layout
 
-    docs/index.html            the application, single file, no build step
+    docs/index.html            the application, one file, no build step. The
+                               map is MapLibre GL JS on vector tiles
+    docs/lib/                  MapLibre GL JS 5.24.0 and the PMTiles reader
+                               4.5.0, vendored (both BSD-3)
+    docs/style/                OpenFreeMap's Liberty style with its icons and
+                               fonts, so the map draws with no signal
+                               (licences in style/LICENSE.md)
     docs/sw.js                 offline shell cache (only active when served)
     docs/privacy.html          the privacy notice - see below. Part of the
                                shell, so it opens with no signal, and it
@@ -30,16 +36,6 @@ what that costs you.
                                JSON per z13 tile for the streets and tracks,
                                plus index.json
 
-    docs/next/                 the MapLibre GL preview: the same app with the
-                               map layer rebuilt on vector tiles, at
-                               /oztrax4x4/next/ beside the real one. Shares
-                               the origin, so it sees the same tracks,
-                               waypoints, settings and downloaded data.
-                               lib/ holds MapLibre GL JS 5.24.0 and the
-                               PMTiles reader 4.5.0 (both BSD-3); style/
-                               holds OpenFreeMap's Liberty style with its
-                               icons and fonts, so the map draws with no
-                               signal (licences in style/LICENSE.md)
     docs/vmap/                 each state's offline vector map, in 32 MB
                                pieces, plus manifest.json - see
                                "Offline maps" below
@@ -78,37 +74,49 @@ without signal, which is what an APK would have bought you.
 
 ## Going out of range
 
-Menu → Downloaded Areas holds two downloads, and they cover different things:
+Menu → Downloaded Areas is where a trip is prepared:
 
 * **Download A State** stores a whole state's addresses, roads (spine,
   tertiary and streets) and POIs, so search, routing and the speed sign work
   with no signal anywhere in it. It is a plain bounding box per state, set in
   `CFG.STATES` with sizes measured off `docs/`: South Australia is 31,086
   files and about 24 MB on the phone, New South Wales 81,559 files and about
-  94 MB. Imagery is not part of it — a state's basemap runs to gigabytes.
+  94 MB — and the state's own map on top of that where there is one, which
+  for South Australia is another 117 MB.
   Each state is recorded with the build it came from, so a state the monthly
   rebuild has moved on from says so and offers an update, and Delete keeps
-  whatever another downloaded state or a drawn area still covers.
+  whatever another downloaded state still covers.
   It also keeps the street index for the state's longitudes (1.7 MB for
   South Australia), so with no signal Search finds a street, suburb or town
   from the phone as well as an address with its number. A state downloaded
   before that offers Update to add it. Roadhouses, pubs, motels, shops and
   the rest are found by name from the POI pack the same way, and a town in
   the query ("fuel coober pedy") is where to look.
-* **Download New Area** is a box you draw, for the map imagery, and it brings
-  the same data for that box with it.
+  It brings the state's map with it as well — see "Offline maps".
 
-In the MapLibre preview (`docs/next/`) Download A State brings the state's
-map as well - see "Offline maps" - and Download New Area is hidden, because
-the imagery it stores is Esri's and the preview does not draw Esri.
+**Download New Area is gone from the screen**, and so are the drawn-area
+cards, the Cached tiles count and Clear Tile Cache. It was a box you drew
+and what it stored was Esri picture tiles; the map does not draw Esri any
+more, so the box has nothing to fill and the tiles cannot be shown again.
+With no way left to clear them by hand, a phone that has any sweeps them
+once on the first launch after the change (`sweepOldTiles`) and says what
+was freed. The flow behind the button — `startDrawArea`, the area modal,
+`deleteArea` — is left standing rather than pulled out: it is what would be
+wired back up if a state without a map of its own needed covering before the
+hosting moves.
 
-Both pull the data files 24 at a time. They are about 2 KB each and the cost
+Until the other states' maps are hosted, that leaves **no offline map
+outside South Australia**. Everything else a state brings still works
+anywhere it is downloaded — search, routing, the speed sign, the POIs —
+because those are the packs, not the map.
+
+The data files come down 24 at a time. They are about 2 KB each and the cost
 is the round trip, not the bytes: one at a time South Australia took over two
 hours, and at 24 about six minutes.
 
 ## Offline maps
 
-The preview's map with no signal. Each state is one PMTiles archive of every
+The map with no signal. Each state is one PMTiles archive of every
 vector tile from z0 to z14 over the state's box, built off OpenStreetMap with
 Planetiler's OpenMapTiles profile - the same schema OpenFreeMap serves, so
 one style draws a stored state and the online map alike. South Australia is
@@ -131,8 +139,8 @@ older cut is offered Update.
 **Only South Australia is on the server**, on purpose. GitHub refuses a file
 over 100 MB (so the pieces), the site as a whole must stay under 1 GB, and
 every rebuild of a map stays in the repository's history for good. The other
-states wait for the hosting move; `CFG.VMAP_URL` in `docs/next/index.html`
-is the one line that changes then.
+states wait for the hosting move; `CFG.VMAP_URL` in `docs/index.html` is the
+one line that changes then.
 
 The relief still needs a signal: it is shaded on the phone from terrain
 tiles that are not part of the state's map.
@@ -167,10 +175,14 @@ collected by the developer.
 
 ## Data sources
 
-* Map tiles — Esri World Topo, cached in IndexedDB for offline use. The
-  MapLibre preview draws OpenStreetMap vector tiles instead: OpenFreeMap's
-  online, and a downloaded state's own map offline, built by
-  `tools/build-vmap.mjs`
+* The map — OpenStreetMap vector tiles in the OpenMapTiles schema, drawn by
+  MapLibre GL JS with OpenFreeMap's Liberty style (copied into
+  `docs/style/` by `tools/build-vmap-style.mjs`, so the style, its icons
+  and its glyphs are on the phone). Tiles come from a downloaded state's own
+  map where there is one and from OpenFreeMap where there is not. Relief is
+  shaded from Mapzen terrain tiles on AWS Open Data and still needs a
+  signal. Esri World Topo drew this map until the vector map replaced it;
+  nothing fetches it now
 * POIs — OpenStreetMap via the seven Geofabrik state extracts, cut into z13
   packs under `docs/poi/` covering every state and territory on the mainland
   and Tasmania, served off this origin and built monthly by

@@ -100,9 +100,9 @@ other place:</p>
   position.</li>
   <li>Settings: text size, which kinds of place and which fuel grades you
   want shown, which pins you have hidden.</li>
-  <li>Everything you have downloaded for offline use - map squares, vector
-  map pieces, addresses, roads and the POI pack - and which states you
-  downloaded them for.</li>
+  <li>Everything you have downloaded for offline use - a state's map,
+  addresses, roads and the POI pack - and which states you downloaded
+  them for.</li>
 </ul>
 <p>None of it is uploaded, backed up to me, or sent anywhere by the app. It
 goes when you delete it, and when you uninstall the app.</p>
@@ -113,13 +113,14 @@ file goes afterwards is up to you.</p>
 <p>Only when you have a connection, and only these:</p>
 
 <div class="who">
-  <h3>Esri <span>server.arcgisonline.com</span></h3>
+  <h3>OpenFreeMap, and Amazon's public elevation tiles
+    <span>tiles.openfreemap.org, s3.amazonaws.com/elevation-tiles-prod</span></h3>
   <dl>
-    <dt>Is told</dt><dd>which map squares your screen is showing, for the
-      topographic map and the hillshade</dd>
-    <dt>Why</dt><dd>to draw the map anywhere you have not already stored
-      one</dd>
-    <dt>Its policy</dt><dd><a href="https://www.esri.com/en-us/privacy/overview">esri.com/en-us/privacy/overview</a></dd>
+    <dt>Is told</dt><dd>which map squares your screen is showing</dd>
+    <dt>Why</dt><dd>to draw the map anywhere you have not downloaded that
+      state's map, and to shade the hills, which is never stored</dd>
+    <dt>Their policies</dt><dd><a href="https://openfreemap.org/">openfreemap.org</a>,
+      <a href="https://registry.opendata.aws/terrain-tiles/">registry.opendata.aws/terrain-tiles</a></dd>
   </dl>
 </div>
 
@@ -173,18 +174,6 @@ file goes afterwards is up to you.</p>
       into</dd>
     <dt>Why</dt><dd>it is where the app and its offline packs are hosted</dd>
     <dt>Its policy</dt><dd><a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub privacy statement</a></dd>
-  </dl>
-</div>
-
-<div class="who">
-  <h3>OpenFreeMap, and Amazon's public elevation tiles
-    <span>tiles.openfreemap.org, s3.amazonaws.com/elevation-tiles-prod</span></h3>
-  <dl>
-    <dt>Is told</dt><dd>which map squares your screen is showing</dd>
-    <dt>Why</dt><dd>the new vector map, at <a href="./next/">/next/</a>, draws
-      from these wherever you have not downloaded that state's map</dd>
-    <dt>Their policies</dt><dd><a href="https://openfreemap.org/">openfreemap.org</a>,
-      <a href="https://registry.opendata.aws/terrain-tiles/">registry.opendata.aws/terrain-tiles</a></dd>
   </dl>
 </div>
 
@@ -265,8 +254,8 @@ with no signal.</p>
 
 <footer>
   OzTrax Recon &middot; offline 4x4 trail log<br>
-  Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap
-  contributors (ODbL)<br>
+  Map &copy; OpenStreetMap contributors (ODbL) &middot; style and online
+  tiles by OpenFreeMap<br>
   Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth
   of Australia, licensed under the Open G-NAF end user licence agreement.
   Not verified for mail delivery.

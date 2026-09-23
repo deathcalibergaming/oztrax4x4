@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v237";
+const CACHE = "trailtracker-v239";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -21,6 +21,52 @@ async function setUpdateFlag(on) {
   else await s.delete(UPDATE_FLAG);
 }
 
+/* The map's own files. They used to be fetched on demand under next/, when
+   the vector map was a preview somebody chose to open; they are the map
+   now. Without them a phone with no signal has no map at all - not even a
+   state it has already downloaded, because the style, the icons and the
+   glyphs the labels are drawn from live here too. So: stored on install,
+   not when something first asks for them. About 3.3 MB, once.
+
+   Written out rather than walked, because a service worker cannot list a
+   directory. If a file is added under lib/ or style/ - another glyph range,
+   say - it belongs on this list, or it will be missing exactly where it is
+   needed. The licences ride along: they are what lets the rest be here. */
+const MAP = [
+  "./lib/LICENSE.txt",
+  "./lib/maplibre-gl.css",
+  "./lib/maplibre-gl.js",
+  "./lib/pmtiles-LICENSE.txt",
+  "./lib/pmtiles.js",
+  "./style/LICENSE.md",
+  "./style/fonts/Noto Sans Bold/0-255.pbf",
+  "./style/fonts/Noto Sans Bold/256-511.pbf",
+  "./style/fonts/Noto Sans Bold/512-767.pbf",
+  "./style/fonts/Noto Sans Bold/768-1023.pbf",
+  "./style/fonts/Noto Sans Bold/7680-7935.pbf",
+  "./style/fonts/Noto Sans Bold/8192-8447.pbf",
+  "./style/fonts/Noto Sans Bold/8448-8703.pbf",
+  "./style/fonts/Noto Sans Italic/0-255.pbf",
+  "./style/fonts/Noto Sans Italic/256-511.pbf",
+  "./style/fonts/Noto Sans Italic/512-767.pbf",
+  "./style/fonts/Noto Sans Italic/768-1023.pbf",
+  "./style/fonts/Noto Sans Italic/7680-7935.pbf",
+  "./style/fonts/Noto Sans Italic/8192-8447.pbf",
+  "./style/fonts/Noto Sans Italic/8448-8703.pbf",
+  "./style/fonts/Noto Sans Regular/0-255.pbf",
+  "./style/fonts/Noto Sans Regular/256-511.pbf",
+  "./style/fonts/Noto Sans Regular/512-767.pbf",
+  "./style/fonts/Noto Sans Regular/768-1023.pbf",
+  "./style/fonts/Noto Sans Regular/7680-7935.pbf",
+  "./style/fonts/Noto Sans Regular/8192-8447.pbf",
+  "./style/fonts/Noto Sans Regular/8448-8703.pbf",
+  "./style/liberty.json",
+  "./style/sprites/ofm.json",
+  "./style/sprites/ofm.png",
+  "./style/sprites/ofm@2x.json",
+  "./style/sprites/ofm@2x.png"
+];
+
 const SHELL = [
   "./",
   "./index.html",
@@ -29,12 +75,14 @@ const SHELL = [
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
-];
+].concat(MAP);
 
-/* Leaflet used to be two more entries here, fetched from cdnjs. It is inside
-   index.html now, so the shell is one request and there is nothing on this
-   list that is not ours. The install can no longer be spoiled by someone
-   else's CDN having a bad minute. */
+/* Leaflet used to be two more entries here, fetched from cdnjs, and then
+   lived inside index.html. MapLibre took its place and is too big to inline
+   sensibly, so the library is a file again - but a file of ours, under
+   lib/, served off this origin. Nothing on this list belongs to anybody
+   else, and the install still cannot be spoiled by someone else's CDN
+   having a bad minute. */
 
 /* Each item is fetched on its own. addAll fails the whole install if any one
    URL fails, which would mean a single flaky request leaves the driver with
@@ -68,6 +116,16 @@ function isShell(url) {
   });
 }
 
+/* The app's page, as against the thirty-odd files behind it. The navigation
+   branch below asks this rather than isShell: every one of the map's files
+   is in the shell now, and answering a navigation to a glyph file with the
+   whole app would be nonsense. */
+function isPage(url) {
+  return ["./", "./index.html"].some(function (s) {
+    return new URL(s, self.registration.scope).href === url;
+  });
+}
+
 self.addEventListener("fetch", function (e) {
   const req = e.request;
   if (req.method !== "GET") return;
@@ -88,11 +146,11 @@ self.addEventListener("fetch", function (e) {
      away and refresh the copy in the background for next time.
 
      Only for the app's own page. Every navigation in scope used to be
-     answered with the cached index.html, so a page anywhere under it - the
-     MapLibre preview at next/ - could never be reached: it came up as the
-     app. Judged on the path, not the whole URL, so a launch with a query
-     string on it is still the app. */
-  if (req.mode === "navigate" && isShell(url.origin + url.pathname)) {
+     answered with the cached index.html, so any other page on the site -
+     the privacy notice, and once the MapLibre preview at next/ - could
+     never be reached: it came up as the app. Judged on the path, not the
+     whole URL, so a launch with a query string on it is still the app. */
+  if (req.mode === "navigate" && isPage(url.origin + url.pathname)) {
     /* One request, shared by both halves. respondWith can answer from cache
        and settle in a millisecond, and once it settles the browser is free to
        shut the worker down - so the refresh, the comparison and the flag have
@@ -163,20 +221,10 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  /* The MapLibre preview under next/ - its page, library, style, fonts and
-     icons. None of it is the app's shell: a phone that never opens the
-     preview never stores it. One that has keeps it, so the preview can be
-     opened with no signal - which is the point of the offline map it is
-     there to try. The page comes from the network first, so a new preview
-     shows on the next open with a signal; everything else from the cache
-     first, refreshed when CACHE moves. A state's map pieces are under
-     vmap/, not here, and go straight out: they are stored by the page. */
-  const next = new URL("./next/", self.registration.scope);
-  if (url.origin === next.origin && url.pathname.indexOf(next.pathname) === 0) {
-    e.respondWith(req.mode === "navigate" ? nextPage(req) : nextFile(req));
-    return;
-  }
-
+  /* Everything else in the shell - the map's library and style among it
+     now - cache first. A state's map pieces are under vmap/ and go straight
+     out: the page stores those itself, in the file system, because they are
+     32 MB each. */
   if (!isShell(url.href)) return;      /* tiles and POI calls go straight out */
 
   e.respondWith((async function () {
@@ -194,19 +242,6 @@ self.addEventListener("fetch", function (e) {
 });
 
 
-async function nextPage(req) {
-  const cache = await caches.open(CACHE);
-  const key = new URL("./next/", self.registration.scope).href;
-  try {
-    const r = await fetch(req);
-    if (r && r.ok) { await cache.put(key, r.clone()); return r; }
-  } catch (err) { /* no signal: the stored copy below */ }
-  const hit = await cache.match(key);
-  return hit || new Response(
-    "<h1>OzTrax Recon preview</h1><p>Not stored yet - open it once with a connection.</p>",
-    { headers: { "Content-Type": "text/html" }, status: 503 });
-}
-
 async function privacyPage(req) {
   const cache = await caches.open(CACHE);
   const key = new URL("./privacy.html", self.registration.scope).href;
@@ -222,19 +257,6 @@ async function privacyPage(req) {
     return new Response(
       "<h1>Privacy</h1><p>Not stored yet - open this once with a connection.</p>",
       { headers: { "Content-Type": "text/html" }, status: 503 });
-  }
-}
-
-async function nextFile(req) {
-  const cache = await caches.open(CACHE);
-  const hit = await cache.match(req);
-  if (hit) return hit;
-  try {
-    const r = await fetch(req);
-    if (r && r.ok) cache.put(req, r.clone());
-    return r;
-  } catch (err) {
-    return new Response("", { status: 504, statusText: "offline" });
   }
 }
 

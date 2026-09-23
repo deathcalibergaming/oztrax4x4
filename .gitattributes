@@ -18,6 +18,10 @@ docs/poi/** linguist-generated=true
 # and replaced whole on every rebuild. Binary, and nothing a diff can show.
 docs/vmap/**/*.bin binary linguist-generated=true
 
-# The preview's copy of OpenFreeMap's style, icons and fonts, re-copied by
+# MapLibre GL JS and the PMTiles reader, vendored unmodified - a megabyte
+# of minified library that no diff should ever try to show.
+docs/lib/** linguist-vendored=true
+
+# The map's copy of OpenFreeMap's style, icons and fonts, re-copied by
 # tools/build-vmap-style.mjs.
-docs/next/style/** linguist-generated=true
+docs/style/** linguist-generated=true
