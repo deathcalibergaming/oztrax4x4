@@ -911,15 +911,29 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
      the console is drawn from it, so it is a token rather than a number in
      one box-shadow. */
   --dial-collar:7.5px;
-  /* Two bars that come to the button's diameter between them, and the gap
-     on top of that: the console stands one gap taller than the button and
-     is centred on the disc, so the split lands on its centre line and the
-     foot goes half a gap below the collar's. --conInset is what that extra
-     height is for - the air a control stands in. */
-  --conH:calc((var(--dial-rec) + var(--dial-collar)) * 2 + var(--conGap));
-  --stackB:calc(var(--dial-m) - var(--dial-collar) - var(--conGap) / 2 + var(--safeB));
+  /* The console is the collar's diameter and nothing more: top edge level
+     with the top of the disc, foot level with its foot, so the two of them
+     read as one piece of hardware the same height rather than a bar that
+     overshoots the button at both ends. The gap between the two bars lives
+     inside that, not on top of it - it used to be added, which stood the
+     console a gap taller than the disc and put its foot half a gap below
+     the collar's.
+
+     So a pair is half the collar's diameter each less half the gap: 36.5px
+     on an upright phone, 44.5 on a tablet, 38.5 on a phone on its side.
+
+     --conInset is the air a control stands in, and it is the gap itself, so
+     every piece of air along the bottom edge is one number: between the two
+     bars, between the console and the disc, and around a control inside its
+     bar. A control is what is left - 24.5px on an upright phone, 32.5 on a
+     tablet, 26.5 on its side - which is small, and deliberately so: the
+     buttons were filling their bar and the bar read as a box packed to the
+     edges rather than an instrument with room in it. They keep their width,
+     which is where a strip pays for the height it cannot give. */
+  --conH:calc((var(--dial-rec) + var(--dial-collar)) * 2);
+  --stackB:calc(var(--dial-m) - var(--dial-collar) + var(--safeB));
   --conL:8px;--conR:89px;--conBite:19px;--conPad:calc(var(--conBite) + 12px);
-  --conGap:6px;--conNose:6px;--conInset:5px}
+  --conGap:6px;--conNose:6px;--conInset:var(--conGap)}
 @media (orientation: portrait) and (max-width: 599px) {
   :root{--dial-rec:32px;--dial-m:16px;
     --dial-ico:21px;--dial-lab:7.5px;--dial-nico:22px;--dial-nlab:7.5px}
@@ -955,33 +969,50 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    so the three of them read as one stack on the same rhythm rather than a
    tall bar parked over two short ones. That leaves 35px inside it for an
    icon over its label, which come to 32. */
-#actionRow{position:absolute;left:var(--conL);right:var(--conL);z-index:500;
+/* The row is a console bar that happens to be above the console: the same
+   left edge and the same right edge, which is --conR rather than --conL
+   because that is where the bars below it stop to clear Navigate. It used
+   to run to the screen's own margin, which put it 63px wider than the two
+   bars under it on an upright phone - a square end hanging out over the
+   disc's column while the stack below it stopped short - and three bars in
+   a column only read as a stack if they are the same bar. */
+#actionRow{position:absolute;left:var(--conL);right:var(--conR);z-index:500;
   bottom:calc(var(--stackB) + var(--conH) + var(--conGap));
   height:calc((var(--conH) - var(--conGap)) / 2);
   display:flex;gap:4px;padding:2px;
   background:var(--head);border:1px solid var(--line);border-radius:10px;
   box-shadow:0 6px 20px rgba(0,0,0,.45);
   /* It comes in from off the edge of the screen and leaves the same way,
-     far enough out to clear it - its own width and the margin at that end -
-     so what waits there is never half on the map. Which edge depends on
-     where it opens; see .down below. In on the panel curve, out on the
-     sharper one the app uses for anything dismissed, which is a little
-     quicker. */
-  visibility:hidden;transform:translateX(calc(100% + var(--conL)));
+     far enough out to clear it - its own width and whatever is between its
+     right edge and the screen's - so what waits there is never half on the
+     map. Which edge depends on where it opens; see .down below. In on the
+     panel curve, out on the sharper one the app uses for anything
+     dismissed, which is a little quicker. */
+  visibility:hidden;transform:translateX(calc(100% + var(--conR)));
   transition:transform .22s cubic-bezier(.4,0,1,1),visibility 0s .22s}
 #actionRow.open{visibility:visible;transform:none;
   transition:transform .28s cubic-bezier(.3,.7,.3,1),visibility 0s}
-/* Down in the console's own slot, for when there is nothing in it. The row
-   sits where the bottom bar would - on the console's foot, stopping where
-   its box stops and curving around Navigate on a plate of its own, drawn by
-   platePanels - so a menu opened with the console empty comes up under the
-   thumb rather than floating a bar's height above nothing.
+/* Down in the console's own slot, for when there is nothing in it. It is
+   already the console's width, so what this moves is the foot - onto the
+   console's own - and what it changes is the height: the whole console,
+   not a strip of it. Whatever stands in that slot fills it, which is the
+   rule a lone recording or navigation bar already follows, and it is the
+   rule because the console is the disc's own height. Half of it left the
+   row sitting in the bottom of the slot with the disc standing twice as
+   tall beside it, which read as a bar that had nothing to do with the
+   button it was drawn around.
+
+   The drawing goes to a plate that curves around Navigate, which the row
+   above the console has no need of: up there the disc is below it, not
+   beside it, and a strip is the right height because it is one of three
+   stacked on the same rhythm. A menu opened with the console empty comes
+   up under the thumb rather than floating a bar's height above nothing.
 
    Which one it gets is decided when it opens and left alone while it is up,
    so a bar arriving as an action is chosen cannot move the row out from
    under the finger that chose it. The box keeps its border for the layout
    and hands the drawing to the plate. */
-#actionRow.down{right:var(--conR);bottom:var(--stackB);
+#actionRow.down{bottom:var(--stackB);height:var(--conH);
   padding-right:var(--conPad);gap:3px;
   background:none;border-color:transparent;box-shadow:none;
   /* Up from under the bottom edge, because down here that is where it has
@@ -1002,13 +1033,47 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #actionRow > .pl-plate{display:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.45))}
 #actionRow.down > .pl-plate{display:block}
 #actionRow .pl-face{stroke:var(--line2)}
-#actionRow .act{position:static;flex:1 1 0;min-width:0;width:auto;height:auto;border-radius:8px;gap:2px}
+#actionRow .act{position:static;flex:1 1 0;min-width:0;width:auto;height:auto;border-radius:8px;gap:1px}
 /* measurable rather than wrapped: the drop is only taken where the words
    fit on one line of it */
 #actionRow .act span{white-space:nowrap;overflow:hidden}
+/* Down in the console's slot the bar is the whole of it, so the mark is
+   sized for that rather than for a strip: about a third of the height, the
+   proportion the arc's own buttons kept - 33px on a tablet, 28 on an upright
+   phone, 29 on its side - with the word a full gap under it. Left at the
+   strip's 21 it sat in 31px of air at each end and read as a small thing
+   adrift in a tall bar. */
+#actionRow.down .act{gap:3px}
+#actionRow.down .act svg{width:calc(var(--conH) * 0.35);height:calc(var(--conH) * 0.35)}
 /* two pixels off the icon, so the pair of them stands clear of the strip
    rather than exactly filling it */
-#actionRow .act svg{width:calc(var(--dial-ico) - 2px);height:calc(var(--dial-ico) - 2px)}
+/* The mark is a shade under half the strip it stands in - 17px on an upright
+   phone, 21 on a tablet, 18 on a phone on its side - which with a pixel
+   between it and its word leaves about five of air above and below. It was
+   two pixels off the gauge size and the buttons filled their bar: 29.6px of
+   content in a 36.5px strip, 3.4 of air against the 6 a console control
+   stands in.
+
+   Off the strip rather than off --dial-ico, which is the closed disc's
+   number and does not follow this bar: a phone on its side has the taller
+   strip of the two and the smaller gauge, so taking a flat four off the
+   gauge gave the taller bar the smaller mark. Tied to the strip, the three
+   sizes come out at the same proportion and the same air.
+
+   Not the console's six, and the reason is that these buttons carry a word
+   as well as a mark. Taking the button down to a control's height meant the
+   glyph at 13.6px under an 8.4px label, and a mark only half again the size
+   of its own caption stops reading as a mark. The air is worth having; it is
+   not worth that.
+
+   It comes from the content being smaller than the bar, not from padding the
+   bar: padding squeezes rather than frames, and a flex column with less room
+   than its content shrinks the content - a 6px inset took the glyph to 14.5
+   and the label down with it, both silently. flex:0 0 auto is what says the
+   mark is not the part that gives. */
+#actionRow .act svg{
+  width:calc(((var(--conH) - var(--conGap)) / 2) * 0.47);
+  height:calc(((var(--conH) - var(--conGap)) / 2) * 0.47);flex:0 0 auto}
 .act{position:absolute;border:none;border-radius:50%;padding:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:auto;
   transition:background .12s}
@@ -4726,13 +4791,19 @@ function layoutDial() {
      middle, and the padding on that end clears it. The plate reads the disc
      itself, so the shapes follow from these two rather than being passed
      them. */
-  /* Half the console: the collar's radius and half the gap it stands
-     taller than the button. Worked out here rather than read back off
+  /* The curve is one gap clear of the collar - the same air the two bars
+     keep between themselves, so the spacing around the disc reads as the
+     spacing inside the console. It was a flat 12px, which was the standoff
+     the two cards this replaced already kept and had nothing to do with
+     either the collar or the gap.
+
+     Half the console is the collar's radius exactly, now that the console
+     is the collar's diameter. Worked out here rather than read back off
      --conH, which is a calc and comes back as one. Held two pixels inside
      the curve's own radius, because past that the circle no longer reaches
      the console's corners and there is no bite to draw. */
-  const cut = rec + 12;
-  const half = Math.min(cut - 2, rec + tok("--dial-collar") + tok("--conGap") / 2);
+  const cut = rec + tok("--dial-collar") + tok("--conGap");
+  const half = Math.min(cut - 2, rec + tok("--dial-collar"));
   const gap = Math.sqrt(cut * cut - half * half);
   const rs = document.documentElement.style;
   rs.setProperty("--conR", Math.round(M + rec + gap) + "px");
@@ -4763,8 +4834,8 @@ function layoutDial() {
   /* Clear of the action row, which stands on the console: the console's own
      foot, its height, a gap, and the row - which is half the console less
      half a gap, the same as one of its bars. */
-  const conGap = tok("--conGap"), conH = (rec + tok("--dial-collar")) * 2 + conGap;
-  const room = (zoomBase.h - (M - tok("--dial-collar") - conGap / 2)
+  const conGap = tok("--conGap"), conH = (rec + tok("--dial-collar")) * 2;
+  const room = (zoomBase.h - (M - tok("--dial-collar"))
     - conH - conGap - (conH - conGap) / 2) - hud;
   const roomShut = (zoomBase.h - M - 2 * rec - 8 - 12) - hud;         /* clear of the closed disc and its collar */
   const tuck = room < span(nz) + 20;
@@ -4838,8 +4909,16 @@ function platePanels() {
   if (!nav.offsetWidth) return;
   const cx = nr.left + nav.offsetLeft + nav.offsetWidth / 2;
   const cy = nr.top + nav.offsetTop + nav.offsetHeight / 2;
-  const R = nav.offsetWidth / 2 + 12.5;
-  const nose = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--conNose")) || 6;
+  const cs = getComputedStyle(document.documentElement);
+  const num = n => parseFloat(cs.getPropertyValue(n)) || 0;
+  /* The same circle layoutDial cut the boxes to: one gap outside the collar.
+     Exactly that, with no half pixel added - barShape insets the whole path
+     by half a pixel so a one-pixel stroke lands inside the box, and on this
+     end "inside" means further out from the disc, so it adds the half itself.
+     The old number carried one anyway and drew the arc 13px clear while the
+     boxes were cut at 12. */
+  const R = nav.offsetWidth / 2 + num("--dial-collar") + num("--conGap");
+  const nose = num("--conNose") || 6;
   const row = $("#actionRow");
   [$("#navPanel"), $("#recPanel"), row.classList.contains("down") ? row : null].forEach(function (bar) {
     if (!bar) return;

@@ -1045,6 +1045,26 @@ down there until it is tapped:
   bar parked over two short ones. Inside it each action is about 85x34, an
   icon two pixels off the gauge size over its label, with 2px clear top and
   bottom.
+- **Down in the console's slot it fills it.** Whatever stands in that slot
+  takes the whole of it, which is the rule a lone recording or navigation bar
+  already follows, and it is the rule because the console is the disc's own
+  height: 79px on an upright phone, 95 on a tablet, 83 on its side, top and
+  foot level with the disc. Half of it left the row sitting in the bottom of
+  the slot with the disc standing twice as tall beside it, which read as a
+  bar that had nothing to do with the button it was drawn around. Sized for
+  that height, the mark is about a third of it — 28px on an upright phone, 33
+  on a tablet, 29 on its side, the proportion the arc's own buttons kept —
+  with the word a full gap under it.
+- **Inside a button:** the mark is a shade under half the strip's height —
+  17px on an upright phone, 21 on a tablet, 18 on its side — a pixel above
+  its word, which leaves about 5px of air above and below the pair. Off the
+  strip rather than off the gauge size the closed disc uses: a phone on its
+  side has the taller strip of the two and the smaller gauge, so a flat
+  subtraction from the gauge gave the taller bar the smaller mark. The
+  console's controls stand in a full 6px of air, and these do not, because
+  they carry a word as well as a mark: matching it meant a 13.6px glyph under
+  an 8.4px label, and a mark only half again the size of its own caption
+  stops reading as a mark.
 - **States:** Record keeps red while recording and amber while paused.
 
 These four used to unfold onto a curved plate around Navigate, each the same
@@ -1085,23 +1105,31 @@ real resize and starts again.
 ### The Console
 
 Navigating and recording share one bar along the bottom edge of the screen.
-It draws the full width, and its height is the Navigate button's - which is
+It draws the full width, and its height is the Navigate button's — which is
 the collar's diameter and not the disc's, 79px on an upright phone against a
 disc of 64, because the ring is what the eye takes for the edge of the
-button. Two bars come to exactly that between them, and the gap between them
-is on top of it, so the console is one gap taller: 85px on an upright phone,
-101 on a tablet, 89 on a phone on its side. It is centred on the disc, which
-puts it 3px proud of the collar at each end and its foot half a gap below
-the collar's. The right end curves around the disc on a circle 12px clear of
-it, so the bar and the button read as one piece of hardware rather than a
-card parked beside one.
+button. **Exactly that and nothing more**: 79px on an upright phone, 95 on a
+tablet, 83 on a phone on its side, with its top edge level with the top of
+the disc and its foot level with the disc's foot. The gap between the two
+bars lives inside that height rather than on top of it — added, it stood the
+console a gap taller than the button and put its foot half a gap below the
+collar's, which read as a bar overshooting the thing it was drawn from.
+
+The right end curves around the disc on a circle **one gap clear of the
+collar** — the same 6px of air the two bars keep between themselves, so the
+spacing around the disc reads as the spacing inside the console. It was a
+flat 12px, which was the standoff the two cards this replaced already kept
+and had nothing to do with either the collar or the gap. The circle passes
+through the console's own corners, which is what sets how far the box stops
+short of the right edge and how deep the bite runs: 71px and 23 on an
+upright phone.
 
 Recording takes the top and navigating the bottom, because the bottom is the
 thumb's half and a route is the thing being driven. They are two bars rather
 than one split in two, so 6px of air runs between them - the tightest gap in
 the system's own range, and enough to read as air. A pair is half the
-console each less half that gap: 39.5px on an upright phone, 47.5 on a
-tablet, 41.5 on a phone on its side. The split falls on the disc's own
+console each less half that gap: 36.5px on an upright phone, 44.5 on a
+tablet, 38.5 on a phone on its side. The split falls on the disc's own
 centre line, so the two of them wrap the same amount of it. Either bar on
 its own has the whole console and the whole curve with it. When the second
 arrives the first gives up its share over 0.24s rather than jumping out of
@@ -1165,15 +1193,17 @@ buttons are held to half the bar, because spelled out they come to 218px of
 a 375px phone's 257 and left the track called FLIN... on a bar the width of
 the screen.
 
-A pair's controls stand 5px clear of the strip's edges and 8 to 12 from what
-they sit beside, which leaves them 29.5px on an upright phone, 37.5 on a
-tablet, 31.5 on a phone on its side. That is under the 44 The Two Hands Rule
-asks for and a strip is half a console, so it is the one place that rule
-cannot be met; they are given the width instead, which is the trade it
-names. The height the console takes over the button's own is what buys that
-clearance: crowding a control to the edges of its bar to claim the pixels
-back reads as one jammed in a slot, which is the thing a console is not. A
-bar on its own has the room for --tap, and takes it.
+A pair's controls stand a gap clear of the strip's edges — the same 6px that
+runs between the two bars and between the console and the disc, so every
+piece of air along the bottom edge is one number — and 8 to 12 from what
+they sit beside. What is left is the control: 24.5px on an upright phone,
+32.5 on a tablet, 26.5 on its side. That is well under the 44 The Two Hands
+Rule asks for and a strip is half a console, so it is the one place that
+rule cannot be met; they are given the width instead, which is the trade it
+names — 36px on a phone where the words have gone, 58 to 89 on a tablet
+where they have not. They were 29.5px and nearly filling their bar, which
+read as a box packed to the edges rather than an instrument with room in
+it. A bar on its own has the room for --tap, and takes it.
 
 A strip drops the navigation arrow and leads with the destination. It is
 19px of a 253px line, and the only mark on the bar that says nothing the
