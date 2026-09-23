@@ -85,7 +85,7 @@ Menu → Downloaded Areas is where a trip is prepared:
   for South Australia is another 117 MB.
   Each state is recorded with the build it came from, so a state the monthly
   rebuild has moved on from says so and offers an update, and Delete keeps
-  whatever another downloaded state or a drawn area still covers.
+  whatever another downloaded state still covers.
   It also keeps the street index for the state's longitudes (1.7 MB for
   South Australia), so with no signal Search finds a street, suburb or town
   from the phone as well as an address with its number. A state downloaded
@@ -94,12 +94,16 @@ Menu → Downloaded Areas is where a trip is prepared:
   the query ("fuel coober pedy") is where to look.
   It brings the state's map with it as well — see "Offline maps".
 
-**Download New Area is gone from the screen.** It was a box you drew, and
-what it stored was Esri picture tiles; the map does not draw Esri any more,
-so the box has nothing to fill. The button, the draw flow and the tile store
-behind it are still in the file, dark, so that a phone which downloaded
-areas before the vector map can still see those tiles under Storage and
-clear them.
+**Download New Area is gone from the screen**, and so are the drawn-area
+cards, the Cached tiles count and Clear Tile Cache. It was a box you drew
+and what it stored was Esri picture tiles; the map does not draw Esri any
+more, so the box has nothing to fill and the tiles cannot be shown again.
+With no way left to clear them by hand, a phone that has any sweeps them
+once on the first launch after the change (`sweepOldTiles`) and says what
+was freed. The flow behind the button — `startDrawArea`, the area modal,
+`deleteArea` — is left standing rather than pulled out: it is what would be
+wired back up if a state without a map of its own needed covering before the
+hosting moves.
 
 Until the other states' maps are hosted, that leaves **no offline map
 outside South Australia**. Everything else a state brings still works
