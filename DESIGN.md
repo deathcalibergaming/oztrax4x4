@@ -1682,6 +1682,18 @@ the two over about half a second rather than jumping it. The map turns about
 the vehicle wherever it is held, so it never swings round the screen as the
 heading changes.
 
+**The open map is the stage less the console's band**, not the whole stage.
+The console lies over the map rather than shortening it, so everything that
+means "the middle of the map" has to mean the middle of what is left — 87.5px
+of an upright phone is under the console and the disc, and counting it put the
+vehicle 44px low, half of it behind the bar. It was counted for a long time:
+the inset was measured off `#actionbar`, and that has been a zero-height strip
+with the disc hung above it since the disc went in the corner, so the
+measurement always came back zero. The band is reserved whether a bar is up or
+not — the box is always there and Navigate always stands in it, and an inset
+that came and went with a recording would walk the vehicle up and down the
+screen while somebody was driving.
+
 ### The Mark
 
 A heading arrow inside a bearing ring, in Burnt Orange on the app's own
