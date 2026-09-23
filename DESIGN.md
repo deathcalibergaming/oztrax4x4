@@ -1720,6 +1720,43 @@ ground rather than a mark drawn on it, so those stand upright and face the
 driver however far the map leans. POI pins stand up too, and cost nothing to
 do so: they are a GL symbol layer rather than page elements.
 
+**The vehicle mark folds when the map leans. It stays an arrow.** A chevron
+painted flat is the right mark on a flat map and the wrong one on a leaning
+one — it is the single thing on screen meant to be an object rather than a
+marking, and at 45° everything around it has stood up while it went on lying
+down. A little wagon was drawn for that job first and was wrong twice over:
+the mark's whole work is to say which way you are pointing, which an arrow
+does better than a picture of a car, and it could never have been true to
+scale anyway — a 4x4 is 4.9 m long, which projects to 2.4px at the zoom people
+drive at and 6.8px at the deepest zoom once the lean has foreshortened it,
+against a mark drawn at 44.
+
+So the mark keeps VEH_FLAT's own path, corner for corner, lying on the road
+and foreshortened by the lean like anything else painted on it. What leaning
+adds is a spine down the middle — on the road at the point, standing 9px at
+the tail — so the two halves catch the light differently either side of the
+crease, 0.82 against 0.55 of full. Nothing new appears for the driver to
+learn; the arrow stops being paper. The footprint is drawn a quarter larger
+than the flat path, because foreshortening costs it 29% of its length and
+without that quarter the mark reads smaller than the one the driver had a
+moment ago: 23px long and 23.8px wide against the flat chevron's 26×19.
+
+**A quarter in both directions, not along the arrow alone** — and that is the
+part worth keeping. The first attempt stretched only the forward axis by
+1/cos(pitch), so that the lean would undo the stretch and the mark would come
+out exactly the flat chevron's size and shape. It does, pointing straight up
+the screen. Turned ninety degrees that same stretch lands across the screen
+where nothing foreshortens it, and the arrow draws half again too long — a
+sliver. Heading up the yaw is always about zero, so the fault would almost
+never have shown; it would have waited for a driver who dragged the map to
+look up the road. A uniform scale cannot distort at any yaw.
+
+The picture is redrawn only when the vehicle turns relative to the map, in 4°
+steps, which heading up means almost never: following, the camera's bearing
+*is* the vehicle's heading, so the two cancel and one picture stands for mile
+after mile. It earns its keep when the map has been dragged away and the
+bearing is frozen — then the vehicle really is turning against the map.
+
 Two things come with it. The style's `building-3d` extrusion layer has drawn
 since the vector rebuild and shown nothing, because an extrusion seen from
 straight overhead is a flat polygon; leaning is what makes a town read as
