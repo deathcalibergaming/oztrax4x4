@@ -603,7 +603,8 @@ kind of saving worth having: one earned by making the thing read correctly
 rather than by tightening a rhythm the rest of the app keeps.
 
 Panels overlay the map rather than displacing it: a left drawer, a POI panel,
-and a bottom panel stack that splits width when two are open at once. Spacing
+and a console along the bottom edge that splits its height when two bars are
+up at once. Spacing
 is tight throughout — gaps of 6–14px, card padding 10px — because the density
 of the instrument face is the point.
 
@@ -719,7 +720,8 @@ rather than running across the bevel.
   chips.
 - **Popup** (`0 8px 24px rgba(0,0,0,.6)`): map popups.
 - **Panel** (`0 8px 22px rgba(0,0,0,.6)` to `0 12px 34px rgba(0,0,0,.62)`):
-  the bottom panel stack.
+  the console along the bottom edge, cast once from the silhouette its bars
+  make rather than off each of them.
 - **Drawer** (`8px 0 28px rgba(0,0,0,.5)`): the side drawer, cast sideways.
 - **Modal** (`0 16px 42px rgba(0,0,0,.7)`): the deepest, for dialogs.
 
@@ -1032,49 +1034,113 @@ where it always landed, because the clamp is the old placement's own limit.
 How many rows it takes is still measured against the clear stretch: five
 where the stretch above the open dial holds them with 10px to spare, else
 the longer stretch clear of the closed disc, stepping aside while the dial
-is open the way the panels do; and where even a column of five will not fit
+is open the way the console does; and where even a column of five will not fit
 - a phone on its side - folded into as many rows as the height holds, evened
 out, in columns from the right edge inward: +, - and recentre down the edge,
 the orientation and simulation buttons beside them. Never a row along the
 bottom: on a small nav screen that put them under the other thumb and
-pushed the panels along. It is measured, not keyed to orientation: a tablet
+pushed the console's bars along. It is measured, not keyed to orientation: a tablet
 or a desktop window on its side keeps the single column. It is measured against the tallest the
 screen has been at its width, so Android's system bars sliding up on a swipe
 move the dial with the bottom edge but leave the zoom buttons where they are;
 a width change or a drop of more than 120px is a real resize and starts
 again.
 
-The nav and record panels stand beside Navigate, stopping 12px short of it,
-at exactly its height - top and bottom level with the disc, 64px on an
-upright phone, 80 on a tablet, 68 on a phone on its side - so the corner
-reads as one console. Every pixel the disc lost went to the panels' width.
-While the dial is open they step aside, so its plate never lands
-on them. How much each shows is fitted to the room it has - measured with
-the widest figures it will ever hold, a four-figure distance and PAUSED, so
-the form never changes under a driver as a number grows - in three forms
-tried in turn:
+### The Console
 
-- **Full:** navigation carries the destination, three readings on short
-  labels (LEFT, TIME, ETA) and Cancel down the right; recording carries the
-  dot, the track and its state, and Pause and Stop & Save side by side.
-- **Short:** the destination over the distance left, travel time and
-  arrival, one to a line at 11px, with Cancel as a drawn cross in a 36px
-  column down the panel's whole right side, and Pause, Resume and Stop as
-  36px drawn glyphs whose words stay on the buttons for screen readers - all
-  of it inside a 64px console. An upright phone's pair starts here, side by
-  side at about 126px each on a 360px phone and 134 at 375; a single panel,
-  or a pair on a phone on its side, comes to it only when the full form runs
-  out.
-- **Strips:** a pair too narrow for the short form becomes two strips, one
-  over the other, each 40px - a 36px control and its border - the
-  destination over the distance and arrival with Cancel down the right, and
-  the dot, track and state with Pause and Stop. That is any pair under 124px
-  a panel, scaled with the text: an upright phone under about 350px wide, or
-  at Large text, or a phone on its side too short for the short form. The
-  84px pair is centred
-  on the disc, meeting its collar at top and foot, and never nearer the
-  bottom of the screen than 8px. A strip too narrow for the arrival as well
-  shows the distance alone.
+Navigating and recording share one bar along the bottom edge of the screen.
+It draws the full width, and its height is the Navigate button's - which is
+the collar's diameter and not the disc's, 79px on an upright phone against a
+disc of 64, because the ring is what the eye takes for the edge of the
+button. Two bars come to exactly that between them, and the gap between them
+is on top of it, so the console is one gap taller: 85px on an upright phone,
+101 on a tablet, 89 on a phone on its side. It is centred on the disc, which
+puts it 3px proud of the collar at each end and its foot half a gap below
+the collar's. The right end curves around the disc on a circle 12px clear of
+it, so the bar and the button read as one piece of hardware rather than a
+card parked beside one.
+
+Recording takes the top and navigating the bottom, because the bottom is the
+thumb's half and a route is the thing being driven. They are two bars rather
+than one split in two, so 6px of air runs between them - the tightest gap in
+the system's own range, and enough to read as air. A pair is half the
+console each less half that gap: 39.5px on an upright phone, 47.5 on a
+tablet, 41.5 on a phone on its side. The split falls on the disc's own
+centre line, so the two of them wrap the same amount of it. Either bar on
+its own has the whole console and the whole curve with it. When the second arrives the first gives up its share over 0.24s
+rather than jumping out of the way, and the arriving bar unrolls out of the
+edge it keeps as it fades up; a bar that leaves folds back into that edge.
+While the dial is open the console steps aside, so the dial's plate never
+lands on it.
+
+The face, the one-pixel edge and the curve are a drawn path, not a box with
+a border and a radius: a border follows a box and a mask would take the edge
+off with the fill. Every corner of that end is rounded, and neither of them
+is a corner a radius rounds - they are where a straight edge runs into the
+disc's circle, about 40 degrees at the outer end and a right angle at the
+inner one. Both are filleted: a 6px arc tangent to the edge and to the
+circle, which gives the end a nose that cradles the button. The sharper the
+corner the further back along the edge its fillet starts, so the two are the
+same radius and different lengths; that is the geometry rather than a
+mistake.
+
+Each bar draws its own shape, to the box it has at that moment, rather than
+holding one shape and being cut to its share - a cut edge cannot be rounded,
+and both of these need to be. The cost is that a fold redraws two paths of
+eight segments on each of its frames, which is not the frame loop and
+nothing like it: it runs when a bar arrives or leaves and stops when the
+transitions do. The shadow is cast once, from the silhouette the bars
+actually make.
+
+What each bar carries is fitted to the room it has - measured with the
+widest figures it will ever hold, a four-figure distance and PAUSED, so the
+form never changes under a driver as a number grows - in four steps, each
+tried in turn and the first that holds kept:
+
+- **Full:** a bar on its own, at the console's full height. Navigation
+  carries the destination, three readings on short labels (LEFT, TIME, ETA)
+  and Cancel down the right; recording carries the dot, the track and its
+  state at the left with Pause and Stop & Save at the right, at `--tap`,
+  because a bar on its own has the height for them and a recording is paused
+  while moving. A pair is half that height, which is one line, so each bar
+  puts everything on that line and spends the width instead: the
+  destination, then the readings in a row with their labels off, then
+  Cancel; the dot and the track, then the state, then Pause and Stop.
+- **Dense:** Cancel, Pause, Resume and Stop become drawn glyphs - about a
+  hundred pixels of width, and the cheapest thing in the bar to give up. The
+  words stay on the buttons for a screen reader; only the drawing changes,
+  and Resume shows as a play glyph on a button that turns green. An upright
+  phone reaches this with either bar on its own.
+- **Tight:** the travel time goes, being the reading the arrival already
+  implies, and the names and figures come down a step. An upright phone's
+  pair is here.
+- **Bare:** the arrival goes as well and the distance stands alone. A 320px
+  phone's pair reaches it.
+
+The destination keeps room for a word at every step, and a word is a count
+of letters rather than a count of pixels: 48px is about six of them at the
+full size, and the floor is measured off whatever size the step has set, so
+it comes down with the type and up with the Text Size step. The track's name
+is not held to it - you know what you are recording - but the recording
+buttons are held to half the bar, because spelled out they come to 218px of
+a 375px phone's 257 and left the track called FLIN... on a bar the width of
+the screen.
+
+A pair's controls stand 5px clear of the strip's edges and 8 to 12 from what
+they sit beside, which leaves them 29.5px on an upright phone, 37.5 on a
+tablet, 31.5 on a phone on its side. That is under the 44 The Two Hands Rule
+asks for and a strip is half a console, so it is the one place that rule
+cannot be met; they are given the width instead, which is the trade it
+names. The height the console takes over the button's own is what buys that
+clearance: crowding a control to the edges of its bar to claim the pixels
+back reads as one jammed in a slot, which is the thing a console is not. A
+bar on its own has the room for --tap, and takes it.
+
+A strip drops the navigation arrow and leads with the destination. It is
+19px of a 253px line, and the only mark on the bar that says nothing the
+Navigation blue of its edge and its name has not already said - where the
+recording bar's dot is a state and blinks. What it buys is the name: PORT
+AUGUSTA fits, where the strip used to run out after PORT AUG.
 
 ### Menu Badge
 

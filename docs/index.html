@@ -869,21 +869,33 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    it, and a box the size of the dial would read as an inset the height of
    the map. layoutDial places everything from the sizes below. */
 /* Navigate is 80px on a tablet and 64 on an upright phone - a fifth smaller
-   than it was - and still 68 on a phone on its side. The panels beside it
-   are exactly its height, so every pixel off the disc's diameter went to the
-   panels' width: 16 on a phone, which is what puts a 360px phone's pair side
-   by side instead of in strips. On its side the panels have width to spare
-   and height to lose - a 60px console sent the pair to strips 84px tall - so
-   that disc stays. The arc is drawn in by as much as the disc shrank, so the
-   buttons on it keep the same distance from the disc's edge, and the same
-   reach. */
+   than it was - and still 68 on a phone on its side. The disc's diameter is
+   the console's height, and half of it is a strip when both bars are up, so
+   the disc is the one number the whole bottom edge is drawn from. The arc is
+   drawn in by as much as the disc shrank, so the buttons on it keep the same
+   distance from the disc's edge, and the same reach. */
 :root{--dial-r:166px;--dial-rec:40px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
   --dial-ico:25px;--dial-lab:8.5px;--dial-nico:28px;--dial-nlab:8.5px;
-  /* The nav and record panels sit on the bottom edge beside Navigate, level
-     with its foot and stopping 12px short of it, and the speed sign stands
-     on the same line at the left. */
-  --stackB:calc(var(--dial-m) + var(--safeB));
-  --stackR:calc(var(--dial-m) + var(--dial-rec) * 2 + 12px)}
+  /* The console stands on the bottom edge, level with the disc's foot, and
+     stops short of the right edge by enough room for the curve it makes
+     around the disc. --conBite is how deep that curve cuts into the end,
+     --conGap the air between two bars and --conNose the radius the ends of
+     them are rounded to; layoutDial writes --conR and --conBite from the
+     disc's own geometry, and the values here are a tablet's, for the frame
+     before it runs. */
+  /* The collar is the ring that makes the disc look 79px rather than 64;
+     the console is drawn from it, so it is a token rather than a number in
+     one box-shadow. */
+  --dial-collar:7.5px;
+  /* Two bars that come to the button's diameter between them, and the gap
+     on top of that: the console stands one gap taller than the button and
+     is centred on the disc, so the split lands on its centre line and the
+     foot goes half a gap below the collar's. --conInset is what that extra
+     height is for - the air a control stands in. */
+  --conH:calc((var(--dial-rec) + var(--dial-collar)) * 2 + var(--conGap));
+  --stackB:calc(var(--dial-m) - var(--dial-collar) - var(--conGap) / 2 + var(--safeB));
+  --conL:8px;--conR:89px;--conBite:19px;--conPad:calc(var(--conBite) + 12px);
+  --conGap:6px;--conNose:6px;--conInset:5px}
 @media (orientation: portrait) and (max-width: 599px) {
   :root{--dial-r:128px;--dial-rec:32px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
     --dial-ico:21px;--dial-lab:7.5px;--dial-nico:22px;--dial-nlab:7.5px}
@@ -917,7 +929,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* Navigate is the Primary: Burnt Orange with near-black ink, collared in the
    panel colour so it sits in the dial rather than on the map */
 #btnNavTo{width:calc(var(--dial-rec) * 2);height:calc(var(--dial-rec) * 2);background:var(--rust);
-  box-shadow:0 0 0 6px #111513,0 0 0 7.5px #333D36,0 10px 20px rgba(0,0,0,.6)}
+  box-shadow:0 0 0 6px #111513,0 0 0 var(--dial-collar) #333D36,0 10px 20px rgba(0,0,0,.6)}
 #btnNavTo:active{background:var(--rust);filter:brightness(1.25)}
 #btnNavTo svg{width:var(--dial-nico);height:var(--dial-nico);stroke:#12100E;stroke-width:2}
 #btnNavTo span{font-size:var(--dial-nlab);letter-spacing:.14em;color:#12100E;font-weight:700}
@@ -933,28 +945,97 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .act.rec svg{stroke:var(--danger);fill:var(--danger)}
 .act.rec span{color:var(--danger2)}
 
-/* ---------- recording panel ---------- */
-/* Navigating while recording used to cost two stacked panels and most of the
-   lower half of the screen. They sit side by side instead, each taking half
-   the width, and a single panel still spans the full width on its own. */
-#panelStack{position:absolute;left:8px;right:var(--stackR);z-index:500;
-  bottom:max(calc(8px + var(--safeB)), calc(var(--stackB) + var(--stackShift, 0px)));
-  height:calc(var(--dial-rec) * 2);   /* the Navigate disc's height: top and bottom level with it */
-  display:flex;flex-direction:row;align-items:stretch;gap:7px;pointer-events:none}
-#panelStack > *{pointer-events:auto;flex:1 1 0;min-width:0}
-/* Its right edge is a token and not a landscape override: the override sat
-   above this rule in the file and lost to it, so on its side the record
-   panel ran under the Navigate disc and hid Stop & Save. */
-/* The dial opens over this corner, so while it is open the panels step
-   aside rather than sitting under its plate, and come back as it folds. */
+/* ---------- the console ----------
+   Navigating and recording used to cost two cards in the corner beside
+   Navigate, each half a panel wide, dropping to strips the moment a 360px
+   phone had to hold both. They are one bar now: it draws the width of the
+   screen along the bottom edge and its right end curves around the Navigate
+   disc, standing exactly as tall as the disc - 64px on an upright phone, 80
+   on a tablet, 68 on a phone on its side.
+
+   Recording takes the top half of it and navigating the bottom, because the
+   bottom half is the thumb's half and a route is the thing being driven.
+   Either on its own has the whole bar and the whole curve with it, and the
+   one that is left unrolls into the other's half rather than jumping into
+   it - see syncPanelStack.
+
+   It stands as tall as the button looks, which is the collar's diameter
+   and not the disc's: 79px on an upright phone against the disc's 64. The
+   ring is what the eye takes for the edge of the button, so a console level
+   with the disc read as two bars that had come up short. Its foot is level
+   with the collar's too, which is 7.5px nearer the bottom of the screen
+   than the disc's own. A pair is half of that each, less half the gap.
+
+   The curve is a circle 12px clear of the disc, which is the standoff the
+   two cards already kept from it, so the bar's right end passes through the
+   corners of its own box and bites about 14px in at the middle. How far
+   short of the right edge that box stops (--conR) and how deep the bite
+   runs (--conBite, which --conPad keeps a word or a button out of) are
+   worked out in layoutDial, where the disc's own geometry is. */
+#panelStack{position:absolute;left:var(--conL);right:var(--conR);bottom:var(--stackB);z-index:500;
+  height:var(--conH);pointer-events:none;
+  /* One shadow for the shape the bars actually make, rather than a box
+     shadow off each of them: drawn from the silhouette, it follows the
+     curve around the disc and leaves no line down the seam. */
+  filter:drop-shadow(0 6px 20px rgba(0,0,0,.45))}
+/* Each bar sets the edge that moves - the bottom bar's head, the top bar's
+   foot - and keeps the one it shares with the disc. */
+#panelStack > *{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;
+  pointer-events:auto;min-width:0}
+#navPanel{transition:top .24s cubic-bezier(.3,.7,.3,1),opacity .16s linear}
+#recPanel{transition:bottom .24s cubic-bezier(.3,.7,.3,1),opacity .16s linear}
+/* Half the console each, less half the gap between them: 36.5px on an
+   upright phone, 44.5 on a tablet, 38.5 on a phone on its side. 6px is the
+   tightest gap in the system's own range, and it is enough to read as air
+   between two bars rather than a seam in one. The split falls on the disc's
+   own centre line, so the two bars wrap the same amount of it. */
+#panelStack.pair #navPanel{top:calc(50% + var(--conGap) / 2)}
+#panelStack.pair #recPanel{bottom:calc(50% + var(--conGap) / 2)}
+/* .hidden means gone everywhere else on the page; in the console it means
+   folded shut - no height, and out of the accessibility tree once the fold
+   is over - because a bar that is simply not there cannot be folded away
+   from under the one that stays. The display each panel lays its contents
+   out with is put back at a specificity that beats .hidden's !important. */
+#panelStack > #navPanel.hidden{display:grid !important;top:100%}
+#panelStack > #recPanel.hidden{display:flex !important;bottom:100%}
+/* folded to nothing, not to its own padding, which a box cannot fold past */
+#panelStack > #navPanel.hidden,#panelStack > #recPanel.hidden{padding-top:0;padding-bottom:0}
+#panelStack > .hidden{opacity:0;visibility:hidden;pointer-events:none;
+  transition:top .24s cubic-bezier(.3,.7,.3,1),bottom .24s cubic-bezier(.3,.7,.3,1),
+    opacity .16s linear,visibility 0s .24s}
+/* Nothing moves while the shares are being measured: fitPanels has to see
+   the box a bar will actually have, so the change lands first and the bars
+   are put back where they were for one frame afterwards. */
+#panelStack.settling > *{transition:none}
+/* The dial opens over this corner, so while it is open the console steps
+   aside rather than sitting under its plate, and comes back as it folds. */
 #panelStack{transition:opacity .15s,transform .15s}
 #stage.dial-open #panelStack{opacity:0;transform:translateY(8px);pointer-events:none}
 #stage.dial-open #panelStack > *{pointer-events:none}
-/* ---------- the panels, docked ----------
-   The nav and record panels stand beside Navigate at exactly its height -
-   top and bottom level with the disc - so the corner reads as one console
-   rather than a stack of cards beside a button: 64px on an upright phone,
-   80 on a tablet, 68 on a phone on its side. Each panel is laid out to fit:
+
+/* The plate. The bar's face and its one-pixel edge are a path rather than a
+   background and a border, because the end that curves around the disc is
+   concave - a border follows the box - and because every corner of that end
+   is a corner a radius cannot round: where a straight edge runs into the
+   curve it makes a spike of about 40 degrees at the outer end and a right
+   angle at the inner one, and both are filleted into the curve instead.
+
+   The plate fills its own bar and is drawn to the box that bar has at this
+   moment, rather than being one shape pinned at an edge and cut by the
+   box - a cut edge cannot be rounded. platePanels redraws it, on every
+   layout and on every frame of a fold.
+
+   It sits behind what the bar carries, and behind it in the console's own
+   stacking context - the one the drop shadow makes - rather than anywhere
+   near the map. A positioned child paints over in-flow text otherwise, and
+   the plate would be a black bar with nothing on it. */
+.pl-plate{position:absolute;left:0;top:0;z-index:-1;pointer-events:none}
+.pl-face{fill:var(--head);stroke-width:1}
+#navPanel .pl-face{stroke:rgba(127,193,240,.55)}
+#recPanel .pl-face{stroke:rgba(224,124,99,.65)}
+
+/* ---------- what each bar carries ----------
+   A bar on its own has the console's full height and the whole width:
 
    - Navigation: the destination on one line, the three readings under it on
      short labels, and Cancel down the right as one word.
@@ -963,7 +1044,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
    The id-and-id selectors are for the #navPanel and #recPanel rules further
    down, which would otherwise win on order. */
-#panelStack #navPanel,#panelStack #recPanel{padding:6px 10px;min-width:0;overflow:hidden}
+#panelStack #navPanel,#panelStack #recPanel{padding:6px var(--conPad) 6px 10px;min-width:0}
 #navPanel{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
   column-gap:10px;row-gap:2px;align-content:center;align-items:center}
 #navPanel .np-top{grid-column:1;grid-row:1;min-width:0;gap:6px}
@@ -982,102 +1063,107 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #navPanel:has(.np-note:not(:empty)) .np-top{visibility:hidden}
 #navPanel .np-btns{grid-column:2;grid-row:1 / 3;margin:0}
-#navPanel .np-btns .btn{font-size:0;padding:6px 12px;min-height:var(--tap-sm)}
+/* gap:0 for the same reason as the glyphs below: the button keeps its own
+   label as a zero-width text node, and a flex gap after nothing is still a
+   gap the drawn word has to sit beside. */
+#navPanel .np-btns .btn{font-size:0;padding:6px 12px;gap:0;min-height:var(--tap-sm)}
 #navPanel .np-btns .btn::after{content:"CANCEL";font-size:var(--t-micro);letter-spacing:.08em}
-#recPanel{display:flex;flex-direction:column;justify-content:center;gap:5px}
-#recPanel .rp-top{margin:0;gap:6px}
+/* Recording is a row at either height: the dot, the track and its state at
+   the left, Pause and Stop at the right, which is where the thumb is. It
+   used to stack the buttons under the name, and across a bar the width of
+   the screen that made a 250px Pause. They are --tap here, because a bar on
+   its own has the height for it and a recording is paused while moving. */
+#recPanel{display:flex;flex-direction:row;align-items:center;gap:10px}
+#recPanel .rp-top{flex:1 1 auto;min-width:0;margin:0;gap:6px}
 #recPanel .rp-name{font-size:var(--t-note);letter-spacing:.04em}
-#recPanel .rp-btns{gap:6px}
-#recPanel .rp-btns .btn{flex:1 1 0;min-width:0;padding:6px 8px;min-height:var(--tap-sm);
+/* Pause and Stop never take more than half the bar. Spelled out they come
+   to 218px of a 375px phone's 257, which left the track called FLIN... on a
+   bar the width of the screen; capped, they overflow their own box instead,
+   which is a thing panelsHold can see, and the ladder puts the words down
+   for glyphs. Where there is room for them - a tablet, a phone on its side -
+   the words stay. */
+#recPanel .rp-btns{flex:0 0 auto;gap:8px;max-width:45%}
+#recPanel .rp-btns .btn{flex:0 0 auto;min-width:0;padding:0 16px;min-height:var(--tap);
   font-size:var(--t-micro);letter-spacing:.06em;white-space:nowrap}
-/* the navigation side carries three readings and a button, the recording side two buttons */
-#panelStack.pair #navPanel{flex:3 1 0}
-#panelStack.pair #recPanel{flex:2 1 0}
-/* How much of all that each panel shows is fitted to the room it actually
-   has, by fitPanels, measured with the widest figures the panels will ever
-   hold - not decided by orientation. It used to be: an upright phone got the
-   short form below and everything else got the full one, so a single nav
-   panel on a 340px phone ran its three readings into each other, and so did
-   a pair on a phone on its side. Three steps, each tried in turn:
 
-   - Full, as above.
-   - .dense - the destination with Cancel as a cross beside it, the distance
-     left in full, travel time and arrival under it; the dot and the state,
-     and Pause and Stop as drawn glyphs. What an upright phone's pair has
-     always had. The words are still on the buttons for a screen reader -
-     only not drawn. Resume shows as a play glyph: the button turns .go.
-   - .stacked - a pair too narrow even for that, below about 124px a panel,
-     becomes two strips one over the other. See below. */
+/* ---------- the pair, in strips ----------
+   Half a console is one line, so each bar puts what it carries on that line
+   and spends the width instead of the height: the destination, then the
+   three readings in a row with their labels off, then Cancel; the dot and
+   the track, then its state, then Pause and Stop. Nothing is dropped for
+   being a pair - the width is there now - which is what the old pair of
+   cards, 133px each on a 375px phone, could never say.
+
+   Their controls stand 3px clear of the strip's edges and 8 to 12 from
+   what they sit beside, which leaves them 26px on an upright phone, 34 on a
+   tablet, 28 on a phone on its side. That is under the 44 The Two Hands
+   Rule asks for and a strip is half a disc, so it is the one place the
+   console cannot give it - they are given the width instead, which is the
+   trade that rule names. Crowding them to the edges to claim the pixels
+   back reads as a control jammed in a slot, which is the thing a console
+   is not. */
+#panelStack.pair #navPanel{grid-template-columns:minmax(0,1fr) auto auto;grid-template-rows:100%;
+  column-gap:12px;row-gap:0;padding-top:0;padding-bottom:0}
+/* The arrow goes, and the destination leads. It is 19px of a strip that has
+   253 of them, and it is the one thing on the bar that says nothing the
+   Navigation blue on its edge and its name has not already said - where the
+   recording bar's dot is a state, and blinks. What it buys is the name:
+   PORT AUGUSTA fits, where it used to run out after PORT AUG. */
+#panelStack.pair .np-ico{display:none}
+#panelStack.pair .np-top{gap:0}
+#panelStack.pair .np-figs{grid-column:2;grid-row:1;margin:0;display:flex;align-items:center;gap:0}
+#panelStack.pair .np-figs > div{flex:0 0 auto;padding:0 9px;border-right:1px solid var(--line)}
+#panelStack.pair .np-figs > div:first-child{padding-left:0}
+#panelStack.pair .np-figs > div:last-child{padding-right:0;border-right:none}
+#panelStack.pair .np-figs > div:first-child b{color:var(--hud)}
+#panelStack.pair .np-figs i{display:none}
+#panelStack.pair .np-btns{grid-column:3;grid-row:1;align-self:stretch;padding:var(--conInset) 0}
+#panelStack.pair #recPanel{gap:12px;padding-top:0;padding-bottom:0}
+#panelStack.pair .rp-btns{align-self:stretch;padding:var(--conInset) 0;gap:8px}
+#panelStack.pair :is(.np-btns,.rp-btns) .btn{flex:0 0 auto;min-height:0;height:100%;padding:0 14px}
+
+/* ---------- tighter, where the width runs out ----------
+   Fitted to the room by fitPanels, measured with the widest figures the
+   bars will ever hold - a four-figure distance, a two-figure hours, a
+   two-figure arrival and PAUSED - so a form that fits now does not overflow
+   the first time a number gains a digit, and it never flips back and forth
+   while driving.
+
+   - .dense - Cancel, Pause, Resume and Stop become the drawn glyphs they
+     have always fallen back to, which is about a hundred pixels of width
+     and the cheapest thing in the bar to give up: the words stay on the
+     buttons for a screen reader, only the drawing changes. Resume shows as
+     a play glyph, on a button that turns .go.
+   - .tight - the travel time goes, being the one reading the arrival
+     already implies, and the names and figures come down a step. A smaller
+     instrument is a worse one, so this is late rather than early.
+   - .bare - the arrival goes as well and the distance stands alone. A
+     320px phone's pair reaches it: at .tight the destination was down to
+     an ellipsis, 7px of the 234px bar, which is not a name. */
 #btnNavCancel{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 3.5l9 9M12.5 3.5l-9 9' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")}
 #btnRecPause{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='2' width='3.6' height='12' rx='1'/%3E%3Crect x='9.4' y='2' width='3.6' height='12' rx='1'/%3E%3C/svg%3E")}
 #btnRecPause.go{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 2.3v11.4c0 .5.5.8.9.5l8.6-5.7a.6.6 0 0 0 0-1L5.4 1.8c-.4-.3-.9 0-.9.5z'/%3E%3C/svg%3E")}
 #btnRecStop{--glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='1.6'/%3E%3C/svg%3E")}
-#panelStack:is(.dense,.stacked) .np-btns .btn,#panelStack:is(.dense,.stacked) .rp-btns .btn{font-size:0;padding:0;min-width:0}
-#panelStack:is(.dense,.stacked) .np-btns .btn::after,#panelStack:is(.dense,.stacked) .rp-btns .btn::after{content:"";display:block;margin:auto;
+/* gap:0 as well as the rest: a .btn is a flex row with a 6px gap, and the
+   label is still in there as a zero-width text node for the screen reader,
+   so the gap it no longer needs was pushing every glyph 3px off centre. */
+#panelStack.dense :is(.np-btns,.rp-btns) .btn{font-size:0;padding:0;gap:0;min-width:var(--tap-sm)}
+#panelStack.dense :is(.np-btns,.rp-btns) .btn::after{content:"";display:block;margin:auto;
   width:14px;height:14px;background:currentColor;
   -webkit-mask:var(--glyph) center/contain no-repeat;mask:var(--glyph) center/contain no-repeat}
-#panelStack:is(.dense,.stacked) .np-figs i{display:none}
-#panelStack:is(.dense,.stacked) .np-figs > div{border-right:none;align-items:flex-start}
-#panelStack:is(.dense,.stacked) .np-top{gap:4px}
-#panelStack:is(.dense,.stacked) .np-ico{width:11px;height:11px}
-#panelStack:is(.dense,.stacked) .np-name,#panelStack:is(.dense,.stacked) .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
-#panelStack:is(.dense,.stacked) .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
+#panelStack.tight .np-name,#panelStack.tight .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
+#panelStack.tight .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
+#panelStack.tight .np-figs b{font-size:calc(11px * var(--uiScale))}
+#panelStack.tight.pair .np-figs > div{padding:0 7px}
+#panelStack.tight .np-figs > div:nth-child(2){display:none}
+#panelStack.bare .np-figs > div:nth-child(3){display:none}
+/* the divider belongs between two readings, and .bare leaves one */
+#panelStack.bare .np-figs > div:nth-child(1){border-right:none;padding-right:0}
+/* The bars' own furniture. Their face, their edge and their shadow are not
+   here: the console draws all three, because the end that curves around the
+   disc is a path and not a box - see the plate above.
 
-/* The short form stands in a 64px console now that Navigate is 64 - it had
-   80. Cancel became a column down the whole right side of the navigation
-   panel, 36px wide and the panel's full height, where it had been a 36px
-   square that made its row that tall; the destination and the three
-   readings stack one to a line beside it, the readings at 11px. Pause and
-   Stop keep the 36px a control used at a stop gets. */
-#panelStack.dense.pair{gap:6px}
-#panelStack.dense.pair #navPanel,#panelStack.dense.pair #recPanel{flex:1 1 0}
-#panelStack.dense #navPanel,#panelStack.dense #recPanel{padding:5px 8px}
-#panelStack.dense #navPanel{padding-right:5px;row-gap:1px;column-gap:6px;align-content:center}
-#panelStack.dense .np-figs{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:0}
-#panelStack.dense .np-figs > div{flex:0 0 auto}
-#panelStack.dense .np-figs b{font-size:calc(11px * var(--uiScale));line-height:1.1}
-#panelStack.dense .np-btns{grid-column:2;grid-row:1 / -1;align-self:stretch}
-#panelStack.dense .np-btns .btn{width:var(--tap-sm);height:auto;min-height:0}
-#panelStack.dense #recPanel{gap:4px}
-#panelStack.dense .rp-btns .btn{min-height:var(--tap-sm)}
-
-/* Stacked: two strips, one over the other, each 40px - a 36px control and
-   its border - beside Navigate. Side by side they came to 89px each on a 320px phone and the
-   record panel's buttons measured 2px wide behind the disc; one over the
-   other each has the whole width, and costs the map 12px more than the
-   pair did. The pair of strips, 84px, is centred on the disc, so its top
-   and foot meet the collar's rather than the disc's - still one console -
-   except that its foot stays 8px off the bottom of the screen, which on a
-   64px phone disc lifts it 2px. They were a full 44px tap each until
-   Navigate came down to 64, when two of them stood 20px proud of it. A phone
-   on its side reaches this sooner than an upright one: its console is 68px
-   high, and the short form wants 64 of it with 36px controls.
-
-   - Navigation: the destination over the distance left and the arrival,
-     Cancel as a cross down the right. Travel time goes; arrival says it.
-   - Recording: the dot, the track and its state, then Pause and Stop.
-
-   .tight is a strip too narrow for the arrival as well: distance alone. */
-#panelStack.stacked{flex-direction:column;height:auto;gap:4px;
-  --stackShift:calc(var(--dial-rec) - var(--tap-sm) - 6px)}
-#panelStack.stacked #navPanel,#panelStack.stacked #recPanel{flex:0 0 auto;height:calc(var(--tap-sm) + 4px);padding:1px 1px 1px 10px;border-radius:8px}
-/* the two lines centred in the strip, and Cancel down its whole height */
-#panelStack.stacked #navPanel{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr auto auto 1fr;
-  align-content:stretch;column-gap:8px;row-gap:0}
-#panelStack.stacked .np-top,#panelStack.stacked .np-note{grid-row:2}
-#panelStack.stacked .np-figs{grid-column:1;grid-row:3;display:flex;gap:10px;min-width:0}
-#panelStack.stacked .np-figs > div{flex:0 0 auto}
-#panelStack.stacked .np-figs > div:nth-child(2){display:none}
-#panelStack.stacked.tight .np-figs > div:nth-child(3){display:none}
-#panelStack.stacked .np-figs b{font-size:calc(11px * var(--uiScale))}
-#panelStack.stacked .np-figs > div:first-child b{color:var(--hud)}
-#panelStack.stacked .np-btns{grid-row:1 / -1;align-self:stretch}
-#panelStack.stacked .rp-btns{align-self:stretch}
-#panelStack.stacked .np-btns .btn,#panelStack.stacked .rp-btns .btn{width:var(--tap);height:auto;min-height:0;flex:0 0 auto}
-#panelStack.stacked #recPanel{flex-direction:row;align-items:center;gap:8px}
-#panelStack.stacked .rp-top{flex:1 1 auto;min-width:0}
-#panelStack.stacked .rp-btns{gap:3px}
-/* These two panels sit over the map while it is moving, and both used to
+   Both of them sit over the map while it is moving, and both used to
    carry backdrop-filter:blur(8px) behind a background that was already 96%
    opaque - so the blur was sampling the terrain in order to show you four
    percent of it. It went for that reason first: DESIGN.md names
@@ -1089,8 +1175,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    it and without; only the tail moved, p99 6.9ms to 6.2 and the worst frame
    11.9 to 7.0. A phone would show more of that tail than this did, but the
    honest reason is the first one. */
-#navPanel{background:var(--head);border:1px solid rgba(127,193,240,.55);border-radius:10px;padding:9px 10px;
-  box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .np-top{display:flex;align-items:center;gap:8px}
 .np-ico{width:15px;height:15px;stroke:var(--nav2);fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
 .np-name{flex:1;min-width:0;font-size:var(--t-body);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
@@ -1109,9 +1193,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-note{font-size:var(--t-meta);letter-spacing:.05em;color:var(--warn);
   margin-top:6px;text-align:center}
 .np-note:empty{display:none}
-#recPanel{z-index:500;
-  background:var(--head);border:1px solid rgba(224,124,99,.65);border-radius:10px;padding:9px 10px;
-  box-shadow:0 6px 20px rgba(0,0,0,.45)}
 .rp-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .rec-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);flex:0 0 auto;animation:blink 1.4s infinite}
 .rec-dot.pause{background:var(--warn);animation:none}
@@ -2009,11 +2090,6 @@ input[type=date],input[type=time]{color-scheme:dark}
   #statsbar{top:calc(max(40px, var(--tap)) + var(--safeT) + 1px)}
 
 
-  /* The panels on a phone on its side are the docked panels every size has
-     now - see "the panels, docked" - so only the gap between them is set
-     here. */
-  #panelStack{gap:6px}
-
   /* short screen: the menu and the popups have to give ground */
   .scrollarea{max-height:38vh}
   .pop-rows{max-height:38vh}
@@ -2381,6 +2457,13 @@ input[type=date],input[type=time]{color-scheme:dark}
      present for the length of a slide that no longer happens. */
   #drawer,#poiPanel,#wptPanel,#favPanel{transition:transform .01s linear,visibility 0s linear .01s}
   #drawer.open,#poiPanel.open,#wptPanel.open,#favPanel.open{transition:transform .01s linear,visibility 0s}
+  /* The console's bars take their new share of it at once. The fold is
+     spatial and nothing else, so there is nothing in it to keep; the fade
+     stays, because it is what says a bar has gone rather than moved.
+     syncPanelStack reads the same query and skips the put-back, and a
+     folded bar loses the delay that kept it present for the slide. */
+  #panelStack > *{transition:opacity .16s linear}
+  #panelStack > .hidden{transition:opacity .16s linear,visibility 0s}
   /* The knob stops sliding; its colour still changes, which is the state. */
   .sw::after{transition:background .16s}
   /* A determinate bar jumping to its value still reads as progress. */
@@ -2642,8 +2725,12 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
     </div>
 
+    <!-- The console: the bar along the bottom edge that curves around the
+         Navigate disc. Each bar carries its own plate - the whole console's
+         shape, cut to that bar's share of it - drawn by layoutDial. -->
     <div id="panelStack">
       <div id="navPanel" class="hidden">
+        <svg class="pl-plate" aria-hidden="true"></svg>
         <div class="np-top">
           <svg class="np-ico" viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg>
           <span class="np-name" id="navName">DESTINATION</span>
@@ -2659,6 +2746,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         </div>
       </div>
     <div id="recPanel" class="hidden">
+      <svg class="pl-plate" aria-hidden="true"></svg>
       <div class="rp-top">
         <span class="rec-dot" id="recDot"></span>
         <span class="rp-name" id="recName">TRACK</span>
@@ -4272,10 +4360,9 @@ function moveTape(hdg) {
    distance, so a reading that grows never runs under it. Then it publishes
    where the display ends, for the toast and the map chips, and places the
    thumb dial. */
-const HUD_UPRIGHT = window.matchMedia("(orientation: portrait) and (max-width: 599px)");
-/* The display's own question, apart from the upright phone's the panels ask:
-   is this anything but a phone on its side? If so it gets the tape across the
-   top and the band under it - see the CSS. Must match that media query. */
+/* The display's question: is this anything but a phone on its side? If so it
+   gets the tape across the top and the band under it - see the CSS. Must
+   match that media query. */
 const HUD_ROWS = window.matchMedia("(orientation: portrait), (height > 520px)");
 let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
@@ -4541,6 +4628,28 @@ function layoutDial() {
   });
   const nav = $("#btnNavTo");
   nav.style.left = (cx - rec) + "px"; nav.style.top = (cy - rec - H) + "px";
+  /* The console is drawn from the disc as well: it stands as tall as the
+     button looks - the collar's diameter, not the disc's - on the collar's
+     own foot, and its right end curves around the disc on a circle 12px
+     clear of it, which is the standoff the two cards it replaced already
+     kept. That circle crosses the console's box at the box's own corners,
+     which is what puts the box --conR short of the right edge; --conBite is
+     how deep the bite runs where it is deepest, which is at the console's
+     middle, and the padding on that end clears it. The plate reads the disc
+     itself, so the shapes follow from these two rather than being passed
+     them. */
+  /* Half the console: the collar's radius and half the gap it stands
+     taller than the button. Worked out here rather than read back off
+     --conH, which is a calc and comes back as one. Held two pixels inside
+     the curve's own radius, because past that the circle no longer reaches
+     the console's corners and there is no bite to draw. */
+  const cut = rec + 12;
+  const half = Math.min(cut - 2, rec + tok("--dial-collar") + tok("--conGap") / 2);
+  const gap = Math.sqrt(cut * cut - half * half);
+  const rs = document.documentElement.style;
+  rs.setProperty("--conR", Math.round(M + rec + gap) + "px");
+  rs.setProperty("--conBite", Math.round(cut - gap) + "px");
+  platePanels();
   /* The zoom buttons: always on the right edge, and down the middle of the
      map. A column as many rows tall as the clear stretch between the display
      and the top of the open dial will hold with 10px to spare each end;
@@ -4599,6 +4708,92 @@ function layoutDial() {
   fitPanels();               /* the room beside Navigate may have changed with it */
   if (!Dial.open) bar.classList.add("shut");
   nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
+}
+/* The console's plates: each bar's own shape, drawn to the box that bar has
+   at this moment. Drawn rather than bordered because the end that curves
+   around the disc is concave, and a border follows a box; drawn per bar
+   rather than once and cut, because a cut edge cannot be rounded and both
+   corners of that end need to be.
+
+   Neither of those corners is a corner a radius rounds. They are where a
+   straight edge runs into the disc's circle: about 40 degrees at the outer
+   end, where the edge and the curve nearly run together, and a right angle
+   at the inner one, where the curve is at its deepest and standing
+   vertical. Both are filleted - an arc of --conNose tangent to the straight
+   edge and to the circle, its centre a nose-radius out from the circle,
+   which is what "tangent to both" means for a curve the shape is outside
+   of. The sharper the corner, the further back along the edge the fillet
+   starts; that is the geometry, not a mistake, and it is what gives the end
+   its nose.
+
+   The whole path is drawn half a pixel inside the box, which is where a
+   one-pixel stroke lands, and the bite is half a pixel deeper for the same
+   reason. */
+function platePanels() {
+  const d = $("#btnNavTo").getBoundingClientRect();
+  if (!d.width) return;
+  const cx = d.left + d.width / 2, cy = d.top + d.height / 2, R = d.width / 2 + 12.5;
+  const nose = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--conNose")) || 6;
+  [$("#navPanel"), $("#recPanel")].forEach(function (bar) {
+    const pl = bar.firstElementChild, b = bar.getBoundingClientRect();
+    if (!pl || !pl.classList.contains("pl-plate")) return;
+    const w = Math.round(b.width), h = Math.round(b.height);
+    pl.setAttribute("width", w); pl.setAttribute("height", h);
+    pl.setAttribute("viewBox", "0 0 " + w + " " + h);
+    pl.innerHTML = w > 60 && h > 6
+      ? '<path class="pl-face" d="' + barShape(w, h, cx - b.left, cy - b.top, R, nose) + '"/>'
+      : "";
+  });
+}
+/* One bar: a rounded rectangle whose right end is a bite out of the disc's
+   circle, with the two corners of that bite filleted into it. r is the left
+   end's radius and the panel's own; n is the nose. Both are held to what
+   the bar's height can carry, so a bar half way through a fold is drawn
+   rather than tied in a knot. */
+function barShape(w, h, ncx, ncy, R, n) {
+  const i = .5, r = Math.min(10, (h - 1) / 2), Rc = R + i;
+  const f = function (v) { return Math.round(v * 100) / 100; };
+  n = Math.max(1.5, Math.min(n, (h - 1) / 2));
+  /* Each fillet's centre: n from the straight edge it touches, and R + n
+     from the disc's centre. Then the point where it meets the circle, which
+     is where the line between the two centres crosses it. */
+  const sit = function (y) {
+    const q = (Rc + n) * (Rc + n) - (y - ncy) * (y - ncy);
+    const fx = ncx - (q > 0 ? Math.sqrt(q) : 0), vx = ncx - fx, vy = ncy - y;
+    const m = Math.hypot(vx, vy) || 1;
+    return { x: fx, tx: fx + n * vx / m, ty: y + n * vy / m };
+  };
+  const top = sit(i + n), bot = sit(h - i - n);
+  return "M" + f(i + r) + " " + i +
+    "H" + f(top.x) +
+    "A" + f(n) + " " + f(n) + " 0 0 1 " + f(top.tx) + " " + f(top.ty) +
+    "A" + f(Rc) + " " + f(Rc) + " 0 0 0 " + f(bot.tx) + " " + f(bot.ty) +
+    "A" + f(n) + " " + f(n) + " 0 0 1 " + f(bot.x) + " " + f(h - i) +
+    "H" + f(i + r) +
+    "A" + f(r) + " " + f(r) + " 0 0 1 " + i + " " + f(h - i - r) +
+    "V" + f(i + r) +
+    "A" + f(r) + " " + f(r) + " 0 0 1 " + f(i + r) + " " + i + "Z";
+}
+/* A fold moves both boxes, and each plate is drawn to its own box, so the
+   two of them are redrawn on every frame of it. It is two paths of eight
+   segments against a transition that lasts a quarter of a second - not the
+   frame loop, and nothing like it: it runs when a bar arrives or leaves and
+   stops as soon as the transitions do. */
+let foldRaf = 0;
+function foldDraw() {
+  platePanels();
+  const busy = [$("#navPanel"), $("#recPanel")].some(function (b) { return b.getAnimations().length; });
+  foldRaf = busy ? requestAnimationFrame(foldDraw) : 0;
+}
+function foldWatch() {
+  const anims = [$("#navPanel"), $("#recPanel")].reduce(function (a, b) { return a.concat(b.getAnimations()); }, []);
+  if (!anims.length) return;
+  if (!foldRaf) foldRaf = requestAnimationFrame(foldDraw);
+  /* And once more when they land. A hidden page runs no frames, so a fold
+     that started as the screen went off would come back with the boxes
+     where they should be and the plates where they were. A fold cut short
+     by the next one rejects instead, and that one is already watching. */
+  Promise.all(anims.map(function (a) { return a.finished; })).then(platePanels, function () { });
 }
 /* No spring for anyone who asked for less motion, and none while the page is
    hidden: a hidden page runs no frames, so a fold started as the screen goes
@@ -16241,68 +16436,125 @@ function navArrive() {
   toast("Arrived at " + name, "ok");
 }
 
-/* Both panels up means each gets half the width, which the tighter type in
-   .pair is sized for; one on its own keeps the full width and full size. */
+/* Both bars up means half a console each - recording on top, navigating on
+   the bottom - and one on its own has the whole of it.
+
+   The change is made with nothing moving, and then undone for a frame.
+   fitPanels has to measure the box each bar is about to have, and a bar
+   whose share is being animated still measures as the one it is leaving: a
+   console on its way down to a strip is a 64px box, asked whether its
+   one-line form fits, answering yes. So the transitions come off, the
+   change lands, the forms are fitted to it, and then where each bar was -
+   its top, its foot, and whether it was showing at all - is written back on
+   the elements for one frame and let go. The four values are put back
+   together because all four are what the fold is: a bar arriving grows out
+   of the edge it is pinned to as it fades up, and one leaving folds back
+   into it rather than vanishing where it stood.
+
+   Nothing here runs for anyone who asked for less motion: the CSS drops the
+   transitions, and without them there is no put-back to do. */
 function syncPanelStack() {
-  const nav = !$("#navPanel").classList.contains("hidden");
-  const rec = !$("#recPanel").classList.contains("hidden");
-  $("#panelStack").classList.toggle("pair", nav && rec);
+  const stack = $("#panelStack"), bars = [$("#navPanel"), $("#recPanel")];
+  const still = DIAL_STILL.matches, h0 = stack.clientHeight;
+  const fold = !still && h0 > 0;
+  /* Measured from the console's foot, because that is the edge that does
+     not move: a pair stands the gap taller than a single bar, so the head
+     of the box is no mark to have measured from. */
+  const was = fold && bars.map(function (b) {
+    const cs = getComputedStyle(b);
+    return { head: h0 - b.offsetTop, foot: h0 - b.offsetTop - b.offsetHeight,
+      op: cs.opacity, vis: cs.visibility };
+  });
+  if (fold) stack.classList.add("settling");
+  const nav = !bars[0].classList.contains("hidden");
+  const rec = !bars[1].classList.contains("hidden");
+  stack.classList.toggle("pair", nav && rec);
   fitPanels();
+  if (!fold) { platePanels(); return; }
+  const h = stack.clientHeight;
+  if (bars.some(function (b, i) { return h - b.offsetTop !== was[i].head || h - b.offsetTop - b.offsetHeight !== was[i].foot; })) {
+    bars.forEach(function (b, i) {
+      b.style.top = (h - was[i].head) + "px";
+      b.style.bottom = was[i].foot + "px";
+      b.style.opacity = was[i].op;
+      b.style.visibility = was[i].vis;
+    });
+    void stack.offsetWidth;                      /* the frame they are put back for */
+  }
+  stack.classList.remove("settling");
+  bars.forEach(function (b) {
+    ["top", "bottom", "opacity", "visibility"].forEach(function (k) { b.style.removeProperty(k); });
+  });
+  platePanels();                                 /* the shapes the fold starts from */
+  foldWatch();                                   /* and the ones it passes through */
 }
 
-/* Which form of the docked panels fits the room beside Navigate - full,
-   .dense or .stacked, set out beside their CSS. Each is tried in turn and the
-   first that holds is kept. "Holds" is measured, not guessed from the screen:
-   a phone's own fonts and the Text Size step both move where the words run
-   out, and a width rule only knows the width.
+/* Which form each bar of the console is in - full, then .dense, .tight
+   and .bare in turn, set out beside their CSS. Each is tried in order and
+   the first that holds is kept. "Holds" is measured, not guessed from the
+   screen: a phone's own fonts and the Text Size step both move where the
+   words run out, and a width rule only knows the width.
 
-   It is measured with the widest figures a panel shows - a four-figure
+   It is measured with the widest figures a bar shows - a four-figure
    distance, a two-figure hours, a two-figure arrival and PAUSED - written in
    for the length of the measure and put back before anything is drawn, so a
-   panel that fits now does not overflow the first time the distance gains a
+   bar that fits now does not overflow the first time the distance gains a
    digit, and the form never flips back and forth while driving. It runs
-   when the panels come and go and when the screen or the text size changes,
+   when the bars come and go and when the screen or the text size changes,
    nowhere near a fix.
 
-   An upright phone's pair starts at .dense rather than full, as it always
-   has. A pair narrower than 124px a panel - scaled with the text - goes
-   straight to strips: that is where the destination was down to five
-   letters beside its Cancel, and it is what an upright 360px phone gets. */
+   The side-by-side cards needed a rule for each screen to get this right -
+   an upright phone's pair started dense, a pair under 124px a card went
+   straight to strips. A pair is two full-width strips now, so both are
+   gone: what is left is how much of one line the width will hold. */
 function fitPanels() {
   /* inside, not beside: layoutDial calls this from the first sizeMap, long
      before a top-level constant down here would have been reached */
   const widest = [["#navDist", "8888.88 km"], ["#navTime", "88h 88m"], ["#navEta", "12:59 pm"], ["#recState", "PAUSED"]];
   const stack = $("#panelStack");
   const shown = [$("#navPanel"), $("#recPanel")].filter(function (p) { return !p.classList.contains("hidden"); });
-  const forms = ["dense", "stacked", "tight"];
+  const forms = ["dense", "tight", "bare"];
   stack.classList.remove(...forms);
   if (!shown.length || !stack.clientWidth) return;
-  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
-  const pair = shown.length === 2;
-  let steps = pair ? [[], ["dense"], ["stacked"], ["stacked", "tight"]] : [[], ["dense"]];
-  if (pair && HUD_UPRIGHT.matches) steps = steps.slice(1);
-  if (pair && (stack.clientWidth - 7) / 2 < 124 * scale) steps = steps.slice(-2);
+  const steps = [[], ["dense"], ["dense", "tight"], ["dense", "tight", "bare"]];
   const held = widest.map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
   for (let i = 0; i < steps.length; i++) {
     stack.classList.remove(...forms);
     stack.classList.add(...steps[i]);
-    if (i === steps.length - 1 || panelsHold(shown, scale)) break;
+    if (i === steps.length - 1 || panelsHold(shown)) break;
   }
   held.forEach(function (p) { p[0].textContent = p[1]; });
 }
 
-/* Nothing runs out of its box, and the destination keeps room for a word -
-   48px, about six letters, is the least the upright pair has ever shown.
-   The track's name is not held to it: you know what you are recording, and
-   its state and its two buttons are what that panel is for. A cell the form
-   hides is not counted. */
-function panelsHold(shown, scale) {
+/* Nothing runs out of its box - including the recording buttons out of the
+   half of the bar they are held to - and the destination keeps room for a
+   word.
+
+   A word is a count of letters rather than a count of pixels: 48px is about
+   six of them at the full size, and a form that has already brought the
+   type down a step should not have to find the same 48 for the same six. It
+   is measured off the size the form actually set, which carries the Text
+   Size step with it, so the floor moves with both. Held to a flat 48, a
+   375px phone's pair gave up the arrival to keep five letters of a
+   destination the driver chose themselves.
+
+   The track's name is not held to any of it, because you know what you are
+   recording, and its state and its two buttons are what that bar is for. A
+   cell the form hides is not counted. */
+function panelsHold(shown) {
   const over = function (el) { return el.offsetWidth && el.scrollWidth > el.clientWidth + 1; };
   return shown.every(function (p) {
-    if (p.scrollHeight > p.clientHeight + 1) return false;
+    /* How deep what the bar carries runs, which is not what scrollHeight
+       would say: the plate is the whole console's shape and hangs out of
+       the bar's box on purpose, so the top bar measured as twice its own
+       height and every pair went straight to the tightest form it had. */
+    const deep = Array.from(p.children).reduce(function (m, c) {
+      return c.classList.contains("pl-plate") ? m : Math.max(m, c.offsetTop + c.offsetHeight);
+    }, 0);
+    if (deep > p.clientHeight + 1) return false;
     const name = p.querySelector(".np-name");
-    if (name && name.clientWidth < 48 * scale) return false;
-    return !Array.from(p.querySelectorAll(".np-figs, .np-figs > div, .btn")).some(over);
+    if (name && name.clientWidth < 4.2 * parseFloat(getComputedStyle(name).fontSize)) return false;
+    return !Array.from(p.querySelectorAll(".np-figs, .np-figs > div, .rp-btns, .btn")).some(over);
   });
 }
 
