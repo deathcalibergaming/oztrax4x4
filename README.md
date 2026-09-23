@@ -215,7 +215,12 @@ collected by the developer.
   coordinate that address geocodes to, which is the street - so where
   OpenStreetMap has the same servo the app takes the position from there
   instead. `tools/check-pins.mjs` measures the ones it cannot against the
-  road packs and lists whatever is left standing on a carriageway
+  road packs and lists whatever is left standing on a carriageway.
+  Eighty-seven of the country's 7,885 do. The South Australian ones are
+  answered by `Fuel.moved`, which puts each on the address the scheme itself
+  registered as G-NAF has it — the same address off the state's cadastre
+  rather than off a geocoder — and leaves alone the five whose registered
+  address does not exist
 * Roads — OpenStreetMap via the Geofabrik state extracts, cut into a national
   spine and z13 packs under `docs/route/` and served off this origin; built
   monthly by `tools/build-routing.mjs`

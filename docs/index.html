@@ -10075,6 +10075,56 @@ const Fuel = {
      Hours, because they are the one thing the scheme does not carry and the
      one thing on an OSM fuel record worth keeping. Not "diesel" - the price
      rows below say that better, and say it with a number. */
+  /* Where a scheme record stands when OpenStreetMap has never heard of it.
+
+     pinFor takes the position from the map wherever it can, because a
+     scheme coordinate is a registered address and a registered address
+     geocodes to the road. Where it cannot, the scheme's own coordinate is
+     all there is, and some of them land on the carriageway: eighty-seven
+     nationally, which tools/check-pins.mjs lists and which is how these
+     were found.
+
+     These are the South Australian ones. Each is the address the scheme
+     itself registered, answered by G-NAF instead - the same address, put on
+     the property by the state's cadastre rather than on the road by a
+     geocoder - and the app already ships all 11.4 million of them under
+     docs/addr, so this is its own data disagreeing with the scheme's, not a
+     directory's. They move 25 to 56 m and land 13 to 45 m off the
+     centreline. Where OpenStreetMap happened to have the business as well
+     the two agreed: 1 m apart at Glandore, 12 at Tumby Bay, 30 at
+     Callington.
+
+     Keyed by the scheme's id, not by name, because the name is whatever the
+     scheme is calling it this week - and the id is already what a hidden pin
+     is remembered by, so it is the one handle that holds still.
+
+     Five more are left where they are, having no address anyone can answer:
+     Lucindale is registered at 7 Gun Avenue and the street is Gum Avenue
+     with no number 7 on it, Karoonda at Lot 54 Peake Street which is a
+     parcel rather than a street number, Lyndhurst at 3 Short Street which
+     is not a street in Lyndhurst, Bordertown at 14 Dukes Highway where the
+     nearest numbered address is 328 m off, and Virginia North at 92 Old
+     Port Wakefield Road where that road runs through the 990s. Guessing at
+     those would be worse than leaving them.
+
+     Not a repair. The durable fix is the scheme registering a better
+     coordinate, or the business being on the map. */
+  moved: {
+    "safpis/61501805": [-37.480920, 140.013530],   /* Jarmos Automotive Services, 16 Railway Tce, Beachport */
+    "safpis/61577320": [-34.144450, 138.416110],   /* Simon Exhaust & Auto Repairs, 13 Railway Tce, Balaklava */
+    "safpis/61577249": [-34.871430, 138.636320],   /* Mobil Hampstead Gardens, 323 North East Rd */
+    "safpis/61501274": [-34.951620, 138.614200],   /* X Convenience Unley, 21 Edmund Av */
+    "safpis/61570028": [-34.496850, 137.484820],   /* TG Atkins, 13 Main St, Port Victoria */
+    "safpis/61501950": [-34.375050, 136.097710],   /* J.J. Trezise & Sons, 2 Bratten Way, Tumby Bay */
+    "safpis/61577391": [-34.687530, 138.661790],   /* X Convenience Eyre, 503 Stebonheath Rd */
+    "safpis/61501499": [-35.499480, 138.781160],   /* BP Goolwa, 36 Cadell St */
+    "safpis/61570090": [-36.601190, 140.492470],   /* Independent Padthaway, 13 Memorial Dr */
+    "safpis/61577259": [-34.955350, 138.568900],   /* OTR Glandore, 134-136 Anzac Hwy */
+    "safpis/61577392": [-35.688640, 139.337430],   /* Meningie Perrys Unmanned, 67 Princes Hwy */
+    "safpis/61577295": [-35.116510, 139.037400],   /* Callington General Store, 14-16 Baker St */
+    "safpis/61501449": [-34.145360, 138.411970]    /* McCracken Ford, 1 Edith Tce, Balaklava */
+  },
+
   pinFor: function (st, osm) {
     const name = String(st.n || "").trim() || String(st.b || "").trim() || "Fuel";
     const bits = [];
@@ -10087,19 +10137,23 @@ const Fuel = {
         if (bit && bit !== "diesel") bits.push(bit);
       });
     }
+    /* Namespaced by scheme, because the id is what a hidden pin is
+       remembered by. South Australian sites keep the prefix they were first
+       published under - renaming it would un-hide every pin a driver had put
+       away - so a new scheme gets its own rather than everything getting a
+       tidier one. */
+    const id = (st.s === "WA" ? "fuelwatch/" :
+                st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" :
+                st.s === "QLD" ? "fuelqld/" :
+                st.s === "VIC" ? "servosaver/" : "safpis/") + st.i;
+    /* The map first, then the hand-checked address, then the scheme's own
+       coordinate - see moved. */
+    const put = this.moved[id];
     return {
-      /* Namespaced by scheme, because the id is what a hidden pin is
-         remembered by. South Australian sites keep the prefix they were
-         first published under - renaming it would un-hide every pin a driver
-         had put away - so a new scheme gets its own rather than everything
-         getting a tidier one. */
-      id: (st.s === "WA" ? "fuelwatch/" :
-           st.s === "NSW" || st.s === "TAS" ? "fuelcheck/" :
-           st.s === "QLD" ? "fuelqld/" :
-           st.s === "VIC" ? "servosaver/" : "safpis/") + st.i,
+      id: id,
       kind: "fuel",
-      lat: osm ? osm.lat : st.y,
-      lng: osm ? osm.lng : st.x,
+      lat: osm ? osm.lat : put ? put[0] : st.y,
+      lng: osm ? osm.lng : put ? put[1] : st.x,
       name: name,
       /* thin, honestly: a servo, its prices, and whatever OSM knew about its
          hours - which is less than a full record off the pack carries. */
