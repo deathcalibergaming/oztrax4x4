@@ -621,7 +621,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* On the right edge, centred in the clear stretch between the heads-up
    display and the top of the open dial - layoutDial works that out and sets
    the top. Centred on the map, which is what this rule does before it runs.
-   Where the stretch is too short it becomes a row - see the thumb dial. */
+   Where the stretch is too short it becomes a row - see the zoom buttons. */
 /* A grid filled column by column from the right edge: one column of five
    wherever it fits, and on a screen too short for that - a phone on its
    side - as many rows as the height holds, the next column in to its left.
@@ -855,26 +855,24 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    its full height and no ground is given away for the look. The bottom
    inset moves into the padding, which is what keeps the labels clear of a
    gesture bar now that the bar reaches the edge of the screen. */
-/* ---------- the thumb dial ----------
-   The actions sit on a dial in the bottom-right corner, around a big
-   Navigate button in the app's Primary. Folded, only Navigate shows. The
-   first tap unfolds the other four onto a curved plate, each the same
-   thumb-reach from Navigate; a second tap on Navigate navigates, and folds
-   the dial. A tap on one of the four runs it and folds; a tap anywhere else
-   only folds - it is swallowed, so dismissing the dial cannot also drop a
+/* ---------- Navigate ----------
+   A big disc in the bottom-right corner in the app's Primary, and the only
+   control down there until it is tapped: the first tap raises the action
+   row above the console, a second navigates and puts it away. A tap on one
+   of the row's four runs it and puts the row away; a tap anywhere else only
+   puts it away - it is swallowed, so dismissing the row cannot also drop a
    pin or open a place.
 
-   #actionbar is a zero-height strip on the bottom edge with the dial hung
-   above it. The map measures the bar's box to keep the vehicle clear of
-   it, and a box the size of the dial would read as an inset the height of
-   the map. layoutDial places everything from the sizes below. */
+   #actionbar is a zero-height strip on the bottom edge with the disc hung
+   above it. The map measures the bar's box to keep the vehicle clear of it,
+   and a box the size of the disc would read as an inset the height of the
+   map. layoutDial places it from the sizes below. */
 /* Navigate is 80px on a tablet and 64 on an upright phone - a fifth smaller
-   than it was - and still 68 on a phone on its side. The disc's diameter is
-   the console's height, and half of it is a strip when both bars are up, so
-   the disc is the one number the whole bottom edge is drawn from. The arc is
-   drawn in by as much as the disc shrank, so the buttons on it keep the same
-   distance from the disc's edge, and the same reach. */
-:root{--dial-r:166px;--dial-rec:40px;--dial-band:88px;--dial-b:74px;--dial-m:16px;
+   than it was - and still 68 on a phone on its side. Its collar's diameter
+   is the console's height, half of it is a strip when both bars are up, and
+   the action row is a strip's height in its turn: the disc is the one
+   number the whole bottom edge is drawn from. */
+:root{--dial-rec:40px;--dial-m:16px;
   --dial-ico:25px;--dial-lab:8.5px;--dial-nico:28px;--dial-nlab:8.5px;
   /* The console stands on the bottom edge, level with the disc's foot, and
      stops short of the right edge by enough room for the curve it makes
@@ -897,29 +895,95 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   --conL:8px;--conR:89px;--conBite:19px;--conPad:calc(var(--conBite) + 12px);
   --conGap:6px;--conNose:6px;--conInset:5px}
 @media (orientation: portrait) and (max-width: 599px) {
-  :root{--dial-r:128px;--dial-rec:32px;--dial-band:74px;--dial-b:60px;--dial-m:16px;
+  :root{--dial-rec:32px;--dial-m:16px;
     --dial-ico:21px;--dial-lab:7.5px;--dial-nico:22px;--dial-nlab:7.5px}
 }
 @media (orientation: landscape) and (max-height: 520px) {
-  :root{--dial-r:100px;--dial-rec:34px;--dial-band:60px;--dial-b:50px;--dial-m:14px;
+  :root{--dial-rec:34px;--dial-m:14px;
     --dial-ico:18px;--dial-lab:7px;--dial-nico:22px;--dial-nlab:7px}
 }
 /* The zoom buttons are always on the right-hand side. On a screen too short
-   for the column to stand clear of the open dial they used to become a row
+   for the column to stand clear of the action row they used to become a row
    along the bottom-left corner, and on a phone on its side - a small nav
    screen - that put them under the driver's other thumb and pushed the
    panels along. Now a short screen keeps them on the right, clear of the
-   closed disc instead of the open arc, folded into a second column where
-   one will not fit, and takes them out of the way while the dial is open,
-   the way the panels step aside (.zoom-tuck). */
+   closed disc instead of the open row, folded into a second column where
+   one will not fit, and takes them out of the way while the row is up
+   (.zoom-tuck). */
 #zoomCtl{transition:opacity .15s,visibility .15s}
 .zoom-tuck #stage.dial-open #zoomCtl{opacity:0;visibility:hidden;pointer-events:none}
 #actionbar{position:absolute;left:0;right:0;bottom:var(--safeB);height:0;z-index:500;pointer-events:none}
-#arcPlate{position:absolute;left:0;bottom:0;pointer-events:none;filter:drop-shadow(0 -4px 12px rgba(0,0,0,.6))}
-/* the plate takes a tap itself, so pressing between two buttons does not reach the map */
-#arcPlate path{pointer-events:visibleStroke}
-#actionbar.shut #arcPlate,#actionbar.shut .act:not(#btnNavTo){visibility:hidden;pointer-events:none}
-.act{position:absolute;width:var(--dial-b);height:var(--dial-b);border:none;border-radius:50%;padding:0;
+
+/* ---------- the action row ----------
+   The four actions were on an arc that unfolded around Navigate, each the
+   same thumb-reach from it. They are a bar now, the width of the screen and
+   a gap above the console - so it opens where the tap was, sliding in from
+   the right, without landing on the bars underneath.
+   That is the difference worth having: the arc covered the console and the
+   panels had to step aside for it, and a driver choosing an action lost
+   sight of the route they were on.
+
+   Four buttons, a quarter of the width each, in the order the arc read left
+   to right. The bar is a strip's height - what a pair of console bars each
+   get, 39.5px on an upright phone - and stands one gap above the console,
+   so the three of them read as one stack on the same rhythm rather than a
+   tall bar parked over two short ones. That leaves 35px inside it for an
+   icon over its label, which come to 32. */
+#actionRow{position:absolute;left:var(--conL);right:var(--conL);z-index:500;
+  bottom:calc(var(--stackB) + var(--conH) + var(--conGap));
+  height:calc((var(--conH) - var(--conGap)) / 2);
+  display:flex;gap:4px;padding:2px;
+  background:var(--head);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 6px 20px rgba(0,0,0,.45);
+  /* It comes in from off the edge of the screen and leaves the same way,
+     far enough out to clear it - its own width and the margin at that end -
+     so what waits there is never half on the map. Which edge depends on
+     where it opens; see .down below. In on the panel curve, out on the
+     sharper one the app uses for anything dismissed, which is a little
+     quicker. */
+  visibility:hidden;transform:translateX(calc(100% + var(--conL)));
+  transition:transform .22s cubic-bezier(.4,0,1,1),visibility 0s .22s}
+#actionRow.open{visibility:visible;transform:none;
+  transition:transform .28s cubic-bezier(.3,.7,.3,1),visibility 0s}
+/* Down in the console's own slot, for when there is nothing in it. The row
+   sits where the bottom bar would - on the console's foot, stopping where
+   its box stops and curving around Navigate on a plate of its own, drawn by
+   platePanels - so a menu opened with the console empty comes up under the
+   thumb rather than floating a bar's height above nothing.
+
+   Which one it gets is decided when it opens and left alone while it is up,
+   so a bar arriving as an action is chosen cannot move the row out from
+   under the finger that chose it. The box keeps its border for the layout
+   and hands the drawing to the plate. */
+#actionRow.down{right:var(--conR);bottom:var(--stackB);
+  padding-right:var(--conPad);gap:3px;
+  background:none;border-color:transparent;box-shadow:none;
+  /* Up from under the bottom edge, because down here that is where it has
+     come from: nothing stands between the row and the edge, and a bar
+     rising into the corner it belongs in reads better than one crossing
+     the map to get there. Up above the console it cannot - the bars are in
+     the way and it would have to climb through them - so it keeps the
+     slide in from the right. */
+  transform:translateY(calc(100% + var(--stackB)))}
+#actionRow.down.open{transform:none}
+/* Changing where the row opens moves it from one edge's waiting place to
+   the other's, and that is a transform change like any other: left to
+   itself it starts a transition, and the one the open then asks for picks
+   up where that had got to - so the row slid up out of the bottom when it
+   should have come in from the right. Nothing moves while the place is
+   being settled. */
+#actionRow.settling{transition:none}
+#actionRow > .pl-plate{display:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.45))}
+#actionRow.down > .pl-plate{display:block}
+#actionRow .pl-face{stroke:var(--line2)}
+#actionRow .act{position:static;flex:1 1 0;min-width:0;width:auto;height:auto;border-radius:8px;gap:2px}
+/* measurable rather than wrapped: the drop is only taken where the words
+   fit on one line of it */
+#actionRow .act span{white-space:nowrap;overflow:hidden}
+/* two pixels off the icon, so the pair of them stands clear of the strip
+   rather than exactly filling it */
+#actionRow .act svg{width:calc(var(--dial-ico) - 2px);height:calc(var(--dial-ico) - 2px)}
+.act{position:absolute;border:none;border-radius:50%;padding:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:auto;
   transition:background .12s}
 .act:active{background:rgba(216,203,170,.15)}
@@ -1007,11 +1071,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    the box a bar will actually have, so the change lands first and the bars
    are put back where they were for one frame afterwards. */
 #panelStack.settling > *{transition:none}
-/* The dial opens over this corner, so while it is open the console steps
-   aside rather than sitting under its plate, and comes back as it folds. */
-#panelStack{transition:opacity .15s,transform .15s}
-#stage.dial-open #panelStack{opacity:0;transform:translateY(8px);pointer-events:none}
-#stage.dial-open #panelStack > *{pointer-events:none}
+/* The console stays put while the action row is up. It used to fade out and
+   step 8px down, because the arc the row replaced opened over this corner
+   and landed on it - which took the route and the recording off the screen
+   at the moment a driver was choosing what to do next. */
 
 /* The plate. The bar's face and its one-pixel edge are a path rather than a
    background and a border, because the end that curves around the disc is
@@ -2457,6 +2520,11 @@ input[type=date],input[type=time]{color-scheme:dark}
      present for the length of a slide that no longer happens. */
   #drawer,#poiPanel,#wptPanel,#favPanel{transition:transform .01s linear,visibility 0s linear .01s}
   #drawer.open,#poiPanel.open,#wptPanel.open,#favPanel.open{transition:transform .01s linear,visibility 0s}
+  /* The action row appears rather than sliding in - the fade is the whole
+     of what is left, since the travel was the rest of it. openDial reads
+     this query too, for the press Navigate gives back. */
+  #actionRow{transform:none;opacity:0;transition:opacity .14s linear,visibility 0s .14s}
+  #actionRow.open{transform:none;opacity:1;transition:opacity .12s linear,visibility 0s}
   /* The console's bars take their new share of it at once. The fold is
      spatial and nothing else, so there is nothing in it to keep; the fade
      stays, because it is what says a bar has gone rather than moved.
@@ -2759,9 +2827,17 @@ input[type=date],input[type=time]{color-scheme:dark}
     </div>
     </div>
 
-    <nav id="actionbar">
-      <button class="act" id="btnNavTo">
-        <svg viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg><span>Navigate</span>
+    <!-- The actions, on a bar of their own above the console. It is up only
+         while Navigate has been tapped once; the order is the one the arc
+         they came off read in, left to right. Favourites is where the
+         orientation toggle used to be: this bar is for what you are looking
+         for - somewhere to go, what is around you, what you saved - and a
+         place you chose to keep belongs on it rather than in a menu two taps
+         away. -->
+    <nav id="actionRow" aria-label="Map actions">
+      <svg class="pl-plate" aria-hidden="true"></svg>
+      <button class="act" id="btnRec">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
       </button>
       <button class="act" id="btnPoi" aria-label="Nearby POIs">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.1 3.1"/><circle class="solid" cx="12" cy="12" r="2.6"/></svg><span>POI</span>
@@ -2769,15 +2845,14 @@ input[type=date],input[type=time]{color-scheme:dark}
       <button class="act" id="btnWpt">
         <svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Waypoint</span>
       </button>
-      <!-- Where the orientation toggle used to be. The bar is for what you
-           are looking for - somewhere to go, what is around you, what you
-           saved - and a place you chose to keep belongs in that row rather
-           than in a menu two taps away. -->
       <button class="act" id="btnFav" aria-label="Favourites">
         <svg></svg><span>Favourites</span>
       </button>
-      <button class="act" id="btnRec">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg><span>Record</span>
+    </nav>
+
+    <nav id="actionbar">
+      <button class="act" id="btnNavTo" aria-controls="actionRow" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M12 2.8 20 20.5 12 16.2 4 20.5Z"/></svg><span>Navigate</span>
       </button>
     </nav>
   </div>
@@ -4593,39 +4668,26 @@ function fitBand(sb, cells, sign) {
   return false;
 }
 
-/* ---------- the thumb dial ----------
-   How it behaves is set out beside its CSS. Record, POI, Waypoint and
-   Favourites sit on the arc at 180, 150, 120 and 90 degrees from Navigate;
-   the plate runs exactly that far, so its rounded ends wrap the end buttons
-   and none of it leaves the screen. Sizes come from the --dial-* tokens,
-   which change with the screen, so this reads them each time it runs. */
-const DIAL_SPOTS = [["btnRec", 180], ["btnPoi", 150], ["btnWpt", 120], ["btnFav", 90]];
+/* ---------- Navigate, and the row it opens ----------
+   How it behaves is set out beside its CSS. Navigate sits in the corner on
+   its own; the first tap raises the action row above the console, a second
+   navigates, and a tap anywhere else puts it away. Sizes come from the
+   --dial-* tokens, which change with the screen, so this reads them each
+   time it runs. */
 const DIAL_STILL = window.matchMedia("(prefers-reduced-motion: reduce)");
-const HUD_SPRING = "linear(0, 0.063, 0.22 7.5%, 0.656 17.4%, 0.868, 0.992 30%, 1.041 35.5%, 1.056 40.2%, 1.047 45.5%, 1.008 58.5%, 0.996 67%, 1)";
-const Dial = { open: false, anims: [], geo: null };
+const Dial = { open: false, ready: false };
 /* the tallest the stage has been at this width - see the zoom buttons below */
 const zoomBase = { w: 0, h: 0 };
 function layoutDial() {
   const bar = $("#actionbar"), cs = getComputedStyle(document.documentElement);
   const tok = function (n) { return parseFloat(cs.getPropertyValue(n)) || 0; };
-  const R = tok("--dial-r"), rec = tok("--dial-rec"), band = tok("--dial-band"), B = tok("--dial-b"), M = tok("--dial-m");
+  const rec = tok("--dial-rec"), M = tok("--dial-m");
   const st = stageEl.getBoundingClientRect();
   const W = Math.round(st.width), H = Math.round(bar.getBoundingClientRect().top - st.top);
   if (!W || !H) return;
   const cx = W - M - rec, cy = H - M - rec;
-  const P = function (deg, r) { return [cx + r * Math.cos(deg * Math.PI / 180), cy - r * Math.sin(deg * Math.PI / 180)]; };
-  const arc = function (r) { const a = P(180, r), b = P(90, r); return "M" + a[0] + " " + a[1] + "A" + r + " " + r + " 0 0 1 " + b[0] + " " + b[1]; };
-  let plate = document.getElementById("arcPlate");
-  if (!plate) { bar.insertAdjacentHTML("afterbegin", '<svg id="arcPlate" aria-hidden="true"></svg>'); plate = document.getElementById("arcPlate"); }
-  plate.setAttribute("width", W); plate.setAttribute("height", H); plate.setAttribute("viewBox", "0 0 " + W + " " + H);
-  plate.innerHTML = '<path d="' + arc(R) + '" fill="none" stroke="#111513" stroke-width="' + band + '" stroke-linecap="round"/>' +
-    '<path d="' + arc(R + band / 2 - 1.5) + '" fill="none" stroke="#333D36" stroke-width="3" stroke-linecap="round"/>' +
-    '<path d="' + arc(R - band / 2 + 1) + '" fill="none" stroke="rgba(216,203,170,.22)" stroke-width="1"/>';
-  /* tops are measured from the zero-height bar, which is at the foot of the dial */
-  DIAL_SPOTS.forEach(function (s) {
-    const p = P(s[1], R), b = $("#" + s[0]);
-    b.style.left = (p[0] - B / 2) + "px"; b.style.top = (p[1] - B / 2 - H) + "px";
-  });
+  /* the top is measured from the zero-height bar, which is at the foot of
+     the disc */
   const nav = $("#btnNavTo");
   nav.style.left = (cx - rec) + "px"; nav.style.top = (cy - rec - H) + "px";
   /* The console is drawn from the disc as well: it stands as tall as the
@@ -4672,7 +4734,12 @@ function layoutDial() {
   const zc = $("#zoomCtl"), tap = tok("--tap"), nz = zc.children.length;
   const span = function (n) { return n * tap + (n - 1) * 6; };
   const hud = parseFloat(document.documentElement.style.getPropertyValue("--hudStage")) || 0;
-  const room = (zoomBase.h - M - rec - R - band / 2) - hud;          /* clear of the open arc */
+  /* Clear of the action row, which stands on the console: the console's own
+     foot, its height, a gap, and the row - which is half the console less
+     half a gap, the same as one of its bars. */
+  const conGap = tok("--conGap"), conH = (rec + tok("--dial-collar")) * 2 + conGap;
+  const room = (zoomBase.h - (M - tok("--dial-collar") - conGap / 2)
+    - conH - conGap - (conH - conGap) / 2) - hud;
   const roomShut = (zoomBase.h - M - 2 * rec - 8 - 12) - hud;         /* clear of the closed disc and its collar */
   const tuck = room < span(nz) + 20;
   const clear = tuck ? roomShut : room;
@@ -4704,9 +4771,8 @@ function layoutDial() {
   zc.style.transform = "none";
   navTurnFit();              /* the turn bar's right edge stands off this column */
   drawHintFit();             /* and so does the draw hint's, while it is up */
-  Dial.geo = { cx: cx, cy: cy, P: P, R: R };
+  Dial.ready = true;
   fitPanels();               /* the room beside Navigate may have changed with it */
-  if (!Dial.open) bar.classList.add("shut");
   nav.setAttribute("aria-expanded", Dial.open ? "true" : "false");
 }
 /* The console's plates: each bar's own shape, drawn to the box that bar has
@@ -4730,18 +4796,36 @@ function layoutDial() {
    one-pixel stroke lands, and the bite is half a pixel deeper for the same
    reason. */
 function platePanels() {
-  const d = $("#btnNavTo").getBoundingClientRect();
-  if (!d.width) return;
-  const cx = d.left + d.width / 2, cy = d.top + d.height / 2, R = d.width / 2 + 12.5;
+  /* Where each box is laid out, which is not where it may be drawn. The
+     action row slides in on a transform and Navigate squeezes on one when
+     it is pressed; a rect that counted either would put the disc somewhere
+     else in the bar's own frame and bend the curve around nothing - the
+     squeeze alone took 3px off the clearance. Measured off whatever each
+     one is positioned in, none of which is ever transformed itself. */
+  const frame = new Map();
+  const at = function (el) {
+    const par = el.offsetParent || document.body;
+    if (!frame.has(par)) frame.set(par, par.getBoundingClientRect());
+    return frame.get(par);
+  };
+  const nav = $("#btnNavTo"), nr = at(nav);
+  if (!nav.offsetWidth) return;
+  const cx = nr.left + nav.offsetLeft + nav.offsetWidth / 2;
+  const cy = nr.top + nav.offsetTop + nav.offsetHeight / 2;
+  const R = nav.offsetWidth / 2 + 12.5;
   const nose = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--conNose")) || 6;
-  [$("#navPanel"), $("#recPanel")].forEach(function (bar) {
-    const pl = bar.firstElementChild, b = bar.getBoundingClientRect();
+  const row = $("#actionRow");
+  [$("#navPanel"), $("#recPanel"), row.classList.contains("down") ? row : null].forEach(function (bar) {
+    if (!bar) return;
+    const pl = bar.firstElementChild;
     if (!pl || !pl.classList.contains("pl-plate")) return;
-    const w = Math.round(b.width), h = Math.round(b.height);
+    const sr = at(bar);
+    const w = bar.offsetWidth, h = bar.offsetHeight;
+    const left = sr.left + bar.offsetLeft, top = sr.top + bar.offsetTop;
     pl.setAttribute("width", w); pl.setAttribute("height", h);
     pl.setAttribute("viewBox", "0 0 " + w + " " + h);
     pl.innerHTML = w > 60 && h > 6
-      ? '<path class="pl-face" d="' + barShape(w, h, cx - b.left, cy - b.top, R, nose) + '"/>'
+      ? '<path class="pl-face" d="' + barShape(w, h, cx - left, cy - top, R, nose) + '"/>'
       : "";
   });
 }
@@ -4795,55 +4879,51 @@ function foldWatch() {
      by the next one rejects instead, and that one is already watching. */
   Promise.all(anims.map(function (a) { return a.finished; })).then(platePanels, function () { });
 }
-/* No spring for anyone who asked for less motion, and none while the page is
-   hidden: a hidden page runs no frames, so a fold started as the screen goes
-   off would sit waiting for animations that cannot play, and the dial would
-   come back half open. Without them the dial simply changes state. */
-function dialAnim(el, frames, opts) {
-  if (!DIAL_STILL.matches && document.visibilityState === "visible") Dial.anims.push(el.animate(frames, opts));
+/* Open and shut. The slide itself is in the CSS - which edge it comes
+   from, how far, and nothing at all for anyone who asked for less motion.
+   Navigate gives the press back here instead: a quick squeeze, because a
+   button that opens something should look like it took the tap.
+
+   Nothing waits on an animation. The arc this replaced had to be told when
+   its buttons had finished flying home before it could be hidden, and a
+   fold started as the screen went off would sit half open waiting for
+   frames that never came. */
+/* Where the row opens: on the console when there is something in it, and in
+   the console's own slot when there is not. The drop is taken only where
+   the words still fit on the shorter line it leaves - the curve costs that
+   end 43px, and a 320px phone has nothing to spare - so it is measured
+   rather than keyed to the screen, and measured before the row is up. */
+function rowPlace() {
+  const row = $("#actionRow");
+  const bars = $("#navPanel").classList.contains("hidden") && $("#recPanel").classList.contains("hidden");
+  row.classList.add("settling");
+  row.classList.toggle("down", bars);
+  if (bars && Array.prototype.some.call(row.querySelectorAll(".act span"),
+    function (t) { return t.scrollWidth > t.clientWidth + 1; })) row.classList.remove("down");
+  platePanels();                     /* reads the layout, which settles the place */
+  row.classList.remove("settling");
 }
 function openDial() {
-  if (Dial.open || !Dial.geo) return;
-  Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
+  if (Dial.open || !Dial.ready) return;
   Dial.open = true;
-  const g = Dial.geo, o = g.cx + "px " + g.cy + "px", nav = $("#btnNavTo");
-  $("#actionbar").classList.remove("shut"); nav.setAttribute("aria-expanded", "true");
-  stageEl.classList.add("dial-open");      /* the panels step aside */
-  dialAnim($("#arcPlate"), [{ opacity: 0, transform: "scale(.55)", transformOrigin: o },
-    { opacity: 1, transform: "none", transformOrigin: o }], { duration: 480, easing: HUD_SPRING });
-  DIAL_SPOTS.forEach(function (s, i) {
-    const p = g.P(s[1], g.R);
-    dialAnim($("#" + s[0]), [{ transform: "translate(" + (g.cx - p[0]) + "px," + (g.cy - p[1]) + "px) scale(.3)", opacity: 0 },
-      { transform: "none", opacity: 1 }], { duration: 560, delay: 40 + i * 55, easing: HUD_SPRING, fill: "backwards" });
-  });
-  dialAnim(nav, [{ transform: "scale(.88)" }, { transform: "none" }], { duration: 460, easing: HUD_SPRING });
+  rowPlace();
+  $("#actionRow").classList.add("open");
+  $("#btnNavTo").setAttribute("aria-expanded", "true");
+  stageEl.classList.add("dial-open");          /* the zoom column steps aside on a short screen */
+  if (!DIAL_STILL.matches && document.visibilityState === "visible") {
+    $("#btnNavTo").animate([{ transform: "scale(.9)" }, { transform: "none" }],
+      { duration: 220, easing: "cubic-bezier(.3,.7,.3,1)" });
+  }
 }
 function closeDial() {
   if (!Dial.open) return;
-  Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
   Dial.open = false;
-  const g = Dial.geo, o = g.cx + "px " + g.cy + "px", bar = $("#actionbar");
+  $("#actionRow").classList.remove("open");
   $("#btnNavTo").setAttribute("aria-expanded", "false");
-  stageEl.classList.remove("dial-open");   /* and come back as it folds */
-  const out ={ duration: 200, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" };
-  dialAnim($("#arcPlate"), [{ opacity: 1, transform: "none", transformOrigin: o },
-    { opacity: 0, transform: "scale(.6)", transformOrigin: o }], Object.assign({}, out, { delay: 60 }));
-  DIAL_SPOTS.forEach(function (s, i) {
-    const p = g.P(s[1], g.R);
-    dialAnim($("#" + s[0]), [{ transform: "none", opacity: 1 },
-      { transform: "translate(" + (g.cx - p[0]) + "px," + (g.cy - p[1]) + "px) scale(.3)", opacity: 0 }],
-      Object.assign({}, out, { delay: (DIAL_SPOTS.length - 1 - i) * 25 }));
-  });
-  const done = function () {
-    if (Dial.open) return;
-    bar.classList.add("shut");
-    Dial.anims.forEach(function (a) { a.cancel(); }); Dial.anims = [];
-  };
-  if (!Dial.anims.length) done();
-  else Promise.all(Dial.anims.map(function (a) { return a.finished; })).then(done, function () {});
+  stageEl.classList.remove("dial-open");
 }
 /* Caught on the way down, before anything else hears the tap, so a tap that
-   only folds the dial can be kept from the map and the buttons under it. */
+   only puts the row away can be kept from the map and the buttons under it. */
 document.addEventListener("click", function (e) {
   const t = e.target;
   if (!t || !t.closest) return;
@@ -4854,8 +4934,10 @@ document.addEventListener("click", function (e) {
     return;
   }
   if (!Dial.open) return;
-  if (t.closest("#actionbar .act")) { setTimeout(closeDial, 120); return; }
-  if (t.closest("#arcPlate")) { e.stopPropagation(); return; }
+  if (t.closest("#actionRow .act")) { setTimeout(closeDial, 120); return; }
+  /* the row takes a tap itself, so pressing between two buttons does not
+     reach the map underneath */
+  if (t.closest("#actionRow")) { e.stopPropagation(); return; }
   e.stopPropagation(); e.preventDefault(); closeDial();
 }, true);
 document.addEventListener("keydown", function (e) { if (e.key === "Escape" && Dial.open) closeDial(); });
@@ -14664,7 +14746,7 @@ function endDrawMode() {
 
 stageEl.addEventListener("pointerdown", function (e) {
   if (!drawMode) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar")) return;
+  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
   e.preventDefault(); e.stopPropagation();
   const st = stageEl.getBoundingClientRect();
   drawStart = { cx: e.clientX, cy: e.clientY, x: e.clientX - st.left, y: e.clientY - st.top };
@@ -14680,7 +14762,7 @@ stageEl.addEventListener("pointerdown", function (e) {
 
 stageEl.addEventListener("pointermove", function (e) {
   if (!drawMode || !drawStart) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar")) return;
+  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
   e.preventDefault(); e.stopPropagation();
   const st = stageEl.getBoundingClientRect();
   const x = e.clientX - st.left, y = e.clientY - st.top;
@@ -14693,7 +14775,7 @@ stageEl.addEventListener("pointermove", function (e) {
 
 stageEl.addEventListener("pointerup", function (e) {
   if (!drawMode || !drawStart) return;
-  if (e.target.closest("#drawHint,#zoomCtl,#actionbar")) return;
+  if (e.target.closest("#drawHint,#zoomCtl,#actionbar,#actionRow")) return;
   e.preventDefault(); e.stopPropagation();
   const a = clientToLatLng(drawStart.cx, drawStart.cy);
   const b = clientToLatLng(e.clientX, e.clientY);
@@ -16796,7 +16878,7 @@ const Manual = {
 stageEl.addEventListener("pointerdown", function (e) {
   if (e.button != null && e.button !== 0) return;
   if (drawMode || wpFormOpen) return;
-  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #speedSign, #drawHint, .maplibregl-marker, .maplibregl-popup")) return;
+  if (e.target.closest("#zoomCtl, #mapChips, #panelStack, #actionRow, #speedSign, #drawHint, .maplibregl-marker, .maplibregl-popup")) return;
   Manual.down(e);
 }, true);
 
