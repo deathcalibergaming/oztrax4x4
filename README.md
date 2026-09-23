@@ -210,7 +210,12 @@ collected by the developer.
   [FuelWatch](https://www.fuelwatch.wa.gov.au), a public feed used on the
   condition that FuelWatch is credited as the source with a link back — which
   the app renders from the file rather than hard-coding, so the credit travels
-  with the data
+  with the data.
+  A scheme registers each servo against a street address and publishes the
+  coordinate that address geocodes to, which is the street - so where
+  OpenStreetMap has the same servo the app takes the position from there
+  instead. `tools/check-pins.mjs` measures the ones it cannot against the
+  road packs and lists whatever is left standing on a carriageway
 * Roads — OpenStreetMap via the Geofabrik state extracts, cut into a national
   spine and z13 packs under `docs/route/` and served off this origin; built
   monthly by `tools/build-routing.mjs`

@@ -1452,6 +1452,27 @@ Panel fill, hairline-strong border, 6px radius, popup shadow. An uppercase
 title in the category's colour lifted to ink, an optional second line for a
 place that has one, then a Meta line of category, source and distance.
 
+**Held to 280px, and most cards never reach it.** It was 300 — Leaflet's own
+default, inherited rather than chosen — which on a 375px phone is four fifths
+of the screen width for something opened to read a line off. Narrowing a card
+usually costs height, because the title wraps, so the question is where that
+turns: measured over the fourteen cards a screenful of Hawker makes, at 280
+one gains a line and thirteen are exactly the height they were, and at 270
+three gain one. Below that sits a floor of what the three actions need side
+by side — 184px of buttons on a short name, 214 on a long one — and a card
+is sized to its own content anyway, so most of them come out around 200.
+The rhythm inside came in with the width: 8px of padding rather than 10, and
+a pixel or two off each gap. A card with a long name and a fuel price went
+from 300×241 to 280×221, a fifth less of the map covered.
+
+**The arrow down to the pin is the panel fill**, not the border colour — the
+corner of the card pulled down to the pin rather than a wedge of something
+else under it — and it is that at all eight of the anchors the map can
+choose. Naming only the two straight ones left the six with a corner or a
+side in them showing the library's white, which on a 375px phone is any pin
+within about 158px of either edge, the side being chosen against half the
+card's width.
+
 **A popup is built when it opens, not when the map is drawn.** The same rule
 the favourites list keeps — see Favourites — and for the same reason: the star
 and the fuel prices on a pin's card are read at the moment a thumb opens it,
@@ -1460,16 +1481,38 @@ makes a dense town cheap to draw. A screenful of Adelaide is five hundred and
 sixty-eight pins, and building all five hundred and sixty-eight cards for the
 one that gets tapped was 17ms of every redraw.
 
-**A card stands upright and clear of the heads-up display.** A Leaflet popup
-lived in the map's pane, and heading up turned that pane — so a card opened
-while driving came up tilted with the map, and always above its pin, which
-for a pin just under the stats bar meant behind the heading tape, the speed
-and the readings. Both are the map's job now: a MapLibre popup is positioned
-over the canvas rather than inside it, so it never tilts, and it is given
-`padding` — the heads-up display along the top, the safe area at the bottom
-and sides — so a card that would run into any of that opens on the other
-side of its pin instead. The card rides with its pin while the map moves and
-a tap anywhere off it closes it and does nothing else.
+**A card stands upright.** A Leaflet popup lived in the map's pane, and
+heading up turned that pane — so a card opened while driving came up tilted
+with the map, and always above its pin, which for a pin just under the stats
+bar meant behind the heading tape, the speed and the readings. A MapLibre
+popup is positioned over the canvas rather than inside it, so it never
+tilts, and it is given `padding` — the heads-up display along the top,
+whatever is standing along the bottom — so a card that would run into any of
+that opens on the other side of its pin instead. The card rides with its pin
+while the map moves and a tap anywhere off it closes it and does nothing
+else.
+
+**The map moves so the card can be read.** Choosing a side is the right
+choice measured against the wrong rectangle: it is made against the map's own
+box, but the top of the map is under the heads-up display and the bottom of
+it is under the console, so a pin near either edge still opened a card that
+was inside the map and behind the furniture. Measured on a 375×812 phone, a
+pin at the top opened a card with 49px of its head behind the display and one
+at the bottom put 25px of its foot behind the console — with the pin itself
+under there as well. So opening a card pans the map by the least that brings
+the pin and the whole card into the clear stretch between the display and
+whatever is along the bottom: the console, the action row while it is up,
+Navigate itself. The least, and only when it has to — a card that already
+fits moves nothing, because a map that jumps whenever it is touched is worse
+than a card sitting near an edge. Nothing moves while the map is following
+the vehicle either: the camera belongs to the vehicle there, and anything
+moved would be taken back on the next fix.
+
+**A card is never taller than the room it has.** Past that it is held to the
+clear stretch and scrolls inside itself. A phone on its side is where this
+bites — 334px of stage, 73 of heads-up display and 92 of console leave 153
+for a card that wants 233 — and the part that would hang off the bottom is
+the Navigate and Go To buttons.
 
 ### Dialogs
 
