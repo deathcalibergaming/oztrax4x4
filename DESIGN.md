@@ -497,8 +497,9 @@ A fixed, full-screen app shell that never scrolls as a page. `body` is
 
 The stack is a 50px top bar (`--topH`) over the map stage, which runs to the
 bottom edge. The instruments lie over the top of the map as a heads-up
-display, and the actions are a thumb dial hung in the bottom-right corner
-(see Heads-Up Display and Thumb Dial). Landscape keeps the same arrangement;
+display; Navigate is a disc in the bottom-right corner and the other actions
+are a bar it raises above the console (see Heads-Up Display, The Console,
+and Navigate, And The Action Row). Landscape keeps the same arrangement;
 there are no rails.
 Safe-area insets are added to the top bar and every bottom-anchored element,
 never ignored.
@@ -1001,50 +1002,85 @@ White, with a text shadow and a fade behind them:
 
 Nothing in it takes a tap, so the map under it still pans.
 
-### Thumb Dial
+### Navigate, And The Action Row
 
-The actions sit on a dial in the bottom-right corner, around a big Navigate
-button in Primary (Burnt Orange, near-black ink, collared in the panel
-colour). Folded, only Navigate shows:
+Navigate is a big disc in the bottom-right corner, in Primary (Burnt Orange,
+near-black ink, collared in the panel colour), and it is the only control
+down there until it is tapped:
 
-- **Open:** the first tap unfolds Record, POI, Waypoint and Favourites onto a
-  curved panel-colour plate, each the same thumb-reach from Navigate. The
-  plate runs exactly 180 to 90 degrees, so its rounded ends wrap the end
-  buttons and none of it leaves the screen.
-- **Navigate:** a second tap navigates, and folds the dial.
-- **Actions:** a tap on one of the four runs it, then folds.
-- **Dismiss:** a tap anywhere else only folds; it is swallowed, so dismissing
-  the dial cannot also drop a pin or open a place. Escape folds it too.
-- **Sizes:** Navigate 64px with a 128px arc on an upright phone, 80px and
-  166 on a tablet, 68px and 100 on a phone on its side. The first two were a
-  fifth larger; the arc came in by as much as the disc shrank, so its
-  buttons keep their distance from the disc and their reach.
+- **Open:** the first tap raises the action row - Record, POI, Waypoint and
+  Favourites, a quarter of the width each - over 0.28s on the panel curve,
+  and Navigate gives the press back with a quick squeeze. It leaves the same
+  way and a little quicker, 0.22s on the curve the app dismisses things
+  with. Under reduced motion it appears and fades instead.
+- **Which edge it comes from** follows where it opens. Dropped into the
+  console's slot it rises from under the bottom of the screen, because down
+  there nothing stands between it and the edge and a bar rising into the
+  corner it belongs in beats one crossing the map to get there. Opened above
+  a bar it cannot come that way - the bars are in its path and it would have
+  to climb through them - so it slides in from the right. Deciding the place
+  moves it between those two waiting positions, which is a transform change
+  like any other: nothing moves while that is settled, or the open would
+  carry on from wherever the move had got to.
+- **Where it opens:** directly above whatever is on screen. With a bar in
+  the console it sits a gap above it, full width, clear of Navigate's
+  collar; with the console empty it drops into the console's own slot -
+  where the bottom bar would be, in the console's shape, curving around
+  Navigate on a plate of its own - so a menu opened with nothing running
+  comes up under the thumb rather than floating a bar's height above
+  nothing. The drop costs that end 43px to the curve, so it is taken only
+  where the words still fit the shorter line it leaves: measured when the
+  row opens, not keyed to the screen. Which place it gets is settled then
+  and left alone while it is up, so a bar arriving as an action is chosen
+  cannot move the row out from under the finger that chose it.
+- **Navigate:** a second tap navigates, and puts the row away.
+- **Actions:** a tap on one of the four runs it, then puts the row away.
+- **Dismiss:** a tap anywhere else only puts it away; it is swallowed, so
+  dismissing the row cannot also drop a pin or open a place. Escape does it
+  too.
+- **Sizes:** Navigate 64px on an upright phone, 80 on a tablet, 68 on a
+  phone on its side. The row is a strip's height - what each bar of a pair
+  gets, 39.5px on an upright phone, 47.5 on a tablet, 41.5 on its side - so
+  the three of them read as one stack on the same rhythm rather than a tall
+  bar parked over two short ones. Inside it each action is about 85x34, an
+  icon two pixels off the gauge size over its label, with 2px clear top and
+  bottom.
 - **States:** Record keeps red while recording and amber while paused.
+
+These four used to unfold onto a curved plate around Navigate, each the same
+thumb-reach from it. The arc was the better picture and the worse bar: it
+opened over the bottom-right corner, so the console had to fade out and step
+aside for it, and a driver choosing what to do next lost sight of the route
+they were on and the track they were recording. A bar above the console
+takes nothing off the screen to show itself; each action keeps about the
+area the 60px disc had, half as wide again and a little over half as tall;
+and the zoom column stays where it stands on any screen tall enough, because
+the row's top is lower than the arc's was.
 
 The zoom buttons are always on the right-hand side, and down the middle of
 the map. A column on the right edge, centred on the map itself and then held
 off both ends — never up under the heads-up display, never down into the
-dial. Centred on the map rather than in the clear stretch above the dial,
+console. Centred on the map rather than in the clear stretch above it,
 because those are not the same place: that stretch ends at the top of the
-dial in the bottom corner, so centring in it left the buttons a long way
-above the middle of what the driver is looking at, and close enough to the
-top of the map to crowd the turn bar. A screen with no room to centre lands
-where it always landed, because the clamp is the old placement's own limit.
+action row, so centring in it left the buttons a long way above the middle
+of what the driver is looking at, and close enough to the top of the map to
+crowd the turn bar. A screen with no room to centre lands where it always
+landed, because the clamp is the old placement's own limit.
 
 How many rows it takes is still measured against the clear stretch: five
-where the stretch above the open dial holds them with 10px to spare, else
-the longer stretch clear of the closed disc, stepping aside while the dial
-is open the way the console does; and where even a column of five will not fit
-- a phone on its side - folded into as many rows as the height holds, evened
-out, in columns from the right edge inward: +, - and recentre down the edge,
-the orientation and simulation buttons beside them. Never a row along the
-bottom: on a small nav screen that put them under the other thumb and
-pushed the console's bars along. It is measured, not keyed to orientation: a tablet
-or a desktop window on its side keeps the single column. It is measured against the tallest the
-screen has been at its width, so Android's system bars sliding up on a swipe
-move the dial with the bottom edge but leave the zoom buttons where they are;
-a width change or a drop of more than 120px is a real resize and starts
-again.
+where the stretch above the raised action row holds them with 10px to spare,
+else the longer stretch clear of the closed disc, stepping aside while the
+row is up; and where even a column of five will not fit - a phone on its
+side - folded into as many rows as the height holds, evened out, in columns
+from the right edge inward: +, - and recentre down the edge, the orientation
+and simulation buttons beside them. Never a row along the bottom: on a small
+nav screen that put them under the other thumb and pushed the console's bars
+along. It is measured, not keyed to orientation: a tablet or a desktop
+window on its side keeps the single column. It is measured against the
+tallest the screen has been at its width, so Android's system bars sliding
+up on a swipe move the console with the bottom edge but leave the zoom
+buttons where they are; a width change or a drop of more than 120px is a
+real resize and starts again.
 
 ### The Console
 
@@ -1067,11 +1103,12 @@ the system's own range, and enough to read as air. A pair is half the
 console each less half that gap: 39.5px on an upright phone, 47.5 on a
 tablet, 41.5 on a phone on its side. The split falls on the disc's own
 centre line, so the two of them wrap the same amount of it. Either bar on
-its own has the whole console and the whole curve with it. When the second arrives the first gives up its share over 0.24s
-rather than jumping out of the way, and the arriving bar unrolls out of the
-edge it keeps as it fades up; a bar that leaves folds back into that edge.
-While the dial is open the console steps aside, so the dial's plate never
-lands on it.
+its own has the whole console and the whole curve with it. When the second
+arrives the first gives up its share over 0.24s rather than jumping out of
+the way, and the arriving bar unrolls out of the edge it keeps as it fades
+up; a bar that leaves folds back into that edge. The console stays where it
+is while the action row is up: the row opens above it rather than over it,
+which is the whole reason it is a bar and not an arc.
 
 The face, the one-pixel edge and the curve are a drawn path, not a box with
 a border and a radius: a border follows a box and a mask would take the edge
@@ -1086,11 +1123,13 @@ mistake.
 
 Each bar draws its own shape, to the box it has at that moment, rather than
 holding one shape and being cut to its share - a cut edge cannot be rounded,
-and both of these need to be. The cost is that a fold redraws two paths of
+and both of these need to be. The cost is that a change redraws two paths of
 eight segments on each of its frames, which is not the frame loop and
 nothing like it: it runs when a bar arrives or leaves and stops when the
-transitions do. The shadow is cast once, from the silhouette the bars
-actually make.
+transitions do. It is drawn from where each bar is laid out rather than from
+where it is painted, so nothing that moves a bar without moving its box can
+bend the curve around nothing. The shadow is cast once, from the silhouette
+the bars actually make.
 
 What each bar carries is fitted to the room it has - measured with the
 widest figures it will ever hold, a four-figure distance and PAUSED, so the
