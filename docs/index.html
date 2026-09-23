@@ -16963,7 +16963,9 @@ const Sim = {
     $("#btnSim").classList.add("on");
     $("#simChip").classList.remove("hidden");
     if (!S.follow) resumeFollow();
-    toast("Simulated drive: Hawker to Parachilna", "warn");
+    /* The chip on the line above is the notice, and it stays up for as
+       long as the drive is running rather than for four seconds. A toast
+       saying the same thing beside it was the message nobody needed. */
     updateGpsPill();
   },
 
@@ -16974,7 +16976,8 @@ const Sim = {
     $("#btnSim").classList.remove("on");
     $("#simChip").classList.add("hidden");
     document.querySelector(".gps-icon").classList.remove("sim");
-    toast("Simulation stopped", "warn");
+    /* And the chip going is the notice that it stopped, along with the
+       vehicle turning from amber back to green. */
     updateGpsPill();
   },
 
@@ -17882,7 +17885,7 @@ function syncNorthUI() {
                              : "North up is off - tap to lock north up";
 }
 
-function setNorthLock(lock, announce) {
+function setNorthLock(lock) {
   S.northLock = !!lock;
   saveSettings();
   if (S.northLock) {
@@ -17900,10 +17903,14 @@ function setNorthLock(lock, announce) {
   followCamera.key = "";
   syncDragMode();
   syncNorthUI();
-  if (announce) toast(S.northLock ? "North up" : "Heading up", "ok");
+  /* syncNorthUI is the announcement. The button lights for north up and
+     goes dark for heading up, its title says which, and aria-pressed
+     carries it to a screen reader - and behind all that the map has just
+     turned, which is not subtle. The toast said the same word a fourth
+     time and took the announce argument with it. */
 }
 
-$("#btnOrient").addEventListener("click", function () { setNorthLock(!S.northLock, true); });
+$("#btnOrient").addEventListener("click", function () { setNorthLock(!S.northLock); });
 
 $("#btnZin").addEventListener("click", function () {
   resyncing = true; map.setZoom(Math.min(CFG.MAX_Z, map.getZoom() + 1)); resyncing = false; schedulePoi();
@@ -17912,10 +17919,15 @@ $("#btnZout").addEventListener("click", function () {
   resyncing = true; map.setZoom(Math.max(CFG.MIN_Z, map.getZoom() - 1)); resyncing = false; schedulePoi();
 });
 
+/* No toast for the good case. The button itself is the answer - it drops
+   its paused look the moment following resumes, and the map moves under
+   the vehicle, which is the whole of what the message said. A green card
+   over the map to report a thing the map is already doing is one more
+   thing to read at the wheel. The failure keeps its own, because nothing
+   else on screen says why the tap did nothing. */
 $("#btnCenter").addEventListener("click", function () {
   if (!view.has) { toast("No position fix yet", "warn"); return; }
   resumeFollow();
-  toast("Following", "ok");
 });
 
 /* This used to open the new-waypoint form, which is the one thing on the map
