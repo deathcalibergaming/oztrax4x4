@@ -3,7 +3,7 @@
 
    - The vector tiles go through the app's own ozt:// protocol, which reads
      a downloaded state first and asks OpenFreeMap only for ground no stored
-     state covers (see VMap in docs/next/index.html). Same schema either
+     state covers (see VMap in docs/index.html). Same schema either
      way: OpenFreeMap builds its planet with Planetiler's OpenMapTiles
      profile, which is what builds ours.
    - The icons and the fonts are copied beside the page, so labels still
@@ -16,7 +16,7 @@
 import fs from "node:fs";
 
 const SRC = "https://tiles.openfreemap.org/styles/liberty";
-const OUT = new URL("../docs/next/style/liberty.json", import.meta.url);
+const OUT = new URL("../docs/style/liberty.json", import.meta.url);
 
 const style = await (await fetch(SRC)).json();
 const tj = await (await fetch(style.sources.openmaptiles.url)).json();

@@ -647,21 +647,26 @@ out and back to visible at the start of the slide in, so what a keyboard can
 reach is what an eye can see. Overlays that hide with `display:none` already
 do this; anything that hides by moving has to be told.
 
-**The Frozen Layer Rule.** Pinch does nothing anywhere in this app, and has
-to do nothing. Browser page zoom is off and Leaflet's `touchZoom` is off,
-for one reason with two faces. The shell is `position: fixed` across the
-viewport with two full-screen
-`will-change: transform` layers under the map, so a pinch magnifies a frozen
-layer rather than reflowing anything — and forces both promoted layers to
-re-rasterise mid-gesture, which flashes and drops to the stage's near-black
-on real hardware. Making type bigger here is the app's own job, and Settings
-carries it: Text Size, at 1 or 1.15.
+**The Frozen Layer Rule.** Browser page zoom does nothing in this app, and
+has to do nothing. The shell is `position: fixed` across the viewport with
+two full-screen `will-change: transform` layers under the map, so a page
+pinch magnifies a frozen layer rather than reflowing anything — and forces
+both promoted layers to re-rasterise mid-gesture, which flashes and drops to
+the stage's near-black on real hardware. Making type bigger here is the
+app's own job, and Settings carries it: Text Size, at 1 or 1.15.
 
-Leaflet's own pinch fails the same way. It scales the map pane with a CSS
-transform for the length of the gesture, and that pane is inside those two
-promoted wrappers — so a pinch re-rasterises two full-screen layers while a
-finger is moving. Map zoom is the + and − buttons, 44px and one-handed,
-which a driver can reach without putting two fingers on the glass.
+The map is the exception, and only since it became a WebGL map. Leaflet
+pinch was off for the same reason as page zoom: it scaled the map pane with
+a CSS transform for the length of the gesture, and that pane sits inside
+those two promoted wrappers, so a pinch re-rasterised two full-screen layers
+while a finger was moving. MapLibre redraws the map instead of scaling a
+layer, so **pinch zooms the map** and nothing else moves. The + and −
+buttons stay, 44px and one-handed, because they are what a driver can reach
+without putting two fingers on the glass.
+
+Turning is still the app's to do — heading up, or N Up — so the two-finger
+twist is off, and so is tilt: a map left at an angle nobody chose is worse
+than no gesture at all.
 
 Every `font-size` in the file derives from `--uiScale` — sixteen tokens over
 ten values, each named for the job it does rather than the number it starts
@@ -1350,16 +1355,16 @@ makes a dense town cheap to draw. A screenful of Adelaide is five hundred and
 sixty-eight pins, and building all five hundred and sixty-eight cards for the
 one that gets tapped was 17ms of every redraw.
 
-**A card is drawn on the screen, not in the map.** A Leaflet popup lives in
-the map's pane, and heading up turns that pane — so a card opened while
-driving came up tilted with the map, and always above its pin, which for a pin
-just under the stats bar meant behind the heading tape, the speed and the
-readings. Cards are an upright layer over the map now (`Card`): above the pin
-when there is room under the heads-up display, below it when there is not,
-held inside the stage side to side, with the tip pointing at the pin from
-whichever side the card is on. The card rides with its pin while the map
-moves, hides if the pin is driven off the screen and comes back with it, and a
-tap anywhere off it closes it and does nothing else.
+**A card stands upright and clear of the heads-up display.** A Leaflet popup
+lived in the map's pane, and heading up turned that pane — so a card opened
+while driving came up tilted with the map, and always above its pin, which
+for a pin just under the stats bar meant behind the heading tape, the speed
+and the readings. Both are the map's job now: a MapLibre popup is positioned
+over the canvas rather than inside it, so it never tilts, and it is given
+`padding` — the heads-up display along the top, the safe area at the bottom
+and sides — so a card that would run into any of that opens on the other
+side of its pin instead. The card rides with its pin while the map moves and
+a tap anywhere off it closes it and does nothing else.
 
 ### Dialogs
 
