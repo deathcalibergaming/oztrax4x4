@@ -94,16 +94,28 @@ Menu → Downloaded Areas is where a trip is prepared:
   the query ("fuel coober pedy") is where to look.
   It brings the state's map with it as well — see "Offline maps".
 
-**Download New Area is gone from the screen**, and so are the drawn-area
-cards, the Cached tiles count and Clear Tile Cache. It was a box you drew
-and what it stored was Esri picture tiles; the map does not draw Esri any
-more, so the box has nothing to fill and the tiles cannot be shown again.
-With no way left to clear them by hand, a phone that has any sweeps them
-once on the first launch after the change (`sweepOldTiles`) and says what
-was freed. The flow behind the button — `startDrawArea`, the area modal,
-`deleteArea` — is left standing rather than pulled out: it is what would be
-wired back up if a state without a map of its own needed covering before the
-hosting moves.
+**Download New Area is gone**, and so are the drawn-area cards, the Cached
+tiles count and Clear Tile Cache. It was a box you drew and what it stored
+was Esri picture tiles; the map does not draw Esri any more, so the box had
+nothing to fill and the tiles could not be shown again. With no way left to
+clear them by hand, a phone that has any sweeps them once on the first launch
+after the change (`sweepOldTiles`) and says what was freed.
+
+The flow behind it stood unreachable for a while, kept as what would be wired
+back up if a state without a map of its own needed covering before the hosting
+moves. It has since been taken out — 447 lines — because it could never have
+been that. It fetched Esri raster tiles and no raster layer has existed since
+the vector rebuild, so reviving it meant reviving a whole second basemap; and
+`sweepOldTiles` deletes its output on the next launch, which makes it a
+fallback that eats its own work. Pointing it at the vector tiles instead is
+not open either: OpenFreeMap's terms rule out collecting from the service in
+automated ways without permission, and a box download walking a tile pyramid
+is exactly that. The sanctioned bulk path is their planet download, which is
+the shape `tools/build-vmap.mjs` already takes.
+
+`sweepOldTiles` stays, and has to: it is keyed on a `localStorage` flag and
+runs once per phone, so a phone that has not opened the app since the rebuild
+still has its old tiles waiting to be reclaimed.
 
 Until the other states' maps are hosted, that leaves **no offline map
 outside South Australia**. Everything else a state brings still works
@@ -182,7 +194,8 @@ collected by the developer.
   map where there is one and from OpenFreeMap where there is not. Relief is
   shaded from Mapzen terrain tiles on AWS Open Data and still needs a
   signal. Esri World Topo drew this map until the vector map replaced it;
-  nothing fetches it now
+  nothing fetches it now, and since the drawn-area flow came out nothing
+  names it either
 * POIs — OpenStreetMap via the seven Geofabrik state extracts, cut into z13
   packs under `docs/poi/` covering every state and territory on the mainland
   and Tasmania, served off this origin and built monthly by
