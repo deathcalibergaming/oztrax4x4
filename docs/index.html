@@ -1916,6 +1916,7 @@ details.sub > .sec-body{padding:12px 0 0}
    fix this one would be the larger change. */
 #btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
+#btnTiltOn.on,#btnTiltOff.on,
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
@@ -3071,6 +3072,11 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
         <div class="note" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
+        <div class="sublabel">Map Tilt
+          <button class="btn xs ghost" id="btnTiltOn">On</button>
+          <button class="btn xs ghost" id="btnTiltOff">Off</button>
+        </div>
+        <div class="note" id="tiltNote">Leans the map so you see about twice as far up the road, with the vehicle in the same place on the screen. Only while the map turns with you - N Up stays flat.</div>
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
@@ -3812,6 +3818,15 @@ const CFG = {
      the bottom of the map - the vehicle is held while following heading
      up, and how fast it glides there. See headUpShift. */
   HEADUP_AT: 0.67, LERP_SHIFT: 0.1,
+  /* How far the map leans when Map Tilt is on. Forty-five degrees, and the
+     ceiling rather than a taste: the camera sees its own pitch plus half its
+     field of view, which at MapLibre's default 36.9 degrees puts the top of
+     the screen 63 degrees off vertical - short of the 90 where the horizon
+     comes into shot. The style carries no sky layer, so a horizon on screen
+     would be the map's background colour standing in for the sky, and this
+     is the number that keeps it off. Past about 60 the style owes the map a
+     sky before the angle is worth having. */
+  GL_PITCH: 45,
   SIM_START: [-31.88753, 138.42284],   /* Hawker, SA - where the demo drive begins */
   SIM_TICK: 100, SIM_SCALE: 2
 };
@@ -4335,6 +4350,17 @@ const S = Object.assign({
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
   hillshade: true,     /* shaded relief under the map, on by default */
+  /* The map leans while it is turning with the vehicle. Off by default,
+     which relief is not: relief was a correction to a default nobody ever
+     chose, and this is a new way for the map to look. A look is a taste, and
+     a taste is asked for rather than handed out.
+
+     Not for the cost, which was the fear and is small. A leaning camera sees
+     twice as far, so the worry was that it would hold two or three times the
+     map - and it does not, because MapLibre covers the far half of a leaning
+     view with coarse tiles rather than fine ones. Counted over every source
+     at Hawker: 52 tiles flat, 60 leaning. Fifteen per cent, not double. */
+  tilt: false,
   textScale: 1         /* 1, 1.15 or 1.3 - drives --uiScale */
 }, loadLS(LS.settings, {}));
 
@@ -4364,7 +4390,7 @@ if (!S.headUpDefaultApplied) {
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
-                        zoom: S.zoom, hillshade: S.hillshade,
+                        zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
                         textScale: S.textScale });
@@ -4464,6 +4490,25 @@ function viewCenter() {
    display and the turn bar, kept here in numbers by layoutHud and
    navTurnFit so the frame loop never has to read them back out of CSS. */
 let hudStagePx = 100, turnDropPx = 0, followShift = 0;
+
+/* How far the map is leaning at this moment, eased toward wantTilt by the
+   frame loop exactly as followShift is eased toward headUpShift - so turning
+   the setting on, or locking north, glides the map over instead of snapping
+   it flat.
+
+   The lean hangs off heading up rather than off following, which is the one
+   place it parts company with followShift. Paused, the map keeps the bearing
+   it was left at - pauseFollow says so in as many words - and a lean that
+   fell away the moment you dragged the map to look up the road would undo
+   the very view you dragged it into. North up is what flattens it: square to
+   the compass, ahead is any direction at all, which is the same reason the
+   vehicle does not drop to the lower third there either. And no fix means no
+   heading, so there is nothing to lean into yet. */
+let tiltCur = 0;
+
+function wantTilt() {
+  return S.tilt && !S.northLock && view.has ? CFG.GL_PITCH : 0;
+}
 
 function headUpShift() {
   const top = hudStagePx + turnDropPx, bottom = stageH - viewInsY;
@@ -5359,13 +5404,22 @@ const L = (function () {
     el.style.width = sz[0] + "px";
     el.style.height = sz[1] + "px";
     /* The vehicle's arrow turns with the map, since its own rotation is a
-       compass heading; everything else stands up. */
+       compass heading; everything else stands up.
+
+       It lies down with the map as well, which is the same decision put the
+       other way about. On a leaning map an arrow painted flat on the road is
+       the point of it - it lies along the tarmac the vehicle is actually on.
+       A waypoint or a destination is a marker stuck in the ground rather
+       than a mark drawn on it, so those stand upright and face the driver
+       however far the map leans. The two were one line until tilt existed,
+       because at no lean at all the difference does not draw. */
     const withMap = /\bgps-icon\b/.test(ic.className || "");
     if (this.o.zIndexOffset) el.style.zIndex = String(this.o.zIndexOffset);
     this.el = el;
     this.m = new maplibregl.Marker({
       element: el, anchor: "center", offset: [sz[0] / 2 - an[0], sz[1] / 2 - an[1]],
-      rotationAlignment: withMap ? "map" : "viewport", pitchAlignment: "map"
+      rotationAlignment: withMap ? "map" : "viewport",
+      pitchAlignment: withMap ? "map" : "viewport"
     }).setLngLat([this.ll.lng, this.ll.lat]).addTo(gl);
     this._wire();
     return this;
@@ -5704,12 +5758,15 @@ gl = new maplibregl.Map({
   center: [startCenter[1], startCenter[0]],
   zoom: clamp(S.zoom, CFG.MIN_Z, CFG.MAX_Z) - ZOOM_OFF,
   minZoom: CFG.MIN_Z - ZOOM_OFF, maxZoom: CFG.MAX_Z - ZOOM_OFF,
-  /* Turning is the app's to do - heading up, or N Up - not a two-finger
-     twist that leaves the map at an angle nobody chose. Tilt is off for
-     the same reason. Pinch zoom comes back: it was switched off because
-     Leaflet scaled two full-screen CSS layers for the length of a pinch,
-     and a WebGL map redraws instead. */
-  dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: 0,
+  /* Turning and leaning are both the app's to do - heading up or N Up, and
+     the Map Tilt setting - rather than a two-finger twist that leaves the
+     map at an angle nobody chose. So the gestures stay off and the ceiling
+     goes up instead: maxPitch is what the app is allowed to ask for, and
+     with touchPitch and pitchWithRotate off, nothing else can ask. Pinch
+     zoom comes back: it was switched off because Leaflet scaled two
+     full-screen CSS layers for the length of a pinch, and a WebGL map
+     redraws instead. */
+  dragRotate: false, pitchWithRotate: false, touchPitch: false, maxPitch: CFG.GL_PITCH,
   doubleClickZoom: false, boxZoom: false, keyboard: false,
   attributionControl: false,
   fadeDuration: 0
@@ -6101,6 +6158,14 @@ function visibleBounds() {
    of twice followShift puts the vehicle followShift below the middle of the
    visible map - which is where headUpShift says it belongs.
 
+   Leaning does not move it. Padding is counted in screen pixels and MapLibre
+   puts the centre on the padded pixel whatever the pitch, so the vehicle
+   holds the same spot on the glass at forty-five degrees as it does flat.
+   What changes is the ground underneath: the same pixels above the bonnet
+   now cover two or three times the distance, which is the whole reason for
+   leaning in the first place. So HEADUP_AT stays as it is - it was picked as
+   a place on the screen, never as a number of metres.
+
    jumpTo is handed { follow: true }, which MapLibre passes through to the
    events it fires, so the app's moveend never hears about these. Written
    only when something would change: a parked vehicle asks for nothing. */
@@ -6118,10 +6183,11 @@ function followCamera() {
   const headUp = !S.northLock && view.has;
   const bearing = headUp ? view.hdgCur : 0;
   const top = Math.round(followShift * 2 * 10) / 10;
-  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + viewInsX + "," + viewInsY;
+  const lean = Math.round(tiltCur * 10) / 10;
+  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + lean + "," + viewInsX + "," + viewInsY;
   if (key === followCamera.key) return;
   followCamera.key = key;
-  gl.jumpTo({ center: [view.cur.lng, view.cur.lat], bearing: bearing,
+  gl.jumpTo({ center: [view.cur.lng, view.cur.lat], bearing: bearing, pitch: lean,
               padding: { top: top, bottom: viewInsY, left: 0, right: viewInsX } }, { follow: true });
 }
 followCamera.key = "";
@@ -6350,7 +6416,25 @@ function frame(ts) {
     if (Math.abs(wantShift - followShift) < 0.5) followShift = wantShift;
   }
 
+  /* The lean eases on the same curve, so when a mode change moves both they
+     arrive together. A tenth of a degree is below what the eye can find on a
+     leaning map, and settling exactly is what lets the writers below stop. */
+  const tiltTgt = wantTilt();
+  if (tiltCur !== tiltTgt) {
+    tiltCur += (tiltTgt - tiltCur) * (1 - Math.pow(1 - CFG.LERP_SHIFT, dt / 16.7));
+    if (Math.abs(tiltTgt - tiltCur) < 0.1) tiltCur = tiltTgt;
+  }
+
   if (S.follow && glStyled) followCamera();
+  /* Following, the camera above carries the lean along with the centre and
+     the bearing. Paused, nothing writes the camera at all, so the glide has
+     to be written here - but only while it is still gliding, and never over
+     the top of an animation something else started. setNorthLock eases the
+     map square when it is not following, and a jumpTo landing in the middle
+     of that would cancel it and leave the map half turned. */
+  else if (glStyled && !gl.isEasing() && Math.abs(tiltCur - gl.getPitch()) > 0.05) {
+    gl.jumpTo({ pitch: tiltCur }, { follow: true });
+  }
 
   if (!gpsRotEl) gpsRotEl = document.getElementById("gpsRot");
   /* The arrow lives inside the rotated map, so the map rotation is already
@@ -17999,7 +18083,12 @@ function setNorthLock(lock, announce) {
     /* Following, the next frame puts it square. Not following, the map
        stays wherever it was left - turned, if it was heading up - until
        this says otherwise. */
-    if (!S.follow) gl.easeTo({ bearing: 0, duration: 300 });
+    /* Square and flat in the one move. North up and a lean do not go
+       together - see wantTilt - and easing the two separately would have
+       the frame loop's own writer cancel this ease halfway through it.
+       tiltCur is set here rather than left to the loop so that when this
+       lands, the loop already agrees with the map and writes nothing. */
+    if (!S.follow) { tiltCur = 0; gl.easeTo({ bearing: 0, pitch: 0, duration: 300 }); }
   }
   followCamera.key = "";
   syncDragMode();
@@ -18358,6 +18447,27 @@ function syncHillshadeButtons() {
 }
 $("#btnShadeOn").addEventListener("click", function () { setHillshade(true); });
 $("#btnShadeOff").addEventListener("click", function () { setHillshade(false); });
+
+/* Nothing here touches the camera. The lean is the frame loop's to write,
+   and all this changes is what the loop is easing toward: following, the
+   camera is rewritten twenty times a second anyway, and paused, the loop's
+   own writer picks it up on the next frame. Clearing followCamera's key is
+   what makes the first of those happen now rather than at the next metre
+   driven - parked, the centre and the bearing do not change, so without it
+   a driver who turned the setting on in a camp would watch nothing happen. */
+function setTilt(on) {
+  S.tilt = on;
+  saveSettings();
+  followCamera.key = "";
+  syncTiltButtons();
+}
+
+function syncTiltButtons() {
+  $("#btnTiltOn").classList.toggle("on", !!S.tilt);
+  $("#btnTiltOff").classList.toggle("on", !S.tilt);
+}
+$("#btnTiltOn").addEventListener("click", function () { setTilt(true); });
+$("#btnTiltOff").addEventListener("click", function () { setTilt(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
 $("#btnAwakeOff").addEventListener("click", function () { setKeepAwake(false); });
 
@@ -18705,6 +18815,7 @@ document.addEventListener("keydown", function (e) {
      fill and the row read as a setting with no value. Off was the default
      until this build, which is to say it was every install. */
   syncHillshadeButtons();
+  syncTiltButtons();
   /* before anything measures the bars, since it can change their height */
   applyTextScale();
   syncTextButtons();

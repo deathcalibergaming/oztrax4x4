@@ -1682,6 +1682,54 @@ the two over about half a second rather than jumping it. The map turns about
 the vehicle wherever it is held, so it never swings round the screen as the
 heading changes.
 
+**Map Tilt leans the map 45°, and it rides with heading up.** It is a
+setting, off until it is asked for — a look rather than a correction, and the
+one map setting that changes how the map is drawn rather than what is drawn
+on it. On, the map leans while it is turning with the vehicle; N Up flattens
+it, because square to the compass "ahead" is any direction at all, which is
+the same reason the vehicle does not drop to the lower third there either. A
+map dragged away keeps its lean, the way it already keeps its bearing —
+a lean that fell away the moment you dragged to look up the road would undo
+the view you dragged it into. Changing either one glides over about half a
+second on the same curve as the vehicle's drop, so a mode change that moves
+both lands them together.
+
+**The lean buys distance, not drama.** The vehicle holds the same spot on the
+glass — padding is counted in screen pixels and MapLibre puts the centre on
+the padded pixel whatever the pitch — so `HEADUP_AT` is untouched. What
+changes is the ground: at driving zoom on a 375×812 phone the top of the open
+map reaches 1,522 m ahead flat and 3,206 m leaning. Two hundred metres beside
+the vehicle draws 33.8px; the same 200 m two kilometres ahead draws 20px.
+
+**45° is the ceiling, not a taste.** The camera sees its pitch plus half its
+field of view, so at MapLibre's default 36.9° the top of the screen looks 63°
+off vertical — short of the 90° where the horizon comes into shot. The style
+carries no sky layer, so a horizon on screen would be the map's background
+colour standing in for sky. Past about 60° the style owes the map a sky
+before the angle is worth having.
+
+The gestures stay off. Turning and leaning are both the app's to do — heading
+up or N Up, and this setting — rather than a two-finger twist that leaves the
+map at an angle nobody chose, so `maxPitch` is raised while `touchPitch` and
+`pitchWithRotate` stay false: the app may ask, and nothing else can.
+
+**The vehicle lies on the road; everything else stands in it.** A heading
+arrow painted flat on the tarmac is the point of it — it lies along the road
+the vehicle is on. A waypoint or a destination is a marker stuck in the
+ground rather than a mark drawn on it, so those stand upright and face the
+driver however far the map leans. POI pins stand up too, and cost nothing to
+do so: they are a GL symbol layer rather than page elements.
+
+Two things come with it. The style's `building-3d` extrusion layer has drawn
+since the vector rebuild and shown nothing, because an extrusion seen from
+straight overhead is a flat polygon; leaning is what makes a town read as
+buildings. And POI pins crowd in the far field, because clustering measures
+ground distance at the flat scale: a 34px cell is worth 52 m, which draws 35px
+apart beside the vehicle and 16.6px at the top of the open map, under the
+28px badge. Clustering against the camera instead would fix it and would have
+to run on every camera move rather than on zoom, which is a larger change than
+the one it would fix — the near field, where the driver is reading, is right.
+
 **The open map is the stage less the console's band**, not the whole stage.
 The console lies over the map rather than shortening it, so everything that
 means "the middle of the map" has to mean the middle of what is left — 87.5px
