@@ -13,6 +13,9 @@ what that costs you.
 
     docs/index.html            the application, single file, no build step
     docs/sw.js                 offline shell cache (only active when served)
+    docs/privacy.html          the privacy notice - see below. Part of the
+                               shell, so it opens with no signal, and it
+                               fetches nothing of its own
     docs/manifest.webmanifest  used instead of the inline one when served
     docs/icon-192.png
     docs/icon-512.png
@@ -141,6 +144,26 @@ previous version once more on the next launch and pick up the new one the
 launch after, because the page is served from cache first and refreshed in
 the background. Bump `CACHE` in `docs/sw.js` only if you need the change to
 land on the very next launch.
+
+## Privacy notice
+
+`docs/privacy.html`, linked from the bottom of the drawer and from the Google
+Play listing, which will not take an app without one. It names every service
+the app talks to, what each is told, and why.
+
+It is written from the code rather than from a template, so it has to be
+revisited whenever the code changes what leaves the phone: a new geocoder, a
+new tile host, a new pack fetched from somewhere else. The list to check
+against is "Data sources" below and `CFG` at the top of the script - anything
+in either that is not this origin is a line in that page. Change it and move
+the date at the top, and bump `CACHE`, or phones keep serving the copy they
+already have.
+
+Nothing in the app reports to us, which is what makes the page short. There
+is no account, no analytics, no crash reporting and no cookie anywhere in it,
+and the Play data safety form says the same: location and search text are
+shared with those services to make the app work, and nothing at all is
+collected by the developer.
 
 ## Data sources
 

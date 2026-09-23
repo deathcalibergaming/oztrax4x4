@@ -1304,6 +1304,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    height to say something nobody reads twice. */
 .dr-foot{margin-top:auto;padding:10px 14px calc(10px + var(--safeB));border-top:1px solid var(--line);
   font-size:var(--t-meta);color:var(--dim);line-height:1.5}
+/* The one link down here. Rust at the raised grade, because the footer is
+   already dim sand and the base rust on it reads as a smudge rather than as
+   something to tap. */
+.dr-foot a{color:var(--rust2);display:inline-block;padding:8px 6px;margin:-8px -4px}
 /* Card buttons go on a grid of thirds rather than a wrap: every
    button the same width, every row full to both edges, and the columns
    lining up down the card as well as across it. minmax(0,1fr) rather than
@@ -2872,7 +2876,12 @@ input[type=date],input[type=time]{color-scheme:dark}
     </details>
 
     <div class="dr-foot">
-      OzTrax Recon &middot; offline 4x4 trail log<br>
+      <!-- Opened beside the app rather than in it. Following it in this
+           window would tear the page down - and with it the GPS watch and
+           whatever is being recorded - to read a page about privacy.
+           One notice for both copies, so from in here it is up a level. -->
+      OzTrax Recon &middot; offline 4x4 trail log &middot;
+      <a href="../privacy.html" target="_blank" rel="noopener">Privacy</a><br>
       Map tiles &copy; Esri &middot; POI and road data &copy; OpenStreetMap contributors (ODbL)<br>
       Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
       Australia, licensed under the Open G-NAF end user licence agreement.

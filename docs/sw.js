@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v236";
+const CACHE = "trailtracker-v237";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -24,6 +24,7 @@ async function setUpdateFlag(on) {
 const SHELL = [
   "./",
   "./index.html",
+  "./privacy.html",
   "./fuel.json",
   "./manifest.webmanifest",
   "./icon-192.png",
@@ -71,6 +72,17 @@ self.addEventListener("fetch", function (e) {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+
+  /* The privacy notice, ahead of the shell branch below because it is a page
+     of its own and that branch answers every shell URL with index.html. It
+     has to open with no signal: the Play listing points at it, and somebody
+     camped at Innamincka wondering what the app sends should be able to read
+     the answer. Cache first, so a change to it means bumping CACHE - which
+     is already what shipping anything here means. */
+  if (url.origin + url.pathname === new URL("./privacy.html", self.registration.scope).href) {
+    e.respondWith(privacyPage(req));
+    return;
+  }
 
   /* A launch must not wait on the network. Serve the cached page straight
      away and refresh the copy in the background for next time.
@@ -193,6 +205,24 @@ async function nextPage(req) {
   return hit || new Response(
     "<h1>OzTrax Recon preview</h1><p>Not stored yet - open it once with a connection.</p>",
     { headers: { "Content-Type": "text/html" }, status: 503 });
+}
+
+async function privacyPage(req) {
+  const cache = await caches.open(CACHE);
+  const key = new URL("./privacy.html", self.registration.scope).href;
+  /* Matched on the stored URL rather than the request, so a link arriving
+     with something hung on the end of it is still this page. */
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  try {
+    const r = await fetch(req);
+    if (r && r.ok) await cache.put(key, r.clone());
+    return r;
+  } catch (err) {
+    return new Response(
+      "<h1>Privacy</h1><p>Not stored yet - open this once with a connection.</p>",
+      { headers: { "Content-Type": "text/html" }, status: 503 });
+  }
 }
 
 async function nextFile(req) {
