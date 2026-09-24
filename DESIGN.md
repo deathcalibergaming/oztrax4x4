@@ -1452,7 +1452,8 @@ to anchor a group and too few points to tell a circle from a bend. Three or
 four nearly straight points genuinely do not say which it is.
 
 **What it does not do**, and says so by staying quiet rather than guessing:
-lanes, exit numbers, and speaking. A straight-line trip with no roads mapped
+lanes and exit numbers. Speaking was on that list until Spoken Turns, below.
+A straight-line trip with no roads mapped
 has no corners in it and is told the truth — **Head south-west**, to the
 eighth of the compass so it is not stepping between NE and ENE while you
 watch it, spelled out in words because this is the one line on the screen
@@ -1475,6 +1476,91 @@ the drawn line rather than to them; measured properly, the builder's own five
 metre tolerance is the whole of the error, and the rest is the phone's. Three
 fixes rather than one, because a single fix bouncing off a shed is not a
 wrong turn.
+
+### Spoken Turns
+
+The bar above is the one line on the screen that is a sentence rather than a
+reading, and this says it out loud. **Nothing new is worked out here.** The
+kind of corner, the distance to it, the road it puts you on and the one that
+follows are all computed to draw the bar, and the voice is handed the same
+values in the same breath, after the bar is drawn. A voice that could
+disagree with the screen would be worse than no voice.
+
+Off until it is switched on, in Settings, directly under the over-speed
+alert and for the same reason: an app that starts talking in a moving
+vehicle without being asked is worse than one that stays quiet.
+
+**A voice that is on the phone, or none at all.** Android will happily
+synthesise over the network, and a navigation voice that works in Adelaide
+and goes quiet at Hawker is worse than one that was never offered — the
+country this app is for is the country with no bars on the phone. So
+`localService` is a gate and not a preference: a voice that does not report
+itself as on-device is not used. Keeping the road names off the wire is the
+same decision seen from the other side, and it is why the privacy page has
+nothing new to disclose. **en-AU first**, then any English, then nothing —
+the names here are Tanunda and Yankalilla and Coober Pedy, and a voice built
+for another language reads them as if they were spelled in it.
+
+**Two calls a corner, timed rather than measured out.** Twenty-five seconds
+to read the turn, slow and move across; four to make it. Seconds and not
+metres, because five hundred metres is sixteen seconds on the Stuart Highway
+and the better part of a minute on a track, and a corner announced a minute
+early has been forgotten by the time it arrives. Both are floored — 400m and
+40m — so a phone reporting no speed at all still says something sensible,
+and capped at 1200m and 150m so a highway is not told about a corner a
+kilometre and a half early.
+
+Measured on the shipped voice at 110km/h: the heads-up *In 750 metres, turn
+left onto Flinders Ranges Way* takes 5.6 seconds, which is 170m of road. It
+starts at 764m and finishes 594m short of the corner. The call at the corner
+— *Turn left*, with no distance and no road name, because by then you can see
+where you are and the only words that help are the ones saying which way to
+go — takes 1.7 seconds, starts at 122m and finishes 69m out.
+
+**Said once, and never queued.** The distance in *in seven hundred metres* is
+true when it is spoken and wrong four seconds later, so a line that cannot be
+said now is dropped rather than stacked behind the one in front of it. Only a
+more urgent line interrupts, and it replaces what is talking instead of
+waiting its turn. The call at the corner and the off-route line are urgent;
+the heads-up is not.
+
+**A corner already named does not get named twice.** A second turn within
+250m rides on the end of the first line — *turn right onto the Outback
+Highway, then turn right* — and then has no heads-up of its own, only the
+call at the corner. Nor is a heads-up given once the corner call is already
+due, inside the near mark. Both rules came off one drive: three corners in
+three hundred metres north of Hawker produced six sentences in fourteen
+seconds of speech over six seconds of driving. The same three corners are now
+four lines, and the whole 11.8km route with seven turns in it is fourteen
+lines across 609 fixes.
+
+**Turning around is not announced onto anywhere.** At a hundred and sixty
+degrees the road you come out on is the road you went in on, and *turn around
+onto Webb Road* is a sentence describing nothing.
+
+**Off the route** interrupts whatever is being said, because whatever is being
+said is about a road that is no longer under the wheels — *Off route,
+recalculating*, once per time it happens rather than once a fix. **Arriving**
+is *You have arrived at Parachilna*, said after the route is torn down so it
+is the last word either way. A **straight-line trip** has no corners to count
+down to, so its bearing is spoken when the eighth of the compass changes and
+not otherwise, and never twice inside a minute — the minute is for the wander
+that is real, a track that turns you through an octant and back.
+
+**The line under the switch says which silence this is**, the way the
+over-speed alert's does, because whether a phone will say anything at all is
+the phone's business and not something a switch can promise: no engine, no
+voice listed, none of them offline, or none of the offline ones English. On
+this machine it reads *On — Microsoft James - English (Australia), on this
+phone*. **Test Voice** speaks a whole instruction rather than a word, because
+what is being tested is whether the road names come out right, and the road
+names are the hard part.
+
+**Still not done**, and still by staying quiet: lanes, exit numbers, and
+ducking whatever is playing over the car stereo. The last is not a decision
+the page gets to make — a web page hands the phone an utterance and the phone
+decides what happens to the music. A native wrap could take that decision;
+this cannot.
 
 ### Popups
 

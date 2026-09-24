@@ -1919,6 +1919,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnTiltOn.on,#btnTiltOff.on,
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
+#btnVoiceOn.on,#btnVoiceOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
@@ -3031,6 +3032,15 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnAlertTest">Test Sound</button>
         </div>
         <div class="note" id="alertNote"></div>
+        <div class="sublabel">Navigation Voice
+          <button class="btn xs ghost" id="btnVoiceOn">On</button>
+          <button class="btn xs ghost" id="btnVoiceOff">Off</button>
+        </div>
+        <div class="poi-status" id="voiceState"></div>
+        <div class="row">
+          <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
+        </div>
+        <div class="note" id="voiceNote"></div>
         <div class="sublabel">Terrain Shading
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
@@ -3569,6 +3579,19 @@ const CFG = {
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
   NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
   NAV_TURN_THEN: 250,      /* and a second turn this close is worth warning of */
+  /* Two spoken calls per corner, timed rather than measured out - see the
+     Voice block. The seconds are what a driver needs: twenty-five to read
+     the turn, slow, and move across; four to make it. The floors are for a
+     crawl and for a phone that reports no speed at all, the ceilings so a
+     highway is not told about a corner a kilometre and a half early. */
+  VOICE_FAR_S: 25, VOICE_FAR_MIN: 400, VOICE_FAR_MAX: 1200,
+  VOICE_NEAR_S: 4, VOICE_NEAR_MIN: 40, VOICE_NEAR_MAX: 150,
+  VOICE_HEAD_GAP: 60000,   /* and a bearing is not repeated inside this */
+  /* Said at the rate the voice was built at. Not left to the phone's own
+     setting, which belongs to whoever set it: a screen reader cranked to
+     double speed is a common thing to find on a phone, and an instruction
+     is no use at all if it arrives as a burst. */
+  VOICE_RATE: 1,
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
@@ -4272,6 +4295,7 @@ const S = Object.assign({
   /* Off until it is asked for. An app that starts making noises in a moving
      vehicle without being asked is worse than one that stays quiet. */
   speedAlert: false,    /* chime when the speed passes the posted limit */
+  navVoice: false,      /* and speak the turn across the top of the map */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
   hillshade: true,     /* shaded relief under the map, on by default */
@@ -4315,6 +4339,7 @@ if (!S.headUpDefaultApplied) {
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
+                        navVoice: S.navVoice,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
@@ -15984,7 +16009,7 @@ const SIM_ROUTE = [
    it for anywhere the packs do not reach and a plain bearing behind that.
    Distance, time and arrival for the trip, and the next manoeuvre across
    the top of the map - read off the line itself, so it works offline and
-   needed no pack rebuilt. Nothing is spoken yet.
+   needed no pack rebuilt. The Voice block below speaks it.
    ===================================================================== */
 const Nav = {
   active: false,
@@ -16464,6 +16489,276 @@ function navArt(p1, p2, art) {
   p2.setAttribute("d", art[1]);
 }
 
+/* =====================================================================
+   The turn, out loud
+
+   The bar above is a sentence rather than a reading - the CSS says so where
+   it is drawn - and this speaks it. Nothing new is worked out here. The
+   kind of corner, the distance to it, the road it puts you on and the one
+   that follows are all computed for the bar, and the voice is handed the
+   same values in the same breath. A voice that could disagree with the
+   screen would be worse than no voice at all.
+
+   Four rules shape the rest.
+
+   The phone's own voice, and only if it is on the phone. Android will
+   happily synthesise over the network, and a navigation voice that works in
+   Adelaide and goes quiet at Hawker is worse than one that was never
+   offered: the country this app is for is the country with no bars on the
+   phone. localService is the flag for that, so a voice which does not say
+   it is on the device is not used, and the line under the switch says what
+   was actually found rather than leaving a driver guessing at a silence.
+   Keeping the road names off the wire is the same decision seen from the
+   other side, and it is why the privacy page has nothing new to say.
+
+   Said once, and never queued. The distance in "in seven hundred metres" is
+   true when it is spoken and wrong four seconds later, so a line that
+   cannot be said now is dropped rather than stacked behind the one in
+   front of it. Only a more urgent line interrupts, and it replaces what is
+   talking instead of waiting its turn.
+
+   Far enough out to act on, which is a number of seconds and not a number
+   of metres. Five hundred metres is sixteen seconds on the Stuart Highway
+   and the better part of a minute on a track, and a corner announced a
+   minute early has been forgotten by the time it arrives. Both calls are
+   seconds converted at the speed being driven, floored and capped so a
+   phone reporting nothing still says something sensible.
+
+   And English, on an Australian voice where there is one. The road names
+   here are Tanunda and Yankalilla and Coober Pedy; a voice built for
+   another language reads them as if they were spelled in it.
+   ===================================================================== */
+const Voice = {
+  voice: null,      /* the SpeechSynthesisVoice chosen, or null if none will do */
+  found: null,      /* what the last look at the list found, for the state line */
+  wired: false,     /* voiceschanged hooked up */
+  turns: null,      /* the Nav.turns array the two marks below belong to */
+  mark: -1,         /* metres along the route of the corner being announced */
+  stage: 0,         /* 0 nothing said, 1 the heads-up, 2 the call at the corner */
+  lostSaid: false,  /* the off-route line, once per time it happens */
+  coverNext: false, /* the corner after this one has been named already */
+  headSaid: "",     /* the bearing last spoken, and when */
+  headAt: 0,
+  startedAt: 0,     /* when the current utterance began, for the watchdog */
+
+  supported: function () { return "speechSynthesis" in window; },
+  ready: function () { return !!this.voice; },
+
+  /* getVoices comes back empty until the engine has listed itself, and on a
+     phone that is after the page has loaded rather than during it - the
+     first call on this machine returned nothing and the list arrived a
+     moment later. voiceschanged is that moment, and it fires again when the
+     list changes, which is a driver installing a voice with the app open.
+     So the pick is redone and the settings line redrawn each time. */
+  arm: function () {
+    if (!this.supported()) return;
+    if (!this.wired) {
+      this.wired = true;
+      speechSynthesis.addEventListener("voiceschanged", function () {
+        Voice.pick();
+        if (typeof syncVoiceButtons === "function") syncVoiceButtons();
+      });
+    }
+    this.pick();
+  },
+
+  /* en-AU first, then any English, then nothing - and localService is a
+     gate rather than a preference, so nothing is the answer where the only
+     voices on offer are somebody else's server. */
+  pick: function () {
+    if (!this.supported()) { this.voice = null; this.found = null; return; }
+    let all = [];
+    try { all = speechSynthesis.getVoices() || []; } catch (e) { all = []; }
+    const local = all.filter(function (v) { return v.localService; });
+    const en = local.filter(function (v) { return /^en/i.test(v.lang || ""); });
+    this.found = { total: all.length, local: local.length, en: en.length };
+    this.voice = en.filter(function (v) { return /^en[-_]AU/i.test(v.lang || ""); })[0] || en[0] || null;
+  },
+
+  say: function (text, urgent) {
+    if (!S.navVoice) return;
+    this.utter(text, urgent);
+  },
+
+  /* Test Voice speaks through this rather than through say, so it answers
+     the question it is there to answer - is there a voice on this phone -
+     without the setting having to be on first. */
+  utter: function (text, urgent) {
+    if (!this.ready() || !text) return;
+    /* Chrome can leave speaking true after an utterance that never ended;
+       a screen going off mid-sentence is enough to do it, and the old state
+       then swallows everything after. Ten seconds is half again the longest
+       line here, so anything still talking by then is stuck, not talking. */
+    if (speechSynthesis.speaking && Date.now() - this.startedAt > 10000) {
+      try { speechSynthesis.cancel(); } catch (e) { }
+    }
+    if (speechSynthesis.speaking) {
+      if (!urgent) return;
+      try { speechSynthesis.cancel(); } catch (e) { }
+    }
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = this.voice;
+      u.lang = this.voice.lang;
+      u.rate = CFG.VOICE_RATE;
+      this.startedAt = Date.now();
+      speechSynthesis.speak(u);
+    } catch (e) { /* a phone with a broken engine stays quiet rather than throwing */ }
+  },
+
+  stop: function () {
+    if (this.supported()) { try { speechSynthesis.cancel(); } catch (e) { } }
+    this.reset();
+  },
+
+  /* The marks above are about corners on a particular line. A new line
+     means they are about nothing. */
+  reset: function () {
+    this.turns = null; this.mark = -1; this.stage = 0; this.coverNext = false;
+    this.lostSaid = false; this.headSaid = ""; this.headAt = 0;
+  },
+
+  /* The bar's own values, at the bar's own moment. All that is decided here
+     is which of them becomes a sentence, and when. */
+  turn: function (kind, dist, act, road, then, mark) {
+    if (!S.navVoice || !this.ready()) return;
+
+    /* Off the route is said over the top of anything else, because anything
+       else being said is about a road that is no longer under the wheels.
+       Once, not once a second - navProgress runs on every fix. */
+    if (kind === "recalc") {
+      if (!this.lostSaid) { this.lostSaid = true; this.utter("Off route, recalculating", true); }
+      return;
+    }
+    this.lostSaid = false;
+
+    /* A bearing has no corners, so there is nothing to count down to. It is
+       said when it changes and not otherwise, and what counts as a change is
+       the eighth of the compass the bar is showing rather than the degree
+       underneath it - so a line wandering either side of south-west cannot
+       set it chattering. The minute is for the wander that is real: a track
+       that turns you through an octant and back again. */
+    if (kind === "head") {
+      if (act === this.headSaid && Date.now() - this.headAt < CFG.VOICE_HEAD_GAP) return;
+      this.headSaid = act;
+      this.headAt = Date.now();
+      const run = sayDist(dist);
+      this.utter(act + (run ? ", " + run + " to go" : ""));
+      return;
+    }
+
+    if (typeof dist !== "number") return;
+
+    /* navBuildTurns hands back a fresh array every time it runs, so the
+       array itself is the answer to whether these marks are about the
+       corners still ahead. A recalculation moves every metre figure on the
+       route; without this the next corner could inherit the last one's
+       stage and go unsaid. */
+    if (this.turns !== Nav.turns) {
+      this.turns = Nav.turns; this.mark = -1; this.stage = 0; this.coverNext = false;
+    }
+    if (mark !== this.mark) {
+      this.mark = mark;
+      /* A corner already named on the end of the last line - "turn right
+         onto the Outback Highway, then turn right" - has had its warning,
+         and repeating it whole is what turned three corners in three
+         hundred metres into six sentences. It keeps the call at the corner
+         and loses the heads-up, which is the half that was new. */
+      this.stage = this.coverNext ? 1 : 0;
+      this.coverNext = false;
+    }
+
+    const spd = Math.max(0, view.speed || 0);
+    const far = Math.min(CFG.VOICE_FAR_MAX, Math.max(CFG.VOICE_FAR_MIN, spd * CFG.VOICE_FAR_S));
+    const near = Math.min(CFG.VOICE_NEAR_MAX, Math.max(CFG.VOICE_NEAR_MIN, spd * CFG.VOICE_NEAR_S));
+
+    /* Past the near mark there is no heads-up left to give: the corner call
+       is already due, and a driver twenty metres out being told about it in
+       four hundred milliseconds' time is being talked at rather than
+       navigated. Straight to the short form. */
+    if (this.stage < 1 && dist <= far && dist > near) {
+      this.stage = 1;
+      const d = sayDist(dist);
+      const lead = d ? "In " + d + ", " : "";
+      let line;
+      if (kind === "arrive") {
+        line = lead + "arrive at " + (sayName(road) || "your destination");
+      } else {
+        /* The road is the one the driver will be on, which navBuildTurns
+           has already chased past any short connector to find. */
+        /* Not onto anywhere for a turn around: at a hundred and sixty
+           degrees the road you come out on is the road you went in on, and
+           "turn around onto Webb Road" is a sentence describing nothing. */
+        line = lead + act.toLowerCase() +
+               (road && kind !== "uturn" ? " onto " + sayName(road) : "") +
+               (then && TURN_WORD[then] ? ", then " + TURN_WORD[then].toLowerCase() : "");
+        this.coverNext = !!(then && TURN_WORD[then]);
+      }
+      this.utter(line.charAt(0).toUpperCase() + line.slice(1));
+      return;
+    }
+
+    if (this.stage < 2 && dist <= near) {
+      this.stage = 2;
+      /* Short, with no distance and no road name in it: by here you can see
+         where you are, and the only words that help are the ones saying
+         which way to go. Arriving is left out - it has its own line, said
+         at the door by navArrive rather than a hundred metres short of it. */
+      if (kind !== "arrive") this.utter(act, true);
+    }
+  }
+};
+
+/* A road name as it should be said, rather than as OpenStreetMap stores it.
+
+   Measured over the 12,208 names in the routing pack, two faults are worth
+   fixing and both are faults you can only hear. A slash is a sign listing
+   every exit at an interchange - "Leach Highway Exit / Abernethy Road Exit
+   / Airport Drive Exit / Tonkin Highway On Ramp Interchange" is one name,
+   ninety-eight characters of it, and the road being taken is the first.
+   There are thirteen like it. An en dash joins the two ends of a ferry run
+   in six more and is read out as nothing at all, which turns a name into
+   two names run together.
+
+   What is deliberately not done here is expanding abbreviations, which
+   looked like the obvious thing until the names were counted: exactly one
+   of the 12,208 ends in a short form - "Cooroy - Gympie Rd" - so a table of
+   Rd, St, Ave and Hwy would be carried the length of the continent for a
+   single road in Queensland. Australian OSM spells them out.
+
+   Cutting at the slash leaves seven names over fifty characters, the
+   longest a barge run across Arnhem Land. Nothing worth a rule. */
+function sayName(name) {
+  return String(name || "")
+    .split(/\s*\/\s*/)[0]
+    .replace(/\s*[\u2013\u2014]\s*/g, " to ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* The distance the bar prints, said rather than abbreviated: "m" is a
+   letter on a screen and "metres" is the word for it. The buckets are the
+   bar's own, so the voice and the figure under it can never round two
+   different ways. Below the point where the bar gives up and says Now
+   there is no distance worth saying, and the instruction is the whole
+   sentence. */
+function sayDist(m) {
+  if (imperial()) {
+    const ft = m * FT_PER_M;
+    if (ft < 150) return "";
+    if (ft < 975) return Math.round(ft / 50) * 50 + " feet";
+    const mi = m / 1000 * MI_PER_KM;
+    const v = mi < 10 ? Math.round(mi * 10) / 10 : Math.round(mi);
+    return v + (v === 1 ? " mile" : " miles");
+  }
+  if (m < 40) return "";
+  if (m < 200) return Math.round(m / 10) * 10 + " metres";
+  if (m < 975) return Math.round(m / 50) * 50 + " metres";
+  const km = m / 1000;
+  const v = km < 10 ? Math.round(km * 10) / 10 : Math.round(km);
+  return v + (v === 1 ? " kilometre" : " kilometres");
+}
+
 /* Two measurements the bar needs and cannot state in CSS.
 
    --turnDrop is the bar's own height, so the chips sit under it rather than
@@ -16536,7 +16831,7 @@ function navRenderTurn(at, remain) {
   if (!bar) return;
   if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
 
-  let kind, dist, act, road, then = null;
+  let kind, dist, act, road, then = null, mark = -1;
 
   if (Nav.lost && Nav.via !== "direct") {
     /* Whatever the old line said to do next is about a road the vehicle is
@@ -16555,11 +16850,11 @@ function navRenderTurn(at, remain) {
     const i = navNextTurnIdx(at);
     const t = i < 0 ? null : Nav.turns[i];
     if (t) {
-      kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name;
+      kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name; mark = t.m;
       const nx = Nav.turns[i + 1];
       if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) then = nx.kind;
     } else {
-      kind = "arrive"; dist = remain; act = "Arrive";
+      kind = "arrive"; dist = remain; act = "Arrive"; mark = -2;
       road = Nav.dest ? Nav.dest.name : "";
     }
   }
@@ -16574,6 +16869,9 @@ function navRenderTurn(at, remain) {
   bar.classList.toggle("recalc", kind === "recalc");
   bar.classList.remove("hidden");
   navTurnFit();
+  /* Last, and from the same values the bar was just drawn from, so what is
+     said and what is shown cannot come apart. */
+  Voice.turn(kind, dist, act, road, then, mark);
 }
 
 /* A bearing and a distance, for when there is no road data and no router.
@@ -16758,7 +17056,10 @@ function navProgress() {
 
 function navArrive() {
   const name = Nav.dest ? Nav.dest.name : "destination";
+  /* The cancel first, because it stops whatever was still being said about
+     a corner that no longer matters. This is the last word either way. */
   cancelNav(true);
+  Voice.say("You have arrived at " + (sayName(name) || "your destination"), true);
   toast("Arrived at " + name, "ok");
 }
 
@@ -16904,6 +17205,7 @@ function cancelNav(quiet) {
   Nav.lost = false;
   Nav.via = "";
   Nav.standing = "";
+  Voice.stop();
   navHideTurn();
   navLine.setLatLngs([]);
   navCasing.setLatLngs([]);
@@ -18250,6 +18552,56 @@ $("#btnAlertOn").addEventListener("click", function () { setSpeedAlert(true); })
 $("#btnAlertOff").addEventListener("click", function () { setSpeedAlert(false); });
 $("#btnAlertTest").addEventListener("click", function () { Chime.play(); syncAlertButtons(); });
 
+/* The same job the alert's state line does, for the same reason: whether
+   this phone will actually say anything is the phone's business and not
+   something a switch can promise. A driver who turns it on and hears
+   nothing is owed which of the reasons it is - no engine, no voice
+   installed, none of them offline, or none of the offline ones English. */
+function voiceStateLine() {
+  if (!S.navVoice) return "Off";
+  if (!Voice.supported()) return "On, but this browser cannot speak";
+  const f = Voice.found;
+  if (!f || !f.total) return "On - this phone lists no voices yet";
+  if (!f.local) return "On, but none of this phone's " + f.total + " voices work offline";
+  if (!f.en) return "On, but none of the " + f.local + " offline voices speak English";
+  return "On - " + Voice.voice.name + ", on this phone";
+}
+
+function syncVoiceButtons() {
+  $("#btnVoiceOn").classList.toggle("on", !!S.navVoice);
+  $("#btnVoiceOff").classList.toggle("on", !S.navVoice);
+  $("#voiceState").textContent = voiceStateLine();
+  $("#voiceNote").textContent =
+    "Speaks the turn shown across the top of the map: once far enough out to slow down and move across, " +
+    "and once at the corner. It uses a voice stored on this phone, so it works with no signal and nothing " +
+    "about where you are going leaves the phone. If there is no offline voice here, Android installs one " +
+    "under Settings, Accessibility, Text-to-speech.";
+}
+
+function setNavVoice(on) {
+  if (!!S.navVoice === on) return;
+  S.navVoice = on;
+  saveSettings();
+  Voice.arm();
+  /* Switching it on is itself the gesture a browser wants before it will
+     speak, and hearing the thing is the only way to know it works - the
+     same move the chime makes, for the same reason. */
+  if (on) Voice.utter("Navigation voice on", true);
+  else Voice.stop();
+  syncVoiceButtons();
+  toast(on ? "Navigation voice on" : "Navigation voice off", on ? "ok" : "warn");
+}
+
+$("#btnVoiceOn").addEventListener("click", function () { setNavVoice(true); });
+$("#btnVoiceOff").addEventListener("click", function () { setNavVoice(false); });
+/* A real instruction rather than a word, because what is being tested is
+   whether the road names come out right, and those are the hard part. */
+$("#btnVoiceTest").addEventListener("click", function () {
+  Voice.arm();
+  Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
+  syncVoiceButtons();
+});
+
 /* Any touch of the page is enough for a browser to allow sound, and this is
    the only way a setting switched on in an earlier session gets armed
    without asking the driver to go and do something about it. Once is
@@ -18617,6 +18969,10 @@ document.addEventListener("keydown", function (e) {
   syncPoiSwitch();
   syncAwakeButtons();
   syncAlertButtons();
+  /* Before its own sync, because the list of voices is what that line
+     reports and asking for it is what starts it arriving. */
+  Voice.arm();
+  syncVoiceButtons();
   syncUnitButtons();
   /* Relief's pair was the one segmented control here that nothing lit at
      boot. Its only sync ran from setHillshade, which the app calls at start

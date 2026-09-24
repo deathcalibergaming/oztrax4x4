@@ -2,8 +2,8 @@
 
 Offline 4x4 trail tracking for remote Australian touring: GPS trail logging
 with GPX export, named waypoints, offline map tiles, OpenStreetMap POIs with
-free-camp detection, and offline navigation with on-screen turn
-instructions.
+free-camp detection, and offline navigation with turn instructions on the
+screen and spoken aloud.
 
 The whole application is one self-contained HTML file. It can be opened
 straight off a phone with no server at all, but see the warning below about
@@ -267,4 +267,14 @@ collected by the developer.
   it is five, which is the difference between a phone that routes to the shops
   and one Android kills for it. Turn instructions are read off the route's own geometry and the
   road names the packs already carry, so they need no extra download and work
-  offline; nothing is spoken yet
+  offline. They are also spoken, by a text-to-speech voice stored on the
+  phone — nothing is fetched and nothing is sent, and a voice that only works
+  with a connection is refused rather than used, since the country this is for
+  is the country without one. The names go to the voice as the packs store
+  them, with two exceptions measured across all 12,208 of them: thirteen are a
+  sign listing every exit at an interchange, slash-separated and up to 98
+  characters, and are cut at the first slash; six join the two ends of a ferry
+  run with an en dash, which is read aloud as nothing at all, and become "to".
+  Abbreviations are deliberately not expanded — exactly one name of the 12,208
+  ends in a short form, so a table of Rd, St and Hwy would be carried the
+  length of the continent for one road in Queensland
