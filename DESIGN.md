@@ -855,9 +855,8 @@ Two small text blocks sit under controls and look similar until you read
 them, so they are separate classes.
 
 **A note** (`.note`) is a sentence explaining a control, written once and
-never changing: "Holds the screen on while the app is open, because a phone
-that goes dark stops recording. Turn it off when you are parked and would
-rather keep the battery." Note size, untracked, leading 1.45, muted sand. The
+never changing: "Keeps the screen on. A phone that goes dark stops recording;
+off saves battery when parked." Note size, untracked, leading 1.45, muted sand. The
 more readable of the two on purpose — this is the text a stranger needs.
 
 **A status** (`.poi-status`) is the app reporting what it currently knows,
@@ -897,11 +896,27 @@ Written as prose the Android text-to-speech route ran to six commas in a row
 and had to be parsed before it could be followed. The arrow is punctuation
 here, not an icon; it is the one mark in the interface that is not drawn.
 
-Length follows from the shape rather than from a limit. The eight notes in
-Settings run from fifteen words to a hundred and five, and the longest is the
-one carrying a settings path the phone gives no other way of finding. Any
-note that is long for another reason is a note that has stopped answering the
-two questions.
+**A note is one or two short sentences, and stops.** Length was once left to
+follow from the shape, on the argument that a note carrying a settings path
+had earned its room — and the eight in Settings then ran from fifteen words
+to a hundred and five, which is a paragraph under a toggle. That was the
+wrong call. These are read at a camp with the light going and a meal on, by
+somebody who wants to know what a switch does and get back to it.
+
+They run from ten words to thirty-two now, a hundred and fifty-three between
+all eight, and every one of them sets in two lines at the Large text size on
+a 360px phone. Thirty-odd is the ceiling and not a target; most sit near
+fifteen, and the whole of Settings from Units to Home now arrives in one
+screen instead of trailing past the fold.
+
+**What a cut takes is the explaining, never the warning.** The Navigation
+Voice note no longer says the voice is stored on the phone, because "works
+with no signal" is the part that changes what a driver does and the rest was
+the app describing itself; the Over-Speed Alert note no longer gives the band
+it falls quiet in. Neither was untrue — both were talking past the question.
+What survives every cut is the honesty half — *with no signal the map draws
+flat*, *trust the sign beside the road, not this* — because carrying that in
+the fewest words is the whole reason the line is there.
 
 ### Verdicts
 

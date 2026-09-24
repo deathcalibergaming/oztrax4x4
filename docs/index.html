@@ -3028,13 +3028,13 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnText1" data-scale="1">Normal</button>
           <button class="btn xs ghost" id="btnText2" data-scale="1.15">Large</button>
         </div>
-        <div class="note" id="textNote">Every label and reading in the app, the gauges included. The map, the speed sign and the size of the buttons do not change.</div>
+        <div class="note" id="textNote">Every label and reading in the app. The map, the speed sign and the buttons do not change.</div>
         <div class="sublabel">Screen Lock
           <button class="btn xs ghost" id="btnAwakeOn">On</button>
           <button class="btn xs ghost" id="btnAwakeOff">Off</button>
         </div>
         <div class="poi-status" id="awakeState"></div>
-        <div class="note" id="awakeNote">Holds the screen on while the app is open, because a phone that goes dark stops recording. Turn it off when you are parked and would rather keep the battery.</div>
+        <div class="note" id="awakeNote">Keeps the screen on. A phone that goes dark stops recording; off saves battery when parked.</div>
         <div class="sublabel">Over-Speed Alert
           <button class="btn xs ghost" id="btnAlertOn">On</button>
           <button class="btn xs ghost" id="btnAlertOff">Off</button>
@@ -3060,12 +3060,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
-        <div class="note" id="shadeNote">Relief under the map, so you can see which way the ground falls. The elevation it shades from is fetched as you go, so with no signal the map draws flat.</div>
+        <div class="note" id="shadeNote">Shows which way the ground falls. Needs a connection - with no signal the map draws flat.</div>
         <div class="sublabel">Map Tilt
           <button class="btn xs ghost" id="btnTiltOn">On</button>
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
         </div>
-        <div class="note" id="tiltNote">Leans the map so you see about twice as far up the road, with the vehicle in the same place on the screen. Only while the map turns with you - N Up stays flat.</div>
+        <div class="note" id="tiltNote">Leans the map so you see twice as far up the road. Heading up only - N Up stays flat.</div>
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
@@ -3088,7 +3088,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnHomeSearch">Set From Search</button>
           <button class="btn sm ghost" id="btnHomeHere">Use My Position</button>
         </div>
-        <div class="note" id="homeNote">Once it is set, type &quot;home&quot; in Navigate to route back to it from anywhere.</div>
+        <div class="note" id="homeNote">Type &quot;home&quot; in Navigate to route back to it from anywhere.</div>
       </div>
     </details>
 
@@ -18497,10 +18497,9 @@ function syncUnitButtons() {
   $("#btnUnitMetric").classList.toggle("on", !im);
   $("#btnUnitImperial").classList.toggle("on", im);
   $("#unitNote").textContent = (im
-    ? "Miles, miles per hour and feet, "
-    : "Kilometres, km/h and metres, ") +
-    "everywhere a distance, a speed or a height is shown. Nothing already recorded changes - " +
-    "only how it reads.";
+    ? "Miles, miles per hour and feet."
+    : "Kilometres, km/h and metres.") +
+    " Display only - nothing recorded changes.";
   syncUnitLabels();
 }
 function setUnits(u) {
@@ -18592,11 +18591,9 @@ function syncAlertButtons() {
   const over = Math.round(dispSpeed(CFG.ALERT_OVER / 3.6)) + " " + unitLabel("speed");
   const clear = Math.round(dispSpeed(CFG.ALERT_CLEAR / 3.6)) + " " + unitLabel("speed");
   $("#alertNote").textContent =
-    "A chime and red speed figures when you pass the posted limit by more than " + over +
-    ", and the chime again every " + Math.round(CFG.ALERT_REPEAT / 1000) +
-    " seconds until you are back within " + clear + " of it. Both only where the speed sign is " +
-    "showing a limit. Those limits come from OpenStreetMap: missing on many roads and sometimes " +
-    "out of date, so the sign beside the road is the one that counts.";
+    "A chime and red figures more than " + over + " over the limit, repeating every " +
+    Math.round(CFG.ALERT_REPEAT / 1000) + " seconds. Limits come from OpenStreetMap - trust the " +
+    "sign beside the road, not this.";
 }
 
 function setSpeedAlert(on) {
@@ -18673,20 +18670,14 @@ function syncVoiceButtons() {
   const f = Voice.found;
   /* The Android path is a path, so it is set out as one. Written as prose it
      ran to six commas in a row and had to be parsed rather than followed. */
-  const TTS = "Settings \u2192 General management or Accessibility \u2192 Text-to-speech \u2192 " +
-              "the gear beside Google Text-to-speech \u2192 Install voice data \u2192 English (Australia)";
+  const TTS = "Android Settings \u2192 Text-to-speech \u2192 Install voice data";
   $("#voiceNote").textContent =
-    "Speaks the turn already shown across the top of the map: once far enough out to slow down and " +
-    "move across, and once at the corner. It is a voice stored on the phone, so it works with no " +
-    "signal and nothing about your trip leaves it. " +
+    "Speaks each turn twice - in time to move across, then at the corner. Works with no signal. " +
     (f && f.au
-      ? "Which Australian voice, and whether it is a man or a woman, is Android's to set rather than " +
-        "this app's: " + TTS + ". Pick a downloaded one - this app will not speak through a voice " +
-        "that needs a connection."
+      ? "For a different or male voice: " + TTS + "."
       : f && f.en
-      ? "This phone has no Australian voice on it, so the accent will be wrong until one is " +
-        "installed: " + TTS + "."
-      : "Android installs one under " + TTS + ".");
+      ? "No Australian voice on this phone - add one in " + TTS + "."
+      : "No voice installed - add one in " + TTS + ".");
 }
 
 function setNavVoice(on) {
