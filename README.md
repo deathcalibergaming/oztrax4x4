@@ -189,6 +189,41 @@ launch after, because the page is served from cache first and refreshed in
 the background. Bump `CACHE` in `docs/sw.js` only if you need the change to
 land on the very next launch.
 
+## Measuring a drive
+
+What has actually failed this app in the field is not CPU - everything on
+the per-fix and per-frame path measures at a fraction of a percent of a core
+- but the renderer's memory on a phone. This machine reports a 4 GB heap
+limit and will tell you the app is free; an S22 Ultra killed the tab
+mid-drive, and the tell was an Aw Snap page and Spotify dropping out of the
+car stereo rather than any exception.
+
+`tools/drive-harness.mjs` is how that gets measured without a phone. It
+serves `docs/`, opens it in the installed Chrome at an S22 Ultra's viewport,
+builds a real route with the app's own router, and feeds it fixes at the
+pace a GPS delivers them - recording a track and navigating, as a driver
+would - while sampling the renderer process.
+
+    npm install                            once; puppeteer-core drives the
+                                           Chrome already on the machine
+    node tools/drive-harness.mjs           8 km through the Flinders
+    KM=30 node tools/drive-harness.mjs     a touring stretch
+    CITY=1 KM=15 node tools/drive-harness.mjs   Adelaide, the hard case
+    GC=1 node tools/drive-harness.mjs      retention rather than pressure
+    PAGEFILE=old.html node tools/...       the same drive on another build
+
+Read the floor, not the peak: with nothing collected on demand every reading
+sawtooths, so what matters is whether the level the app comes back down to
+rises with the kilometres. The absolute megabytes carry this machine's own
+Chrome and do not transfer; the slope does, and so does an A/B against
+`PAGEFILE` - `git show main:docs/index.html > old.html`.
+
+Every run prints a fingerprint of the page it actually loaded. That is not
+decoration: the service worker will hand a stale copy of the app to a
+profile that has been here before, and it once made a whole "after" run
+measure the "before" build. Two runs quoting the same fingerprint measured
+the same build, whatever either was told to load.
+
 ## Privacy notice
 
 `docs/privacy.html`, linked from the bottom of the drawer and from the Google
