@@ -1,0 +1,12 @@
+{
+  "name": "oztrax-recon-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Build and measurement tooling for OzTrax Recon. The app itself is docs/index.html and has no dependencies at all - nothing in here ever reaches a phone.",
+  "scripts": {
+    "drive": "node tools/drive-harness.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}

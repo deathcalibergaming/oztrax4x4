@@ -30,3 +30,9 @@
 # house. Named by pattern rather than by file, because the download comes back
 # under the same name every time it is regenerated.
 *recovery-codes*.txt
+
+# The tooling's own dependencies. package.json names them and package-lock.json
+# pins them, so an npm install rebuilds this exactly; 28 MB of somebody else's
+# code in a public repo is 28 MB nobody reads and everybody clones. Nothing in
+# here ships - the app is one file with no dependencies at all.
+node_modules/
