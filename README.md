@@ -224,6 +224,39 @@ profile that has been here before, and it once made a whole "after" run
 measure the "before" build. Two runs quoting the same fingerprint measured
 the same build, whatever either was told to load.
 
+## Carrying the driver's own work across
+
+The app's storage belongs to an origin **in one browser**, and the installed
+app is a window on the live site opened by whichever browser the phone calls
+its default. Change that default and the app opens on the same address with a
+different store behind it: no tracks, no waypoints, no favourites, and the
+state map to download again. Nothing has been deleted — it is in the other
+browser — but the app cannot see it. The same gap sits in front of a native
+build, which will have an origin of its own.
+
+**Menu → Storage → Back Up** writes one JSON file holding what the driver
+made: tracks with their points, waypoints, favourites, settings, home, the
+fuel choices and what they have hidden. **Restore** reads it back.
+
+    { "app": "OzTrax Recon", "backup": 1, "at": "…", "from": "…",
+      "counts": { "tracks": n, "waypoints": n, "favourites": n },
+      "settings": {…}, "home": {…}, "fuelSel": {…},
+      "hiddenKinds": […], "hiddenPoi": […],
+      "waypoints": […], "favourites": […], "tracks": […] }
+
+What is deliberately **not** in it: the map, the address, road and POI packs,
+and the week of cached POI answers — all of it is on the server and downloads
+again, and a backup worth keeping is one that fits in a message to yourself.
+Nor the bookkeeping that says which downloads this phone holds (`tt.states`,
+`tt.vmaps`, `tt.vmapMan`), which is true of one phone only; restored onto
+another it would have the app claim maps that are not there.
+
+**Restoring adds and never deletes.** Anything already on the phone wins and
+the file fills the gaps, so restoring the same backup twice changes nothing
+the second time. Settings are the one exception, being a single opinion
+rather than a collection: those come from the file. The page reloads
+afterwards, which is why a running recording has to be stopped first.
+
 ## Privacy notice
 
 `docs/privacy.html`, linked from the bottom of the drawer and from the Google

@@ -3082,6 +3082,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="kv"><span>Road packs</span><b id="kvRoute">--</b></div>
         <div class="kv"><span>POI packs</span><b id="kvPoiPack">--</b></div>
         <div class="kv"><span>Estimated usage</span><b id="kvUsage">--</b></div>
+        <div class="kv"><span>Your own work</span><b id="kvOwn">--</b></div>
         <div id="diagOut" class="diag"></div>
         <div class="row" style="margin-top:11px">
           <button class="btn sm ghost" id="btnDiag">Test Connection</button>
@@ -3092,6 +3093,16 @@ input[type=date],input[type=time]{color-scheme:dark}
                a button. -->
           <button class="btn sm ghost" id="btnClearPoi">Clear POI Cache</button>
         </div>
+        <!-- Everything the driver has put in, in one file they keep. The
+             file input is hidden and driven by the button, because a bare
+             "Choose file" is the one control on the page that would not
+             look like the rest of them. -->
+        <div class="row" style="margin-top:9px">
+          <button class="btn sm ghost" id="btnBackup">Back Up</button>
+          <button class="btn sm ghost" id="btnRestore">Restore</button>
+        </div>
+        <input type="file" id="fileRestore" accept="application/json,.json" hidden>
+        <div class="note">Tracks, waypoints, favourites and settings in one file. Maps are not in it. Restoring adds, never deletes.</div>
       </div>
     </details>
 
@@ -8117,8 +8128,11 @@ function buildGPX(track) {
   return L1.join("\n");
 }
 
+/* text is a string, or the pieces of one. A Blob takes the pieces as they
+   are, so a backup never has to exist as a single string - see Backup.write,
+   where that is the difference between a spare megabyte and thirty. */
 function downloadText(filename, text, mime) {
-  const blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
+  const blob = new Blob([].concat(text), { type: (mime || "text/plain") + ";charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename;
@@ -15990,6 +16004,157 @@ async function sweepOldTiles() {
 }
 
 
+/* =====================================================================
+   Backup and restore
+
+   Everything the driver has put in, in one file they keep.
+
+   The app's storage belongs to an origin in one browser, and the installed
+   app is a window on the live site opened by whichever browser the phone
+   calls its default. Change that default - or have an update change it -
+   and the app opens on the same address with a different store behind it:
+   no tracks, no waypoints, no favourites, and the state map to download
+   again. Nothing has been deleted and there was, until now, no way to carry
+   any of it across. The same gap sits in front of a native build, which
+   will have an origin of its own and see none of this either.
+
+   What goes in is what the driver made: tracks, waypoints, favourites,
+   settings, home, the fuel choices and what they have hidden. What stays
+   out is everything the phone can fetch again - the map, the address, road
+   and POI packs, and the week of cached POI answers - because a backup
+   worth keeping is one that fits in a message to yourself, not half a
+   gigabyte of tiles that are still on the server.
+
+   And deliberately not the bookkeeping that says which downloads this phone
+   holds. tt.states, tt.vmaps and tt.vmapMan are true of one phone only;
+   restored onto another they would have the app claim maps it does not
+   have and read tiles that are not there.
+
+   Restoring adds and never deletes. A driver restoring a backup onto a
+   phone that already has something is nearly always carrying one across
+   rather than rolling one back, and losing a track to a restore would be a
+   worse failure than the one this is here to fix - so anything already
+   present wins, and the file fills in the gaps. Settings are the exception,
+   being one opinion rather than a collection: they come from the file.
+   ===================================================================== */
+const Backup = {
+  /* The single-value keys, and what each is called in the file. */
+  KEYS: [["settings", LS.settings], ["home", LS.home], ["fuelSel", LS.fuelSel],
+         ["hiddenKinds", LS.hiddenKinds], ["hiddenPoi", LS.hiddenPoi]],
+
+  tally: async function () {
+    let tracks = 0;
+    try { tracks = (await DB.keys("tracks") || []).length; } catch (e) { tracks = 0; }
+    return { tracks: tracks, waypoints: waypoints.length, favourites: favs.length };
+  },
+
+  /* Written in pieces, never assembled.
+
+     A day's driving is about 40,000 points and a heavy user has a season of
+     them; as one object that is tens of megabytes of JavaScript, and
+     stringifying it makes a second copy of the lot as one string before a
+     byte reaches the file. The heap on the phone is this app's real
+     ceiling, so the tracks are read one at a time, each turned into its own
+     piece of text and let go of, and the Blob is handed the pieces. Peak
+     cost is one track rather than all of them.
+
+     The head is written with its closing brace removed so the rest can be
+     appended to it. That is worth one line of explanation rather than a
+     clever streaming writer nobody would read twice. */
+  write: async function () {
+    const counts = await this.tally();
+    const head = {
+      app: "OzTrax Recon", backup: 1, at: new Date().toISOString(),
+      from: location.origin + location.pathname, counts: counts
+    };
+    const parts = [JSON.stringify(head).slice(0, -1)];
+    for (const [name, key] of this.KEYS) {
+      parts.push(",\"" + name + "\":" + JSON.stringify(loadLS(key, null)));
+    }
+    parts.push(",\"waypoints\":" + JSON.stringify(waypoints));
+    parts.push(",\"favourites\":" + JSON.stringify(favs));
+    parts.push(",\"tracks\":[");
+    let keys = [];
+    try { keys = (await DB.keys("tracks")) || []; } catch (e) { keys = []; }
+    let wrote = 0;
+    for (const k of keys) {
+      let t = null;
+      try { t = await DB.get("tracks", k); } catch (e) { t = null; }
+      if (!t) continue;
+      parts.push((wrote++ ? "," : "") + JSON.stringify(t));
+      t = null;
+      await yieldToPage();           /* a season of tracks must not freeze the map */
+    }
+    parts.push("]}");
+    downloadText("oztrax-backup-" + new Date().toISOString().slice(0, 10) + ".json",
+                 parts, "application/json");
+    toast("Backed up " + counts.tracks + " tracks and " + counts.waypoints + " waypoints", "ok");
+  },
+
+  /* The file is read whole and parsed whole, which is the one place here
+     that costs what the whole backup costs. It is a thing done once, at a
+     stop, by somebody watching it happen - unlike the write, which a driver
+     may well set going and then pull out onto a road. */
+  read: async function (file) {
+    let j;
+    try { j = JSON.parse(await file.text()); }
+    catch (e) { toast("That file is not readable", "err"); return; }
+    if (!j || j.backup !== 1) { toast("That is not an OzTrax Recon backup", "err"); return; }
+
+    const c = j.counts || {};
+    const ok = await ask(
+      (c.tracks || 0) + " tracks, " + (c.waypoints || 0) + " waypoints and " +
+      (c.favourites || 0) + " favourites, from " + String(j.at || "").slice(0, 10) +
+      ". Anything already on this phone is kept.",
+      "Restore", "Restore This Backup?");
+    if (!ok) return;
+
+    const added = { tracks: 0, waypoints: 0, favourites: 0 }, kept = { tracks: 0, waypoints: 0, favourites: 0 };
+
+    const haveW = new Set(waypoints.map(function (w) { return w.id; }));
+    for (const w of (j.waypoints || [])) {
+      if (!w || haveW.has(w.id)) { kept.waypoints++; continue; }
+      haveW.add(w.id); waypoints.push(w); added.waypoints++;
+    }
+    const favKey = (f) => f.k + "/" + f.id;
+    const haveF = new Set(favs.map(favKey));
+    for (const f of (j.favourites || [])) {
+      if (!f || haveF.has(favKey(f))) { kept.favourites++; continue; }
+      haveF.add(favKey(f)); favs.push(f); added.favourites++;
+    }
+    for (const t of (j.tracks || [])) {
+      if (!t || !t.id) continue;
+      let there = null;
+      try { there = await DB.get("tracks", t.id); } catch (e) { there = null; }
+      if (there) { kept.tracks++; continue; }
+      try { await DB.put("tracks", t); added.tracks++; } catch (e) { /* out of room */ }
+      await yieldToPage();
+    }
+
+    saveLS(LS.wpts, waypoints);
+    saveLS(LS.favs, favs);
+    for (const [name, key] of this.KEYS) {
+      if (j[name] != null) saveLS(key, j[name]);
+    }
+
+    /* Reloaded rather than applied in place. Half of this lives in
+       variables read once at startup - the settings, home, what is hidden,
+       the fuel selection - and each has its own set of controls and
+       redraws to match. Re-reading the lot from storage is one line and
+       cannot leave the app half restored; the alternative is a list of
+       sync calls that is wrong the first time somebody adds a setting.
+
+       The tally has to cross the reload, so it goes in sessionStorage,
+       which is exactly as long-lived as the trip through it. */
+    const msg = "Restored " + added.tracks + " tracks, " + added.waypoints +
+      " waypoints, " + added.favourites + " favourites" +
+      (kept.tracks + kept.waypoints + kept.favourites
+        ? " (" + (kept.tracks + kept.waypoints + kept.favourites) + " already here)" : "");
+    try { sessionStorage.setItem("tt.restored", msg); } catch (e) { /* toast is lost, the data is not */ }
+    location.reload();
+  }
+};
+
 async function refreshStorageStats() {
   try { $("#kvPoi").textContent = await DB.count("poi"); } catch (e) { $("#kvPoi").textContent = "--"; }
   try { $("#kvAddr").textContent = await Addr.stats(); } catch (e) { $("#kvAddr").textContent = "--"; }
@@ -15999,6 +16164,10 @@ async function refreshStorageStats() {
     try { const est = await navigator.storage.estimate(); $("#kvUsage").textContent = fmtBytes(est.usage || 0); }
     catch (e) { $("#kvUsage").textContent = "--"; }
   } else { $("#kvUsage").textContent = "n/a"; }
+  try {
+    const own = await Backup.tally();
+    $("#kvOwn").textContent = own.tracks + " tracks, " + own.waypoints + " waypoints";
+  } catch (e) { $("#kvOwn").textContent = "--"; }
 }
 
 
@@ -19014,6 +19183,22 @@ $("#btnPoiRefresh").addEventListener("click", function () {
   fetchPois(true);
   toast("Refreshing POIs", "ok");
 });
+$("#btnBackup").addEventListener("click", function () {
+  Backup.write().catch(function () { toast("Could not write the backup", "err"); });
+});
+/* A restore reloads the page, which would take a running recording's last
+   few fixes with it and leave the driver wondering which track they are
+   looking at. Stopping first is one tap and removes the question. */
+$("#btnRestore").addEventListener("click", function () {
+  if (Rec.state !== "idle") { toast("Stop the recording first", "warn"); return; }
+  $("#fileRestore").click();
+});
+$("#fileRestore").addEventListener("change", function () {
+  const f = this.files && this.files[0];
+  this.value = "";                  /* so the same file can be picked twice */
+  if (f) Backup.read(f).catch(function () { toast("Could not read that backup", "err"); });
+});
+
 $("#btnPoiRestore").addEventListener("click", function () {
   hiddenPoi = new Set();
   saveLS(LS.hiddenPoi, []);
@@ -19301,6 +19486,11 @@ document.addEventListener("keydown", function (e) {
   updateFollowUI();
   syncDragMode();
   Rec.restore();
+  /* Left by a restore on its way through the reload above. */
+  try {
+    const said = sessionStorage.getItem("tt.restored");
+    if (said) { sessionStorage.removeItem("tt.restored"); toast(said, "ok"); }
+  } catch (e) { /* no session storage: the restore still happened */ }
   Rec.ui();
   renderWaypoints();
   renderPois();
