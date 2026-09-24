@@ -1513,13 +1513,22 @@ language, the name and the URI are now run together and matched as one
 string.
 
 The order past Australian is **New Zealand, Ireland, Britain, America, then
-any English at all** — nearest accent first, and it matters less than it
-looks, because where a phone has more than one English voice the driver
-picks. **The picker is the row under the state line**, and it appears only
-where there is something to choose between: one voice is not a choice, and a
-control offering it is a control in the way. It lists the offline English
-voices nearest accent first, so the Australian ones are at the top, and
-**choosing one says a line in it** — an accent is judged by hearing it, and
+any English at all** — nearest accent first. It is a fallback and not a menu:
+**where the phone has any Australian voice at all, the Australian ones are
+the only ones offered.** Android lists English (India), English (Ireland),
+English (United Kingdom) and English (United States) beside the one that is
+wanted, and a control carrying five accents to arrive at the one right one is
+five times the control it needs to be. The whole English list is offered only
+where there is no Australian voice on the phone, because then every choice is
+a wrong accent and the driver should still get to make it.
+
+**The picker is the row under the state line**, and it appears only where
+there is something to choose between: one voice is not a choice, and a
+control offering it is a control in the way. So the ordinary Android phone,
+which reports a single English (Australia), does not see a picker at all —
+the row is for the phone that lists two, and for the desktop, where voices
+are enumerated properly and *James* and *Catherine* are both there.
+**Choosing one says a line in it** — an accent is judged by hearing it, and
 making the driver find the test button afterwards is making them do the work
 twice. The name is enough on its own for most engines; where a name carries
 no country the lang is appended, because *Daniel* and *Karen* side by side
@@ -1527,8 +1536,24 @@ say nothing about which is which.
 
 The picker is stored by name, and the name is checked against the phone's
 list every time it is read. A voice can go — an engine swapped, a language
-pack removed — and a setting naming one that is no longer there has to fall
-back to the ranking rather than fall silent.
+pack removed, or the list narrowing to Australian under a name that was not —
+and a setting naming one that is no longer offered has to fall back to the
+ranking rather than fall silent.
+
+**Which Australian voice, and whether it is a man or a woman, is not the
+app's to decide.** Chrome on Android does not report voices to a web page at
+all; it reports one entry per language and region, so *English (Australia)*
+arrives as a single choice and the voice behind it is whichever one the
+system is set to. Google's engine has carried male and female variants for
+every language since 2016 — numbered *Voice I* upwards, up to seven of them —
+and they are chosen in Android rather than here. So the note under the switch
+carries the path: **Settings → General management → Text-to-speech → the gear
+beside Google Text-to-speech → Install voice data → English (Australia)**,
+and Settings → Accessibility → Text-to-speech output on the phones that have
+no General management. It says to choose a downloaded one, because this app
+will not speak through a voice that needs a connection. If Chrome ever does
+enumerate the variants, the picker lists them with no change: it is already
+showing whatever the phone reports.
 
 It is sized at **Body and not Field**. Every field in this app is 16px
 because 16px is the better size to type into on a phone; nothing is typed

@@ -16617,14 +16617,22 @@ const Voice = {
     const en = local.filter(function (v) { return /^en/i.test(v.lang || ""); });
     const self = this;
     en.sort(function (a, b) { return self.tier(a) - self.tier(b); });
-    this.found = { total: all.length, local: local.length, en: en.length,
-                   au: en.filter(function (v) { return self.australian(v); }).length };
-    this.list = en;
+    const au = en.filter(function (v) { return self.australian(v); });
+    this.found = { total: all.length, local: local.length, en: en.length, au: au.length };
+    /* Australian only, where the phone has any at all. Android lists the
+       Indian, Irish, British and American entries beside them and a driver in
+       the Flinders wants none of them, so a picker carrying five accents to
+       arrive at the one right one is five times the control it needs to be.
+       Every English voice is offered only where there is no Australian one,
+       because then the choice is between accents that are all wrong and the
+       driver should still get to make it. */
+    this.list = au.length ? au : en;
     /* The driver's own pick, while it is still on the phone. A voice can go
-       - an engine swapped, a language pack removed - and a setting naming
-       one that is gone has to fall back rather than fall silent. */
-    const want = S.voiceName && en.filter(function (v) { return v.name === S.voiceName; })[0];
-    this.voice = want || en[0] || null;
+       - an engine swapped, a language pack removed, or the list narrowing to
+       Australian under a name that was not - and a setting naming one that
+       is no longer offered has to fall back rather than fall silent. */
+    const want = S.voiceName && this.list.filter(function (v) { return v.name === S.voiceName; })[0];
+    this.voice = want || this.list[0] || null;
   },
 
   say: function (text, urgent) {
@@ -18662,12 +18670,20 @@ function syncVoiceButtons() {
     "Speaks the turn shown across the top of the map: once far enough out to slow down and move across, " +
     "and once at the corner. It uses a voice stored on this phone, so it works with no signal and nothing " +
     "about where you are going leaves the phone. " +
-    (f && f.en && !f.au
-      ? "This phone has no Australian voice on it, so the accent will be wrong until one is installed - " +
-        "Android puts them under Settings, Accessibility, Text-to-speech, where the English voice data " +
-        "has Australia as one of its downloads."
-      : "If there is no offline voice here, Android installs one under Settings, Accessibility, " +
-        "Text-to-speech.");
+    (f && f.au
+      ? "Which Australian voice it is, and whether it is a man or a woman, is Android's to set rather " +
+        "than this app's - Chrome only tells a web page the language. Change it under Settings, General " +
+        "management, Text-to-speech, the gear beside Google Text-to-speech, then Install voice data, " +
+        "English (Australia); phones without General management keep it under Settings, Accessibility, " +
+        "Text-to-speech output. Choose one that is downloaded - a voice that needs a connection is not " +
+        "used here."
+      : f && f.en
+      ? "This phone has no Australian voice on it, so the accent will be wrong until one is installed: " +
+        "Settings, General management, Text-to-speech, the gear beside Google Text-to-speech, then " +
+        "Install voice data, English (Australia) - or Settings, Accessibility, Text-to-speech output on " +
+        "phones without General management."
+      : "Android installs one under Settings, General management, Text-to-speech - or Settings, " +
+        "Accessibility, Text-to-speech output.");
 }
 
 function setNavVoice(on) {

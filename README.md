@@ -269,7 +269,11 @@ collected by the developer.
   road names the packs already carry, so they need no extra download and work
   offline. They are also spoken, by an Australian text-to-speech voice stored
   on the phone where there is one, and one the driver picks where the phone
-  carries several — nothing is fetched and nothing is sent, and a voice that only works
+  carries several Australian ones — the other accents Android lists are not
+  offered. Which Australian voice, and whether it is a man or a woman, is
+  Android's own setting rather than the app's, because Chrome reports one
+  entry per language and region rather than a voice list. Nothing is fetched
+  and nothing is sent, and a voice that only works
   with a connection is refused rather than used, since the country this is for
   is the country without one. The names go to the voice as the packs store
   them, with two exceptions measured across all 12,208 of them: thirteen are a
