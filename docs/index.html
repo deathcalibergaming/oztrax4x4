@@ -3409,6 +3409,7 @@ const CFG = {
      already have a word for. */
   NIGHT_ALT: -6,
   NIGHT_TICK: 30000,       /* the sun does not need asking more often than this */
+  BATT_TICK: 20000,        /* a percent takes minutes to move - see Batt */
   /* Where each state's map is, in pieces, with a manifest saying which
      cut of OpenStreetMap it is and how many pieces - tools/build-vmap.mjs.
      On Pages beside the other packs for now; the hosting move changes
@@ -6723,6 +6724,7 @@ const Compass = {
 let prevTs = 0;
 let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0, pinTick = 0;
 let nightTick = 0;
+let battTick = 0;
 let nearAnchor = null;   /* where the waypoint list was last drawn from */
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -6819,6 +6821,7 @@ function frame(ts) {
   /* The sun moves half a degree every two minutes, so half a minute is
      already far finer than the thing being decided. */
   if (ts - nightTick > CFG.NIGHT_TICK) { nightTick = ts; Night.settle(); }
+  if (ts - battTick > CFG.BATT_TICK) { battTick = ts; Batt.paint(); }
 
 
 
@@ -7042,8 +7045,37 @@ function updateGpsPill() {
 /* Only Chromium answers navigator.getBattery: Firefox dropped it and Safari
    never had it. There is nothing to poll in its place, so where it is missing
    the cell stays hidden and the pill closes up around the GPS lamp rather
-   than printing a dash for the life of the app. Level and charging both
-   raise events, so none of this rides the half second tick. */
+   than printing a dash for the life of the app.
+
+   Where it does answer, the answer is not believed on sight. The Battery
+   Status API says a browser that cannot report must hand back a full battery
+   on the charger - level 1, charging true, chargingTime 0, dischargingTime
+   Infinity - and that is what a browser refusing on privacy grounds hands
+   back too. Brave is the one people actually hit, because a Play Store app
+   is a window on the live site opened by whichever browser the phone calls
+   its default: Brave blocks the battery API as a fingerprinting defence and
+   its own browser test asserts those exact four values. The driver was being
+   told 100%, plugged in, by a phone on its last few percent - the one wrong
+   answer a battery readout must never give, since the whole reason it is on
+   the bar is knowing whether the phone lasts to the next town.
+
+   Those four values are also exactly what a real phone at 100% on the charger
+   reports, so the two cannot be told apart in a single reading - only by
+   watching. A real battery moves; a blocked one never does. So the cell stays
+   hidden while the reading is that quartet and appears the instant anything
+   about it changes, which on a real phone is the first percent it drops or
+   the moment the cable comes out. A phone sitting at exactly 100% on the
+   charger is in any case the one moment nobody needs telling. Brave also
+   answers for itself - navigator.brave.isBrave() - and that is taken as
+   final rather than waited on, since nothing there is ever going to move.
+
+   Nor is the cell painted only when it is told to be. Level and charging both
+   raise events, but an event raised while the app is in the background is not
+   delivered and never replayed: a phone that charged while the driver was in
+   another app came back showing the figure it had when the app was last
+   looked at. So it is re-read when the page is looked at again, and on a slow
+   tick off the frame loop - which does not run while the page is hidden, so
+   the re-reading costs nothing exactly when there is nobody to read it. */
 const Batt = {
   FULL: 18.2,                /* the fill rect width at 100%, in viewBox units,
                                 which lands it the same 1.2 inside the shell on
@@ -7054,23 +7086,65 @@ const Batt = {
                                 so does this: empty is a different thing from
                                 nearly empty when the next fuel is 200 km on */
   bat: null,
+  real: false,               /* proven to be a battery and not a placeholder */
+  blocked: false,            /* the browser says it will not report */
+  why: "",                   /* for Technical Details, which is where somebody
+                                goes when the cell is not where they expect */
+  seen: "",
   init() {
-    if (!navigator.getBattery) return;
     const self = this;
+    if (!navigator.getBattery) { this.why = "not supported by this browser"; return; }
+    /* Asked, not deduced from the user agent, and it only ever answers true:
+       anything else - no navigator.brave, a throw, a false - leaves this
+       alone and lets the watching below decide. */
+    if (navigator.brave && typeof navigator.brave.isBrave === "function") {
+      navigator.brave.isBrave().then(function (yes) {
+        if (yes) { self.blocked = true; self.why = "blocked by this browser"; self.paint(); }
+      }).catch(function () { /* it will not say, so nothing is assumed */ });
+    }
     navigator.getBattery().then(function (b) {
       self.bat = b;
       const paint = function () { self.paint(); };
       b.addEventListener("levelchange", paint);
       b.addEventListener("chargingchange", paint);
-      $("#battPill").classList.remove("hidden");
+      b.addEventListener("chargingtimechange", paint);
+      b.addEventListener("dischargingtimechange", paint);
+      /* Coming back to the app is the moment the figure is most likely to be
+         stale, and the moment somebody is looking at it. Twice: once now, and
+         once after the browser has had a beat to reconnect to the platform. */
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) return;
+        self.paint();
+        setTimeout(paint, 1200);
+      });
       self.paint();
-    }).catch(function () { /* refused or unavailable: the cell stays hidden */ });
+    }).catch(function () { self.why = "refused by this browser"; });
+  },
+  /* The reading the spec defines for "no battery information available",
+     which is also a real phone at 100% on the charger. */
+  placeholder(b) {
+    return b.charging === true && b.level === 1 &&
+           b.chargingTime === 0 && b.dischargingTime === Infinity;
   },
   paint() {
-    const b = this.bat;
-    if (!b) return;
-    const pct = Math.max(0, Math.min(100, Math.round(b.level * 100)));
     const el = $("#battPill");
+    const b = this.bat;
+    if (!b || this.blocked) { el.classList.add("hidden"); return; }
+
+    /* Anything that moves proves there is a cell behind this, and it stays
+       proven: a phone that charges back to a hundred is still a phone. */
+    const now = b.level + "/" + b.charging + "/" + b.chargingTime + "/" + b.dischargingTime;
+    if (this.seen && now !== this.seen) this.real = true;
+    this.seen = now;
+    if (!this.real && this.placeholder(b)) {
+      this.why = "reads as full and charging - also what a browser says when it cannot tell";
+      el.classList.add("hidden");
+      return;
+    }
+    this.real = true;
+    this.why = "";
+
+    const pct = Math.max(0, Math.min(100, Math.round(b.level * 100)));
     $("#battText").textContent = pct + "%";
     const w = pct <= 0 ? 0 : Math.max(this.FLOOR, this.FULL * pct / 100);
     $("#battFill").setAttribute("width", w.toFixed(2));
@@ -7082,6 +7156,15 @@ const Batt = {
     const state = "Battery " + pct + "%" + (b.charging ? ", charging" : "");
     el.title = state;
     el.setAttribute("aria-label", state);
+    el.classList.remove("hidden");
+  },
+  /* What Technical Details prints, which is the one place that can afford a
+     sentence about why the cell is not on the bar. */
+  status() {
+    if (this.real && this.bat) {
+      return Math.round(this.bat.level * 100) + "%" + (this.bat.charging ? ", charging" : "");
+    }
+    return this.why || "waiting for a reading";
   }
 };
 
@@ -17990,6 +18073,7 @@ function renderGpsPanel() {
         ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
         : GPS.watching ? "yes" : "no",
         GPS.retryAt ? "warn" : GPS.watching ? "ok" : "warn");
+    trow("Battery", Batt.status(), Batt.real ? "ok" : "warn");
     trow("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
     /* The count is a session tally, and a tally left red after the fixes came
        back reads as a fault still happening. Red is for an error still
