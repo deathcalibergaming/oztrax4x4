@@ -1932,6 +1932,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
+#btnNightAuto.on,#btnNightDay.on,#btnNightOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
 .sw.on::after{transform:translateX(20px);background:var(--rust)}
@@ -3066,6 +3067,13 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
         </div>
         <div class="note" id="tiltNote">Leans the map so you see twice as far up the road. Heading up only - N Up stays flat.</div>
+        <div class="sublabel" role="radiogroup" aria-label="Night map">Night Map
+          <button class="btn xs ghost" id="btnNightAuto">Auto</button>
+          <button class="btn xs ghost" id="btnNightDay">Day</button>
+          <button class="btn xs ghost" id="btnNightOff">Night</button>
+        </div>
+        <div class="poi-status" id="nightState"></div>
+        <div class="note" id="nightNote">Darkens the map at dusk so it does not dazzle. Auto follows the sun where you are; Day or Night holds until the next one.</div>
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
@@ -3415,6 +3423,21 @@ const CFG = {
      shaded on the phone from Mapzen's terrain tiles on AWS Open Data, and
      still needs a signal. */
   GL_STYLE: "style/liberty.json",
+  GL_NIGHT: "style/night.json",
+  /* Civil twilight, and not sunrise or sunset.
+
+     The first day/night build switched at -0.833 degrees, which is where the
+     sun's upper limb touches the horizon - the definition the almanacs print
+     a sunset against, and the wrong moment to darken a map. There is plenty
+     of light left at sunset. Measured with the equations below, the gap from
+     sunset to civil twilight runs 21 minutes at Darwin to 35 at Hobart, so
+     switching at sunset blacks the map out for half an hour of usable
+     daylight every evening.
+
+     Six degrees below is the headlights-on moment, and it is the one people
+     already have a word for. */
+  NIGHT_ALT: -6,
+  NIGHT_TICK: 30000,       /* the sun does not need asking more often than this */
   /* Where each state's map is, in pieces, with a manifest saying which
      cut of OpenStreetMap it is and how many pieces - tools/build-vmap.mjs.
      On Pages beside the other packs for now; the hosting move changes
@@ -4326,6 +4349,14 @@ const S = Object.assign({
      view with coarse tiles rather than fine ones. Counted over every source
      at Hawker: 52 tiles flat, 60 leaning. Fifteen per cent, not double. */
   tilt: false,
+  /* "auto", "day" or "night". Auto is the default because the driver has one
+     hand and their eyes on the track, and a setting nobody remembers to flip
+     at dusk is a setting that leaves them dazzled. */
+  night: "auto",
+  /* What auto was saying when the driver overrode it. An override lasts until
+     the sun next crosses and then auto takes back over - otherwise one tap at
+     a lookout turns the feature off for good and nothing ever says so. */
+  nightAnchor: null,
   textScale: 1         /* 1, 1.15 or 1.3 - drives --uiScale */
 }, loadLS(LS.settings, {}));
 
@@ -4357,6 +4388,7 @@ function saveSettings() {
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
+                        night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
                         textScale: S.textScale });
@@ -5845,6 +5877,175 @@ function setHillshade(on) {
 }
 
 /* =====================================================================
+   Where the sun is
+
+   Lifted out of the day/night prototype, which is the one part of it that
+   was never the problem. NOAA's solar equations, about sixty lines, no
+   network: checked against the US Naval Observatory across thirty
+   comparisons and never more than 42 seconds out. The web service that
+   would answer the same question is out by up to 132 seconds and needs a
+   connection, which at dusk on the Oodnadatta Track is the same as no
+   answer at all. The phone knows where it is and what the time is; the rest
+   is arithmetic, and arithmetic works in the desert.
+
+   It is asked for an altitude rather than for a sunset, which sidesteps the
+   question of which day a time belongs to. That question is real - in South
+   Australia sunrise falls on yesterday's UTC date for most of the year - and
+   the way not to answer it is not to ask.
+
+   Why altitude and not the clock: Ceduna and Broken Hill keep the same time
+   and their sunsets are 31 minutes apart. A rule written in hours is half an
+   hour wrong at one end of a single day's drive.
+   ===================================================================== */
+const Sun = {
+  D: Math.PI / 180,
+  DEG: 180 / Math.PI,
+  DAY: 86400000,
+
+  /* Where the sun is at one instant - how far it is declined from the
+     equator, and how far ahead or behind the clock it is running. Taken at
+     the instant itself rather than at midnight: the declination moves about
+     0.4 degrees a day around the equinoxes, which is a degree of altitude by
+     the time it reaches the horizon at these latitudes, and a degree at the
+     horizon is four minutes of daylight. */
+  solar: function (when) {
+    const D = this.D;
+    const T = (when / this.DAY + 2440587.5 - 2451545) / 36525;   /* Julian centuries */
+    const L0 = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360;
+    const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+    const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
+    const C = Math.sin(M * D) * (1.914602 - T * (0.004817 + 0.000014 * T)) +
+              Math.sin(2 * M * D) * (0.019993 - 0.000101 * T) +
+              Math.sin(3 * M * D) * 0.000289;
+    const om = (125.04 - 1934.136 * T) * D;
+    const lambda = L0 + C - 0.00569 - 0.00478 * Math.sin(om);
+    const eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 +
+                0.00256 * Math.cos(om);
+    const y = Math.pow(Math.tan(eps * D / 2), 2);
+    return {
+      dec: Math.asin(Math.sin(eps * D) * Math.sin(lambda * D)) * this.DEG,
+      eqTime: 4 * this.DEG * (y * Math.sin(2 * L0 * D) - 2 * e * Math.sin(M * D) +
+        4 * e * y * Math.sin(M * D) * Math.cos(2 * L0 * D) -
+        0.5 * y * y * Math.sin(4 * L0 * D) - 1.25 * e * e * Math.sin(2 * M * D))
+    };
+  },
+
+  /* How high the sun stands right now, in degrees above the horizon. */
+  altitude: function (lat, lng, when) {
+    const D = this.D, s = this.solar(when);
+    const mins = (when % this.DAY) / 60000;           /* past UTC midnight */
+    const ha = (mins + s.eqTime + 4 * lng) / 4 - 180; /* 15 degrees an hour */
+    return Math.asin(Math.sin(lat * D) * Math.sin(s.dec * D) +
+      Math.cos(lat * D) * Math.cos(s.dec * D) * Math.cos(ha * D)) * this.DEG;
+  }
+};
+
+/* =====================================================================
+   The map after dark
+
+   Liberty is a daylight sheet - cream ground, white roads, black labels -
+   and in a dark cabin that is a torch pointed at the driver. The chrome
+   around it needs nothing: this app has been a warm dark instrument cluster
+   since it was drawn. The map is the one bright thing on the screen, and
+   this is the only thing that changes.
+
+   Paint, not a stylesheet. style/night.json is { layerId: { key: value } }
+   and is applied with setPaintProperty, because a setStyle would tear down
+   the relief, the route line and the POI pins the app adds on top and make
+   every one of them be added again. Paint changes only what a layer resolves
+   to: the swap is instant, nothing is re-fetched, and 6 KB covers 104
+   layers. See tools/night-paint.mjs for how it is worked out and why it is
+   done by role rather than by luminance.
+
+   What a driver was given by day is remembered the first time it is taken
+   away, so Day is the value that was actually there rather than a second
+   palette that could drift from it.
+   ===================================================================== */
+const Night = {
+  paint: null,      /* the night reading, once it has loaded */
+  day: {},          /* what each key held before the first night */
+  on: false,        /* what is drawn right now */
+
+  load: async function () {
+    try {
+      const r = await fetch(CFG.GL_NIGHT);
+      if (r.ok) this.paint = await r.json();
+    } catch (e) { /* no night paint is a day map, which is the safe failure */ }
+    if (this.paint) this.settle();
+    /* The state line is drawn at boot, which is before this has landed. */
+    if (typeof syncNightButtons === "function") syncNightButtons();
+  },
+
+  /* Is it dark where the vehicle is? Unknown until there is a fix, and
+     unknown means day - a map that starts dark on a phone that has not found
+     itself yet is a fault, not a feature. */
+  dark: function () {
+    if (!view.has) return false;
+    return Sun.altitude(view.cur.lat, view.cur.lng, Date.now()) < CFG.NIGHT_ALT;
+  },
+
+  /* What should be drawn, and the whole of the override rule in four lines:
+     a hand-picked Day or Night holds until the sun next crosses, and then
+     auto has it back. */
+  want: function () {
+    const auto = this.dark();
+    if (S.night === "auto") return auto;
+    if (S.nightAnchor !== null && auto !== S.nightAnchor) {
+      S.night = "auto";
+      S.nightAnchor = null;
+      saveSettings();
+      if (typeof syncNightButtons === "function") syncNightButtons();
+      return auto;
+    }
+    return S.night === "night";
+  },
+
+  settle: function () {
+    const want = this.want();
+    if (want === this.on) return;
+    this.apply(want);
+    /* The line under the switch is the only place that says which of the
+       three reasons the map looks the way it does, so it has to move when
+       the sun does and not only when somebody presses something. */
+    if (typeof syncNightButtons === "function") syncNightButtons();
+  },
+
+  apply: function (night) {
+    if (!this.paint) return;
+    this.on = night;
+    const self = this;
+    whenStyled(function () {
+      Object.keys(self.paint).forEach(function (id) {
+        if (!gl.getLayer(id)) return;
+        const want = self.paint[id];
+        Object.keys(want).forEach(function (key) {
+          const keep = self.day[id] || (self.day[id] = {});
+          if (!(key in keep)) {
+            /* Undefined is a real answer here - several layers are given a
+               halo they never had - and it has to be stored as one, or the
+               way back reads as "not captured yet" and leaves the halo on. */
+            try { keep[key] = gl.getPaintProperty(id, key); } catch (e) { keep[key] = undefined; }
+          }
+          try { gl.setPaintProperty(id, key, night ? want[key] : keep[key]); } catch (e) { }
+        });
+      });
+    });
+  }
+};
+
+/* Auto, Day or Night. The override records what auto was saying at the
+   moment it was taken, which is what lets it expire by itself. */
+function setNight(mode) {
+  S.night = mode;
+  S.nightAnchor = mode === "auto" ? null : Night.dark();
+  saveSettings();
+  /* Settled before the line is drawn, or the line reports the state the map
+     is leaving rather than the one it is arriving at. */
+  Night.settle();
+  syncNightButtons();
+}
+
+/* =====================================================================
    POI pins on the GPU.
 
    Every pin used to be a page element: five hundred of them in a town,
@@ -6562,6 +6763,7 @@ const Compass = {
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
 let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0, pinTick = 0;
+let nightTick = 0;
 let nearAnchor = null;   /* where the waypoint list was last drawn from */
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -6655,6 +6857,9 @@ function frame(ts) {
 
   /* a posted limit changes at a sign, not at 60 fps */
   if (ts - spdTick > CFG.SPEED_TICK) { spdTick = ts; updateSpeedSign(); }
+  /* The sun moves half a degree every two minutes, so half a minute is
+     already far finer than the thing being decided. */
+  if (ts - nightTick > CFG.NIGHT_TICK) { nightTick = ts; Night.settle(); }
 
 
 
@@ -18040,6 +18245,7 @@ function openDrawer() {
   $("#scrim").classList.add("show");
   renderTracks(); renderWaypoints(); renderOfflineMaps(); refreshStorageStats();
   syncAwakeButtons();
+  syncNightButtons();
   readGeoPermission().then(renderGpsPanel);
 }
 /* Closing the drawer always means the same thing - get out of the way, the
@@ -18751,6 +18957,26 @@ function syncTiltButtons() {
   $("#btnTiltOn").classList.toggle("on", !!S.tilt);
   $("#btnTiltOff").classList.toggle("on", !S.tilt);
 }
+
+/* The state line says what is drawn and why, because Auto is the default and
+   a driver who has never touched this should still be able to find out why
+   the map went dark - or why it has not. */
+function nightStateLine() {
+  if (!Night.paint) return "Day map - the night paint did not load";
+  if (S.night !== "auto") return (Night.on ? "Night" : "Day") + " until the sun next crosses";
+  if (!view.has) return "Auto - day until there is a fix";
+  return Night.on ? "Night - the sun is down" : "Day - the sun is up";
+}
+
+function syncNightButtons() {
+  $("#btnNightAuto").classList.toggle("on", S.night === "auto");
+  $("#btnNightDay").classList.toggle("on", S.night === "day");
+  $("#btnNightOff").classList.toggle("on", S.night === "night");
+  $("#nightState").textContent = nightStateLine();
+}
+$("#btnNightAuto").addEventListener("click", function () { setNight("auto"); });
+$("#btnNightDay").addEventListener("click", function () { setNight("day"); });
+$("#btnNightOff").addEventListener("click", function () { setNight("night"); });
 $("#btnTiltOn").addEventListener("click", function () { setTilt(true); });
 $("#btnTiltOff").addEventListener("click", function () { setTilt(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
@@ -19095,6 +19321,8 @@ document.addEventListener("keydown", function (e) {
      until this build, which is to say it was every install. */
   syncHillshadeButtons();
   syncTiltButtons();
+  syncNightButtons();
+  Night.load();
   /* before anything measures the bars, since it can change their height */
   applyTextScale();
   syncTextButtons();

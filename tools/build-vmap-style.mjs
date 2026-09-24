@@ -16,6 +16,7 @@
 
    Run: node tools/build-vmap-style.mjs  (re-run after updating the source) */
 import fs from "node:fs";
+import { nightPaintFor } from "./night-paint.mjs";
 
 const SRC = "https://tiles.openfreemap.org/styles/liberty";
 const OUT = new URL("../docs/style/liberty.json", import.meta.url);
@@ -78,3 +79,11 @@ if (!shield) throw new Error("highway-shield-non-us: upstream has renamed or dro
 shield.layout["symbol-spacing"] = 600;
 fs.writeFileSync(OUT, JSON.stringify(style));
 console.log("wrote", OUT.pathname, style.layers.length, "layers");
+
+/* The same tiles read a second time, for the dark. See night-paint.mjs:
+   it is paint alone rather than a second stylesheet, because the app has
+   its own layers on top of these and a setStyle would tear them all down. */
+const night = nightPaintFor(style);
+const NIGHT_OUT = new URL("../docs/style/night.json", import.meta.url);
+fs.writeFileSync(NIGHT_OUT, JSON.stringify(night));
+console.log("wrote", NIGHT_OUT.pathname, Object.keys(night).length, "layers repainted");

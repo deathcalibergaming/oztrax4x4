@@ -146,6 +146,13 @@ download times, and the storage-eviction and quota problems — are in the
 
 ## day-night-prototype.patch
 
+**Superseded.** Night Map shipped on 24 Sep 2026, on the vector basemap this
+note said was the real answer. The sun maths below went in unchanged; the
+filter did not, because nothing here needs one any more — the layers say what
+they are, so a road is made lighter than its ground rather than inverted
+along with it. The threshold moved from sunset to civil twilight, which is 21
+to 35 minutes later depending on where you are.
+
 Automatic day/night, built and pulled back out on 2 Sep 2026. Shipped as PR #101
 and reverted the same day; PR #102 was closed unmerged. It went in three layers,
 and each is worth something on its own.

@@ -17,7 +17,10 @@ what that costs you.
                                4.5.0, vendored (both BSD-3)
     docs/style/                OpenFreeMap's Liberty style with its icons and
                                fonts, so the map draws with no signal
-                               (licences in style/LICENSE.md)
+                               (licences in style/LICENSE.md). night.json
+                               beside it is the same tiles read for the dark
+                               - paint only, 6 KB, built by
+                               tools/night-paint.mjs
     docs/sw.js                 offline shell cache (only active when served)
     docs/privacy.html          the privacy notice - see below. Part of the
                                shell, so it opens with no signal, and it

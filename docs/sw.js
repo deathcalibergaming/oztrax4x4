@@ -6,7 +6,7 @@
    and intercepting them would only add a second, dumber copy.
 
    Bump CACHE when index.html changes, or phones will keep the old one. */
-const CACHE = "trailtracker-v263";
+const CACHE = "trailtracker-v265";
 
 /* A second cache that survives an activate, because the flag saying "there is
    a newer page" has to outlive the version that noticed. The worker that spots
@@ -61,6 +61,7 @@ const MAP = [
   "./style/fonts/Noto Sans Regular/8192-8447.pbf",
   "./style/fonts/Noto Sans Regular/8448-8703.pbf",
   "./style/liberty.json",
+  "./style/night.json",
   "./style/sprites/ofm.json",
   "./style/sprites/ofm.png",
   "./style/sprites/ofm@2x.json",
