@@ -951,6 +951,26 @@ The rule generalises. **Where a section holds both an answer and its
 workings, the answer goes on top in plain words and the workings fold away.**
 A value a stranger cannot act on is a diagnostic, however true it is.
 
+**The Unverified Reading Rule.** A readout that cannot be trusted is not
+shown. The battery cell is the case that named it. The Battery Status API
+defines "no battery information available" as a full battery on the charger —
+level 1, charging, chargingTime 0, dischargingTime Infinity — and a browser
+that refuses on privacy grounds hands back exactly that quartet rather than
+an error. Brave blocks the API and asserts those four values in its own
+browser test, and a Play Store app is a window on the live site opened by
+whichever browser the phone calls its default. So a phone on four percent
+was reading **100%, plugged in**: the most reassuring lie the bar could tell,
+in the one readout whose whole job is saying whether the phone lasts to the
+next town.
+
+Those four values are also what a real phone at 100% on the charger reports,
+so a single reading cannot tell them apart — only watching can, because a
+real battery moves and a blocked one never does. The cell stays off the bar
+until something about it changes, which on a real phone is the first percent
+it drops or the moment the cable comes out, and the reason sits in Technical
+Details. **An instrument that might be wrong is worse than one that is
+missing**: a missing one sends you to look, a wrong one stops you looking.
+
 ### Inputs
 
 - **Style:** Field (`#111513`) fill, hairline-strong border, 4px radius,
