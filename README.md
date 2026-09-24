@@ -267,8 +267,9 @@ collected by the developer.
   it is five, which is the difference between a phone that routes to the shops
   and one Android kills for it. Turn instructions are read off the route's own geometry and the
   road names the packs already carry, so they need no extra download and work
-  offline. They are also spoken, by a text-to-speech voice stored on the
-  phone — nothing is fetched and nothing is sent, and a voice that only works
+  offline. They are also spoken, by an Australian text-to-speech voice stored
+  on the phone where there is one, and one the driver picks where the phone
+  carries several — nothing is fetched and nothing is sent, and a voice that only works
   with a connection is refused rather than used, since the country this is for
   is the country without one. The names go to the voice as the packs store
   them, with two exceptions measured across all 12,208 of them: thirteen are a
