@@ -1497,9 +1497,48 @@ country this app is for is the country with no bars on the phone. So
 `localService` is a gate and not a preference: a voice that does not report
 itself as on-device is not used. Keeping the road names off the wire is the
 same decision seen from the other side, and it is why the privacy page has
-nothing new to disclose. **en-AU first**, then any English, then nothing —
-the names here are Tanunda and Yankalilla and Coober Pedy, and a voice built
-for another language reads them as if they were spelled in it.
+nothing new to disclose. English, because the names here are Tanunda and
+Yankalilla and Coober Pedy and a voice built for another language reads them
+as if they were spelled in it.
+
+**Australian, and looked for in more than one place.** Engines do not agree
+on which field carries the country. This desktop puts it in both — lang
+`en-AU`, name *Microsoft James - English (Australia)* — Android has been seen
+with an underscore in the lang, and Google's own voice is *Google Australian
+English* with a lang of plain `en`. Reading the lang alone finds none of that
+last one, and the first shipped build did exactly that: a phone with an
+Australian voice sitting on it read the Flinders Ranges in a British accent,
+because the ranking fell through to whatever the engine listed first. The
+language, the name and the URI are now run together and matched as one
+string.
+
+The order past Australian is **New Zealand, Ireland, Britain, America, then
+any English at all** — nearest accent first, and it matters less than it
+looks, because where a phone has more than one English voice the driver
+picks. **The picker is the row under the state line**, and it appears only
+where there is something to choose between: one voice is not a choice, and a
+control offering it is a control in the way. It lists the offline English
+voices nearest accent first, so the Australian ones are at the top, and
+**choosing one says a line in it** — an accent is judged by hearing it, and
+making the driver find the test button afterwards is making them do the work
+twice. The name is enough on its own for most engines; where a name carries
+no country the lang is appended, because *Daniel* and *Karen* side by side
+say nothing about which is which.
+
+The picker is stored by name, and the name is checked against the phone's
+list every time it is read. A voice can go — an engine swapped, a language
+pack removed — and a setting naming one that is no longer there has to fall
+back to the ranking rather than fall silent.
+
+It is sized at **Body and not Field**. Every field in this app is 16px
+because 16px is the better size to type into on a phone; nothing is typed
+into this one. It is picked from, and what it holds is the name of a thing,
+which is what Body is for. At Field it stood 41px tall over a 30px Test Voice
+and read as the loudest control in Settings, which something touched once
+should not be. The caret gained its own room in the same pass — it is drawn
+ten pixels in from the right edge and five wide, and the shared rule reserved
+ten, so a long voice name ran its last word into the arrow. The time picker
+never showed it, because *12*, *45* and *AM* leave the whole box spare.
 
 **Two calls a corner, timed rather than measured out.** Twenty-five seconds
 to read the turn, slow and move across; four to make it. Seconds and not

@@ -250,7 +250,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--rust)}
    border colour, which is the only focus this app has ever shown. */
 button:focus-visible,summary:focus-visible{outline:2px solid var(--rust2);outline-offset:-3px}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
-  background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  padding-right:26px}
 .hidden{display:none !important}
 
 /* ---------- shell ---------- */
@@ -1458,6 +1459,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    labels break inside the buttons first, so the row usually does not have to
    wrap at all, and this is here for when it genuinely cannot hold them. */
 .row{display:flex;gap:6px;flex-wrap:wrap}
+/* The voice picker takes the whole row, the way Test Voice above it does.
+   Stock otherwise: input,select,textarea already draws the field and the
+   caret, and a second way of drawing one is a second thing to keep.
+
+   Body rather than the field size. The sixteen pixels every field here wears
+   is for text being typed into, and nothing is typed into this - it is
+   picked from, and what it holds is the name of a thing, which is what Body
+   is for. At sixteen it stood 41px tall over a 30px Test Voice and read as
+   the loudest thing in Settings, which a control the driver touches once
+   should not be. */
+#voicePick{flex:1 1 100%;min-width:0;font-size:var(--t-body)}
 
 /* ---------- drawer ---------- */
 #scrim{position:fixed;inset:0;background:rgba(6,8,7,.62);z-index:900;opacity:0;pointer-events:none;
@@ -3037,6 +3049,9 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnVoiceOff">Off</button>
         </div>
         <div class="poi-status" id="voiceState"></div>
+        <div class="row hidden" id="voicePickRow">
+          <select id="voicePick" aria-label="Which voice speaks the turns"></select>
+        </div>
         <div class="row">
           <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
         </div>
@@ -4296,6 +4311,7 @@ const S = Object.assign({
      vehicle without being asked is worse than one that stays quiet. */
   speedAlert: false,    /* chime when the speed passes the posted limit */
   navVoice: false,      /* and speak the turn across the top of the map */
+  voiceName: "",        /* the voice chosen by name, "" to let the ranking choose */
   units: "metric",      /* or "imperial" - display only, never what is stored */
   zoom: 15,
   hillshade: true,     /* shaded relief under the map, on by default */
@@ -4339,7 +4355,7 @@ if (!S.headUpDefaultApplied) {
 function saveSettings() {
   saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn, units: S.units,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
-                        navVoice: S.navVoice,
+                        navVoice: S.navVoice, voiceName: S.voiceName,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
@@ -16531,6 +16547,7 @@ function navArt(p1, p2, art) {
 const Voice = {
   voice: null,      /* the SpeechSynthesisVoice chosen, or null if none will do */
   found: null,      /* what the last look at the list found, for the state line */
+  list: [],         /* the offline English voices, nearest accent first */
   wired: false,     /* voiceschanged hooked up */
   turns: null,      /* the Nav.turns array the two marks below belong to */
   mark: -1,         /* metres along the route of the corner being announced */
@@ -16562,17 +16579,52 @@ const Voice = {
     this.pick();
   },
 
-  /* en-AU first, then any English, then nothing - and localService is a
-     gate rather than a preference, so nothing is the answer where the only
-     voices on offer are somebody else's server. */
+  /* How close a voice is to the one this app wants, lowest first.
+
+     The tag is the language, the name and the URI run together, because
+     engines do not agree on which of the three carries the country. Chrome
+     on this desktop puts it in both - lang "en-AU", name "Microsoft James -
+     English (Australia)" - and Android's own voices have been seen with the
+     locale only in the name and an underscore in the lang. Matching one
+     field is how a phone with an Australian voice on it ends up reading the
+     Flinders Ranges in a British accent, which is what this is fixing.
+
+     Australian, then New Zealand because it is the nearest accent there is,
+     then the rest. The tail matters less than it looks: where a phone has
+     more than one English voice on it the driver picks, and the ranking is
+     only what it starts on. */
+  tier: function (v) {
+    const tag = ((v.lang || "") + " " + (v.name || "") + " " + (v.voiceURI || "")).toLowerCase();
+    if (/\ben[-_]au\b/.test(tag) || /australia/.test(tag)) return 0;
+    if (/\ben[-_]nz\b/.test(tag) || /new zealand/.test(tag)) return 1;
+    if (/\ben[-_]ie\b/.test(tag) || /ireland|irish/.test(tag)) return 2;
+    if (/\ben[-_]gb\b/.test(tag) || /united kingdom|british|england|scotland|wales/.test(tag)) return 3;
+    if (/\ben[-_]us\b/.test(tag) || /united states/.test(tag)) return 4;
+    return 5;
+  },
+
+  australian: function (v) { return !!v && this.tier(v) === 0; },
+
+  /* English, on the phone, and nothing else - localService is a gate rather
+     than a preference, so nothing is the answer where the only voices on
+     offer are somebody else's server. What comes back is sorted nearest
+     accent first, which is the order the picker shows them in. */
   pick: function () {
-    if (!this.supported()) { this.voice = null; this.found = null; return; }
+    if (!this.supported()) { this.voice = null; this.found = null; this.list = []; return; }
     let all = [];
     try { all = speechSynthesis.getVoices() || []; } catch (e) { all = []; }
     const local = all.filter(function (v) { return v.localService; });
     const en = local.filter(function (v) { return /^en/i.test(v.lang || ""); });
-    this.found = { total: all.length, local: local.length, en: en.length };
-    this.voice = en.filter(function (v) { return /^en[-_]AU/i.test(v.lang || ""); })[0] || en[0] || null;
+    const self = this;
+    en.sort(function (a, b) { return self.tier(a) - self.tier(b); });
+    this.found = { total: all.length, local: local.length, en: en.length,
+                   au: en.filter(function (v) { return self.australian(v); }).length };
+    this.list = en;
+    /* The driver's own pick, while it is still on the phone. A voice can go
+       - an engine swapped, a language pack removed - and a setting naming
+       one that is gone has to fall back rather than fall silent. */
+    const want = S.voiceName && en.filter(function (v) { return v.name === S.voiceName; })[0];
+    this.voice = want || en[0] || null;
   },
 
   say: function (text, urgent) {
@@ -18564,18 +18616,58 @@ function voiceStateLine() {
   if (!f || !f.total) return "On - this phone lists no voices yet";
   if (!f.local) return "On, but none of this phone's " + f.total + " voices work offline";
   if (!f.en) return "On, but none of the " + f.local + " offline voices speak English";
-  return "On - " + Voice.voice.name + ", on this phone";
+  if (!f.au) return "On - " + Voice.voice.name + ", which is not an Australian accent";
+  return "On - " + Voice.voice.name;
+}
+
+/* The phones this is for have one English voice on them and the row stays
+   out of the way; the ones with several are exactly the ones where the
+   ranking can land on the wrong accent, and there the driver decides. */
+function renderVoicePick() {
+  const sel = $("#voicePick"), list = Voice.list || [];
+  $("#voicePickRow").classList.toggle("hidden", !S.navVoice || list.length < 2);
+  if (list.length < 2) return;
+  /* Rebuilt only when the phone's list has actually changed, and this runs
+     on every sync. Tearing the options out and putting them back empties the
+     value in between, and a change fired on that empty - engines differ on
+     whether removing the selected option counts as one - would put nothing
+     where the driver's choice was. Cheaper as well as safer: voiceschanged
+     can fire several times while an engine warms up. */
+  const key = list.map(function (v) { return v.name; }).join("\n");
+  if (sel.dataset.key !== key) {
+    sel.dataset.key = key;
+    sel.innerHTML = "";
+    list.forEach(function (v) {
+      const o = document.createElement("option");
+      o.value = v.name;
+      /* Some engines name a voice after the person and some after the
+         place, so the name alone can leave two entries reading identically.
+         The tag is added only where the name does not already carry the
+         country. */
+      o.textContent = /\(|australia|kingdom|states|zealand|ireland|india|africa/i.test(v.name)
+        ? v.name : v.name + " - " + (v.lang || "");
+      sel.appendChild(o);
+    });
+  }
+  sel.value = Voice.voice ? Voice.voice.name : list[0].name;
 }
 
 function syncVoiceButtons() {
   $("#btnVoiceOn").classList.toggle("on", !!S.navVoice);
   $("#btnVoiceOff").classList.toggle("on", !S.navVoice);
   $("#voiceState").textContent = voiceStateLine();
+  renderVoicePick();
+  const f = Voice.found;
   $("#voiceNote").textContent =
     "Speaks the turn shown across the top of the map: once far enough out to slow down and move across, " +
     "and once at the corner. It uses a voice stored on this phone, so it works with no signal and nothing " +
-    "about where you are going leaves the phone. If there is no offline voice here, Android installs one " +
-    "under Settings, Accessibility, Text-to-speech.";
+    "about where you are going leaves the phone. " +
+    (f && f.en && !f.au
+      ? "This phone has no Australian voice on it, so the accent will be wrong until one is installed - " +
+        "Android puts them under Settings, Accessibility, Text-to-speech, where the English voice data " +
+        "has Australia as one of its downloads."
+      : "If there is no offline voice here, Android installs one under Settings, Accessibility, " +
+        "Text-to-speech.");
 }
 
 function setNavVoice(on) {
@@ -18594,6 +18686,18 @@ function setNavVoice(on) {
 
 $("#btnVoiceOn").addEventListener("click", function () { setNavVoice(true); });
 $("#btnVoiceOff").addEventListener("click", function () { setNavVoice(false); });
+/* An accent is judged by hearing it, so choosing one says a line in it
+   there and then rather than leaving the driver to find the test button. */
+$("#voicePick").addEventListener("change", function () {
+  /* A driver picked something, or the options were rebuilt underneath the
+     control. Only the first has a value. */
+  if (!this.value) return;
+  S.voiceName = this.value;
+  saveSettings();
+  Voice.pick();
+  syncVoiceButtons();
+  Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
+});
 /* A real instruction rather than a word, because what is being tested is
    whether the road names come out right, and those are the hard part. */
 $("#btnVoiceTest").addEventListener("click", function () {
