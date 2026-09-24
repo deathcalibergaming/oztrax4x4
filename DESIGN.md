@@ -855,8 +855,9 @@ Two small text blocks sit under controls and look similar until you read
 them, so they are separate classes.
 
 **A note** (`.note`) is a sentence explaining a control, written once and
-never changing: "A sleeping phone stops a recording. Turn off to leave the
-app open while parked." Note size, untracked, leading 1.45, muted sand. The
+never changing: "Holds the screen on while the app is open, because a phone
+that goes dark stops recording. Turn it off when you are parked and would
+rather keep the battery." Note size, untracked, leading 1.45, muted sand. The
 more readable of the two on purpose — this is the text a stranger needs.
 
 **A status** (`.poi-status`) is the app reporting what it currently knows,
@@ -869,6 +870,38 @@ and tracking — a status is the quieter, because it is the app talking about
 itself rather than to you. The test has not changed: if the line would read
 the same tomorrow it is a note; if the app is telling you a value, it is a
 status. A note that has gone wrong takes Alert Red Lit and stays a note.
+
+**Every note has the same shape: what the control does, then the one thing
+you would otherwise get wrong.** It is what the good ones were already doing
+and what the rest had drifted away from. One restated the value its own two
+buttons already carried — *Kilometres, km/h and metres.* — and so described
+nothing. One opened with "Then" and only parsed if you had just read the
+buttons above it. One pointed at a download flow that had been taken out two
+releases earlier. A note is a stranger's only briefing on a control: not a
+place to restate the label, and not documentation.
+
+**The second half of the shape is where the honesty lives**, and it is the
+half that earns the note its room. Terrain Shading ends "with no signal the
+map draws flat", because the elevation it shades from is fetched from the
+network and is not in the worker's shell — an app whose first principle is
+that nothing may quietly depend on a connection has to name the features that
+do. Over-Speed Alert spends forty of its words saying where the limits come
+from and that the sign beside the road outranks them. A note that only
+flatters the control is the confident surface this system forbids everywhere
+else.
+
+**A path is set out as a path.** Where a note has to send somebody into the
+phone's own settings, the steps are joined with arrows — *Settings → General
+management or Accessibility → Text-to-speech* — rather than with commas.
+Written as prose the Android text-to-speech route ran to six commas in a row
+and had to be parsed before it could be followed. The arrow is punctuation
+here, not an icon; it is the one mark in the interface that is not drawn.
+
+Length follows from the shape rather than from a limit. The eight notes in
+Settings run from fifteen words to a hundred and five, and the longest is the
+one carrying a settings path the phone gives no other way of finding. Any
+note that is long for another reason is a note that has stopped answering the
+two questions.
 
 ### Verdicts
 

@@ -3034,7 +3034,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnAwakeOff">Off</button>
         </div>
         <div class="poi-status" id="awakeState"></div>
-        <div class="note" id="awakeNote">A sleeping phone stops a recording. Turn off to leave the app open while parked.</div>
+        <div class="note" id="awakeNote">Holds the screen on while the app is open, because a phone that goes dark stops recording. Turn it off when you are parked and would rather keep the battery.</div>
         <div class="sublabel">Over-Speed Alert
           <button class="btn xs ghost" id="btnAlertOn">On</button>
           <button class="btn xs ghost" id="btnAlertOff">Off</button>
@@ -3060,7 +3060,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
-        <div class="note" id="shadeNote">Relief under the map, so you can see which way the ground falls. Adds tiles to an area download.</div>
+        <div class="note" id="shadeNote">Relief under the map, so you can see which way the ground falls. The elevation it shades from is fetched as you go, so with no signal the map draws flat.</div>
         <div class="sublabel">Map Tilt
           <button class="btn xs ghost" id="btnTiltOn">On</button>
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
@@ -3088,7 +3088,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnHomeSearch">Set From Search</button>
           <button class="btn sm ghost" id="btnHomeHere">Use My Position</button>
         </div>
-        <div class="note" id="homeNote">Then type &quot;home&quot; in Navigate to route back to it.</div>
+        <div class="note" id="homeNote">Once it is set, type &quot;home&quot; in Navigate to route back to it from anywhere.</div>
       </div>
     </details>
 
@@ -11262,11 +11262,14 @@ function renderFuelTypes() {
     const where = srcs.map(function (s) {
       return (s.sites || 0) + " in " + (s.state || "?");
     }).join(", ");
-    const credit = srcs.map(function (s) {
+    const named = srcs.map(function (s) {
       return s.url
         ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>"
         : esc(s.name);
-    }).join(" and ");
+    });
+    const credit = named.length > 1
+      ? named.slice(0, -1).join(", ") + " and " + named[named.length - 1]
+      : named[0] || "";
     note.innerHTML = esc(n + " sites - " + where + (when ? ", updated " + when : "") +
       ". Source: ") + credit +
       esc(". Switch off what you do not burn and the cards stay short.");
@@ -18005,7 +18008,7 @@ const Wake = {
           syncAwakeButtons();
         });
       } catch (e) {
-        this.note = "refused: " + (e.message || e.name);
+        this.note = "refused - " + (e.message || e.name);
       } finally {
         this.busy = false;
       }
@@ -18493,9 +18496,11 @@ function syncUnitButtons() {
   const im = imperial();
   $("#btnUnitMetric").classList.toggle("on", !im);
   $("#btnUnitImperial").classList.toggle("on", im);
-  $("#unitNote").textContent = im
-    ? "Miles, miles per hour and feet."
-    : "Kilometres, km/h and metres.";
+  $("#unitNote").textContent = (im
+    ? "Miles, miles per hour and feet, "
+    : "Kilometres, km/h and metres, ") +
+    "everywhere a distance, a speed or a height is shown. Nothing already recorded changes - " +
+    "only how it reads.";
   syncUnitLabels();
 }
 function setUnits(u) {
@@ -18589,9 +18594,9 @@ function syncAlertButtons() {
   $("#alertNote").textContent =
     "A chime and red speed figures when you pass the posted limit by more than " + over +
     ", and the chime again every " + Math.round(CFG.ALERT_REPEAT / 1000) +
-    " seconds until you are back within " + clear + " of it. Both only where the speed sign is showing a limit, and those " +
-    "limits come from OpenStreetMap - they are missing on many roads and can be out of date, so " +
-    "the sign beside the road is the one that counts.";
+    " seconds until you are back within " + clear + " of it. Both only where the speed sign is " +
+    "showing a limit. Those limits come from OpenStreetMap: missing on many roads and sometimes " +
+    "out of date, so the sign beside the road is the one that counts.";
 }
 
 function setSpeedAlert(on) {
@@ -18666,24 +18671,22 @@ function syncVoiceButtons() {
   $("#voiceState").textContent = voiceStateLine();
   renderVoicePick();
   const f = Voice.found;
+  /* The Android path is a path, so it is set out as one. Written as prose it
+     ran to six commas in a row and had to be parsed rather than followed. */
+  const TTS = "Settings \u2192 General management or Accessibility \u2192 Text-to-speech \u2192 " +
+              "the gear beside Google Text-to-speech \u2192 Install voice data \u2192 English (Australia)";
   $("#voiceNote").textContent =
-    "Speaks the turn shown across the top of the map: once far enough out to slow down and move across, " +
-    "and once at the corner. It uses a voice stored on this phone, so it works with no signal and nothing " +
-    "about where you are going leaves the phone. " +
+    "Speaks the turn already shown across the top of the map: once far enough out to slow down and " +
+    "move across, and once at the corner. It is a voice stored on the phone, so it works with no " +
+    "signal and nothing about your trip leaves it. " +
     (f && f.au
-      ? "Which Australian voice it is, and whether it is a man or a woman, is Android's to set rather " +
-        "than this app's - Chrome only tells a web page the language. Change it under Settings, General " +
-        "management, Text-to-speech, the gear beside Google Text-to-speech, then Install voice data, " +
-        "English (Australia); phones without General management keep it under Settings, Accessibility, " +
-        "Text-to-speech output. Choose one that is downloaded - a voice that needs a connection is not " +
-        "used here."
+      ? "Which Australian voice, and whether it is a man or a woman, is Android's to set rather than " +
+        "this app's: " + TTS + ". Pick a downloaded one - this app will not speak through a voice " +
+        "that needs a connection."
       : f && f.en
-      ? "This phone has no Australian voice on it, so the accent will be wrong until one is installed: " +
-        "Settings, General management, Text-to-speech, the gear beside Google Text-to-speech, then " +
-        "Install voice data, English (Australia) - or Settings, Accessibility, Text-to-speech output on " +
-        "phones without General management."
-      : "Android installs one under Settings, General management, Text-to-speech - or Settings, " +
-        "Accessibility, Text-to-speech output.");
+      ? "This phone has no Australian voice on it, so the accent will be wrong until one is " +
+        "installed: " + TTS + "."
+      : "Android installs one under " + TTS + ".");
 }
 
 function setNavVoice(on) {
