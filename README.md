@@ -160,13 +160,23 @@ tiles that are not part of the state's map.
 **The highway shields are respaced on the way in.** Liberty puts one every
 200 screen pixels, which is a city's number — and, being pixels, it holds at
 every zoom: out here that is a B road wearing its badge four times a screen,
-800 m apart at the zoom people drive at. `tools/build-vmap-style.mjs` rewrites
-`symbol-spacing` on `highway-shield-non-us` as an exponential-base-2 zoom
-curve, which tracks the scale exactly and so holds a constant *ground* gap of
-about 25 km (worked at 32°S, and some 16% either side of that across a country
-this tall). What comes back for it is the road's name: `highway-name-major` was
-always there and losing its place to the badges, so the stretch that read
-B83 B83 B83 now reads Flinders Ranges Way.
+810 m apart at the zoom people drive at. `tools/build-vmap-style.mjs` sets
+`symbol-spacing` on `highway-shield-non-us` to **600**, three times that, and
+that is as far as the lever goes.
+
+It was a ground distance for three builds — 50 km, then 25, then 15, as an
+exponential-base-2 zoom curve. The arithmetic was right and the result was
+not: large spacing does not draw the shield further apart, it stops drawing
+it. MapLibre lays line symbols out a tile at a time, on that tile's own
+geometry, so a gap wider than the road's run through one tile leaves that tile
+with nothing to place — and a tile is 512 px. Walked down 34 km of the B83
+north of Hawker, counting camera positions with a shield in view: 200 px 6/6,
+400 px 4/6, 600 px 5/6, 900 px 1/6, 1400 px 0/6, 2200 px 0/6. At the zoom
+people drive at, 600 px is 9/9.
+
+What comes back for it is the road's name: `highway-name-major` was always
+there and losing its place to the badges, so the stretch that read B83 B83 B83
+B83 now reads Flinders Ranges Way with a badge on it.
 
 ## Updating
 

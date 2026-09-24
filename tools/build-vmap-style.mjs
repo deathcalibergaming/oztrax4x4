@@ -37,35 +37,44 @@ style.sprite = "sprites/ofm";
 /* A shield every 200 screen pixels is Liberty's number and it is a city's
    number. Because it is counted in pixels it holds at every zoom, which out
    here means a B road carrying its badge four times a screen the whole way
-   up the Flinders: at the zoom people drive at, 200 px is 800 m.
+   up the Flinders: at the zoom people drive at, 200 px is 810 m of road.
 
-   Counted in ground instead - twenty-five kilometres, which is a touring
-   distance rather than a suburb's. An exponential interpolation with base 2
-   against the zoom is exactly 2^z, which is how the scale moves, so one pair
-   of stops holds the same ground gap all the way between them. The numbers
-   are worked at 32 degrees south, about the middle of the mainland; the gap
-   runs some 16% either side of twenty-five across a country this tall, which
-   is nothing against the thirtyfold cut this is making.
+   Six hundred, which is three times that and as far as this lever goes.
 
-   Fifty first, which was a shield so rarely on screen that the road's name
-   was carrying identification single-handed. Twenty-five keeps the name -
-   there is still far more room than the old 800 m left it - and puts the
-   badge back within reach of a screen at the zooms the map is read at.
+   It was a ground distance for three builds - fifty kilometres, then
+   twenty-five, then fifteen, written as an exponential base-2 curve against
+   the zoom so the pixel figure tracked the scale. The arithmetic was right
+   and the result was not: large spacing does not draw the shield further
+   apart, it stops drawing it. MapLibre lays line symbols out a tile at a
+   time, on that tile's own geometry, so a gap wider than the road's run
+   through one tile leaves the tile with nothing to place - and a tile is
+   512 px. Fifty and twenty-five rendered identically for exactly that
+   reason, both of them far past the cliff.
 
-   From zoom 11 because that is where Liberty stops placing the shield at a
-   point and starts running it along the line - below that there is one to a
-   road already and spacing is not consulted. To zoom 14 and no further: past
-   there the next shield is already several screens away, so holding the
-   pixel figure rather than growing it costs nothing on screen and keeps the
-   number in the file a number somebody can read.
+   Walked down 34 km of the B83 north of Hawker, nine camera positions at
+   the zoom the map is read at, counting the positions with a shield in
+   view:
+
+     200 px  6/6      900 px  1/6
+     400 px  4/6     1400 px  0/6
+     600 px  5/6     2200 px  0/6
+
+   and 600 px again at the zoom people drive at, where the z14 tiles render
+   one to one: 9 of 9. So the cliff is somewhere past 600 and well before
+   900, which is a tile, and 600 is the honest ceiling rather than a taste.
+
+   Which means the units were never the problem. Liberty counts in pixels
+   because MapLibre places in pixels; a ground distance cannot be asked for
+   here at all. What 600 buys is 2.4 km between shields at the zoom people
+   drive at instead of 810 m, and 4.9 km a zoom out from that.
 
    What comes back for it is the road's name. highway-name-major was there
-   all along and losing its place to the badges, so the same stretch that
-   read B83 B83 B83 now reads Flinders Ranges Way - which is the thing a
-   driver would say out loud. */
+   all along and losing its place to the badges, so a stretch that read
+   B83 B83 B83 B83 now reads Flinders Ranges Way with a badge on it - which
+   is the thing a driver would say out loud, and the badge to check it
+   against. */
 const shield = style.layers.find(l => l.id === "highway-shield-non-us");
 if (!shield) throw new Error("highway-shield-non-us: upstream has renamed or dropped it");
-shield.layout["symbol-spacing"] =
-  ["interpolate", ["exponential", 2], ["zoom"], 11, 771, 14, 6171];
+shield.layout["symbol-spacing"] = 600;
 fs.writeFileSync(OUT, JSON.stringify(style));
 console.log("wrote", OUT.pathname, style.layers.length, "layers");
