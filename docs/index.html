@@ -148,14 +148,12 @@
      The speed sign does not scale either. It is a literal road sign whose
      numerals are cut to keep the red ring clear at a fixed 56px plate. */
   --uiScale:1;
-  --t-display:calc(26px * var(--uiScale));      /* the one large figure in a dialog */
   --t-zoom:calc(20px * var(--uiScale));         /* the map's + and - glyphs */
   --t-read:calc(17px * var(--uiScale));         /* an instrument value, read while moving */
   --t-field:calc(16px * var(--uiScale));        /* text being typed into */
   --t-brand:calc(14px * var(--uiScale));        /* the wordmark, and only the wordmark */
   --t-title:calc(13px * var(--uiScale));        /* a panel, drawer or dialog heading */
   --t-body:calc(13px * var(--uiScale));         /* prose read at a stop, and the name of a thing */
-  --t-read-tight:calc(13px * var(--uiScale));   /* an instrument value with the bar on its end */
   --t-note:calc(11.5px * var(--uiScale));       /* a secondary or explanatory line */
   --t-label:calc(11.5px * var(--uiScale));      /* a control label; a section summary */
   --t-read-sm:calc(11.5px * var(--uiScale));    /* a figure on a card or a pin, in tabular interface digits */
@@ -416,10 +414,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    screen. */
 #statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;
   letter-spacing:-.05em;text-align:right}
-/* Over the posted limit, while the over-speed alert is on. Alert Red Lit,
-   and the same .over that a count past its limit already wears - see
-   .bignum.over. The chime and the colour come from one test, so they can
-   never disagree about whether you are over. */
+/* Over the posted limit, while the over-speed alert is on. Alert Red Lit.
+   The chime and the colour come from one test, so they can never disagree
+   about whether you are over. */
 #statsbar .stat:nth-child(1) b.over{color:var(--danger2)}
 /* The two margins are measured, not reasoned: they put the label's cap
    height on the digits' and the unit's baseline on theirs, to within half a
@@ -596,22 +593,12 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   letter-spacing:.08em;text-transform:uppercase}   /* KM/H beside SPEED, not km/h */
 
 #stage{position:relative;flex:1 1 auto;overflow:hidden;background:#0D100F;touch-action:none}
-/* Multiply is what turns a near-white hillshade into shading
-   rather than a sheet laid over the map. */
-.leaflet-tile-pane .shadeLayer{mix-blend-mode:multiply}
 /* The origin is the stage centre only until sizeMap runs; it is moved to
    the middle of what is visible, which is where the vehicle sits. */
 #rotWrap{position:absolute;inset:0;transform-origin:50% 50%;will-change:transform}
 #panWrap{position:absolute;inset:0;will-change:transform}
 #map{position:absolute;inset:0;background:#0D100F}
 .maplibregl-map{background:#0D100F;font-family:var(--ui);outline:none}
-.leaflet-tile{filter:saturate(.72) contrast(1.04) brightness(.9)}
-/* Leaflet adds tiles together (plus-lighter) so that two half-covered edge
-   pixels sum to one whole one. That only holds while tiles abut exactly;
-   they overlap by a pixel here (see OfflineTileLayer._initTile), and adding
-   the overlap would print the joins brighter rather than hide them. */
-.leaflet-container img.leaflet-tile{mix-blend-mode:normal}
-.leaflet-fade-anim .leaflet-tile{will-change:auto}
 
 /* The attribution used to sit here, bottom left, over the map. It is in the
    drawer footer instead, where the notice is the full one - OpenStreetMap
@@ -743,13 +730,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #poiFilterChip{border-color:var(--sand);color:var(--sand)}
 
 /* ---------- markers ---------- */
-/* The counter-turn is set on each .upright by pinTurn, not read from a
-   custom property - see pinTurn for why. */
-.upright{transform-origin:50% 50%}
-/* Counter-rotation must pivot on the anchor, not the icon centre, or the
-   teardrop tip swings off its coordinate as the map turns. */
-.pin .upright{transform-origin:13px 31px}
-.pin.poi .upright{transform-origin:50% 50%}
 .gps-icon{background:none;border:none}
 .gps-rot{width:44px;height:44px;transform-origin:50% 50%;will-change:transform}
 .gps-rot svg{width:44px;height:44px;overflow:visible;display:block}
@@ -832,13 +812,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .pop-a .btn:first-child:nth-last-child(3),
 .pop-a .btn:first-child:nth-last-child(3) ~ .btn{flex:1 1 auto;min-width:max-content}
 /* a pile of pins collapsed into one: the count replaces the glyph */
-/* Fully opaque, unlike the single pin at .92. The count inside is text, and
-   three percent of whatever the map happens to be showing was enough to
-   drag the lifted fills from 4.6 back down to 4.4 over dark ground - a
-   contrast that depends on the terrain is not a contrast you can rely on. */
-.pin.poi.cluster .badge{border-style:solid;opacity:1;box-shadow:0 0 0 2px rgba(20,24,27,.85)}
-.pin.poi.cluster .cnum{font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);font-weight:700;color:#14181B;
-  letter-spacing:0;line-height:1}
 /* the list a cluster popup shows: one tappable row per place underneath */
 .pop-rows{margin-top:5px;max-height:44vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
   -webkit-overflow-scrolling:touch}
@@ -2181,8 +2154,6 @@ details.sub > .sec-body{padding:12px 0 0}
 input[type=date],input[type=time]{color-scheme:dark}
 .modal-body{min-height:0}
 .hint{font-size:var(--t-note);color:var(--dim);line-height:1.45;margin-top:-3px;margin-bottom:11px}
-.bignum{font-variant-numeric:tabular-nums;font-size:var(--t-display);color:var(--sand);letter-spacing:.02em}
-.bignum.over{color:var(--danger2)}
 .prog{height:7px;border-radius:4px;background:#0F1311;border:1px solid var(--line);overflow:hidden;margin:10px 0 7px}
 .prog i{display:block;height:100%;width:0;background:var(--rust);transition:width .18s}
 .kv{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:var(--t-meta);color:var(--dim);
@@ -3792,13 +3763,6 @@ const CFG = {
   PACK_TIMEOUT: 30000,     /* one stalled file must not hold a worker for good */
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
-  RESYNC_FRAC: 0.30,
-  RESYNC_EDGE: 48,         /* px of canvas left beyond a screen corner before it resyncs */
-  /* Pixels past the edge of the turning screen that a pin is already
-     brought round within, and how often the pins catch up with the map -
-     see pinTurn. */
-  PIN_TURN_MARGIN: 80,
-  PIN_TURN_MS: 125,
   LERP_POS: 0.16, LERP_HDG: 0.13,
   /* How far down the open map - from the foot of the heads-up display to
      the bottom of the map - the vehicle is held while following heading
@@ -6596,11 +6560,6 @@ function followCamera() {
 followCamera.key = "";
 followCamera.at = 0;
 
-/* A new pin is born upright - MapLibre keeps it so. */
-function pinUpright() { return ""; }
-function pinTurn() {}
-function pinSweep() {}
-
 function clearFollowTransform() {
   followShift = 0;
   view.mapRot = 0;
@@ -8416,7 +8375,7 @@ function pinIcon(color, kind, isPoi) {
     iconSize: isPoi ? [22, 22] : [26, 26],
     iconAnchor: isPoi ? [11, 11] : [13, 31],   /* the tip, now pointing down, marks the spot */
     popupAnchor: [0, isPoi ? -12 : -34],
-    html: '<div class="upright"' + pinUpright() + '><div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div></div>"
+    html: '<div class="badge" style="background:' + color + '">' + catIcon(kind) + "</div>"
   });
 }
 
@@ -8624,15 +8583,6 @@ function clientToLatLng(cx, cy) {
   const st = stageEl.getBoundingClientRect();
   return map.containerPointToLatLng([cx - st.left, cy - st.top]);
 }
-/* Where the driver is looking when nothing is being followed, which is the
-   middle of the visible map and not the middle of the stage - the bar
-   covers the difference. */
-function viewCenterLatLng() {
-  const st = stageEl.getBoundingClientRect();
-  const c = viewCenter();
-  return clientToLatLng(st.left + c.x, st.top + c.y);
-}
-
 /* =====================================================================
    Waypoint form - always clamped fully inside the visible map area
    ===================================================================== */
@@ -11083,6 +11033,12 @@ function fanOut(groups) {
   return out;
 }
 
+/* The colour a pile wears: whichever category in it matters most, in the
+   order POI_META is declared in - fuel beats parking. The count inside a
+   cluster is a number, which makes it text at 4.5:1 rather than a glyph at
+   3, and seven of the twenty-four category colours cannot carry near-black
+   at that bar - so the pile's ground is lifted until it can. A single pin
+   keeps its category colour exactly; only the pile moves. */
 function clusterColor(group) {
   let best = group[0].kind, bestAt = POI_ORDER.indexOf(group[0].kind);
   group.forEach(function (p) {
@@ -11090,34 +11046,6 @@ function clusterColor(group) {
     if (at > -1 && (bestAt === -1 || at < bestAt)) { best = p.kind; bestAt = at; }
   });
   return Legible.ground(POI_META[best].color);
-}
-
-function clusterIcon(group) {
-  /* colour it by whichever category in the pile matters most, using the
-     order POI_META is declared in - fuel beats parking */
-  let best = group[0].kind, bestAt = POI_ORDER.indexOf(group[0].kind);
-  group.forEach(function (p) {
-    const at = POI_ORDER.indexOf(p.kind);
-    if (at > -1 && (bestAt === -1 || at < bestAt)) { best = p.kind; bestAt = at; }
-  });
-  /* The count inside a cluster is a number, which makes it text at 4.5:1 -
-     not a glyph at 3. Seven of the twenty-four category colours cannot carry
-     near-black at that bar, so the badge ground is lifted until it can. The
-     single pin keeps the category colour exactly; only the pile moves. */
-  const c = Legible.ground(POI_META[best].color);
-  return L.divIcon({
-    className: "pin poi cluster",
-    /* The POI pin's box, not the waypoint teardrop's. A cluster wears
-       .pin.poi, so its badge is 22px like every other POI badge - but the
-       box was declared at 26, the teardrop's size, and a 22px badge laid
-       into a 26px box sits at the top-left of it. The circle and the count
-       inside it were drawn 2px up and 2px left of the spot the marker was
-       anchored to, which is what read as the number sitting off-centre.
-       Same three numbers the shared pin builder uses for a POI. */
-    iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12],
-    html: '<div class="upright"' + pinUpright() + '><div class="badge" style="background:' + c + '">' +
-          '<span class="cnum">' + group.length + "</span></div></div>"
-  });
 }
 
 function clusterPopupHtml(group, here) {
@@ -11487,6 +11415,99 @@ function setKindHidden(kind, hidden) {
   renderPois();
 }
 /* =====================================================================
+   What the three offline packs share.
+
+   Addresses, points of interest and the road graph are three builds of one
+   idea: an index naming which tiles exist, tiles fetched one at a time and
+   kept for good, and a cut that says which build they came from. They hold
+   different things, at different zooms, in different stores, and they drop
+   what they hold for different reasons - and none of that is in here. What
+   is in here was written out three times, identically, which is three
+   places for the cut rule to drift apart in.
+
+   Each pack keeps its own method: the call sites read Addr.cover and
+   Route.exists as they always did, and the pack is still the thing that
+   knows its own zoom and its own store.
+   ===================================================================== */
+const TileIndex = {
+  /* Whether the index lists this tile. Empty desert is not listed, so it is
+     never asked for. */
+  has: function (m, x, y) {
+    if (!m || !m.tiles) return false;
+    const col = m.tiles[x];
+    return !!col && col.indexOf(y) >= 0;
+  },
+
+  /* The cut everything stored beside this index is measured against. null
+     means there is no index to measure against yet, and a stored copy is
+     then taken at its word rather than thrown at the network on a hunch. An
+     absent stamp counts as the empty one on both sides, so a phone holding
+     tiles from before any of this existed matches itself and sits quiet
+     until freshen brings down an index carrying a real cut. */
+  cut: function (m) {
+    return m ? (m.cut || "") : null;
+  },
+
+  /* Every listed tile touching a box, which is south, west, north, east
+     throughout. */
+  cover: function (m, z, south, west, north, east) {
+    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
+    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
+    const out = [];
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+        if (TileIndex.has(m, x, y)) out.push([x, y]);
+      }
+    }
+    return out;
+  },
+
+  /* A stored index answers straight away and the check goes off behind it,
+     not waited on. Waiting would make every launch pay for a request that
+     four times out of five says nothing has changed - and out where this
+     app is for, there is frequently nothing on the other end of it to wait
+     on at all. */
+  load: async function (own, url, store) {
+    if (own.manifest) return own.manifest;
+    try {
+      const held = await DB.get(store, "index");
+      if (held) own.manifest = held;
+    } catch (e) { /* idb unavailable - the network copy still works */ }
+    if (own.manifest) { own.freshen(); return own.manifest; }
+    try {
+      const r = await fetch(url + "index.json");
+      if (!r.ok) throw new Error("http " + r.status);
+      own.manifest = await r.json();
+      own.checked = true;
+      try { await DB.put(store, own.manifest, "index"); } catch (e) { /* ignore */ }
+    } catch (e) {
+      own.manifest = null;
+    }
+    return own.manifest;
+  },
+
+  /* Once a session, and only the index itself: whether what is on the
+     server is still what is on the phone. A new cut hands the pack its own
+     invalidation to run - which is the part that differs, and the only
+     part - and nothing is ever deleted, because deleting is what would put
+     a hole in an offline area. */
+  freshen: async function (own, url, store, onNew) {
+    if (own.checked) return;
+    own.checked = true;
+    try {
+      const r = await fetch(url + "index.json", { cache: "no-cache" });
+      if (!r.ok) return;
+      const fresh = await r.json();
+      if (!fresh || !fresh.tiles) return;
+      if (own.manifest && fresh.cut && fresh.cut === own.manifest.cut) return;
+      own.manifest = fresh;
+      onNew();
+      try { await DB.put(store, fresh, "index"); } catch (e) { /* ignore */ }
+    } catch (e) { /* no signal: what is held is what there is */ }
+  }
+};
+
+/* =====================================================================
    Addresses, out of the national address file.
 
    OpenStreetMap carries an address for well under a tenth of Australian
@@ -11521,29 +11542,9 @@ const Addr = {
      once from the network, then kept in the same store as the tiles so a
      phone that has been here before starts up knowing the coverage.
 
-     A stored one answers straight away and the check goes off behind it,
-     not waited on. Waiting here would make every launch pay for a request
-     that four times out of five says nothing has changed, and out where
-     this app is for there is frequently nothing on the other end of it to
-     wait on at all. */
-  loadManifest: async function () {
-    if (this.manifest) return this.manifest;
-    try {
-      const held = await DB.get("addr", "index");
-      if (held) { this.manifest = held; }
-    } catch (e) { /* idb unavailable - the network copy still works */ }
-    if (this.manifest) { this.freshen(); return this.manifest; }
-    try {
-      const r = await fetch(CFG.ADDR_URL + "index.json");
-      if (!r.ok) throw new Error("http " + r.status);
-      this.manifest = await r.json();
-      this.checked = true;
-      try { await DB.put("addr", this.manifest, "index"); } catch (e) { /* ignore */ }
-    } catch (e) {
-      this.manifest = null;
-    }
-    return this.manifest;
-  },
+     A stored one answers straight away and the check goes off behind it -
+     see TileIndex.load. */
+  loadManifest: function () { return TileIndex.load(this, CFG.ADDR_URL, "addr"); },
 
   /* Whether the addresses on the server are still the addresses on the
      phone.
@@ -11565,50 +11566,32 @@ const Addr = {
      map downloaded for exactly that moment is empty.
 
      Once a session. The pack is quarterly; asking twice on one drive would
-     spend a signal that may well be the only one there is. */
-  freshen: async function () {
-    if (this.checked) return;
-    this.checked = true;
-    try {
-      const r = await fetch(CFG.ADDR_URL + "index.json", { cache: "no-cache" });
-      if (!r.ok) return;
-      const fresh = await r.json();
-      if (!fresh || !fresh.tiles) return;
-      /* cut, not release. release names the G-NAF quarter this was built
-         from - the input - and says nothing about what the builder did
-         with it. Change which fields a row carries, or stop collapsing
-         units onto their building, and every tile in the state changes
-         shape while the release string sits exactly where it was, and
-         every phone holding the old tiles would go on believing them. cut
-         is a hash of the release and the build's own shape together, so it
-         moves whenever the tiles do. */
-      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
-      this.manifest = fresh;
+     spend a signal that may well be the only one there is.
+
+     What is compared is the cut, not the release. release names the G-NAF
+     quarter this was built from - the input - and says nothing about what
+     the builder did with it. Change which fields a row carries, or stop
+     collapsing units onto their building, and every tile in the state
+     changes shape while the release string sits exactly where it was, and
+     every phone holding the old tiles would go on believing them. cut is a
+     hash of the release and the build's own shape together, so it moves
+     whenever the tiles do. */
+  freshen: function () {
+    const self = this;
+    return TileIndex.freshen(this, CFG.ADDR_URL, "addr", function () {
       /* The side indexes are cut in the same run as the tiles, so a new cut
          invalidates them too. Dropped from memory only - what is stored is
          re-checked when next wanted, and served stale if it cannot be. */
-      this.mem.clear();
-      this.count = 0;
-      this.tried.clear();
-      this.localities = null;
-      this.streets = null;
-      this.streetShards = null;
-      try { await DB.put("addr", fresh, "index"); } catch (e) { /* ignore */ }
-    } catch (e) { /* no signal: what is held is what there is */ }
+      self.mem.clear();
+      self.count = 0;
+      self.tried.clear();
+      self.localities = null;
+      self.streets = null;
+      self.streetShards = null;
+    });
   },
 
-  /* The cut everything stored in this store is measured against. null means
-     there is no manifest to measure against yet, and a stored copy is then
-     taken at its word rather than thrown at the network on a hunch.
-
-     An absent stamp counts as the empty one on both sides, so a phone still
-     holding a manifest and tiles from before any of this existed matches
-     itself and sits quiet. It stops matching the moment freshen brings down
-     a manifest carrying a real cut, which is the one time the refetch is
-     actually wanted. */
-  cut: function () {
-    return this.manifest ? (this.manifest.cut || "") : null;
-  },
+  cut: function () { return TileIndex.cut(this.manifest); },
 
   /* A file built alongside the tiles but stored on its own - localities and
      streets. Same rule as a tile: use the stored copy while it came from
@@ -11665,11 +11648,7 @@ const Addr = {
     return ok && !dlAbort;
   },
 
-  exists: function (x, y) {
-    if (!this.manifest || !this.manifest.tiles) return false;
-    const col = this.manifest.tiles[x];
-    return !!col && col.indexOf(y) >= 0;
-  },
+  exists: function (x, y) { return TileIndex.has(this.manifest, x, y); },
 
   /* Which tiles each suburb occupies, so a committed search can go and get
      the ones it needs. 14,135 suburbs, 360 KB gzipped, fetched the first
@@ -11846,16 +11825,7 @@ const Addr = {
   /* Every tile touching a box. z13 is about 4.3 km across here, so a 5 km
      bubble is four to nine of them. */
   cover: function (south, west, north, east) {
-    const z = CFG.ADDR_Z;
-    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
-    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
-    const out = [];
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
-        if (this.exists(x, y)) out.push([x, y]);
-      }
-    }
-    return out;
+    return TileIndex.cover(this.manifest, CFG.ADDR_Z, south, west, north, east);
   },
 
   /* Storage first, then the network, and the stored copy is trusted only
@@ -12434,26 +12404,9 @@ const Pack = {
 
   key: function (x, y) { return CFG.POI_PACK_Z + "/" + x + "/" + y; },
 
-  loadManifest: async function () {
-    if (this.manifest) return this.manifest;
-    try {
-      const held = await DB.get("poipack", "index");
-      if (held) this.manifest = held;
-    } catch (e) { /* idb unavailable - the network copy still works */ }
-    /* Fired, not waited on. A stored manifest already answers the question,
-       and out here there may be nothing on the other end to ask. */
-    if (this.manifest) { this.freshen(); return this.manifest; }
-    try {
-      const r = await fetch(CFG.POI_PACK_URL + "index.json");
-      if (!r.ok) throw new Error("http " + r.status);
-      this.manifest = await r.json();
-      this.checked = true;
-      try { await DB.put("poipack", this.manifest, "index"); } catch (e) { /* ignore */ }
-    } catch (e) {
-      this.manifest = null;
-    }
-    return this.manifest;
-  },
+  /* Fired, not waited on. A stored manifest already answers the question,
+     and out here there may be nothing on the other end to ask. */
+  loadManifest: function () { return TileIndex.load(this, CFG.POI_PACK_URL, "poipack"); },
 
   /* Whether the pack on the server is still the pack on the phone.
 
@@ -12469,32 +12422,22 @@ const Pack = {
      and refreshes the next time it is wanted. Nothing is deleted, because
      deleting is what would put a hole in an offline area - a driver who
      caught one bar in town, had their tiles thrown away for being old, and
-     drove back out of range would have the wrong kind of empty map. */
-  freshen: async function () {
-    if (this.checked) return;
-    this.checked = true;
-    try {
-      const r = await fetch(CFG.POI_PACK_URL + "index.json", { cache: "no-cache" });
-      if (!r.ok) return;
-      const fresh = await r.json();
-      if (!fresh || !fresh.tiles) return;
-      /* cut, not source. source is the Geofabrik checksum and names the
-         extract this was built from; cut names what came out of it, so it
-         also moves when the build changes which tags it carries. */
-      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
-      this.manifest = fresh;
-      this.span = null;
-      this.mem.clear();
-      this.tried.clear();
-      try { await DB.put("poipack", fresh, "index"); } catch (e) { /* ignore */ }
-    } catch (e) { /* no signal: what is held is what there is */ }
+     drove back out of range would have the wrong kind of empty map.
+
+     What is compared is the cut, not the source. source is the Geofabrik
+     checksum and names the extract this was built from; cut names what came
+     out of it, so it also moves when the build changes which tags it
+     carries. */
+  freshen: function () {
+    const self = this;
+    return TileIndex.freshen(this, CFG.POI_PACK_URL, "poipack", function () {
+      self.span = null;
+      self.mem.clear();
+      self.tried.clear();
+    });
   },
 
-  exists: function (x, y) {
-    if (!this.manifest || !this.manifest.tiles) return false;
-    const col = this.manifest.tiles[x];
-    return !!col && col.indexOf(y) >= 0;
-  },
+  exists: function (x, y) { return TileIndex.has(this.manifest, x, y); },
 
   /* Whether the pack knows this part of the world at all, which is a
      different question from whether there is anything here. Empty desert
@@ -12535,16 +12478,7 @@ const Pack = {
   },
 
   cover: function (south, west, north, east) {
-    const z = CFG.POI_PACK_Z;
-    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
-    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
-    const out = [];
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
-        if (this.exists(x, y)) out.push([x, y]);
-      }
-    }
-    return out;
+    return TileIndex.cover(this.manifest, CFG.POI_PACK_Z, south, west, north, east);
   },
 
   /* Storage first, then the network, and the stored copy is trusted only
@@ -13191,24 +13125,7 @@ const Route = {
      and making that wait on a request to see whether the road network has
      been rebuilt would be paying for freshness at the exact instant the
      driver is paying attention. */
-  loadManifest: async function () {
-    if (this.manifest) return this.manifest;
-    try {
-      const held = await DB.get("route", "index");
-      if (held) this.manifest = held;
-    } catch (e) { /* idb unavailable - the network copy still works */ }
-    if (this.manifest) { this.freshen(); return this.manifest; }
-    try {
-      const r = await fetch(CFG.ROUTE_URL + "index.json");
-      if (!r.ok) throw new Error("http " + r.status);
-      this.manifest = await r.json();
-      this.checked = true;
-      try { await DB.put("route", this.manifest, "index"); } catch (e) { /* ignore */ }
-    } catch (e) {
-      this.manifest = null;
-    }
-    return this.manifest;
-  },
+  loadManifest: function () { return TileIndex.load(this, CFG.ROUTE_URL, "route"); },
 
   /* Whether the road network on the server is still the road network on the
      phone.
@@ -13225,23 +13142,17 @@ const Route = {
      refreshed the next time it is wanted, so a rebuilt network comes down
      as the driver reaches it rather than in one purge. Nothing is deleted -
      deleting is what would put a hole in an offline area, and a hole in the
-     road graph is a route that cannot be drawn at all. */
-  freshen: async function () {
-    if (this.checked) return;
-    this.checked = true;
-    try {
-      const r = await fetch(CFG.ROUTE_URL + "index.json", { cache: "no-cache" });
-      if (!r.ok) return;
-      const fresh = await r.json();
-      if (!fresh || !fresh.tiles) return;
-      /* cut, not source. source is the Geofabrik checksum and names the
-         extract this was built from, not what came out of it. Add busway to
-         the class list, or change which surfaces count as unpaved, and
-         every edge in the state is repriced while the checksum sits exactly
-         where it was. cut is a hash of the extract and the build's own
-         shape together, so it moves whenever the edges do. */
-      if (this.manifest && fresh.cut && fresh.cut === this.manifest.cut) return;
-      this.manifest = fresh;
+     road graph is a route that cannot be drawn at all.
+
+     What is compared is the cut, not the source. source is the Geofabrik
+     checksum and names the extract this was built from, not what came out
+     of it. Add busway to the class list, or change which surfaces count as
+     unpaved, and every edge in the state is repriced while the checksum
+     sits exactly where it was. cut is a hash of the extract and the build's
+     own shape together, so it moves whenever the edges do. */
+  freshen: function () {
+    const self = this;
+    return TileIndex.freshen(this, CFG.ROUTE_URL, "route", function () {
       /* The graph in memory was folded out of the old cut, backbone
          included, so all of it goes - edges, geometry, adjacency and bins
          together. Half a graph from each of two builds would be worse than
@@ -13263,27 +13174,14 @@ const Route = {
          So the wipe waits for the loader to finish and happens at the top
          of the next one. A cycle spent on last month roads is a cycle on
          roads that are at least whole. */
-      this.stale = true;
-      if (!this.busy) this.dropGraph();
-      try { await DB.put("route", fresh, "index"); } catch (e) { /* ignore */ }
-    } catch (e) { /* no signal: what is held is what there is */ }
+      self.stale = true;
+      if (!self.busy) self.dropGraph();
+    });
   },
 
-  /* The cut everything stored in this store is measured against. null means
-     there is no manifest to measure against yet, and a stored pack is then
-     taken at its word rather than thrown at the network on a hunch. An
-     absent stamp counts as the empty one on both sides, so a phone holding
-     packs from before any of this existed matches itself and sits quiet
-     until freshen brings down a manifest carrying a real cut. */
-  cut: function () {
-    return this.manifest ? (this.manifest.cut || "") : null;
-  },
+  cut: function () { return TileIndex.cut(this.manifest); },
 
-  exists: function (x, y) {
-    if (!this.manifest || !this.manifest.tiles) return false;
-    const col = this.manifest.tiles[x];
-    return !!col && col.indexOf(y) >= 0;
-  },
+  exists: function (x, y) { return TileIndex.has(this.manifest, x, y); },
 
   /* The spine, once. Motorway, trunk, primary, secondary and the ferries
      for the whole country - 577,448 edges, 196,813 km, 10.4 MB over the
@@ -13498,16 +13396,7 @@ const Route = {
   /* Same box arithmetic the address packs use, and the same grid, so a
      drive that pulls one pulls the other from the same tile numbers. */
   cover: function (south, west, north, east) {
-    const z = CFG.ROUTE_Z;
-    const x0 = lon2tile(west, z), x1 = lon2tile(east, z);
-    const y0 = lat2tile(north, z), y1 = lat2tile(south, z);
-    const out = [];
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
-        if (this.exists(x, y)) out.push([x, y]);
-      }
-    }
-    return out;
+    return TileIndex.cover(this.manifest, CFG.ROUTE_Z, south, west, north, east);
   },
 
   around: function (lat, lng, radius) {
@@ -15487,10 +15376,7 @@ function tileWalk(aLat, aLng, bLat, bLng, z, add) {
     add(x, y);
   }
 }
-function lat2tile(lat, z) {
-  const r = rad(clamp(lat, -85.05112878, 85.05112878));
-  return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
-}
+function lat2tile(lat, z) { return Math.floor(lat2tileF(lat, z)); }
 let dlAbort = false;
 let suppressMapClickUntil = 0;   /* a finished drag must not also drop a waypoint */
 
@@ -17835,6 +17721,33 @@ function geoErrToast(err) {
   }
 }
 
+/* A fix has two ways in - the watch, and the button on the GPS panel - and
+   both put it in the same two places: the diagnostics, which want it raw,
+   and the pipe that moves the vehicle, which wants it judged.
+
+   Written once because the judging is where they must not differ. A heading
+   is believed only while the phone is moving fast enough to have one, since
+   a stationary phone reports whichever way it was last pointed and the map
+   would swing to it; and a null speed is nought rather than nothing, since
+   a phone that cannot measure speed is standing still as far as the rest of
+   the app is concerned. Two copies of that is two chances to fix one of
+   them and not the other. */
+function takeFix(pos) {
+  const c = pos.coords, t = pos.timestamp || Date.now();
+  GPS.fixes++;
+  GPS.lastAt = Date.now();
+  GPS.lastErr = null;
+  GPS.last = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, alt: c.altitude,
+               altAcc: c.altitudeAccuracy, spd: c.speed, hdg: c.heading, t: t };
+  return {
+    lat: c.latitude, lng: c.longitude,
+    alt: c.altitude, acc: c.accuracy,
+    spd: c.speed == null ? 0 : c.speed,
+    hdg: (c.heading != null && isFinite(c.heading) && c.speed > 0.6) ? c.heading : null,
+    sim: false, t: t
+  };
+}
+
 /* The request is made whether or not the context looks secure. Refusing to
    ask would hide the browser own answer, and browsers do not all agree on
    which schemes count - better to ask and report exactly what came back. */
@@ -17853,25 +17766,11 @@ function startGeo() {
     toast("Location will likely be refused: " + contextNote(), "warn");
   }
   geoWatch = navigator.geolocation.watchPosition(function (pos) {
-    const c = pos.coords;
-    GPS.fixes++;
-    GPS.lastAt = Date.now();
-    GPS.lastErr = null;
+    const fix = takeFix(pos);
     GPS.backoff = 0;                    /* the ladder starts from the bottom */
     cancelGeoRetry();
-    GPS.last = {
-      lat: c.latitude, lng: c.longitude, acc: c.accuracy,
-      alt: c.altitude, altAcc: c.altitudeAccuracy,
-      spd: c.speed, hdg: c.heading, t: pos.timestamp || Date.now()
-    };
     renderGpsPanel();
-    pushPosition({
-      lat: c.latitude, lng: c.longitude,
-      alt: c.altitude, acc: c.accuracy,
-      spd: c.speed == null ? 0 : c.speed,
-      hdg: (c.heading != null && isFinite(c.heading) && c.speed > 0.6) ? c.heading : null,
-      sim: false, t: pos.timestamp || Date.now()
-    });
+    pushPosition(fix);
   }, function (err) {
     GPS.errors++;
     GPS.lastErr = { code: err.code, msg: err.message || "", at: Date.now() };
@@ -17892,26 +17791,15 @@ function requestGeoOnce() {
   if (!navigator.geolocation) { toast("Geolocation unavailable on this browser", "err"); return; }
   toast("Asking for a fix...", "warn");
   navigator.geolocation.getCurrentPosition(function (pos) {
-    GPS.fixes++;
-    GPS.lastAt = Date.now();
-    GPS.lastErr = null;
+    const fix = takeFix(pos);
     const c = pos.coords;
-    GPS.last = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, alt: c.altitude,
-                 altAcc: c.altitudeAccuracy, spd: c.speed, hdg: c.heading,
-                 t: pos.timestamp || Date.now() };
     toast("Fix: " + c.latitude.toFixed(5) + ", " + c.longitude.toFixed(5) +
           " to " + Math.round(c.accuracy) + " m", "ok");
     /* This used to stop at the panel: the button proved a fix existed while
        the map stayed put and the lamp stayed red, which is a confusing thing
        to be told. A fix is a fix - send it down the same pipe the watch uses,
        so the vehicle moves and the lamp goes green. */
-    pushPosition({
-      lat: c.latitude, lng: c.longitude,
-      alt: c.altitude, acc: c.accuracy,
-      spd: c.speed == null ? 0 : c.speed,
-      hdg: (c.heading != null && isFinite(c.heading) && c.speed > 0.6) ? c.heading : null,
-      sim: false, t: pos.timestamp || Date.now()
-    });
+    pushPosition(fix);
     renderGpsPanel();
     rearmGeo(true);      /* a fresh watch, not the dead one it was pressed for */
   }, function (err) {

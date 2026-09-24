@@ -372,20 +372,16 @@ still while the number inside it is being redrawn.
 
 ### Hierarchy
 
-Ten sizes, sixteen names. Every `font-size` in `docs/index.html` is one of
-these tokens, and every token says what it is for — see The Named Step Rule.
+Nine sizes, fourteen names. Every `font-size` in `docs/index.html` is one
+of these tokens, and every token says what it is for — see The Named Step
+Rule.
 
-- **Display** (`--t-display`, 26px, tabular figures): the single large figure
-  in a dialog — a tile count, a total. Sand, not white. Tabular rather than
-  monospaced: it climbs during a download and must not jitter, which digits of
-  one width fix without a second typeface.
 - **Zoom** (`--t-zoom`, 20px): the map's `+` and `−` glyphs. Marks
   rather than words, which is why they carry no label; see The Instrument
   Label Rule.
 - **Readout** (`--t-read`, mono, 600, 17px, line-height 1.05): an instrument
   value read while moving — speed, heading, altitude, distance, time, and the
   navigation panel's remaining/travel/arrive figures — in Instrument White.
-  Compressed to 13px (`--t-read-tight`) where the bars stand on end.
 - **Field** (`--t-field`, 16px): text being typed into. A step of its own, and
   the only one above Body; see the comment on the rule for why 16.
 - **Brand** (`--t-brand`, 700, 14px, letter-spacing .16em, uppercase): the
