@@ -1977,6 +1977,99 @@ not — the box is always there and Navigate always stands in it, and an inset
 that came and went with a recording would walk the vehicle up and down the
 screen while somebody was driving.
 
+### Night Map
+
+**Only the map changes.** Everything around it has been a warm dark
+instrument cluster since it was drawn, so there is no theme to switch: the
+map is the one bright thing on the screen, and Liberty is a daylight sheet —
+cream ground, white roads, black labels. In a dark cabin that is a torch
+pointed at the driver.
+
+**Paint, not a second stylesheet.** `docs/style/night.json` is
+`{ layerId: { paintKey: value } }` and is applied with `setPaintProperty`. A
+`setStyle` would tear down the relief, the route line and the POI pins the
+app adds on top and make every one of them be added again; paint changes only
+what a layer resolves to, so the swap is instant, not one tile is re-fetched,
+and **6 KB covers 105 layers** against 43 KB for the style. What was there by
+day is captured the first time it is taken away, so Day is the value that was
+actually on the layer rather than a second palette that could drift from it —
+including the several layers given a halo they never had, where the value
+captured is `undefined` and has to be stored as one.
+
+**Recoloured by role, never by luminance.** This is the whole lesson of the
+attempt that was reverted the day it shipped. Esri drew a road as a white
+fill inside a dark casing, so inverting the tile turned the road itself black
+and left the casing as a hairline — road and ground sat in the same few
+luminance values and no filter could separate them. A vector layer says what
+it is, so a road can be made lighter than its ground while the ground goes
+dark, which is the one thing a filter could never do.
+
+The palette is the app's own rather than a generic dark map: the ground is
+the near-black with green in it the panels are cut from, labels are Warm
+Sand, and roads run up through the oxide family the accent belongs to, so a
+motorway is still the warm line it is by day. Measured against the ground:
+
+| | | | |
+|---|---|---|---|
+| Warm Sand label | 11.1 | motorway | 6.4 |
+| dim label | 5.8 | trunk | 5.1 |
+| water | 1.4 | secondary | 5.0 |
+| building | 1.1 | minor | 3.3 |
+
+Labels clear 4.5:1 and every road clears 3:1 — the Full Sun Rule read in the
+dark. **Water is the one that had to be argued**: at 1.35 it is barely a step
+in value, because the ground is already near-black and there is nowhere
+darker for water to go, so it carries on hue instead and is kept deliberately
+2.4:1 *below* the minor road. A creek has to be legible without competing
+with the road being driven.
+
+Sand over the motorway's ochre is 1.8:1, and that is what the halo is for.
+Every text layer is given one, including Liberty's several without a colour,
+and the width goes to 1.4: a night map asks more of a halo than a day map,
+because a label's ground is no longer nearly white.
+
+**Two things are deliberately left alone.** A highway shield is a sign, and a
+sign is light with dark ink whatever the hour — its face is a sprite baked
+into `ofm.png` that no paint here can reach, and Liberty gives its text no
+colour at all so it draws black on that box. Recoloured it became sand text
+with a near-black halo on a white box, which is the worst this pass could
+do. The one-way arrows are sprites for the same reason.
+
+**The relief needed its own entry and it is the piece that nearly went out
+wrong.** It multiplies over the map, so its highlight is near-white: over a
+nearly-white ground that is shading, and over a near-black one the same
+highlight lifts the whole surface into a grey mottle that reads as dirt on
+the screen. The first night render showed exactly that. Shadow to black,
+highlight down to a dim warm, exaggeration from 0.35 to 0.22 — the same
+relief, describing the ground instead of covering it.
+
+**Auto, Day or Night, and auto is the default**, because the driver has one
+hand and their eyes on the track and a setting nobody remembers to flip at
+dusk is a setting that leaves them dazzled.
+
+**The threshold is civil twilight, not sunset.** The reverted build switched
+at −0.833°, where the sun's upper limb touches the horizon — the definition
+an almanac prints a sunset against, and the wrong moment to darken a map,
+because there is plenty of light left at sunset. Measured with the app's own
+equations, sunset to civil twilight runs **21 minutes at Darwin to 35 at
+Hobart**, so switching at sunset would black the map out for half an hour of
+usable daylight every evening. −6° is the headlights-on moment, and the one
+people already have a word for.
+
+**Computed from position, never from the clock.** Ceduna and Broken Hill keep
+the same time and their sunsets are **31 minutes apart** — a rule written in
+hours is half an hour wrong at one end of one day's drive. The sun is asked
+for an altitude rather than for a sunset, which sidesteps which day a time
+belongs to; that question is real, since South Australian sunrise falls on
+yesterday's UTC date for most of the year, and the way not to answer it is
+not to ask. No fix means day: a map that starts dark on a phone that has not
+found itself yet is a fault, not a feature.
+
+**An override expires by itself.** Day or Night holds until the sun next
+crosses and then auto has it back, which is why the setting records what auto
+was saying at the moment it was overridden. Without that, one tap at a
+lookout turns the feature off for good and nothing ever says so.
+
 ### The Mark
 
 A heading arrow inside a bearing ring, in Burnt Orange on the app's own
