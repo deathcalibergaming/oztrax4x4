@@ -3548,6 +3548,19 @@ const CFG = {
      track underneath you, and at 30 it takes a real saving to be worth
      crossing a paddock for. */
   ROUTE_SNAP_KMH: 30,
+  /* What a route begun the wrong way costs, in seconds, when the vehicle is
+     moving and its heading is known. Not a ban: on a road with no junction
+     for twenty kilometres, turning round is the right answer and this lets
+     the search find it. In town it is the price of going round the block
+     instead, which is what a driver who has just turned the wrong way
+     wants to be told. Scaled from nothing at 45 degrees to this at 180, so
+     the cross street at a junction pays about half. */
+  ROUTE_UTURN_S: 90,
+  /* How much further than the nearest road a road may be and still be the
+     one taken, if it runs the way the vehicle is going. Enough to reach
+     across a divided road - its two carriageways sit ten to thirty metres
+     apart - and the width of a junction. */
+  ROUTE_MATCH_SLACK: 30,
   /* A safety valve, not a budget, and set from what the hard routes
      actually cost rather than from the size of the graph.
 
@@ -3589,9 +3602,27 @@ const CFG = {
      than to its corners, so the slack a simplified curve needs is metres,
      not hundreds of them - the packs' longest chords sag about twenty. */
   NAV_OFF_ROUTE: 60,
+  /* A wrong turn announces itself by the way the vehicle points long before
+     it is sixty metres from anything: turn right where the route goes
+     straight on and the heading is ninety degrees off the line at once.
+     Sixty metres of that is four seconds at fifty, and a recalculation
+     four seconds after the corner is a driver already committed to the
+     wrong street. So fifteen metres off, pointing more than sixty degrees
+     away from the way the line runs, counts too - both at once, because a
+     heading alone is every lane change and fifteen metres alone is every
+     GPS that has lost a building's worth of sky. */
+  NAV_OFF_TURN: 15,
+  NAV_OFF_ANGLE: 60,
   NAV_OFF_FIXES: 2,        /* one bad fix is not a wrong turn; two in a row is */
   NAV_RECALC_GAP: 5000,    /* and how often we are willing to recalculate */
   NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
+  /* How close to the line the vehicle has to be, and how nearly along it it
+     has to point, to be drawn on it - see navSnap. Twenty-five metres is
+     the far side of what a phone's GPS does in a street; past it, or
+     pointing away, the vehicle is drawn where the fix says, so a wrong turn
+     is seen on the screen as soon as it is made. */
+  NAV_SNAP_M: 25,
+  NAV_SNAP_ANGLE: 50,
   /* How far either side of a junction the line is read to find the angle of
      it. Just past nothing: see navBearAt. */
   NAV_TURN_WIN: 5,
@@ -3861,6 +3892,8 @@ function lerpAngle(a, b, t) {
   const d = ((b - a + 540) % 360) - 180;
   return (a + d * t + 360) % 360;
 }
+/* How far apart two bearings are, 0 to 180, the short way round. */
+function angleOff(a, b) { return Math.abs(((a - b + 540) % 360) - 180); }
 /* The header readout, which ticks while you drive and is labelled h:m under
    the number. Seconds have gone from it: a digit changing every second in the
    corner of the eye is movement to look at rather than anything to act on,
@@ -7015,6 +7048,13 @@ function pushPosition(fix) {
   view.alt = (fix.alt != null && isFinite(fix.alt)) ? fix.alt : null;
   view.acc = (fix.acc != null && isFinite(fix.acc)) ? fix.acc : null;
   view.lastFixAt = fix.t || Date.now();
+  /* The fix itself, kept apart from where the marker is drawn. They used to
+     be one thing, and navigation read the drawn position. That was already
+     a few frames behind the fix, and once the vehicle is drawn on the route
+     (see navSnap) it would be worse than late: a marker held on the line
+     can never be off it, so a wrong turn could never be noticed. */
+  view.fix = pt;
+  view.fixHdg = hdg;
 
   document.querySelector(".gps-icon").classList.toggle("sim", !!fix.sim);
   saveLS(LS.lastPos, { lat: pt.lat, lng: pt.lng });
@@ -7532,7 +7572,13 @@ const Rec = {
     this.state = "recording";
     trailClear();
     this.saved = 0; this.seq = 0; this.savedDist = 0;
-    if (view.has) this.push({ lat: view.tgt.lat, lng: view.tgt.lng, alt: view.alt, spd: view.speed, t: Date.now() });
+    /* The fix, not where the marker is drawn: navigating, that is on the
+       route line (see navSnap), and a track is a record of the drive rather
+       than of the plan. */
+    if (view.has) {
+      const at = view.fix || view.tgt;
+      this.push({ lat: at.lat, lng: at.lng, alt: view.alt, spd: view.speed, t: Date.now() });
+    }
     this.persist(); this.ui();
     /* No chip for a recording that started properly: the red dot in the
        header and the distance counting up say it, and keep saying it.
@@ -14078,27 +14124,79 @@ const Route = {
   },
 
   tryFind: function (from, to) {
-    const near = this.snapAll(from.lat, from.lng);
+    let near = this.snapAll(from.lat, from.lng);
     const dest = this.snapAll(to.lat, to.lng);
     if (!near.length || !dest.length) return null;
+    if (from.hdg != null) near = this.byHeading(near, from.hdg);
     const one = this.search(from, to, near.slice(0, 1), dest.slice(0, 1));
     if (one) return one;
     if (near.length < 2 && dest.length < 2) return null;
     return this.search(from, to, near, dest);
   },
 
+  /* Which way an edge may be driven. The graph has always honoured this
+     between junctions - link() threads only the legal direction - but the
+     two ends of a route are laid here, off the graph, and never asked. A
+     route could begin by driving the wrong way down a one-way street, or
+     the wrong way round a roundabout, and end the same way. */
+  canFwd: function (i) { return !(this.eF[i] & 2); },     /* eA towards eB */
+  canBwd: function (i) { return !(this.eF[i] & 1); },     /* eB towards eA */
+
+  /* The way the road points at position u, driven forward or back. */
+  headingAt: function (i, u, fwd) {
+    const n = this.eNp[i];
+    if (n < 2) return null;
+    const seg = Math.min(n - 2, Math.max(0, Math.floor(u)));
+    const b = bearing(this.pointAt(i, seg), this.pointAt(i, seg + 1));
+    return fwd ? b : (b + 180) % 360;
+  },
+
+  /* What setting off a way the vehicle is not facing costs - see
+     ROUTE_UTURN_S. Nothing when the heading is unknown, which is a vehicle
+     standing still: parked, it can pull out either way. */
+  turnCost: function (want, hdg) {
+    if (hdg == null || want == null) return 0;
+    const d = angleOff(want, hdg);
+    return d <= 45 ? 0 : CFG.ROUTE_UTURN_S * (d - 45) / 135;
+  },
+
+  /* Moving, the nearest road is not always the road. At a junction the
+     cross street is as near as the one being driven; between the two
+     carriageways of a divided road the other one is nearer as often as not,
+     and it runs the other way. Nearest-first put a reroute on whichever it
+     happened to be, so a driver who had just turned the wrong way was sent
+     back up the carriageway they were not on. The road taken now is the
+     nearest one the vehicle could be driving along: within
+     ROUTE_MATCH_SLACK of the nearest of all, and pointing within 45 degrees
+     of the way it is going. Nothing qualifies, nothing changes. */
+  byHeading: function (near, hdg) {
+    const reach = near[0].d + CFG.ROUTE_MATCH_SLACK;
+    for (let k = 0; k < near.length && near[k].d <= reach; k++) {
+      const c = near[k];
+      const along = (this.canFwd(c.i) && angleOff(this.headingAt(c.i, c.u, true), hdg) <= 45) ||
+                    (this.canBwd(c.i) && angleOff(this.headingAt(c.i, c.u, false), hdg) <= 45);
+      if (!along) continue;
+      return k === 0 ? near : [c].concat(near.slice(0, k), near.slice(k + 1));
+    }
+    return near;
+  },
+
   search: function (from, to, near, dest) {
     const a = near[0], b = dest[0];
+    const hdg = from.hdg == null ? null : from.hdg;
 
-    /* Both ends of every candidate destination edge are arrivals, each with
-       the stub from it back to the point actually asked for, and each
+    /* The ends of every candidate destination edge are arrivals, each with
+       the stub from it along to the point actually asked for, and each
        carrying what it cost to be standing off the road in the first place.
-       A node reached from two candidates keeps the cheaper. */
+       Only the ends the road can be driven from: arriving at eA is driving
+       the edge forward to the point, at eB back along it, and a one-way edge
+       offers the one. A node reached from two candidates keeps the cheaper. */
     const finish = new Map();
     for (const c of dest) {
       const gap = this.gapCost(c.d);
-      const ends = [[this.eA[c.i], this.part(c.i, 0, c.u)],
-                    [this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.u)]];
+      const ends = [];
+      if (this.canFwd(c.i)) ends.push([this.eA[c.i], this.part(c.i, 0, c.u)]);
+      if (this.canBwd(c.i)) ends.push([this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.u)]);
       for (const [node, stub] of ends) {
         const held = finish.get(node);
         if (held && held.cost + held.gap <= stub.cost + gap) continue;
@@ -14109,57 +14207,94 @@ const Route = {
       }
     }
 
-    /* And the search starts from all of them at once. The gap is in the
-       seed cost rather than left free, or a highway four kilometres off
-       would cost the same to join as the street outside the door. */
+    /* And the search starts from all of them at once, each in the
+       directions its road allows. The gap is in the seed cost rather than
+       left free, or a highway four kilometres off would cost the same to
+       join as the street outside the door; so is setting off the way the
+       vehicle is not facing - see turnCost. */
     const seeds = [];
     for (const c of near) {
       const gap = this.gapCost(c.d);
-      seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, i: c.i, stub: this.part(c.i, c.u, 0) });
-      seeds.push({ node: this.eB[c.i], d: c.d, gap: gap, i: c.i,
-                   stub: this.part(c.i, c.u, this.eNp[c.i] - 1) });
+      if (this.canBwd(c.i)) {
+        seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, i: c.i,
+                     pen: this.turnCost(this.headingAt(c.i, c.u, false), hdg),
+                     stub: this.part(c.i, c.u, 0) });
+      }
+      if (this.canFwd(c.i)) {
+        seeds.push({ node: this.eB[c.i], d: c.d, gap: gap, i: c.i,
+                     pen: this.turnCost(this.headingAt(c.i, c.u, true), hdg),
+                     stub: this.part(c.i, c.u, this.eNp[c.i] - 1) });
+      }
     }
 
-    /* Standing on the destination's own edge, with nothing to search. */
+    /* Standing on the destination's own edge. Straight along it is an answer,
+       if the road may be driven that way - but no longer the answer by
+       default: facing away from it, round the block may be cheaper than
+       turning round, and the search below is let decide. */
+    let direct = null, best = Infinity;
     if (a.i === b.i) {
-      const one = this.part(a.i, a.u, b.u);
-      return this.route([[from.lat, from.lng]].concat(one.pts, [[to.lat, to.lng]]),
-                        one.m, one.cost, a.d, b.d, [{ at: 0, i: a.i }]);
+      const fwd = b.u >= a.u;
+      if (fwd ? this.canFwd(a.i) : this.canBwd(a.i)) {
+        direct = this.part(a.i, a.u, b.u);
+        best = direct.cost + this.gapCost(a.d) + this.gapCost(b.d) +
+               this.turnCost(this.headingAt(a.i, a.u, fwd), hdg);
+      }
     }
 
+    /* Arriving is its own entry in the queue. It used to be the first node
+       with a destination stub hanging off it, taken the moment it came off
+       the heap - but the queue orders nodes by what it cost to reach them,
+       and the stub from each is a different length. The end of the street
+       nearest in driving could be the far end of the street from the house,
+       with the whole street still to drive back down. So reaching an
+       arrival node now prices the whole trip, stub and all, and posts that
+       as GOAL; the search stops when GOAL is the cheapest thing left, which
+       with an admissible estimate means nothing still queued can beat it.
+       Node keys are never negative, so -1 cannot be a real node. */
+    const GOAL = -1;
     const goal = { lat: to.lat, lng: to.lng };
     const g = new Map(), prev = new Map(), done = new Set();
     const open = new RouteHeap();
-    for (const s of seeds) {
-      const c = s.stub.cost + s.gap;
-      if (g.has(s.node) && g.get(s.node) <= c) continue;
-      g.set(s.node, c);
-      prev.set(s.node, null);
-      open.push(c + this.hope(s.node, goal), s.node);
+    if (direct) open.push(best, GOAL);
+    for (const sd of seeds) {
+      const c = sd.stub.cost + sd.gap + sd.pen;
+      if (g.has(sd.node) && g.get(sd.node) <= c) continue;
+      g.set(sd.node, c);
+      prev.set(sd.node, null);
+      open.push(c + this.hope(sd.node, goal), sd.node);
     }
 
     let end = null;
     let popped = 0;
     while (open.size()) {
       const n = open.pop();
+      if (n === GOAL) break;
       if (done.has(n)) continue;
       done.add(n);
       if (++popped > CFG.ROUTE_MAX_POPS) break;
-      if (finish.has(n)) { end = n; break; }
-      let s = this.adjHead.get(n);
-      if (s === undefined) continue;
+      const fin = finish.get(n);
+      if (fin) {
+        const total = g.get(n) + fin.cost + fin.gap;
+        if (total < best) { best = total; end = n; open.push(total, GOAL); }
+      }
+      let sl = this.adjHead.get(n);
+      if (sl === undefined) continue;
       const base = g.get(n);
-      for (; s >= 0; s = this.adjNext[s]) {
-        const i = s >> 1;
-        const to2 = (s & 1) ? this.eA[i] : this.eB[i];
+      for (; sl >= 0; sl = this.adjNext[sl]) {
+        const i = sl >> 1;
+        const to2 = (sl & 1) ? this.eA[i] : this.eB[i];
         const cost = base + this.eCost[i];
         if (g.has(to2) && g.get(to2) <= cost) continue;
         g.set(to2, cost);
-        prev.set(to2, [n, s]);
+        prev.set(to2, [n, sl]);
         open.push(cost + this.hope(to2, goal), to2);
       }
     }
-    if (end === null) return null;
+    if (end === null) {
+      if (!direct) return null;
+      return this.route([[from.lat, from.lng]].concat(direct.pts, [[to.lat, to.lng]]),
+                        direct.m, direct.cost, a.d, b.d, [{ at: 0, i: a.i }]);
+    }
 
     /* Walked back from the arrival, so the chain comes out in reverse and
        each edge is read in the direction it was driven. */
@@ -14171,9 +14306,9 @@ const Route = {
     /* Several seeds can sit on the same node; the one that set g is the one
        the chain came back through, so the cheapest is the one to report. */
     let seed = null;
-    for (const s of seeds) {
-      if (s.node !== n) continue;
-      if (!seed || s.stub.cost + s.gap < seed.stub.cost + seed.gap) seed = s;
+    for (const sd of seeds) {
+      if (sd.node !== n) continue;
+      if (!seed || sd.stub.cost + sd.gap + sd.pen < seed.stub.cost + seed.gap + seed.pen) seed = sd;
     }
     if (!seed) return null;
     const startStub = seed.stub;
@@ -14185,20 +14320,29 @@ const Route = {
        rather than "in 400 metres, something". */
     const marks = [{ at: 0, i: seed.i }];
     let m = startStub.m;
-    for (const [, s] of chain) {
-      const i = s >> 1;
-      const off = this.eOff[i], n = this.eNp[i];
-      const back = !!(s & 1);
+    for (const [, sl] of chain) {
+      const i = sl >> 1;
+      const off = this.eOff[i], np = this.eNp[i];
+      const back = !!(sl & 1);
       marks.push({ at: pts.length, i: i });
-      for (let p = 0; p < n; p++) {
-        const q = back ? n - 1 - p : p;
+      for (let p = 0; p < np; p++) {
+        const q = back ? np - 1 - p : p;
         pts.push([this.geo[off + q * 2] / 1e5, this.geo[off + q * 2 + 1] / 1e5]);
       }
       m += this.eM[i];
     }
+    /* The last stretch runs from the arrival node along to the point, which
+       is the order part() hands it over in. It was appended backwards from
+       the first day the router ran on the phone, so every route drawn out of
+       the packs reached the destination, doubled back to the end of the
+       street and then jumped to the finish: measured on four trips round
+       Mawson Lakes, the line got to 17 m from the pin, went back out to 182,
+       and landed. That hook was a false U-turn at the end of every trip, a
+       distance remaining that ran long, and a turn in the instructions that
+       was never there. */
     const endStub = finish.get(end);
     marks.push({ at: pts.length, i: endStub.i });
-    for (let p = endStub.pts.length - 1; p >= 0; p--) pts.push(endStub.pts[p]);
+    for (const p of endStub.pts) pts.push(p);
     pts.push([to.lat, to.lng]);
     m += endStub.m;
     /* The gap decided which roads to use and then comes back out of the
@@ -14206,11 +14350,12 @@ const Route = {
        one, and the card already says "nearest road is N away" in its own
        right - leaving it in would charge for that twice and would move
        every estimate the app has ever given by a few seconds for no reason
-       a driver could see.
+       a driver could see. The turning penalty comes out for the same
+       reason: it chose the road, and nobody drives it.
 
        Reported against the roads actually used, not the ones that happened
        to be nearest, which is the whole point of there being a choice. */
-    return this.route(pts, m, g.get(end) - seed.gap + endStub.cost,
+    return this.route(pts, m, g.get(end) - seed.gap - seed.pen + endStub.cost,
                       seed.d, endStub.d, marks);
   },
 
@@ -16397,7 +16542,10 @@ const Nav = {
 
 
 function navFrom() {
-  if (view.has) return { lat: view.cur.lat, lng: view.cur.lng };
+  if (view.has) {
+    const p = view.fix || view.cur;
+    return { lat: p.lat, lng: p.lng, hdg: navHeading() };
+  }
   const c = visibleBounds().getCenter();
   return { lat: c.lat, lng: c.lng };
 }
@@ -17374,6 +17522,80 @@ async function navigateTo(dest, quiet) {
   if (!quiet) closeDrawer();
 }
 
+/* Which way the vehicle is going, when it is going somewhere - null when it
+   is not. Below HDG_GPS_MIN the GPS course is noise, and the magnetometer
+   that takes over for the arrow says which way the phone points, which on
+   a dashboard is not the way the vehicle does. A route must not be bent
+   round either of them. */
+function navHeading() {
+  if (!view.has || view.fixHdg == null || !isFinite(view.fixHdg)) return null;
+  return view.speed >= CFG.HDG_GPS_MIN ? view.fixHdg : null;
+}
+
+/* The way the line runs along segment i. */
+function navSegBearing(i) {
+  const n = Nav.coords.length;
+  if (n < 2) return null;
+  const k = Math.max(0, Math.min(n - 2, i));
+  return bearing({ lat: Nav.coords[k][0], lng: Nav.coords[k][1] },
+                 { lat: Nav.coords[k + 1][0], lng: Nav.coords[k + 1][1] });
+}
+
+/* Which way the route goes from the nearest point on it. Not always the way
+   the nearest segment runs: carry straight on where the route turns and the
+   nearest point on the line is the corner itself, which the segment coming
+   into it claims - and that segment points exactly the way the vehicle is
+   going. Asked of it, a missed turn looked like being bang on the route. So
+   a point clamped to the end of its segment reads the segment after it,
+   which is the way the route actually leaves. */
+function navAheadBearing(near) {
+  return navSegBearing(near.t > 0.99 ? near.i + 1 : near.i);
+}
+
+/* The vehicle drawn on the road it is driving, while it is driving the route.
+
+   A phone's fix wanders three to ten metres either side of the truth, and
+   more between buildings, so the arrow drawn straight from it ran along the
+   verge, drifted across the centre line and cut the corners - on a map
+   whose whole claim is that it shows where you are. Every navigation app
+   draws the vehicle on the route line for as long as the fix says it is on
+   the route, and this now does too: the marker's target is moved onto the
+   nearest point of the line, and pointed along it.
+
+   Only while that is the truth. Past NAV_SNAP_M from the line, or pointing
+   more than NAV_SNAP_ANGLE away from the way it runs, or once the route is
+   lost, the vehicle is drawn where the fix says - so a wrong turn shows on
+   the screen as the turn is made rather than being held on a road the
+   vehicle has left. A straight line is never snapped to: it is a bearing,
+   not a road.
+
+   What moves is the drawing and nothing else. The track is recorded from
+   the fix, the off-route check reads the fix, and the speed and the POI
+   bubble see the fix; a recorded track that had been snapped to the route
+   would be a record of the plan rather than of the drive. */
+function navSnap(near, hdg) {
+  if (Nav.lost || Nav.via === "direct") return;
+  if (!(near.off <= CFG.NAV_SNAP_M)) return;
+  const along = navAheadBearing(near);
+  if (hdg != null && along != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) return;
+  /* The drawn target is not always the fix - stopped, it is held against
+     the receiver's wander - so it is the target that goes onto the line,
+     looked for a few segments either side of where the fix landed. */
+  const t = view.tgt, n = Nav.coords.length;
+  let best = null, at = near.i;
+  for (let i = Math.max(0, near.i - 3); i < Math.min(n - 1, near.i + 4); i++) {
+    const r = segNear(t, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] },
+                         { lat: Nav.coords[i + 1][0], lng: Nav.coords[i + 1][1] });
+    if (!best || r.d < best.d) { best = r; at = i; }
+  }
+  if (!best || best.d > CFG.NAV_SNAP_M) return;
+  view.tgt = { lat: best.lat, lng: best.lng };
+  /* Pointed along the line only while moving. Stopped, the compass has the
+     arrow and turns it on the spot, which is the one thing a line cannot
+     tell it. */
+  if (hdg != null) { const b = navSegBearing(at); if (b != null) view.hdgTgt = b; }
+}
+
 /* Progress is measured against the nearest point on the route. The cursor
    only ever scans a window around where we were last, so a 600 km route
    costs the same per fix as a short one. */
@@ -17440,9 +17662,14 @@ function navProgress() {
      else. Two seconds, and then the route itself is thirty milliseconds -
      the packs are already in memory by then, so a recalculation on a road
      already driven into fetches nothing at all. */
-  if (near.off > CFG.NAV_OFF_ROUTE) Nav.offFor++;
+  const hdg = navHeading();
+  const along = navAheadBearing(near);
+  const turned = hdg != null && along != null && near.off > CFG.NAV_OFF_TURN &&
+                 angleOff(along, hdg) > CFG.NAV_OFF_ANGLE;
+  if (near.off > CFG.NAV_OFF_ROUTE || turned) Nav.offFor++;
   else Nav.offFor = 0;
   Nav.lost = Nav.offFor >= CFG.NAV_OFF_FIXES;
+  navSnap(near, hdg);
 
   if (Nav.lost) {
     /* Nothing to be off, when the line was only ever a bearing. It still
