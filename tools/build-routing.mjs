@@ -109,8 +109,36 @@ const PRECISION = 100000;     /* five decimals, a bit over a metre */
    This is only safe because snapping projects onto the segment between
    corners rather than onto the corners themselves. While it went corner to
    corner, thinning them took the 99th percentile snap error from 155 m to
-   791 m. See segNear in index.html. */
+   791 m. See segNear in index.html.
+
+   Five metres is the ceiling, not the rule - see SIMPLIFY_REL. */
 const SIMPLIFY_M = 5;
+
+/* The tolerance for a stretch is this fraction of its own length, between
+   SIMPLIFY_FLOOR and SIMPLIFY_M.
+
+   A fixed five metres is nothing on a highway and everything on a
+   roundabout. The roundabouts in these packs are six to eight metres in
+   radius, and the sag of an arc that size stays under five metres until it
+   has swept most of a half circle - so every arc between two entries was
+   thinned to one straight line. Measured on the shipped packs at Mawson
+   Lakes: a roundabout OpenStreetMap draws with twenty points arrived as
+   five two-point chords, a pentagon, and one of twenty-three arrived as a
+   square. The route was drawn straight across the island in the middle and
+   the vehicle, now drawn on the route line, went across it too. Street
+   corners, slip lanes and hairpins lost their curve the same way, only
+   less visibly.
+
+   A stretch is judged against its own length instead. Eight percent of a
+   five hundred metre chord is forty metres, so the five metre ceiling
+   still governs every long road exactly as before and a straight is still
+   cut back to its ends; eight percent of the eleven metre chord across a
+   quarter of a roundabout is under a metre, which keeps the arc. The floor
+   is the grid itself: PRECISION puts a coordinate on a lattice a bit over
+   a metre apart, and a tolerance finer than half of that is asking about a
+   difference the file cannot hold. */
+const SIMPLIFY_REL = 0.08;
+const SIMPLIFY_FLOOR = 0.5;
 
 /* Smallest first, so a build that is going to fall over does it in the
    first minute rather than the fortieth. */
@@ -455,7 +483,7 @@ function cutStamp(source) {
   const shape = JSON.stringify([
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
-    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M,
+    [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M, SIMPLIFY_REL, SIMPLIFY_FLOOR,
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
     "dir1"
@@ -899,7 +927,10 @@ function perpM(pLat, pLng, aLat, aLng, bLat, bLng, kx) {
    corners drawn between them.
 
    Iterative rather than recursive; some of these runs are thousands of
-   points long and a recursive one can bottom out the stack on a bad split. */
+   points long and a recursive one can bottom out the stack on a bad split.
+
+   tol is the ceiling. Each stretch is held to SIMPLIFY_REL of its own chord
+   within it, so the short tight ones keep their shape - see SIMPLIFY_REL. */
 function simplify(pts, tol) {
   const n = pts.length / 2;
   if (n <= 2 || !(tol > 0)) return pts;
@@ -917,7 +948,10 @@ function simplify(pts, tol) {
                       pts[j * 2], pts[j * 2 + 1], kx);
       if (d > worst) { worst = d; at = k; }
     }
-    if (worst > tol) { keep[at] = 1; stack.push([i, at], [at, j]); }
+    const chord = metres(pts[i * 2] / PRECISION, pts[i * 2 + 1] / PRECISION,
+                         pts[j * 2] / PRECISION, pts[j * 2 + 1] / PRECISION);
+    const allow = Math.min(tol, Math.max(SIMPLIFY_FLOOR, chord * SIMPLIFY_REL));
+    if (worst > allow) { keep[at] = 1; stack.push([i, at], [at, j]); }
   }
   const out = [];
   for (let k = 0; k < n; k++) if (keep[k]) out.push(pts[k * 2], pts[k * 2 + 1]);
