@@ -287,6 +287,18 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   moment with a swipe. The icons and the splash mark are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.
+- **Files are saved through Android's Save dialog** (`SaveFilePlugin.java`),
+  because a WebView has nowhere to put a download. Back Up and GPX export
+  hand the file across in quarter-million-character pieces and say "saved"
+  only once it is; the driver picks the folder, and no storage permission is
+  asked for.
+- **A recording carries on with the screen off.** From Record to Pause or
+  Stop, `TrackService` - a foreground service with the notification Android
+  requires - logs every GPS fix itself. Back in the app, `Keeper` in
+  index.html takes the fixes the page missed through the recorder's own
+  filters, oldest first, before any live ones; the line has no hole and the
+  distance is the whole drive's. It needs no background-location permission,
+  being started from the app in front.
 
 Build a development copy - package `io.github.deathcalibergaming.twa.dev`,
 named "OzTrax Recon dev", so it installs beside the Play app rather than
@@ -303,10 +315,10 @@ under `C:\Users\mickj\.bubblewrap\`. The release build carries the Play
 package ID with version code 4, one above the TWA's, so it goes to Play as
 an update.
 
-Not working in the app yet, and known: **Back Up and GPX export** save
-nothing, because a WebView has nowhere to put a download (Restore works - it
-is a file picker, which Capacitor handles); **recording with the screen
-off**; and the data still depends on this site.
+Still to come: the data depends on this site until it moves to Play asset
+packs and a host of its own. Before the first release to Play, the Play
+Console wants the foreground-service declaration for location - what it is
+for, and a short video of it - alongside the usual listing updates.
 
 ## Carrying the driver's own work across
 

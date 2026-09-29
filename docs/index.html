@@ -3414,6 +3414,9 @@ const DATA = NATIVE ? SITE : "";
 if (NATIVE) {
   const privacy = document.getElementById("privacyLink");
   if (privacy) privacy.href = SITE + "privacy.html";
+  /* and the one thing the settings say that the app has made untrue */
+  const awake = document.getElementById("awakeNote");
+  if (awake) awake.textContent = "Keeps the screen on; off saves battery. A recording carries on with the screen dark either way.";
 }
 
 const CFG = {
@@ -7758,7 +7761,18 @@ const Rec = {
     if (tipLine.getLatLngs().length > CFG.TRAIL_TIP) this.redraw();
   },
 
+  /* While the fixes the phone logged with the screen off are being taken in,
+     the live ones wait behind them, so the track goes down in the order it
+     was driven - see Keeper. */
+  held: null,
+
   onFix: function (fix) {
+    if (this.state !== "recording") return;
+    if (this.held) { this.held.push(fix); return; }
+    this.take(fix);
+  },
+
+  take: function (fix) {
     if (this.state !== "recording") return;
     if (fix.acc != null && fix.acc > 60 && !fix.sim) return;      /* junk fix */
     const prev = this.points[this.points.length - 1];
@@ -7922,7 +7936,80 @@ const Rec = {
     $("#btnRecPause").textContent = this.state === "paused" ? "Resume" : "Pause";
     $("#btnRecPause").className = "btn sm " + (this.state === "paused" ? "go" : "warnb");
     if (typeof Wake !== "undefined") Wake.apply();   /* hold the screen while recording */
+    if (typeof Keeper !== "undefined") Keeper.sync(); /* and, in the app, the GPS behind it */
     updateStats();
+  }
+};
+
+/* ---------------------------------------------------------------------
+   The track with the screen off - in the Android app.
+
+   In a browser a recording stops at the power button: Android pauses the
+   page, its GPS watch with it, and the line jumps the hole when the driver
+   comes back. The app runs TrackService for as long as a recording is
+   running, which logs every fix itself, screen on or off, with the
+   notification Android requires.
+
+   What the page records while it is awake is unchanged. Coming back to the
+   app, it asks the service for every fix after the last point it has and
+   takes them in through Rec.take, oldest first, exactly as if it had been
+   awake for them - the jitter filter, the junk-fix filter and the distance
+   all apply - and only then lets the live fixes that arrived meanwhile in
+   behind them. So the line has no hole, and the distance is the drive's.
+
+   The service is started and stopped from Rec.ui, which every change of
+   state already passes through: running while recording, off while paused
+   or stopped. Stopping waits for a catch-up in flight, because the service
+   forgets its fixes when it stops. */
+const Keeper = {
+  on: false,
+  catching: null,
+
+  sync: function () {
+    if (!NATIVE) return;
+    const want = Rec.state === "recording";
+    if (want === this.on) return;
+    this.on = want;
+    const cap = window.Capacitor;
+    if (want) {
+      cap.nativePromise("Tracker", "start", {}).catch(function () { Keeper.on = false; });
+    } else {
+      Promise.resolve(this.catching).then(function () {
+        if (!Keeper.on) cap.nativePromise("Tracker", "stop", {}).catch(function () {});
+      });
+    }
+  },
+
+  catchUp: function () {
+    if (!NATIVE || !this.on || this.catching || Rec.state !== "recording") return this.catching;
+    this.catching = this.take().finally(function () { Keeper.catching = null; });
+    return this.catching;
+  },
+
+  take: async function () {
+    const cap = window.Capacitor, MAX = 2000;
+    const lastT = function () { return Rec.points.length ? Rec.points[Rec.points.length - 1].t : Rec.startedAt; };
+    const d0 = Rec.dist, n0 = Rec.points.length;
+    Rec.held = [];
+    try {
+      let after = lastT();
+      for (;;) {
+        const r = await cap.nativePromise("Tracker", "since", { after: after, max: MAX });
+        const got = (r && r.fixes) || [];
+        for (let i = 0; i < got.length; i++) Rec.take(got[i]);
+        if (got.length) after = got[got.length - 1].t;
+        if (got.length < MAX) break;
+        await yieldToPage();
+      }
+    } catch (e) { /* the service had nothing to give; the live fixes carry on */ }
+    const held = Rec.held;
+    Rec.held = null;
+    /* A watch waking up can hand back a fix older than the ones just taken
+       in; it is only a repeat of one, and would put the line back in time. */
+    for (let i = 0; i < held.length; i++) if (held[i].t == null || held[i].t > lastT()) Rec.take(held[i]);
+    if (Rec.points.length - n0 > 1 && Rec.dist > d0) {
+      toast("Kept recording with the screen off: " + fmtDist(Rec.dist - d0) + " added", "ok");
+    }
   }
 };
 
@@ -8237,8 +8324,14 @@ function buildGPX(track) {
 
 /* text is a string, or the pieces of one. A Blob takes the pieces as they
    are, so a backup never has to exist as a single string - see Backup.write,
-   where that is the difference between a spare megabyte and thirty. */
+   where that is the difference between a spare megabyte and thirty.
+
+   Answers whether a file was saved. In a browser that is always yes - the
+   download has been handed over - but in the app the driver chooses where it
+   goes and may back out, and "Backed up" said over a file that was never
+   written would be the worst thing this could say. */
 function downloadText(filename, text, mime) {
+  if (NATIVE) return saveNative(filename, [].concat(text), mime);
   const blob = new Blob([].concat(text), { type: (mime || "text/plain") + ";charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -8247,6 +8340,43 @@ function downloadText(filename, text, mime) {
   document.body.appendChild(a);
   a.click();
   setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+  return Promise.resolve(true);
+}
+
+/* The app's way to the same place. A WebView has nowhere to put a download,
+   so Back Up and GPX export saved nothing there; this opens Android's Save
+   dialog instead (SaveFilePlugin) and writes the file across in pieces of a
+   quarter of a million characters, so a season of tracks is never one string
+   crossing into Java. A piece never ends between the two halves of a
+   character that takes two - each is written out on its own, and half a
+   character written alone is a broken one.
+
+   Anything that is not JSON is saved as plain bytes: Android's Downloads
+   renames a file whose type it does not recognise to one it does, and
+   track.gpx turns up as track.gpx.xml. */
+async function saveNative(filename, parts, mime) {
+  const cap = window.Capacitor, PIECE = 262144;
+  const r = await cap.nativePromise("SaveFile", "open", {
+    name: filename, mime: mime === "application/json" ? mime : "application/octet-stream"
+  });
+  if (!r || !r.saved) return false;
+  try {
+    let buf = "";
+    for (const p of parts) {
+      buf += p;
+      while (buf.length >= PIECE) {
+        let k = PIECE;
+        const c = buf.charCodeAt(k - 1);
+        if (c >= 0xD800 && c <= 0xDBFF) k--;
+        await cap.nativePromise("SaveFile", "write", { text: buf.slice(0, k) });
+        buf = buf.slice(k);
+      }
+    }
+    if (buf) await cap.nativePromise("SaveFile", "write", { text: buf });
+  } finally {
+    await cap.nativePromise("SaveFile", "close", {});
+  }
+  return true;
 }
 
 async function exportTrack(id) {
@@ -8256,8 +8386,9 @@ async function exportTrack(id) {
     const d = new Date(t.startedAt);
     const p = (n) => String(n).padStart(2, "0");
     const stamp = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
-    downloadText(slug(t.name) + "-" + stamp + ".gpx", buildGPX(t), "application/gpx+xml");
-    toast("GPX exported", "ok");
+    if (await downloadText(slug(t.name) + "-" + stamp + ".gpx", buildGPX(t), "application/gpx+xml")) {
+      toast("GPX exported", "ok");
+    }
   } catch (e) { toast("Export failed", "err"); }
 }
 
@@ -16297,9 +16428,9 @@ const Backup = {
       await yieldToPage();           /* a season of tracks must not freeze the map */
     }
     parts.push("]}");
-    downloadText("oztrax-backup-" + new Date().toISOString().slice(0, 10) + ".json",
-                 parts, "application/json");
-    toast("Backed up " + counts.tracks + " tracks and " + counts.waypoints + " waypoints", "ok");
+    const saved = await downloadText("oztrax-backup-" + new Date().toISOString().slice(0, 10) + ".json",
+                                     parts, "application/json");
+    if (saved) toast("Backed up " + counts.tracks + " tracks and " + counts.waypoints + " waypoints", "ok");
   },
 
   /* The file is read whole and parsed whole, which is the one place here
@@ -20151,7 +20282,10 @@ document.addEventListener("keydown", function (e) {
     if (GPS.perm !== "denied" && (!GPS.lastAt || Date.now() - GPS.lastAt > 10000)) {
       rearmGeo(true);
     }
-    if (Rec.state === "recording" && GPS.lastAt) {
+    /* In the app the fixes were not missed: the phone kept them, and they
+       go into the track now. */
+    if (NATIVE && Keeper.on) Keeper.catchUp();
+    else if (Rec.state === "recording" && GPS.lastAt) {
       const gap = Date.now() - GPS.lastAt;
       if (gap > CFG.REC_GAP_MS) {
         toast("No fixes for " + Math.round(gap / 1000) + "s - the track has a gap here", "warn");

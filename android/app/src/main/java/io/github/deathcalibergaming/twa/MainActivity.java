@@ -20,6 +20,8 @@ public class MainActivity extends BridgeActivity {
            handed over properly on every Android version, not only 12 on. */
         SplashScreen.installSplashScreen(this);
         registerPlugin(NavVoicePlugin.class);
+        registerPlugin(SaveFilePlugin.class);
+        registerPlugin(TrackerPlugin.class);
         super.onCreate(savedInstanceState);
         /* The volume buttons change the volume the navigation voice speaks
            on, whether or not anything is playing. Left to Android they change
