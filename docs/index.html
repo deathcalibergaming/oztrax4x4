@@ -1413,17 +1413,27 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* No colour here. It was set on every svg in the bar at an id's weight, so
    the THEN arrow's own dim below never won and it came out full blue. */
 #turnBar svg{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.tb-txt{min-width:0}
+/* The column is held at the height a distance and a road take together, and
+   whatever is in it is centred there - see the no-distance rule below. */
+.tb-txt{min-width:0;display:flex;flex-direction:column;justify-content:center;
+  min-height:calc(var(--t-read) * 1.05 + var(--t-body) * 1.3)}
 .tb-line{display:flex;align-items:baseline;gap:8px;min-width:0;
   min-height:calc(var(--t-read) * 1.05)}
 /* The third gauge in the app, and the third monospaced thing. Same reason as
    the stat bar and the nav panel: it counts down while you drive at it. */
 .tb-line b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--hud);
   line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums}
-/* No distance - off route, arrived, cancelled - and the empty figure still
-   took the row's gap, which set the word 8px in from the name under it. The
-   row keeps its height from its own min-height, so it goes. */
+/* No distance - off route, arrived, cancelled. The empty figure still took
+   the row's gap, which set the word 8px in from the name under it, so it
+   goes. And the row lets go of the height it keeps for the figure: held, it
+   left the word floating 6px over the name at the top of a row sized for a
+   17px gauge, and on a phone on its side - one row, baseline to baseline -
+   it lifted the whole line 2.6px above the tile's middle. Let go, the word
+   sits on the name like any label, and the column centres the pair. The bar
+   stays the height it always is: upright, the column holds it; on its side,
+   the tile does. */
 .tb-line b:empty{display:none}
+.tb-line:has(> b:empty){min-height:0}
 .tb-line span{font-size:var(--t-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--hud);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Kept at its own height even when the road has no name, which out here is
@@ -1473,7 +1483,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   #turnBar{padding:5px 8px;gap:8px}
   .tb-ico{width:28px;height:28px}
   .tb-ico svg{width:20px;height:20px}
-  .tb-txt{display:flex;align-items:baseline;gap:9px}
+  .tb-txt{display:flex;flex-direction:row;align-items:baseline;gap:9px;min-height:0}
   .tb-line{flex:0 0 auto}
   .tb-road{flex:1 1 auto;min-width:0;min-height:0}
 }
