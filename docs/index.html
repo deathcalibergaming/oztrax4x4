@@ -3615,7 +3615,24 @@ const CFG = {
   NAV_OFF_ANGLE: 60,
   NAV_OFF_FIXES: 2,        /* one bad fix is not a wrong turn; two in a row is */
   NAV_RECALC_GAP: 5000,    /* and how often we are willing to recalculate */
-  NAV_ARRIVE: 60,          /* metres from the destination counts as arrived */
+  /* Arrived is the end of the route, not a circle round the pin - see
+     navArrived. Ten metres of it left while moving: two car lengths, and a
+     driver slowing to pull up covers them in the last few seconds of the
+     trip rather than the last few hundred metres. A fix that lands past the
+     end reads as none left rather than as missed, so a vehicle going too
+     fast for one to land inside it still arrives, a second later.
+
+     Thirty once stopped, because the kerb out the front is wherever there
+     was a space. A vehicle stopped thirty metres short at a set of lights
+     is told it has arrived at a place across the intersection, which is
+     close enough to be true. */
+  NAV_ARRIVE: 10,
+  NAV_ARRIVE_STOP: 30,
+  /* How far the pin can sit from the road and reaching the road still
+     count. A house, a servo or a shop is set back from the kerb; past sixty
+     metres it is somewhere in a paddock, and then it is the pin itself, to
+     within this much, that has to be reached. */
+  NAV_ARRIVE_OFF: 60,
   /* How close to the line the vehicle has to be, and how nearly along it it
      has to point, to be drawn on it - see navSnap. Twenty-five metres is
      the far side of what a phone's GPS does in a street; past it, or
@@ -16527,6 +16544,8 @@ const Nav = {
   offFor: 0,             /* fixes running that the vehicle has been off the line */
   lost: false,           /* and whether that has gone on long enough to believe */
   head: 0, tail: 0,      /* the first and last point actually on a road */
+  hop: 0,                /* how far the pin is from that last point */
+  end: 0,                /* where the trip ends: that point or the pin - see navArrived */
   turns: [],             /* [{at, m, ang, kind, name}] - read off legs, below */
   duration: 0,           /* seconds for the whole route, as routed */
   idx: 0,                /* cursor into coords, so progress is cheap */
@@ -17501,6 +17520,11 @@ async function navigateTo(dest, quiet) {
   Nav.legs = r.legs || null;
   Nav.head = r.head || 0;
   Nav.tail = r.tail == null ? r.coords.length - 1 : r.tail;
+  /* Where arriving is. The end of the road when the pin sits beside it,
+     which is nearly always, so the distance counted down is the distance
+     there is to drive and it runs out where the vehicle stops. */
+  Nav.hop = haversine({ lat: r.coords[Nav.tail][0], lng: r.coords[Nav.tail][1] }, Nav.dest);
+  Nav.end = Nav.hop <= CFG.NAV_ARRIVE_OFF ? Nav.tail : r.coords.length - 1;
   Nav.offFor = 0;
   Nav.lost = false;
   Nav.duration = r.duration;
@@ -17617,18 +17641,87 @@ function navNearestIdx() {
      thins corners with a five metre tolerance measured the same way, so the
      drawn line is never more than five metres from the surveyed road
      however long the chord across it - and NAV_OFF_ROUTE no longer has to
-     carry the slack that the corners used to need. */
-  let best = Infinity, bestI = Nav.idx, bestT = 0;
+     carry the slack that the corners used to need.
+
+     And the line going the way the vehicle is going. A route that passes
+     its destination on one side of a divided road, turns at the next gap
+     and comes back up the other is two lines ten to forty metres apart,
+     running opposite ways. Nearest alone picks whichever one the GPS leans
+     towards, and a fix leaning across put the vehicle at the end of the
+     trip while it was still driving away from it. A segment running more
+     than a right angle from the heading counts as NAV_SNAP_M further off
+     than it is - the far side of a phone's wander in a street - so it is
+     chosen only when nothing running this way is anywhere near. Stopped,
+     there is no heading to tell them apart by, and nearest decides as it
+     always did.
+
+     The last hop, from the road to the pin, is not a road and runs
+     whichever way the pin happens to lie, so it is judged by the way the
+     route arrives along the road before it. Judged by its own, a pin six
+     metres beside the far carriageway put a hop at right angles to the
+     vehicle passing on the near one - eighty-eight degrees, never the
+     wrong way - and the end of that hop was the end of the trip. */
+  const way = p.hdg;
+  const along = (i) => navSegBearing(i >= Nav.tail && Nav.tail > 0 ? Nav.tail - 1 : i);
+  let best = Infinity, off = Infinity, bestI = Nav.idx, bestT = 0;
   const scan = (from, to) => {
     for (let i = from; i < to; i++) {         /* the segment i -> i + 1 */
       const r = segNear(p, co(i), co(i + 1));
-      if (r.d < best) { best = r.d; bestI = i; bestT = r.t; }
+      if (r.d >= best) continue;
+      const score = way != null && angleOff(along(i), way) > 90 ? r.d + CFG.NAV_SNAP_M : r.d;
+      if (score < best) { best = score; off = r.d; bestI = i; bestT = r.t; }
     }
   };
   scan(Math.max(0, Nav.idx - 20), Math.min(n - 1, Nav.idx + 200));
   /* if the window did not find anything close, fall back to a full scan */
-  if (best > CFG.NAV_OFF_ROUTE) { best = Infinity; scan(0, n - 1); }
-  return { i: bestI, t: bestT, off: best };
+  if (off > CFG.NAV_OFF_ROUTE) { best = off = Infinity; scan(0, n - 1); }
+  return { i: bestI, t: bestT, off: off };
+}
+
+/* Whether the trip is over. It was a circle sixty metres round the pin,
+   and a circle is the wrong shape for it twice over.
+
+   It ended trips early. Sixty metres in a straight line is further than
+   that along a road that bends on its way to the door, and the route went
+   on ahead of a vehicle that had just been told it was there. Forty trips
+   were simulated round Adelaide and driven to the end of the route; the
+   thirty-three with the pin beside the road were called arrived with a
+   median of fifty metres still to drive, and up to a hundred and five.
+
+   And it ended trips that were nowhere near over. A pin on the far side of
+   a divided road is passed on the near side first, ten to forty metres
+   off, before the route turns at the next gap and comes back for it. The
+   circle took the pass for the arrival: of thirty such trips on Adelaide's
+   divided roads, twenty-nine were called arrived going the wrong way, with
+   anything from a hundred and forty metres to twenty kilometres of the
+   route still to drive.
+
+   So it is the route that says so. On the line, arrived is NAV_ARRIVE of
+   it left, or NAV_ARRIVE_STOP once pulled up - to the last point on a road,
+   which is where a vehicle stops for a pin set back from the kerb. The
+   same thirty-three trips now arrive with a median of ten metres to go and
+   none more than nineteen, which is the fix's own wander. Ninety more
+   across divided roads, which the circle ended on the pass every time,
+   now all arrive at the end, none more than sixteen metres short.
+
+   Turning in short of where the line stops, into a forecourt or a
+   driveway, mostly needs nothing more. The line runs on from the road to
+   the pin, and a vehicle heading for the pin is heading down it: turning
+   in forty metres short arrived on all thirty-three trips that way, and
+   eighty metres short on thirty-one. The other two are what is left: a
+   turn that takes the vehicle well clear of the line near the end. That
+   counts once it has been believed the way a wrong turn is, so a single
+   fix bouncing off a shed cannot end the trip.
+
+   A pin further than NAV_ARRIVE_OFF from the road, and a straight line
+   that is only a bearing, still go by the circle. Out there the pin is the
+   only place there is to arrive at. */
+function navArrived(near, remain) {
+  const toPin = haversine(navFrom(), Nav.dest);
+  if (Nav.via === "direct" || Nav.hop > CFG.NAV_ARRIVE_OFF) return toPin <= CFG.NAV_ARRIVE_OFF;
+  if (Nav.lost) return remain <= CFG.NAV_ARRIVE_OFF && toPin <= CFG.NAV_ARRIVE_OFF;
+  const stopped = view.speed <= CFG.STILL_SPD;
+  return near.off <= CFG.NAV_SNAP_M && remain <= (stopped ? CFG.NAV_ARRIVE_STOP : CFG.NAV_ARRIVE);
 }
 
 function navProgress() {
@@ -17636,7 +17729,7 @@ function navProgress() {
   const near = navNearestIdx();
   Nav.idx = near.i;
 
-  const total = Nav.cum[Nav.cum.length - 1] || 0;
+  const total = Nav.cum[Nav.end] || 0;
   /* part of the way along the segment as well as up to it - free now that
      the off-route check has to work out where on it we are anyway */
   const at = Nav.cum[near.i + 1] === undefined
@@ -17652,9 +17745,6 @@ function navProgress() {
     : Math.max(1, Math.round(secs / 60)) + " min";
   $("#navEta").textContent = fmtClock(Date.now() + secs * 1000);
 
-  const toDest = haversine(navFrom(), Nav.dest);
-  if (toDest <= CFG.NAV_ARRIVE) { navArrive(); return; }
-
   /* Off the line is counted in fixes rather than believed on the first one.
      A single fix bouncing off a shed is not a wrong turn, and at sixty
      metres one of those would be enough to start a recalculation; two in a
@@ -17669,6 +17759,9 @@ function navProgress() {
   if (near.off > CFG.NAV_OFF_ROUTE || turned) Nav.offFor++;
   else Nav.offFor = 0;
   Nav.lost = Nav.offFor >= CFG.NAV_OFF_FIXES;
+  /* After the off-route count, because a turn off the line near the end can
+     be the turn in to the destination - see navArrived. */
+  if (navArrived(near, remain)) { navArrive(); return; }
   navSnap(near, hdg);
 
   if (Nav.lost) {
