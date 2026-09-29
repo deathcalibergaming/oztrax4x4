@@ -262,6 +262,52 @@ navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to
 arrive at.
 
+## The Android app
+
+The Play listing is still the Trusted Web Activity - a window on the live
+site - built from `E:\OzTrax Recon - Google Play package\bubblewrap`. The
+app that replaces it is a Capacitor build of the same page, in `android/`:
+
+- **What is inside the APK** is the shell and nothing else - the page, the
+  map library, the style, fonts and icons, about 5.7 MB. Which files those
+  are is read from the service worker's SHELL list by
+  `tools/build-shell.mjs`, so the APK and the offline web app cannot
+  disagree about it.
+- **The data is not inside it.** Road, place and address packs, state maps
+  and fuel prices come from the site (`DATA` in index.html), fetched and
+  stored exactly as a browser does, into the app's own stores. Moving them
+  to Play asset packs and a host of their own are later steps.
+- **The voice is the phone's.** Android's WebView has no speechSynthesis, so
+  `NavVoicePlugin.java` speaks with Android's TextToSpeech, and a stand-in
+  in index.html gives the Voice block the same speechSynthesis it uses in
+  Chrome. Being native, it asks for audio focus as navigation guidance -
+  the music ducks under each line - and the volume buttons set the voice's
+  volume at any time. Each voice on the phone is offered by name.
+- **The whole screen**, as the TWA had it: system bars hidden, back for a
+  moment with a swipe. The icons and the splash mark are the Play build's.
+- **No service worker** in the app: its shell is inside it, and updates come
+  through the Play Store.
+
+Build a development copy - package `io.github.deathcalibergaming.twa.dev`,
+named "OzTrax Recon dev", so it installs beside the Play app rather than
+over it:
+
+    node tools/build-shell.mjs          docs/ shell -> native/www
+    npx cap sync android                native/www -> the Android project
+    cd android && ./gradlew assembleDebug
+                                        with JAVA_HOME at a JDK 21 and
+                                        ANDROID_HOME at the Android SDK
+
+Capacitor 8 needs **JDK 21**; the Bubblewrap build needs 17, and both live
+under `C:\Users\mickj\.bubblewrap\`. The release build carries the Play
+package ID with version code 4, one above the TWA's, so it goes to Play as
+an update.
+
+Not working in the app yet, and known: **Back Up and GPX export** save
+nothing, because a WebView has nowhere to put a download (Restore works - it
+is a file picker, which Capacitor handles); **recording with the screen
+off**; and the data still depends on this site.
+
 ## Carrying the driver's own work across
 
 The app's storage belongs to an origin **in one browser**, and the installed

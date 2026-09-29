@@ -36,3 +36,6 @@
 # code in a public repo is 28 MB nobody reads and everybody clones. Nothing in
 # here ships - the app is one file with no dependencies at all.
 node_modules/
+
+# the native shell is built from docs/ by tools/build-shell.mjs
+native/www/
