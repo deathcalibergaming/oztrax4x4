@@ -1544,7 +1544,20 @@ that is a sentence rather than a reading.
 **Off the route** the tile goes solid Caution Yellow with that fill's ink,
 the words go yellow and say **Off route — working out a new way**, because a
 blue tile reads as an instruction and there is nothing to follow until a new
-line lands. The frame stays a frame. Off means sixty metres from the drawn line for
+line lands. The frame stays a frame.
+
+**The end of a route is said on the bar**, not in a toast. It holds its
+last word for four seconds and folds away; a new route inside that time takes
+the bar straight back. **Arrived** is Signal Green - the destination's pin on
+a solid green tile with green's ink, the word in green, the name under it -
+and is spoken as before. **Navigation cancelled** is the driver's own doing,
+so it is neither Caution Yellow nor the accent: the route's blue drains out of
+the tile and leaves a raised face with a sand edge and a sand cross, over the
+name of what was cancelled. Both reach a screen reader through a live region
+of their own, because the bar itself changes its distance on every fix and
+is deliberately not one. They used to be toasts - a chip from nowhere under
+the bar that had given every instruction up to then, gone before a driver
+glancing back up from the road had found it. Off means sixty metres from the drawn line for
 two fixes running — about two seconds — and then a new route every five
 seconds until one takes. The route itself is about twenty milliseconds and
 asks the network for nothing: a recalculation searches the graph already in

@@ -269,6 +269,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;
   padding-right:26px}
 .hidden{display:none !important}
+/* Heard and not seen: a live region with no box on the screen. */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap}
 
 /* ---------- shell ---------- */
 #app{position:fixed;inset:0;display:flex;flex-direction:column}
@@ -1417,6 +1420,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    the stat bar and the nav panel: it counts down while you drive at it. */
 .tb-line b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--hud);
   line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* No distance - off route, arrived, cancelled - and the empty figure still
+   took the row's gap, which set the word 8px in from the name under it. The
+   row keeps its height from its own min-height, so it goes. */
+.tb-line b:empty{display:none}
 .tb-line span{font-size:var(--t-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--hud);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Kept at its own height even when the road has no name, which out here is
@@ -1442,6 +1449,23 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #turnBar.recalc .tb-ico{background:var(--warn)}
 #turnBar.recalc .tb-ico svg{stroke:#171204}
 #turnBar.recalc .tb-line span{color:var(--warn)}
+/* The last word, on the bar that has been giving the instructions rather
+   than in a toast that came up from nowhere under it. It holds for
+   NAV_END_HOLD and folds away.
+
+   Arrived is Signal Green, affirmative: the destination's own pin on a solid
+   tile with green's ink, and the word in green over the name.
+
+   Cancelled is the driver's own doing, so it is neither a warning nor the
+   accent: the route's blue drains out of the tile and leaves the plate it
+   was sitting on - a raised face with a sand edge and a sand cross. The
+   toast said it in Caution Yellow, which is for a state you fall into, and
+   cancelling a route is the opposite of falling into it. */
+#turnBar.arrived .tb-ico{background:var(--green)}
+#turnBar.arrived .tb-ico svg{stroke:#12160B}
+#turnBar.arrived .tb-line span{color:var(--green)}
+#turnBar.cancelled .tb-ico{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line2)}
+#turnBar.cancelled .tb-ico svg{stroke:var(--sand)}
 @media (orientation: landscape) and (max-height: 520px) {
   /* A phone on its side has the least height to give and the most width to
      spare, so the road comes up beside the turn instead of under it and the
@@ -3442,6 +3466,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- What the turn bar says when a route ends, out loud. The bar itself is
+     not a live region: it changes its distance on every fix, and a screen
+     reader reading each one would be reading nothing else. -->
+<div id="turnSay" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="lib/maplibre-gl.js"></script>
 <script src="lib/pmtiles.js"></script>
@@ -3735,6 +3763,11 @@ const CFG = {
      metres down the road was announced as if it were straight after the
      first, half a minute before it came up, and then never named again. */
   NAV_TURN_THEN: 80,
+  /* How long the turn bar keeps its last word - Arrived, or Navigation
+     cancelled - before it folds away. Four seconds: long enough to catch
+     with a glance back up from the road, which the toast's two and a half
+     was not, and short enough that the bar is gone before it is furniture. */
+  NAV_END_HOLD: 4000,
   /* Two spoken calls per corner, timed rather than measured out - see the
      Voice block. The seconds are what a driver needs: twenty-five to read
      the turn, slow, and move across; four to make it. The floors are for a
@@ -16987,7 +17020,9 @@ const TURN_ART = {
   arrive: ["M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z",
            "M14.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"],
   head:   ["M12 2.8 20 20.5 12 16.2 4 20.5Z", ""],
-  recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"]
+  recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"],
+  /* the same cross the console's Cancel draws, at the tile's size */
+  cancelled: ["M6.5 6.5l11 11", "M17.5 6.5l-11 11"]
 };
 
 /* Do these points lie on a circle, and is it the size of a roundabout?
@@ -17876,6 +17911,41 @@ function navHideTurn() {
   navTurnFit();
 }
 
+/* The bar's last word when a route ends: Arrived, or Navigation cancelled,
+   over the destination's name, for NAV_END_HOLD and then gone. It used to
+   be a toast - a chip from nowhere under the bar that had been giving every
+   instruction up to then, gone again before a driver looking back up from
+   the road had found it. Said here, it is where the eye already goes for
+   what navigation is doing, and it is the same bar ending rather than a
+   different thing starting. */
+function navEndBar(kind, name) {
+  const bar = $("#turnBar");
+  if (!bar) return;
+  navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind === "arrived" ? "arrive" : "cancelled"]);
+  const act = kind === "arrived" ? "Arrived" : "Navigation cancelled";
+  $("#turnDist").textContent = "";
+  $("#turnAct").textContent = act;
+  $("#turnRoad").textContent = name || "";
+  $("#turnThen").classList.add("hidden");
+  bar.classList.remove("recalc", "arrived", "cancelled");
+  bar.classList.add(kind);
+  bar.classList.remove("hidden");
+  navTurnFit();
+  $("#turnSay").textContent = act + (name ? ", " + name : "");
+  clearTimeout(navEndBar.timer);
+  navEndBar.timer = setTimeout(function () { navEndClear(false); }, CFG.NAV_END_HOLD);
+}
+/* Ends the hold. keep: a route is running again and about to draw over it,
+   so only the end state goes; otherwise the bar goes with it. */
+function navEndClear(keep) {
+  const bar = $("#turnBar");
+  clearTimeout(navEndBar.timer);
+  if (!bar || !bar.classList.contains("arrived") && !bar.classList.contains("cancelled")) return;
+  bar.classList.remove("arrived", "cancelled");
+  $("#turnSay").textContent = "";
+  if (!keep) navHideTurn();
+}
+
 /* at: metres already driven along the route. remain: metres left of it. */
 function navRenderTurn(at, remain) {
   const bar = $("#turnBar");
@@ -17910,6 +17980,8 @@ function navRenderTurn(at, remain) {
     }
   }
 
+  /* A new route inside the last one's four seconds takes the bar back. */
+  navEndClear(true);
   navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
   $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
   $("#turnAct").textContent = act;
@@ -18259,12 +18331,12 @@ function navProgress() {
 }
 
 function navArrive() {
-  const name = Nav.dest ? Nav.dest.name : "destination";
+  const name = Nav.dest ? Nav.dest.name : "";
   /* The cancel first, because it stops whatever was still being said about
      a corner that no longer matters. This is the last word either way. */
   cancelNav(true);
   Voice.say("You have arrived at " + (sayName(name) || "your destination"), true);
-  toast("Arrived at " + name, "ok");
+  navEndBar("arrived", name);
 }
 
 /* Both bars up means half a console each - recording on top, navigating on
@@ -18398,6 +18470,7 @@ function showNavPanel() {
 function setNavNote(s) { Nav.note = s || ""; $("#navNote").textContent = Nav.note; }
 
 function cancelNav(quiet) {
+  const name = Nav.dest ? Nav.dest.name : "";
   Nav.active = false;
   Nav.dest = null;
   Nav.coords = [];
@@ -18410,7 +18483,10 @@ function cancelNav(quiet) {
   Nav.via = "";
   Nav.standing = "";
   Voice.stop();
-  navHideTurn();
+  /* Cancelled by hand, the bar says so; ended by anything else - an
+     arrival, which says its own - it goes. */
+  if (quiet) navHideTurn();
+  else navEndBar("cancelled", name);
   navLine.setLatLngs([]);
   navCasing.setLatLngs([]);
   navDestMk.clearLayers();
@@ -18418,7 +18494,6 @@ function cancelNav(quiet) {
   setNavNote("");
   syncPanelStack();
   if (typeof Wake !== "undefined") Wake.apply();
-  if (!quiet) toast("Navigation cancelled", "warn");
 }
 /* Cumulative distance along SIM_ROUTE, built once on first use. */
 let simCum = null;
