@@ -287,6 +287,11 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   moment with a swipe. The icons and the splash mark are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.
+- **The status bar stays; the navigation buttons go** (`MainActivity.java`),
+  back for a moment with a swipe up. The page is drawn under the status bar
+  and its top bar steps down by the bar's height (`--safeT`), so the time,
+  signal and battery sit on the top bar's own colour, in light icons
+  (`SystemBars` in `capacitor.config.json`).
 - **Files are saved through Android's Save dialog** (`SaveFilePlugin.java`),
   because a WebView has nowhere to put a download. Back Up and GPX export
   hand the file across in quarter-million-character pieces and say "saved"

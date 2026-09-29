@@ -175,7 +175,15 @@
      chips. The values here only hold until the first measure. */
   --hudBottom:calc(var(--topH) + 100px);
   --hudStage:100px;
-  --safeT:env(safe-area-inset-top,0px);
+  /* The Android app draws the page under the status bar it keeps, and the
+     bar's height arrives two ways: env(), from a WebView of version 140 on,
+     and --safe-area-inset-top, which Capacitor sets beside it. Both, because
+     env() inside a WebView is new, and a top bar under the clock is the one
+     way this can go wrong that the driver sees on every screen. (An older
+     WebView is not drawn under the bar at all - Capacitor lays it out below
+     and both read 0.) In a browser the variable is never set and this is
+     env() alone, as before. */
+  --safeT:max(env(safe-area-inset-top,0px), var(--safe-area-inset-top,0px));
   --safeB:env(safe-area-inset-bottom,0px);
   color-scheme:dark;
 }
@@ -1931,15 +1939,18 @@ details.sub > .sec-body{padding:12px 0 0}
    autofill bar covers and no API reports. Subtracting it from the height and
    from the centring is the same edit twice: the box is centred in what is
    left, and capped to it, so its footer cannot end up underneath. */
+/* Centred in what is left of the screen once the status bar has its strip
+   (--safeT, which is 0 wherever there is no such bar), so the tallest card
+   stops short of the clock rather than running up under it. */
 .float{position:fixed;z-index:800;width:min(300px,calc(100vw - 20px));
-  left:50%;top:calc(var(--vv-top,0px) + (var(--vv-h,100vh) - var(--kb-res,0px)) / 2);
+  left:50%;top:calc(var(--vv-top,0px) + var(--safeT) + (var(--vv-h,100vh) - var(--kb-res,0px) - var(--safeT)) / 2);
   transform:translate(-50%,-50%);
   /* 16, not 24. Twelve of clearance at each end is right when the band is the
      screen; when it is the keyboard’s leftovers the bottom twelve is sitting on
      top of the 48 already held back, so it is air doubling up. Eight each end
      is the app’s own small gap and it is what lets the card hold its rhythm at
      the tightest band instead of clipping a field. */
-  max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 16px);
+  max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - var(--safeT) - 16px);
   background:var(--panel);
   border:1px solid var(--line2);border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.62);
   display:flex;flex-direction:column;overflow:hidden}
@@ -2138,10 +2149,10 @@ details.sub > .sec-body{padding:12px 0 0}
    focus, so nothing moves until something needs to. */
 .modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
   padding:16px;
-  padding-top:calc(16px + var(--vv-top,0px));
+  padding-top:calc(16px + var(--vv-top,0px) + var(--safeT));
   padding-bottom:calc(16px + var(--vv-bottom,0px) + var(--kb-res,0px));
   background:rgba(6,8,7,.7)}
-.modal-box{width:min(360px,100%);max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - 32px);background:var(--panel);border:1px solid var(--line2);
+.modal-box{width:min(360px,100%);max-height:calc(var(--vv-h,100vh) - var(--kb-res,0px) - var(--safeT) - 32px);background:var(--panel);border:1px solid var(--line2);
   border-radius:10px;box-shadow:0 16px 42px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
 .modal-head{padding:13px 14px;border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:8px}
 .modal-body{padding:14px;overflow-y:auto}
