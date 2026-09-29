@@ -244,7 +244,19 @@ in both directions:
 | 90 trips, pin across a divided road | all 90 called on the pass, 48 m to 7 km early | all 90 at the end, up to 16 m |
 | 59 missed turns: fixes before it notices | 4.18 | 4.16 - the same fix on 58 |
 
-Pulling up 25 m short arrives once stopped; turning in for the pin 40 or
+The voice is measured the same way. `{ voice: true }` says each line on a
+clock that runs a second a fix, as long as the phone's voice takes to say it,
+and `NavSim.heard` counts which road names were said to the end before the
+corner. On the same 40 trips, of the 241 corners onto a named road:
+
+| | "then" up to 250 m, corner call bare | "then" under 80 m, corner call names what nothing else did |
+|---|---|---|
+| road names heard | 167 (69%) | 241 |
+| corners with a heads-up of their own | 164 | 206 |
+| joined with "then" | 64, up to 238 m apart | 21, under 80 m |
+| lines cut off before their end | 11 | 1 |
+
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to

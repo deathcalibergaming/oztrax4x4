@@ -3647,7 +3647,18 @@ const CFG = {
   NAV_TURN_LINK: 90,       /* a one-way unnamed leg this short is a ring arc */
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
   NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
-  NAV_TURN_THEN: 250,      /* and a second turn this close is worth warning of */
+  /* A second corner this close is said on the end of the first: "turn
+     right onto Hare Street, then turn left onto Pulsford Road". Only when it
+     is too close to be given a line of its own - and it is the voice that
+     decides what too close is. The next corner takes over fifteen metres
+     past this one, its call at the corner is due forty metres out, and a
+     heads-up takes four seconds to say; below about eighty metres there is
+     not room for it between the two.
+
+     It was two hundred and fifty. At that a corner a hundred and fifty
+     metres down the road was announced as if it were straight after the
+     first, half a minute before it came up, and then never named again. */
+  NAV_TURN_THEN: 80,
   /* Two spoken calls per corner, timed rather than measured out - see the
      Voice block. The seconds are what a driver needs: twenty-five to read
      the turn, slow, and move across; four to make it. The floors are for a
@@ -3656,6 +3667,17 @@ const CFG = {
   VOICE_FAR_S: 25, VOICE_FAR_MIN: 400, VOICE_FAR_MAX: 1200,
   VOICE_NEAR_S: 4, VOICE_NEAR_MIN: 40, VOICE_NEAR_MAX: 150,
   VOICE_HEAD_GAP: 60000,   /* and a bearing is not repeated inside this */
+  /* How long a line takes to say, for deciding whether one will be finished
+     before the call at the corner cuts it off: words at this many a second,
+     after a start. Measured on the desktop's Australian voice at rate 1,
+     five seconds for nine words and a third of a second to begin; the start
+     here is that and a second more, because a heads-up is usually said
+     coming out of the corner before, speeding up while it talks. The
+     phone's voice is quicker, so this errs towards a line not being started
+     - and a line not started leaves the name to the call at the corner. The
+     speed floor is for a vehicle pulling away, which is about to be doing
+     it. */
+  VOICE_WPS: 2, VOICE_START: 1.4, VOICE_SPD_MIN: 5,
   /* Said at the rate the voice was built at. Not left to the phone's own
      setting, which belongs to whoever set it: a screen reader cranked to
      double speed is a common thing to find on a phone, and an instruction
@@ -17089,7 +17111,9 @@ const Voice = {
   mark: -1,         /* metres along the route of the corner being announced */
   stage: 0,         /* 0 nothing said, 1 the heads-up, 2 the call at the corner */
   lostSaid: false,  /* the off-route line, once per time it happens */
-  coverNext: false, /* the corner after this one has been named already */
+  coverNext: false, /* the corner after this one has been warned of already */
+  heard: -1,        /* the corner whose road has been said to the end of a line */
+  heardNext: false, /* and the one after it, said on the end of this one's */
   headSaid: "",     /* the bearing last spoken, and when */
   headAt: 0,
   startedAt: 0,     /* when the current utterance began, for the watchdog */
@@ -17183,8 +17207,8 @@ const Voice = {
   /* Test Voice speaks through this rather than through say, so it answers
      the question it is there to answer - is there a voice on this phone -
      without the setting having to be on first. */
-  utter: function (text, urgent) {
-    if (!this.ready() || !text) return;
+  utter: function (text, urgent, done) {
+    if (!this.ready() || !text) return false;
     /* Chrome can leave speaking true after an utterance that never ended;
        a screen going off mid-sentence is enough to do it, and the old state
        then swallows everything after. Anything still talking after stuck is
@@ -17193,7 +17217,7 @@ const Voice = {
       try { speechSynthesis.cancel(); } catch (e) { }
     }
     if (speechSynthesis.speaking) {
-      if (!urgent) return;
+      if (!urgent) return false;
       try { speechSynthesis.cancel(); } catch (e) { }
     }
     try {
@@ -17205,16 +17229,23 @@ const Voice = {
          to say another reports the first as ended a moment after the second
          has started, and that must not release the second. */
       const self = this;
-      u.onend = u.onerror = function () {
+      const over = function () {
         if (self.talking !== u) return;
         self.talking = null;
         self.unduck();
       };
+      u.onerror = over;
+      /* Said to the end, which is where the road name is. A line cut off
+         by a more urgent one reports an error instead, and has not named
+         anything. */
+      u.onend = function () { over(); if (done) done(); };
       this.talking = u;
       this.startedAt = Date.now();
       this.duck();
       speechSynthesis.speak(u);
+      return true;
     } catch (e) { /* a phone with a broken engine stays quiet rather than throwing */ }
+    return false;
   },
 
   /* The music turned down while it talks.
@@ -17281,11 +17312,12 @@ const Voice = {
   reset: function () {
     this.turns = null; this.mark = -1; this.stage = 0; this.coverNext = false;
     this.lostSaid = false; this.headSaid = ""; this.headAt = 0;
+    this.heard = -1; this.heardNext = false;
   },
 
   /* The bar's own values, at the bar's own moment. All that is decided here
      is which of them becomes a sentence, and when. */
-  turn: function (kind, dist, act, road, then, mark) {
+  turn: function (kind, dist, act, road, then, mark, thenRoad) {
     if (!S.navVoice || !this.ready()) return;
 
     /* Off the route is said over the top of anything else, because anything
@@ -17321,16 +17353,20 @@ const Voice = {
        stage and go unsaid. */
     if (this.turns !== Nav.turns) {
       this.turns = Nav.turns; this.mark = -1; this.stage = 0; this.coverNext = false;
+      this.heard = -1; this.heardNext = false;
     }
     if (mark !== this.mark) {
       this.mark = mark;
       /* A corner already named on the end of the last line - "turn right
-         onto the Outback Highway, then turn right" - has had its warning,
-         and repeating it whole is what turned three corners in three
-         hundred metres into six sentences. It keeps the call at the corner
-         and loses the heads-up, which is the half that was new. */
+         onto the Outback Highway, then turn right onto Stuart Highway" - has
+         had its warning, and repeating it whole is what turned three corners
+         in three hundred metres into six sentences. It keeps the call at the
+         corner and loses the heads-up, which is the half that was new - and
+         its road counts as said only if that line was heard to the end. */
       this.stage = this.coverNext ? 1 : 0;
+      this.heard = this.coverNext && this.heardNext ? mark : -1;
       this.coverNext = false;
+      this.heardNext = false;
     }
 
     const spd = Math.max(0, view.speed || 0);
@@ -17342,10 +17378,9 @@ const Voice = {
        four hundred milliseconds' time is being talked at rather than
        navigated. Straight to the short form. */
     if (this.stage < 1 && dist <= far && dist > near) {
-      this.stage = 1;
       const d = sayDist(dist);
       const lead = d ? "In " + d + ", " : "";
-      let line;
+      let line, next = "";
       if (kind === "arrive") {
         line = lead + "arrive at " + (sayName(road) || "your destination");
       } else {
@@ -17354,22 +17389,56 @@ const Voice = {
         /* Not onto anywhere for a turn around: at a hundred and sixty
            degrees the road you come out on is the road you went in on, and
            "turn around onto Webb Road" is a sentence describing nothing. */
+        /* The corner after, with its road. Said here or not at all: it is
+           too close to get a heads-up of its own, and a "then turn left"
+           with no name was a road the driver was never told. */
+        next = then && TURN_WORD[then] && then !== "uturn" ? sayName(thenRoad || "") : "";
         line = lead + act.toLowerCase() +
                (road && kind !== "uturn" ? " onto " + sayName(road) : "") +
-               (then && TURN_WORD[then] ? ", then " + TURN_WORD[then].toLowerCase() : "");
-        this.coverNext = !!(then && TURN_WORD[then]);
+               (then && TURN_WORD[then] ? ", then " + TURN_WORD[then].toLowerCase() : "") +
+               (next ? " onto " + next : "");
       }
-      this.utter(line.charAt(0).toUpperCase() + line.slice(1));
+      /* Not started where it cannot be finished. The call at the corner is
+         urgent and cuts off whatever is still being said, and the road name
+         is the last thing in this line, so a line cut off has named
+         nothing: eleven of them in forty simulated trips round Adelaide,
+         one now. Left unsaid, the name goes on the call at the corner
+         instead. */
+      const secs = CFG.VOICE_START + line.split(" ").length / CFG.VOICE_WPS;
+      if (dist - near < Math.max(spd, CFG.VOICE_SPD_MIN) * secs) { this.stage = 1; return; }
+      const self = this;
+      const spoke = this.utter(line.charAt(0).toUpperCase() + line.slice(1), false, function () {
+        if (self.mark !== mark) return;
+        self.heard = mark;
+        if (next) self.heardNext = true;
+      });
+      /* Something else still talking. Not queued - the distance in it would
+         be wrong by the time it was said - but asked again on the next fix,
+         with the distance as it is then. It used to be marked said either
+         way, and a heads-up that lost to the line before it was a corner
+         whose road was never named. */
+      if (!spoke) return;
+      this.stage = 1;
+      this.coverNext = !!(then && TURN_WORD[then]);
       return;
     }
 
     if (this.stage < 2 && dist <= near) {
       this.stage = 2;
-      /* Short, with no distance and no road name in it: by here you can see
-         where you are, and the only words that help are the ones saying
-         which way to go. Arriving is left out - it has its own line, said
-         at the door by navArrive rather than a hundred metres short of it. */
-      if (kind !== "arrive") this.utter(act, true);
+      /* Short, with no distance in it: by here you can see where you are,
+         and the only words that help are the ones saying which way to go.
+         The road goes in only if no line has named it yet - a heads-up that
+         was never started or was cut off, a corner too near the one before
+         for a heads-up at all, the first corner of a trip begun beside it.
+         Forty simulated trips round Adelaide named sixty-nine per cent of
+         the roads they turned onto before this - a hundred and sixty-seven
+         of two hundred and forty-one - and the rest were never said. Now
+         they name all of them, and so do forty more.
+         Arriving is left out - it has its own line, said at the door by
+         navArrive rather than a hundred metres short of it. */
+      if (kind === "arrive") return;
+      const name = this.heard !== mark && road && kind !== "uturn" ? sayName(road) : "";
+      this.utter(name ? act + " onto " + name : act, true);
     }
   }
 };
@@ -17496,7 +17565,7 @@ function navRenderTurn(at, remain) {
   if (!bar) return;
   if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
 
-  let kind, dist, act, road, then = null, mark = -1;
+  let kind, dist, act, road, then = null, thenRoad = "", mark = -1;
 
   if (Nav.lost && Nav.via !== "direct") {
     /* Whatever the old line said to do next is about a road the vehicle is
@@ -17517,7 +17586,7 @@ function navRenderTurn(at, remain) {
     if (t) {
       kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name; mark = t.m;
       const nx = Nav.turns[i + 1];
-      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) then = nx.kind;
+      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) { then = nx.kind; thenRoad = nx.name; }
     } else {
       kind = "arrive"; dist = remain; act = "Arrive"; mark = -2;
       road = Nav.dest ? Nav.dest.name : "";
@@ -17536,7 +17605,7 @@ function navRenderTurn(at, remain) {
   navTurnFit();
   /* Last, and from the same values the bar was just drawn from, so what is
      said and what is shown cannot come apart. */
-  Voice.turn(kind, dist, act, road, then, mark);
+  Voice.turn(kind, dist, act, road, then, mark, thenRoad);
 }
 
 /* A bearing and a distance, for when there is no road data and no router.

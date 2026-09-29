@@ -21,7 +21,10 @@
      NavSim.sum(await NavSim.run(40, 7, { turnIn: 40 }))  turn in for the pin
      NavSim.sum(await NavSim.run(60, 21, { miss: true })) straight on at a turn
      NavSim.sum(await NavSim.runList(NavSim.divided(30, 3)))  across a divided road
-   Options: sigma (metres of GPS error, 3), v (cruising m/s, 13).
+   Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
+   (say the turns on a simulated clock and report which road names were
+   heard - NavSim.heard(rows) sums it), wps (words a second the simulated
+   voice speaks at, 2 - lower it to try a slower phone).
 
    A row per trip: left is the road still to drive when the trip ended
    (null and stuck when the vehicle stopped at the end and it never did),
@@ -84,6 +87,92 @@
              hdg: bearing({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) };
   }
 
+  /* What the voice would have said, on a clock that runs a second a fix.
+     The sim runs trips far faster than real time, so the real engine
+     would still be on its first word when the next fix lands and drop
+     every line after it. This stands in for speechSynthesis: a line takes
+     as long as the phone's voice takes to say it - about two words a
+     second measured on the desktop voice, plus the engine's start-up - and
+     is spoken or refused exactly as the real one would be. */
+  function voiceRig(wps) {
+    const lines = [];
+    const fake = {
+      speaking: false, pending: false, paused: false, end: 0, u: null, now: 0,
+      speak: function (u) {
+        this.u = u; this.speaking = true;
+        this.end = this.now + 0.4 + u.text.split(/\s+/).length / (wps || 2);
+      },
+      cancel: function () {
+        const u = this.u; this.u = null; this.speaking = false;
+        if (u && u.line) u.line.cut = true;
+        if (u && u.onerror) u.onerror({ error: "interrupted" });
+      },
+      getVoices: function () { return rig.real.getVoices(); },
+      addEventListener: function () {}
+    };
+    const rig = {
+      real: window.speechSynthesis, lines: lines, fake: fake, s: 0,
+      install: function () {
+        Object.defineProperty(window, "speechSynthesis", { value: fake, configurable: true });
+        rig.utter = Voice.utter;
+        Voice.utter = function (text, urgent, done) {
+          const was = fake.u;
+          const back = rig.utter.call(Voice, text, urgent, done);
+          const line = { t: fake.now, s: Math.round(rig.s), text: text, mark: Voice.mark,
+                         said: fake.u !== was && !!fake.u && fake.u.text === text };
+          if (line.said) fake.u.line = line;
+          lines.push(line);
+          return back;
+        };
+        rig.duck = Voice.duck; rig.unduck = Voice.unduck;
+        Voice.duck = Voice.unduck = function () {};
+      },
+      tick: function (s) {
+        rig.s = s; fake.now += 1;
+        if (fake.speaking && fake.now >= fake.end) {
+          const u = fake.u; fake.u = null; fake.speaking = false;
+          if (u && u.line) u.line.done = true;
+          if (u && u.onend) u.onend({});
+        }
+      },
+      remove: function () {
+        Voice.utter = rig.utter; Voice.duck = rig.duck; Voice.unduck = rig.unduck;
+        delete window.speechSynthesis;
+      }
+    };
+    return rig;
+  }
+
+  /* For every corner on the route: was the road it turns onto named out
+     loud before the vehicle got there, was it given a heads-up of its own,
+     and where it was folded into the corner before it with "then", how far
+     apart the two really were. Heard means said to the end: a line cut off
+     by a more urgent one has lost its road name, which is its last words.
+     A turn around names nothing on purpose - it comes out on the road it
+     went in on - so it is not counted. */
+  function hearing(turns, lines) {
+    const out = { corners: 0, named: 0, heard: 0, ownHeadsUp: 0, missed: [], then: [] };
+    turns.forEach(function (t, i) {
+      if (t.kind === "straight" || t.kind === "uturn") return;
+      out.corners++;
+      const prev = i ? turns[i - 1].m : -Infinity;
+      const said = lines.filter((l) => l.done && l.s <= t.m);
+      if (said.some((l) => l.mark === t.m && /^In /.test(l.text))) out.ownHeadsUp++;
+      const name = sayName(t.name || "");
+      if (!name) return;
+      out.named++;
+      if (said.some((l) => l.s > prev - 1500 && l.text.indexOf(name) >= 0)) out.heard++;
+      else out.missed.push({ m: Math.round(t.m), gap: Math.round(t.m - prev), name: name, kind: t.kind });
+    });
+    out.cut = lines.filter((l) => l.cut).length;
+    lines.forEach(function (l) {
+      if (!l.done || !/, then /.test(l.text)) return;
+      const i = turns.findIndex((t) => t.m === l.mark);
+      if (i >= 0 && turns[i + 1]) out.then.push(Math.round(turns[i + 1].m - turns[i].m));
+    });
+    return out;
+  }
+
   async function drive(trip, opt) {
     const r = rng(trip.noise), sigma = opt.sigma || 3;
     const res = { k: trip.k };
@@ -99,10 +188,18 @@
     };
 
     if (Nav.active) cancelNav(true);
+    const rig = opt.voice ? voiceRig(opt.wps) : null, wasVoice = S.navVoice;
+    const done = function () {
+      if (Nav.active) cancelNav(true);
+      if (rig) { rig.remove(); S.navVoice = wasVoice; }
+      return res;
+    };
+    if (rig) { rig.install(); S.navVoice = true; Voice.reset(); }
     pushPosition({ lat: trip.o.lat, lng: trip.o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
     await navigateTo({ lat: trip.t.lat, lng: trip.t.lng, name: "T" + trip.k });
-    if (!Nav.active) { res.skip = "no route"; return res; }
-    if (Nav.via !== "local") { res.skip = Nav.via; cancelNav(true); return res; }
+    if (!Nav.active) { res.skip = "no route"; return done(); }
+    if (Nav.via !== "local") { res.skip = Nav.via; return done(); }
+    const turns = Nav.turns;
 
     const co = Nav.coords.slice(), cum = Nav.cum.slice(), tail = Nav.tail, head = Nav.head;
     const pin = { lat: trip.t.lat, lng: trip.t.lng };
@@ -121,12 +218,16 @@
     if (opt.miss) {
       missT = Nav.turns.find((t) => t.m > 300 && t.m < end - 200 &&
                                     /^(turn|sharp)[LR]$/.test(t.kind) && Math.abs(t.ang) > 60);
-      if (!missT) { res.skip = "no turn to miss"; cancelNav(true); return res; }
+      if (!missT) { res.skip = "no turn to miss"; return done(); }
       res.turn = missT.kind;
     }
 
     const V = opt.v || 13, stopAt = end - (opt.short || 0);
-    let s = cum[head], stopped = 0, off = null, straight = null;
+    /* With the voice on, the drive starts where the trip was asked from and
+       pulls out onto the road, rather than appearing on it: the first line
+       is measured from the start, and a vehicle that jumped forty metres at
+       its first fix would outrun it. */
+    let s = rig ? 0 : cum[head], stopped = 0, off = null, straight = null, was = 0;
     for (let n = 0; n < 2000; n++) {
       /* Straight on through the corner the route turns at. */
       if (missT && (straight || s + V >= missT.m)) {
@@ -141,6 +242,15 @@
       }
       const left = stopAt - s;
       let v = left <= 0 ? 0 : Math.max(2.5, Math.min(V, V * left / 80));
+      /* With the voice on, corners are driven the way they are on the road:
+         down to 5 m/s through the turn and back up over eighty metres
+         either side, because how far out a line is said depends on it. */
+      if (rig && v > 0) {
+        let d = Infinity;
+        for (const t of turns) d = Math.min(d, Math.abs(t.m - s));
+        v = Math.min(v, 5 + 0.1 * d, was + 2.5);
+        was = v;
+      }
       let p;
       if (off || (opt.turnIn && res.hop <= 60 && left <= opt.turnIn)) {
         /* Off the road and straight for the pin, at a car park's pace. */
@@ -156,6 +266,7 @@
         if (s >= stopAt) { stopped++; v = 0; }
         p = pointAt(co, cum, s);
       }
+      if (rig) rig.tick(s);
       fix(p, v, p.hdg);
       await settle();
       if (!Nav.active) {
@@ -165,8 +276,12 @@
       }
       if (stopped > 8) { res.left = null; res.stuck = true; break; }
     }
-    if (Nav.active) cancelNav(true);
-    return res;
+    if (rig) {
+      res.voice = hearing(turns, rig.lines);
+      res.rerouted = Nav.turns !== turns && Nav.active;
+      res.lines = rig.lines.filter((l) => l.said).map((l) => l.s + " " + l.text + (l.cut ? " [CUT]" : ""));
+    }
+    return done();
   }
 
   /* A one-way edge with a twin of the same name running the other way 8
@@ -229,6 +344,19 @@
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
+    /* The corners across a run: how many turn onto a named road, how many
+       of those names were said before the corner, how many had a heads-up
+       of their own, and the gaps that "then" was used across. */
+    heard: function (rows) {
+      const v = rows.filter((x) => x.voice).map((x) => x.voice);
+      const add = (k) => v.reduce((a, x) => a + x[k], 0);
+      const then = [].concat.apply([], v.map((x) => x.then)).sort((a, b) => a - b);
+      return {
+        trips: v.length, corners: add("corners"), named: add("named"), heard: add("heard"),
+        ownHeadsUp: add("ownHeadsUp"), cut: add("cut"), then: then.join(","),
+        missed: [].concat.apply([], v.map((x) => x.missed))
+      };
+    },
     /* The pins beside the road, which are the ones with an end to reach. */
     sum: function (rows) {
       const ok = rows.filter((x) => !x.skip && !x.err && x.hop <= 60);
