@@ -291,7 +291,8 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   back for a moment with a swipe up. The page is drawn under the status bar
   and its top bar steps down by the bar's height (`--safeT`), so the time,
   signal and battery sit on the top bar's own colour, in light icons
-  (`SystemBars` in `capacitor.config.json`).
+  (`SystemBars` in `capacitor.config.json`). The app's own battery readout,
+  there for a full screen that hid the phone's, is left out.
 - **Files are saved through Android's Save dialog** (`SaveFilePlugin.java`),
   because a WebView has nowhere to put a download. Back Up and GPX export
   hand the file across in quarter-million-character pieces and say "saved"

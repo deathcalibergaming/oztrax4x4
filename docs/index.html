@@ -7201,7 +7201,13 @@ function updateGpsPill() {
    another app came back showing the figure it had when the app was last
    looked at. So it is re-read when the page is looked at again, and on a slow
    tick off the frame loop - which does not run while the page is hidden, so
-   the re-reading costs nothing exactly when there is nobody to read it. */
+   the re-reading costs nothing exactly when there is nobody to read it.
+
+   None of this runs in the Android app. It keeps the status bar (see
+   MainActivity), so the phone's own battery is already at the top of the
+   screen, and a second one a few pixels below it was only a duplicate. The
+   cell stays hidden there, as it starts, and the GPS lamp has the pill to
+   itself. */
 const Batt = {
   FULL: 18.2,                /* the fill rect width at 100%, in viewBox units,
                                 which lands it the same 1.2 inside the shell on
@@ -18986,7 +18992,7 @@ function renderGpsPanel() {
         ? "restarting in " + Math.max(1, Math.round((GPS.retryAt - Date.now()) / 1000)) + "s"
         : GPS.watching ? "yes" : "no",
         GPS.retryAt ? "warn" : GPS.watching ? "ok" : "warn");
-    trow("Battery", Batt.status(), Batt.real ? "ok" : "warn");
+    if (!NATIVE) trow("Battery", Batt.status(), Batt.real ? "ok" : "warn");
     trow("Fixes received", String(GPS.fixes), GPS.fixes ? "ok" : "warn");
     /* The count is a session tally, and a tally left red after the fixes came
        back reads as a fault still happening. Red is for an error still
@@ -20260,7 +20266,7 @@ document.addEventListener("keydown", function (e) {
   startGeo();
   Compass.start().then(renderGpsPanel);
   Wake.apply();                 /* the screen is wanted from the moment it opens */
-  Batt.init();
+  if (!NATIVE) Batt.init();      /* the app shows Android's own, up top */
   Fuel.load(false).then(renderFuelTypes);
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);
