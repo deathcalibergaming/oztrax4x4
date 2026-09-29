@@ -17028,7 +17028,7 @@ function navArt(p1, p2, art) {
    same values in the same breath. A voice that could disagree with the
    screen would be worse than no voice at all.
 
-   Four rules shape the rest.
+   Five rules shape the rest.
 
    The phone's own voice, and only if it is on the phone. Android will
    happily synthesise over the network, and a navigation voice that works in
@@ -17053,10 +17053,33 @@ function navArt(p1, p2, art) {
    seconds converted at the speed being driven, floored and capped so a
    phone reporting nothing still says something sensible.
 
-   And English, on an Australian voice where there is one. The road names
+   English, on an Australian voice where there is one. The road names
    here are Tanunda and Yankalilla and Coober Pedy; a voice built for
    another language reads them as if they were spelled in it.
+
+   And heard over the music. Whatever else is playing is turned down while
+   a line is spoken and let back up after it, the way every navigation app
+   does it - see duck.
    ===================================================================== */
+
+/* A second of silence as a WAV, made rather than carried for the reason the
+   chime is: this app is one document, and a file is one more thing to
+   cache offline and one more thing that can 404. Eight kilohertz, mono,
+   sixteen bit, every sample zero - sixteen kilobytes. */
+function silentWav(sec) {
+  const rate = 8000, n = Math.round(rate * sec);
+  const b = new DataView(new ArrayBuffer(44 + n * 2));
+  const tag = function (at, t) { for (let i = 0; i < 4; i++) b.setUint8(at + i, t.charCodeAt(i)); };
+  tag(0, "RIFF"); b.setUint32(4, 36 + n * 2, true); tag(8, "WAVE");
+  tag(12, "fmt "); b.setUint32(16, 16, true);
+  b.setUint16(20, 1, true);                      /* PCM */
+  b.setUint16(22, 1, true);                      /* mono */
+  b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true);
+  b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  tag(36, "data"); b.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type: "audio/wav" }));
+}
+
 const Voice = {
   voice: null,      /* the SpeechSynthesisVoice chosen, or null if none will do */
   found: null,      /* what the last look at the list found, for the state line */
@@ -17070,6 +17093,10 @@ const Voice = {
   headSaid: "",     /* the bearing last spoken, and when */
   headAt: 0,
   startedAt: 0,     /* when the current utterance began, for the watchdog */
+  stuck: 10000,     /* half again the longest line: still talking by then is stuck */
+  talking: null,    /* the utterance the music is being held down for */
+  duckEl: null,     /* the silent clip that holds it down - see duck */
+  duckTimer: 0,
 
   supported: function () { return "speechSynthesis" in window; },
   ready: function () { return !!this.voice; },
@@ -17160,9 +17187,9 @@ const Voice = {
     if (!this.ready() || !text) return;
     /* Chrome can leave speaking true after an utterance that never ended;
        a screen going off mid-sentence is enough to do it, and the old state
-       then swallows everything after. Ten seconds is half again the longest
-       line here, so anything still talking by then is stuck, not talking. */
-    if (speechSynthesis.speaking && Date.now() - this.startedAt > 10000) {
+       then swallows everything after. Anything still talking after stuck is
+       stuck, not talking. */
+    if (speechSynthesis.speaking && Date.now() - this.startedAt > this.stuck) {
       try { speechSynthesis.cancel(); } catch (e) { }
     }
     if (speechSynthesis.speaking) {
@@ -17174,13 +17201,78 @@ const Voice = {
       u.voice = this.voice;
       u.lang = this.voice.lang;
       u.rate = CFG.VOICE_RATE;
+      /* Only the line still talking lets the music back up. Cancelling one
+         to say another reports the first as ended a moment after the second
+         has started, and that must not release the second. */
+      const self = this;
+      u.onend = u.onerror = function () {
+        if (self.talking !== u) return;
+        self.talking = null;
+        self.unduck();
+      };
+      this.talking = u;
       this.startedAt = Date.now();
+      this.duck();
       speechSynthesis.speak(u);
     } catch (e) { /* a phone with a broken engine stays quiet rather than throwing */ }
   },
 
+  /* The music turned down while it talks.
+
+     Chrome on Android hands the words to the phone's own speech engine and
+     asks nothing of whatever else is playing. Read in its source, the call
+     is a bare TextToSpeech.speak: no audio focus requested and no stream
+     named, so the voice comes out on the media volume, at the same level
+     as the music and over the top of it. A line of speech against a
+     mastered track is the quieter of the two every time, and "too quiet"
+     was the report from the road.
+
+     A page cannot ask Android for audio focus itself, but Chrome asks on
+     its behalf for anything the page plays - and anything five seconds long
+     or shorter counts as transient, which is asked for exactly the way a
+     navigation app asks: GAIN_TRANSIENT_MAY_DUCK. Android answers that by
+     turning the other app down rather than stopping it. So a second of
+     silence is played on a loop for as long as a line is being said. It
+     has to be sound, even if the sound is nothing: a muted clip is not
+     audible and Chrome asks for nothing on its behalf. And it has to be
+     short, because over five seconds Chrome asks for the whole of the
+     focus instead, and that pauses the music outright.
+
+     Letting go is the part that is easy to get wrong. A paused clip keeps
+     the focus - Chrome suspends a paused session and hands focus back only
+     once its last player is gone - so pausing it would leave the music
+     down for the rest of the drive. Instead the loop is switched off and
+     the clip runs out, within the second, which is what removes the player
+     and brings the music back. That beat after the line is the one every
+     navigation app leaves anyway.
+
+     Where playing is refused - no touch on the page yet this session - the
+     line is still said, over the music, as it always was. */
+  duck: function () {
+    clearTimeout(this.duckTimer);
+    /* A line whose end is never reported must not hold the music down
+       until the next one; the watchdog's limit is the most any line takes. */
+    this.duckTimer = setTimeout(function () { Voice.talking = null; Voice.unduck(); }, this.stuck);
+    try {
+      if (!this.duckEl) this.duckEl = new Audio(silentWav(1));
+      const a = this.duckEl;
+      a.loop = true;
+      if (a.paused) {
+        const p = a.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+    } catch (e) { /* no clip, no ducking; the voice does not depend on it */ }
+  },
+
+  unduck: function () {
+    clearTimeout(this.duckTimer);
+    if (this.duckEl) this.duckEl.loop = false;
+  },
+
   stop: function () {
     if (this.supported()) { try { speechSynthesis.cancel(); } catch (e) { } }
+    this.talking = null;
+    this.unduck();
     this.reset();
   },
 
@@ -19338,13 +19430,24 @@ function syncVoiceButtons() {
   /* The Android path is a path, so it is set out as one. Written as prose it
      ran to six commas in a row and had to be parsed rather than followed. */
   const TTS = "Android Settings \u2192 Text-to-speech \u2192 Install voice data";
+  /* The volume is the one thing about the voice the app cannot set. It is
+     the phone's media volume, and which volume the buttons change is
+     Android's call: whatever is playing, or with nothing playing, the
+     media volume on most phones and the ringer on a Samsung - which has a
+     switch for it, and a driver who has never seen that switch would take
+     the buttons doing nothing between lines for the app ignoring them.
+     A page can only take the buttons by playing something long, and that
+     stops the music, which is the opposite of what was asked. */
+  const VOL = "Settings \u2192 Sounds and vibration \u2192 Volume";
   $("#voiceNote").textContent =
-    "Speaks each turn twice - in time to move across, then at the corner. Works with no signal. " +
+    "Speaks each turn twice - in time to move across, then at the corner - and turns music down while it talks. Works with no signal. " +
     (f && f.au
-      ? "For a different or male voice: " + TTS + "."
+      ? "For a different or male voice: " + TTS + ". "
       : f && f.en
-      ? "No Australian voice on this phone - add one in " + TTS + "."
-      : "No voice installed - add one in " + TTS + ".");
+      ? "No Australian voice on this phone - add one in " + TTS + ". "
+      : "No voice installed - add one in " + TTS + ". ") +
+    "Its loudness is the media volume. On a Samsung, turn on volume keys for media in " + VOL +
+    " so the buttons set it at any time.";
 }
 
 function setNavVoice(on) {
