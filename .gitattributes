@@ -25,3 +25,6 @@ docs/lib/** linguist-vendored=true
 # The map's copy of OpenFreeMap's style, icons and fonts, re-copied by
 # tools/build-vmap-style.mjs.
 docs/style/** linguist-generated=true
+# gradlew is a shell script: Unix line endings wherever it is checked out,
+# or a Linux build machine cannot run it
+android/gradlew text eol=lf

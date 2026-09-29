@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.deathcalibergaming.twa",
+  "appName": "OzTrax Recon",
+  "webDir": "native/www",
+  "android": {
+    "backgroundColor": "#14181B"
+  }
+}

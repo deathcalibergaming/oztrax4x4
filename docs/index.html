@@ -3111,7 +3111,7 @@ input[type=date],input[type=time]{color-scheme:dark}
            window would tear the page down - and with it the GPS watch and
            whatever is being recorded - to read a page about privacy. -->
       OzTrax Recon &middot; offline 4x4 trail log &middot;
-      <a href="./privacy.html" target="_blank" rel="noopener">Privacy</a><br>
+      <a href="./privacy.html" target="_blank" rel="noopener" id="privacyLink">Privacy</a><br>
       <!-- Every credit the map owes, in the one place. Esri drew this map
            for two years and draws none of it now, so it is gone from here.
            What replaced it wants three: the data is OpenStreetMap's, the
@@ -3397,6 +3397,25 @@ input[type=date],input[type=time]{color-scheme:dark}
    ===================================================================== */
 "use strict";
 
+/* Inside the Android app rather than a browser. The app is this page, served
+   from inside the APK with the map library, the style and the icons - the
+   service worker's shell list, copied by tools/build-shell.mjs. What is not
+   in the APK is the data: the road, place and address packs, the state maps
+   and the fuel prices are half a gigabyte in a quarter of a million files,
+   and they are fetched from the site exactly as a browser fetches them and
+   kept by the app in the same stores. DATA is where they come from - the
+   page's own folder in a browser, the site in the app. */
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const SITE = "https://deathcalibergaming.github.io/oztrax4x4/";
+const DATA = NATIVE ? SITE : "";
+/* The privacy page is the live one, opened in the phone's browser. A link to
+   the copy inside the app would load over the map and take the app with it,
+   GPS watch and recording included. */
+if (NATIVE) {
+  const privacy = document.getElementById("privacyLink");
+  if (privacy) privacy.href = SITE + "privacy.html";
+}
+
 const CFG = {
   /* The map: OpenFreeMap's Liberty style, copied beside the page with
      its icons and fonts (tools/build-vmap-style.mjs) so it draws with no
@@ -3425,7 +3444,7 @@ const CFG = {
      cut of OpenStreetMap it is and how many pieces - tools/build-vmap.mjs.
      On Pages beside the other packs for now; the hosting move changes
      this one line. */
-  VMAP_URL: "vmap/",
+  VMAP_URL: DATA + "vmap/",
   /* What a map download is guessed to manage, for the time a state is
      said to take before it starts: a fair 4G signal. Not measured on a
      phone yet. The run itself reports what it is actually getting. */
@@ -3481,7 +3500,7 @@ const CFG = {
      gzipped on the server. A vehicle pulls the tiles it is standing in and
      no others; the median tile is under a kilobyte and the worst of
      central Sydney is 274 KB. */
-  ADDR_URL: "addr/",
+  ADDR_URL: DATA + "addr/",
   ADDR_Z: 13,              /* the zoom the packs are cut on, ~4.3 km a tile */
   ADDR_RADIUS: 6000,       /* metres of addresses kept loaded around you */
   /* Held in memory for the search to walk. Country tiles run to a few
@@ -3496,7 +3515,7 @@ const CFG = {
   /* The road network, off our own origin as well, and cut on the same grid
      as the addresses so a drive pulls both from the same tile numbers.
      tools/build-routing.mjs builds them. */
-  ROUTE_URL: "route/",
+  ROUTE_URL: DATA + "route/",
   /* The POI pack: every POI in the country, cut on the same grid as the
      other two and served off our own origin, so it has no rate limit, no
      latency worth the name and no opinion about how often you ask.
@@ -3505,7 +3524,7 @@ const CFG = {
      Australia, which is the size of the tree on the server rather than
      anything a phone fetches. A vehicle pulls the tiles it is standing in
      and no others, and the worst of those is Sydney at 28 KB. */
-  POI_PACK_URL: "poi/",
+  POI_PACK_URL: DATA + "poi/",
   POI_PACK_Z: 13,
   ROUTE_Z: 13,
   /* The coarse grid the tertiary roads are cut on, about 78 km a tile.
@@ -4250,6 +4269,9 @@ function showUpdateBar() {
 
 (function registerWorker() {
   if (location.protocol !== "http:" && location.protocol !== "https:") return;
+  /* The app carries its shell inside it and is updated through the Play
+     Store, so there is nothing for a worker to cache or to announce. */
+  if (NATIVE) return;
   window.addEventListener("load", function () {
     navigator.serviceWorker.register(new URL("sw.js", location.href).href)
       .catch(function (e) { console.warn("offline shell unavailable:", e.message); });
@@ -10584,8 +10606,13 @@ const Fuel = {
     if (!force && this.data && Date.now() - this.fetchedAt < this.STALE_MS) return;
     try {
       /* The worker answers this one network first, so a launch with signal
-         gets today's and a launch without gets the last one it saw. */
-      const r = await fetch("./fuel.json", { cache: "no-cache" });
+         gets today's and a launch without gets the last one it saw. The app
+         has no worker: today's comes from the site, and with no signal the
+         copy built into the app stands in - as old as the build, and better
+         than no prices at all. */
+      let r = null;
+      if (NATIVE) { try { r = await fetch(SITE + "fuel.json", { cache: "no-cache" }); } catch (e) { r = null; } }
+      if (!r || !r.ok) r = await fetch("./fuel.json", { cache: "no-cache" });
       if (!r.ok) return;
       const j = await r.json();
       if (!j || !Array.isArray(j.sites)) return;
@@ -17084,6 +17111,96 @@ function navArt(p1, p2, art) {
    does it - see duck.
    ===================================================================== */
 
+/* In the Android app the words are spoken by the phone, not the page.
+
+   Android's WebView has no speechSynthesis - MDN lists it as never
+   supported there - so the Voice block below would find nothing to speak
+   with and the app would drive in silence. The app's NavVoice plugin does
+   the speaking, and this stands in for the parts of speechSynthesis the
+   Voice block uses: getVoices and voiceschanged, speak with an utterance's
+   onend and onerror, cancel, and speaking. So nothing below it changes,
+   in the app or in Chrome.
+
+   The phone's voices come named like en-au-x-aub-local, which is an
+   engine's filing system rather than something to put in a picker, so they
+   are offered as Australian English 1, 2 and on, in the engine's own order.
+   Chrome only ever reported one voice per language, so this is also the
+   first time a driver can pick between them in the app rather than in
+   Android's settings. The Voice block's rules still apply: on the phone
+   only, and Australian where there is one. */
+(function nativeSpeech() {
+  if (!NATIVE) return;
+  const cap = window.Capacitor;
+  const told = [];
+  let voices = [], cur = null, n = 0, quiet = false;
+  function Utterance(text) {
+    this.text = text; this.voice = null; this.lang = ""; this.rate = 1;
+    this.onend = null; this.onerror = null;
+  }
+  function settle(id, ok) {
+    if (!cur || cur.id !== id) return;
+    const u = cur.u;
+    cur = null;
+    speech.speaking = false;
+    const f = ok ? u.onend : u.onerror;
+    if (f) f({});
+  }
+  const speech = {
+    speaking: false, pending: false, paused: false,
+    getVoices: function () { return voices; },
+    addEventListener: function (type, fn) { if (type === "voiceschanged") told.push(fn); },
+    speak: function (u) {
+      quiet = false;
+      const id = "u" + (++n);
+      cur = { id: id, u: u };
+      this.speaking = true;
+      cap.nativePromise("NavVoice", "speak", {
+        text: u.text, id: id, rate: u.rate || 1, voice: (u.voice && u.voice.voiceURI) || null
+      }).catch(function () { settle(id, false); });
+    },
+    cancel: function () {
+      const c = cur;
+      cur = null;
+      this.speaking = false;
+      /* The Voice block cancels and speaks the more urgent line straight
+         after, and the engine flushes the old line itself when a new one
+         starts. A stop sent between the two would let the music back up for
+         a moment in between, so it waits out this turn of the event loop and
+         goes only if nothing has been said since. */
+      quiet = true;
+      queueMicrotask(function () {
+        if (quiet) cap.nativePromise("NavVoice", "stop", {}).catch(function () {});
+      });
+      if (c && c.u.onerror) c.u.onerror({ error: "interrupted" });
+    }
+  };
+  cap.nativeCallback("NavVoice", "addListener", { eventName: "speech" }, function (d) {
+    if (d && (d.type === "end" || d.type === "error")) settle(d.id, d.type === "end");
+  });
+  cap.nativePromise("NavVoice", "voices", {}).then(function (r) {
+    const count = {};
+    let names = null;
+    try { names = new Intl.DisplayNames(["en"], { type: "language" }); } catch (e) { names = null; }
+    voices = ((r && r.voices) || [])
+      /* en-AU-language is the engine's default for the locale, a second
+         name for one of the voices already listed */
+      .filter(function (v) { return !/-language$/.test(v.id); })
+      .sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; })
+      .map(function (v) {
+        let label = v.lang;
+        try { if (names) label = names.of(v.lang); } catch (e) { label = v.lang; }
+        /* Numbered among the ones on the phone, which are the only ones the
+           picker offers; one that needs the network says so instead. */
+        if (v.local) { count[v.lang] = (count[v.lang] || 0) + 1; label += " " + count[v.lang]; }
+        else label += " (online)";
+        return { name: label, lang: v.lang, voiceURI: v.id, localService: !!v.local, default: false };
+      });
+    told.forEach(function (fn) { try { fn(); } catch (e) { } });
+  }).catch(function () { });
+  Object.defineProperty(window, "speechSynthesis", { value: speech, configurable: true, writable: true });
+  window.SpeechSynthesisUtterance = Utterance;
+})();
+
 /* A second of silence as a WAV, made rather than carried for the reason the
    chime is: this app is one document, and a file is one more thing to
    cache offline and one more thing that can 404. Eight kilohertz, mono,
@@ -17280,6 +17397,10 @@ const Voice = {
      Where playing is refused - no touch on the page yet this session - the
      line is still said, over the music, as it always was. */
   duck: function () {
+    /* The app's own voice asks Android for the focus itself, for exactly as
+       long as the line - see NavVoicePlugin - and a clip playing in the
+       WebView would ask again on top of it. */
+    if (NATIVE) return;
     clearTimeout(this.duckTimer);
     /* A line whose end is never reported must not hold the music down
        until the next one; the watchdog's limit is the most any line takes. */
@@ -19515,8 +19636,10 @@ function syncVoiceButtons() {
       : f && f.en
       ? "No Australian voice on this phone - add one in " + TTS + ". "
       : "No voice installed - add one in " + TTS + ". ") +
-    "Its loudness is the media volume. On a Samsung, turn on volume keys for media in " + VOL +
-    " so the buttons set it at any time.";
+    (NATIVE
+      ? "Its loudness is the media volume, and the volume buttons set it."
+      : "Its loudness is the media volume. On a Samsung, turn on volume keys for media in " + VOL +
+        " so the buttons set it at any time.");
 }
 
 function setNavVoice(on) {

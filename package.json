@@ -2,11 +2,16 @@
   "name": "oztrax-recon-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Build and measurement tooling for OzTrax Recon. The app itself is docs/index.html and has no dependencies at all - nothing in here ever reaches a phone.",
+  "description": "Build and measurement tooling for OzTrax Recon, and the Capacitor packages the Android app is built with. The web app itself is docs/index.html and has no dependencies at all - only @capacitor/android reaches a phone, compiled into the APK.",
   "scripts": {
     "drive": "node tools/drive-harness.mjs"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "puppeteer-core": "^25.12.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
   }
 }

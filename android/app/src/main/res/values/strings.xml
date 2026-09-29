@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name comes from app/build.gradle, so the development build can
+         carry a name of its own beside the Play one. -->
+    <string name="package_name">io.github.deathcalibergaming.twa</string>
+    <string name="custom_url_scheme">io.github.deathcalibergaming.twa</string>
+</resources>
