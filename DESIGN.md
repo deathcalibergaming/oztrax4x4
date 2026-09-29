@@ -247,10 +247,15 @@ categorical scale for places.
   failed, the recording state line, an over-budget figure, an error toast.
 - **Navigation Blue** (`#4FA8E8`) and **Navigation Blue Lit** (`#7FC1F0`):
   the destination and the route to it — the polyline, the destination pin,
-  the navigation panel. Chrome rather than a category of place, which is why
-  it has a name of its own instead of borrowing a fuel grade's hex. Ink is
-  drawn on a pale map and stays dark; lit sits on a dark panel and stays
-  light. Neither survives the other's ground.
+  the turn glyph's tile, and the arrow at the head of the navigation bar.
+  Chrome rather than a category of place, which is why it has a name of its
+  own instead of borrowing a fuel grade's hex. Ink is drawn on a pale map and
+  stays dark; lit sits on a dark panel and stays light. Neither survives the
+  other's ground. **A mark, never a frame or a word:** the bars that carry a
+  route are cut from the cluster's own face and hairline and lettered in
+  Instrument White, because a blue-edged card with blue type over the road is
+  the phone's own map. The tile is solid, with **Navigation Ink**
+  (`#0A1219`) on it by The Ink On Fill Rule — 7.3:1.
 
 ### Neutral
 
@@ -1270,10 +1275,20 @@ read as a box packed to the edges rather than an instrument with room in
 it. A bar on its own has the room for --tap, and takes it.
 
 A strip drops the navigation arrow and leads with the destination. It is
-19px of a 253px line, and the only mark on the bar that says nothing the
-Navigation blue of its edge and its name has not already said - where the
-recording bar's dot is a state and blinks. What it buys is the name: PORT
-AUGUSTA fits, where the strip used to run out after PORT AUG.
+19px of a 253px line, and what it buys is the name: PORT AUGUSTA fits, where
+the strip used to run out after PORT AUG. The strip is known by what it
+carries - a destination, its figures and Cancel - where the recording bar's
+is a dot that blinks.
+
+Both bars are cut from the same plate as everything else framing the map:
+the face is `--face`, the bevel the top bar wears, drawn as an SVG gradient
+because the plate is a path; the edge is Hairline Strong, the sand line
+every plate on the map is drawn with. They were framed in Navigation Blue
+and Alert Red, which made the console two coloured badges - the blue one the
+phone's own map, the red one louder than the route it sat under. What each
+bar is doing is said inside it, so the frame is a frame. The navigation
+bar's figures and their labels are Instrument White, as the stat bar's are;
+the destination is sand, as the track's name is.
 
 ### Menu Badge
 
@@ -1365,10 +1380,11 @@ The next manoeuvre, across the top of the map, while a route is running.
 
 It gets the top of the map rather than a corner of it, because it is the one
 thing on this screen that is read at speed and acted on immediately — every
-other thing here is a reading, and this is an instruction. Navigation Blue,
-the colour of the line it describes and of the panel at the other end of the
-screen, so the three read as one thing running rather than three separate
-announcements.
+other thing here is a reading, and this is an instruction. It is cut from
+the cluster's plate - `--face`, Hairline Strong - and lettered in Instrument
+White, because it is read at speed. Navigation Blue is on it once, as the
+glyph's solid tile: the colour of the line on the map it describes, so the
+instruction and the route still read as one thing.
 
 **Centred on the map**, with equal margins and capped at 560px — a tablet
 gets a bar the width of a bar rather than one arrow marooned at the end of a
@@ -1392,9 +1408,11 @@ reaches the map.
 
 Two lines and a glyph: **the distance in the readout face** — the third
 gauge in the app, and it counts down while you drive at it — then the turn
-named beside it in Navigation Blue Lit, and under them the road it puts you
-on. The glyph is the half read first and from furthest away, so it gets a
-34px tinted tile of its own rather than sitting loose against the type. A
+named beside it in Instrument White at the micro label step, and under them
+the road it puts you on, at Body in white at 600: the word being matched
+against a street sign. The glyph is the half read first and from furthest
+away, so it gets a 34px solid tile of its own, in Navigation Blue with
+Navigation Ink, rather than sitting loose against the type. A
 second turn within 250m shows as a dim **THEN** and a small arrow at the far
 end: that is the one that catches people out, where you take the first and
 are already past the second. On a phone on its side the road comes up beside
@@ -1523,9 +1541,10 @@ eighth of the compass so it is not stepping between NE and ENE while you
 watch it, spelled out in words because this is the one line on the screen
 that is a sentence rather than a reading.
 
-**Off the route** it goes amber and says **Off route — working out a new
-way**, because a blue bar reads as an instruction and there is nothing to
-follow until a new line lands. Off means sixty metres from the drawn line for
+**Off the route** the tile goes solid Caution Yellow with that fill's ink,
+the words go yellow and say **Off route — working out a new way**, because a
+blue tile reads as an instruction and there is nothing to follow until a new
+line lands. The frame stays a frame. Off means sixty metres from the drawn line for
 two fixes running — about two seconds — and then a new route every five
 seconds until one takes. The route itself is about twenty milliseconds and
 asks the network for nothing: a recalculation searches the graph already in

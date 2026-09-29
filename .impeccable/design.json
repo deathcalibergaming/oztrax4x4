@@ -218,7 +218,7 @@
           "#96D1FF",
           "#DBF2FF"
         ],
-        "purpose": "The route and the destination pin, drawn on a pale map."
+        "purpose": "The route and the destination pin, drawn on a pale map, and the turn glyph's solid tile - a mark, never a frame or a word."
       },
       "navigation-blue-lit": {
         "role": "secondary",
@@ -234,7 +234,7 @@
           "#A3D0F1",
           "#E0F1FF"
         ],
-        "purpose": "Navigation text and icons on a dark panel."
+        "purpose": "The navigation bar's arrow on a dark panel."
       },
       "instrument-white": {
         "role": "neutral",
