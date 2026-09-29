@@ -4,5 +4,11 @@
   "webDir": "native/www",
   "android": {
     "backgroundColor": "#14181B"
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
   }
 }
