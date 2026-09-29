@@ -224,6 +224,32 @@ profile that has been here before, and it once made a whole "after" run
 measure the "before" build. Two runs quoting the same fingerprint measured
 the same build, whatever either was told to load.
 
+## Measuring navigation
+
+`tools/nav-sim.js` drives the app's own navigation from inside the page. It
+starts a trip with the real router and road packs, feeds it fixes a second
+apart along the route it was given - slowing for the last eighty metres,
+with a GPS error that wanders rather than jumps - and reads back where on the
+route the trip was called arrived. Nothing leaves the machine: the OSRM
+fallback, the POI fetch and the voice are stubbed. How to load it, and every
+option, is at the top of the file.
+
+It was written for the arrival rule. Arrived used to be sixty metres round
+the pin in a straight line, and measured against the route that was wrong
+in both directions:
+
+| | circle round the pin | end of the route |
+|---|---|---|
+| 33 trips, pin beside the road: road left when called arrived | median 50 m, up to 105 m | median 10 m, up to 19 m |
+| 90 trips, pin across a divided road | all 90 called on the pass, 48 m to 7 km early | all 90 at the end, up to 16 m |
+| 59 missed turns: fixes before it notices | 4.18 | 4.16 - the same fix on 58 |
+
+Pulling up 25 m short arrives once stopped; turning in for the pin 40 or
+80 m short arrives on all 33. Parking further than 30 m short does not, and
+navigation carries on until it is cancelled. A pin more than 60 m from the
+road still goes by the circle, because there the pin is the only place to
+arrive at.
+
 ## Carrying the driver's own work across
 
 The app's storage belongs to an origin **in one browser**, and the installed
