@@ -283,8 +283,16 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   Chrome. Being native, it asks for audio focus as navigation guidance -
   the music ducks under each line - and the volume buttons set the voice's
   volume at any time. Each voice on the phone is offered by name.
-- **The whole screen**, as the TWA had it: system bars hidden, back for a
-  moment with a swipe. The icons and the splash mark are the Play build's.
+- **Louder than the media volume, and music paused if need be.** In a car
+  the ducked music still came out over the words, because music is mastered
+  loud and a synthesised voice is not. Settings -> Navigation Voice has two
+  rows only the app shows. **Loudness** (Normal, Loud, Max): Loud and Max
+  write the line to a file and play it through Android's LoudnessEnhancer,
+  +6 dB and +12 dB (`CFG.VOICE_BOOST_MB`), limited so it does not clip; the
+  file costs a fraction of a second per line. Loud is the default. **Music**
+  (Lower, Pause): Pause asks for plain transient audio focus instead of
+  may-duck, which music apps answer by pausing until the line is over.
+- **The icons and the splash mark** are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.
 - **The status bar stays; the navigation buttons go** (`MainActivity.java`),
