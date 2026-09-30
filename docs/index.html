@@ -51,6 +51,12 @@
   --panel:#1B211D;
   --head:#171C19;         /* the bar a panel or section heading sits on */
   --panel2:#232B26;
+  /* An instrument's face: the panel tone at the top falling to the heading
+     tone at the foot - the shallow bevel that makes a surface read as a
+     plate with an edge rather than a rectangle with a fill. The top bar wore
+     it alone for a long time; the turn bar and the console wear it too now,
+     so everything that frames the map is cut from the same stock. */
+  --face:linear-gradient(180deg,var(--panel) 0%,var(--head) 100%);
   --sand:#D8CBAA;
   /* Lifted four deltaE, which is about the smallest step the eye registers.
      It buys near-black text on the primary button 4.6:1 instead of 4.2, and
@@ -89,6 +95,10 @@
      on a dark panel, and neither colour survives the other's ground. */
   --nav:#4FA8E8;
   --nav2:#7FC1F0;
+  /* The ink a Navigation fill takes - the turn bar's glyph tile - by The Ink
+     On Fill Rule: near-black leaned toward the blue under it, as the other
+     four fills each have theirs. 7.3:1 on --nav. */
+  --nav-ink:#0A1219;
   /* The structural sand transparencies. line2 draws the edge of a control
      and has to clear 3:1 against every surface it is drawn on, because the
      surface ramp is flat by design and the line is the only thing saying
@@ -259,13 +269,16 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;
   padding-right:26px}
 .hidden{display:none !important}
+/* Heard and not seen: a live region with no box on the screen. */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap}
 
 /* ---------- shell ---------- */
 #app{position:fixed;inset:0;display:flex;flex-direction:column}
 
 #topbar{height:calc(var(--topH) + var(--safeT));padding-top:var(--safeT);flex:0 0 auto;
   display:flex;align-items:center;gap:10px;padding-left:10px;padding-right:6px;
-  background:linear-gradient(180deg,#1B211D 0%,#171C19 100%);
+  background:var(--face);
   border-bottom:1px solid var(--line);z-index:600;position:relative}
 /* The wordmark gives way before the status pill does. On a 320px phone at
    Large text it ran 13px into the pill; the pill carries the GPS fix and the
@@ -962,7 +975,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   bottom:calc(var(--stackB) + var(--conH) + var(--conGap));
   height:calc((var(--conH) - var(--conGap)) / 2);
   display:flex;gap:4px;padding:2px;
-  background:var(--head);border:1px solid var(--line);border-radius:10px;
+  background:var(--face);border:1px solid var(--line2);border-radius:10px;
   box-shadow:0 6px 20px rgba(0,0,0,.45);
   /* It comes in from off the edge of the screen and leaves the same way,
      far enough out to clear it - its own width and whatever is between its
@@ -1014,7 +1027,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #actionRow.settling{transition:none}
 #actionRow > .pl-plate{display:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.45))}
 #actionRow.down > .pl-plate{display:block}
-#actionRow .pl-face{stroke:var(--line2)}
 #actionRow .act{position:static;flex:1 1 0;min-width:0;width:auto;height:auto;border-radius:8px;gap:1px}
 /* measurable rather than wrapped: the drop is only taken where the words
    fit on one line of it */
@@ -1166,9 +1178,20 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    near the map. A positioned child paints over in-flow text otherwise, and
    the plate would be a black bar with nothing on it. */
 .pl-plate{position:absolute;left:0;top:0;z-index:-1;pointer-events:none}
-.pl-face{fill:var(--head);stroke-width:1}
-#navPanel .pl-face{stroke:rgba(127,193,240,.55)}
-#recPanel .pl-face{stroke:rgba(224,124,99,.65)}
+/* The face is --face drawn in SVG - a gradient platePanels writes into each
+   plate, because a path cannot take a CSS background - and the edge is the
+   sand hairline every other plate on the map is drawn with.
+
+   The navigation bar's edge was Navigation Blue and the recording bar's
+   Alert Red, which made the console two coloured frames: a blue one looking
+   like the phone's own map, and a red one shouting louder than the route
+   it sat over. What each bar is doing is already said inside it - the red
+   dot that blinks and REC, the destination and its figures - so the frame
+   goes back to being a frame, and the one colour left on the navigation bar
+   is the route's own arrow at its head. */
+.pl-face{stroke:var(--line2);stroke-width:1}
+.pl-bevel stop:first-child{stop-color:var(--panel)}
+.pl-bevel stop:last-child{stop-color:var(--head)}
 
 /* ---------- what each bar carries ----------
    A bar on its own has the console's full height and the whole width:
@@ -1251,7 +1274,6 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack.pair .np-figs > div{flex:0 0 auto;padding:0 9px;border-right:1px solid var(--line)}
 #panelStack.pair .np-figs > div:first-child{padding-left:0}
 #panelStack.pair .np-figs > div:last-child{padding-right:0;border-right:none}
-#panelStack.pair .np-figs > div:first-child b{color:var(--hud)}
 #panelStack.pair .np-figs i{display:none}
 #panelStack.pair .np-btns{grid-column:3;grid-row:1;align-self:stretch;padding:var(--conInset) 0}
 #panelStack.pair #recPanel{gap:12px;padding-top:0;padding-bottom:0}
@@ -1313,8 +1335,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    honest reason is the first one. */
 .np-top{display:flex;align-items:center;gap:8px}
 .np-ico{width:15px;height:15px;stroke:var(--nav2);fill:none;stroke-width:1.8;stroke-linejoin:round;flex:0 0 auto}
+/* Sand, as the track's name is on the bar above: a name you set yourself,
+   read at a stop. It was Navigation Blue Lit, which on a bar already framed
+   in blue made the whole thing a blue badge. */
 .np-name{flex:1;min-width:0;font-size:var(--t-body);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--nav2)}
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .np-btns{display:flex;margin-top:8px}
 .np-btns .btn{padding:11px 12px;min-height:var(--tap)}
 .np-figs{display:flex;margin-top:7px}
@@ -1323,9 +1348,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .np-figs > div:last-child{border-right:none}
 /* The second gauge, and the second monospaced thing. Same reason as the stat
    bar: these three count down while you drive at them. */
-.np-figs b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--sand);line-height:1.05;
+/* Instrument White, figures and labels both, by The Full Sun Rule: these
+   are read while moving exactly as the stat bar's are, and the labels take
+   the stat bar's own three-quarters. They were sand and dim - the one gauge
+   in the cluster printed in the colour of the prose. */
+.np-figs b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--hud);line-height:1.05;
   white-space:nowrap}
-.np-figs i{font-size:var(--t-micro);font-style:normal;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+.np-figs i{font-size:var(--t-micro);font-style:normal;letter-spacing:.12em;color:var(--hud);opacity:.75;
+  text-transform:uppercase}
 .np-note{font-size:var(--t-meta);letter-spacing:.05em;color:var(--warn);
   margin-top:6px;text-align:center}
 .np-note:empty{display:none}
@@ -1348,9 +1378,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    puts the same instruction in the same place. Everything else here is a
    reading; this is an instruction, and the layout says so.
 
-   Navigation blue, the colour of the line it is describing and of the panel
-   at the other end of the screen, so the three read as one thing running
-   rather than three separate announcements.
+   The same plate as the rest of the cluster - the bevelled face, the sand
+   hairline, the words in Instrument White because this is the one thing on
+   the screen read at speed and acted on. It was framed and lettered in
+   Navigation Blue, which is the phone's own map: a blue-edged card with blue
+   type floating over the road, the anti-reference by name. Blue stays where
+   it is a mark rather than a costume - the glyph's tile, solid, the colour
+   of the line on the map it describes - so the instruction and the route
+   still read as one thing.
 
    Centred on the map - equal margins, and margin-inline:auto against both
    insets rather than a left edge that happens to look middling - and capped
@@ -1364,27 +1399,51 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #turnBar{position:absolute;left:8px;right:max(8px, var(--turnR, 0px));top:calc(var(--hudStage) + 8px);
   max-width:min(560px, var(--turnMax, 100%));margin-inline:auto;
   z-index:460;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
-  background:var(--head);border:1px solid rgba(127,193,240,.55);border-radius:10px;
+  background:var(--face);border:1px solid var(--line2);border-radius:10px;
   padding:7px 10px;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none}
 /* The glyph is the half of this read first and from furthest away, so it
-   gets a tile of its own rather than sitting loose against the type. */
-.tb-ico{width:34px;height:34px;border-radius:8px;background:rgba(79,168,232,.14);
+   gets a tile of its own rather than sitting loose against the type - a
+   solid one, in the route's own blue with the blue's own ink, built the way
+   Navigate is built in rust. A tinted tile under a pale stroke was a 14%
+   wash in the sun; a filled one is a shape, and a shape carries further.
+   6px, the control radius, not 8. */
+.tb-ico{width:34px;height:34px;border-radius:6px;background:var(--nav);
   display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.tb-ico svg{width:24px;height:24px}
-#turnBar svg{stroke:var(--nav2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.tb-txt{min-width:0}
+.tb-ico svg{width:24px;height:24px;stroke:var(--nav-ink)}
+/* No colour here. It was set on every svg in the bar at an id's weight, so
+   the THEN arrow's own dim below never won and it came out full blue. */
+#turnBar svg{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* The column is held at the height a distance and a road take together, and
+   whatever is in it is centred there - see the no-distance rule below. */
+.tb-txt{min-width:0;display:flex;flex-direction:column;justify-content:center;
+  min-height:calc(var(--t-read) * 1.05 + var(--t-body) * 1.3)}
 .tb-line{display:flex;align-items:baseline;gap:8px;min-width:0;
   min-height:calc(var(--t-read) * 1.05)}
 /* The third gauge in the app, and the third monospaced thing. Same reason as
    the stat bar and the nav panel: it counts down while you drive at it. */
 .tb-line b{font-family:var(--mono);font-size:var(--t-read);font-weight:600;color:var(--hud);
   line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums}
-.tb-line span{font-size:var(--t-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--nav2);
+/* No distance - off route, arrived, cancelled. The empty figure still took
+   the row's gap, which set the word 8px in from the name under it, so it
+   goes. And the row lets go of the height it keeps for the figure: held, it
+   left the word floating 6px over the name at the top of a row sized for a
+   17px gauge, and on a phone on its side - one row, baseline to baseline -
+   it lifted the whole line 2.6px above the tile's middle. Let go, the word
+   sits on the name like any label, and the column centres the pair. The bar
+   stays the height it always is: upright, the column holds it; on its side,
+   the tile does. */
+.tb-line b:empty{display:none}
+.tb-line:has(> b:empty){min-height:0}
+.tb-line span{font-size:var(--t-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--hud);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Kept at its own height even when the road has no name, which out here is
    most tracks - so the bar does not change size at a junction and take the
-   chips under it with it. */
-.tb-road{font-size:var(--t-note);color:var(--sand);line-height:1.3;min-height:calc(var(--t-note) * 1.3);
+   chips under it with it.
+
+   Body, the step for the name of a thing, in Instrument White at 600: it is
+   the word the driver is matching against a street sign at speed. It was
+   Note in sand, the size and colour of a card's second line. */
+.tb-road{font-size:var(--t-body);font-weight:600;color:var(--hud);line-height:1.3;min-height:calc(var(--t-body) * 1.3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* A second turn inside 250m is the one that catches people out - you take
    the first and are already past the second. Dim, and a glyph rather than
@@ -1393,20 +1452,38 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .tb-then span{font-size:var(--t-micro-tight);letter-spacing:.12em;color:var(--dim)}
 .tb-then svg{width:20px;height:20px;stroke:var(--dim)}
 /* Off the route. Amber, the colour this app uses for a state that is not
-   wrong but is not settled either - and not blue, because a blue bar reads
-   as an instruction and there is nothing to follow until a new line lands. */
-#turnBar.recalc{border-color:rgba(232,185,35,.5)}
-#turnBar.recalc svg{stroke:var(--warn)}
-#turnBar.recalc .tb-ico{background:rgba(232,185,35,.12)}
+   wrong but is not settled either - and not blue, because a blue tile reads
+   as an instruction and there is nothing to follow until a new line lands.
+   The tile goes solid Caution Yellow with that fill's own ink, as Pause
+   does, and the words say it in the same yellow; the frame stays a frame. */
+#turnBar.recalc .tb-ico{background:var(--warn)}
+#turnBar.recalc .tb-ico svg{stroke:#171204}
 #turnBar.recalc .tb-line span{color:var(--warn)}
+/* The last word, on the bar that has been giving the instructions rather
+   than in a toast that came up from nowhere under it. It holds for
+   NAV_END_HOLD and folds away.
+
+   Arrived is Signal Green, affirmative: the destination's own pin on a solid
+   tile with green's ink, and the word in green over the name.
+
+   Cancelled is the driver's own doing, so it is neither a warning nor the
+   accent: the route's blue drains out of the tile and leaves the plate it
+   was sitting on - a raised face with a sand edge and a sand cross. The
+   toast said it in Caution Yellow, which is for a state you fall into, and
+   cancelling a route is the opposite of falling into it. */
+#turnBar.arrived .tb-ico{background:var(--green)}
+#turnBar.arrived .tb-ico svg{stroke:#12160B}
+#turnBar.arrived .tb-line span{color:var(--green)}
+#turnBar.cancelled .tb-ico{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line2)}
+#turnBar.cancelled .tb-ico svg{stroke:var(--sand)}
 @media (orientation: landscape) and (max-height: 520px) {
   /* A phone on its side has the least height to give and the most width to
      spare, so the road comes up beside the turn instead of under it and the
      bar is one row. The map keeps the difference. */
   #turnBar{padding:5px 8px;gap:8px}
-  .tb-ico{width:28px;height:28px;border-radius:7px}
+  .tb-ico{width:28px;height:28px}
   .tb-ico svg{width:20px;height:20px}
-  .tb-txt{display:flex;align-items:baseline;gap:9px}
+  .tb-txt{display:flex;flex-direction:row;align-items:baseline;gap:9px;min-height:0}
   .tb-line{flex:0 0 auto}
   .tb-road{flex:1 1 auto;min-width:0;min-height:0}
 }
@@ -3399,6 +3476,10 @@ input[type=date],input[type=time]{color-scheme:dark}
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- What the turn bar says when a route ends, out loud. The bar itself is
+     not a live region: it changes its distance on every fix, and a screen
+     reader reading each one would be reading nothing else. -->
+<div id="turnSay" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="lib/maplibre-gl.js"></script>
 <script src="lib/pmtiles.js"></script>
@@ -3692,6 +3773,11 @@ const CFG = {
      metres down the road was announced as if it were straight after the
      first, half a minute before it came up, and then never named again. */
   NAV_TURN_THEN: 80,
+  /* How long the turn bar keeps its last word - Arrived, or Navigation
+     cancelled - before it folds away. Four seconds: long enough to catch
+     with a glance back up from the road, which the toast's two and a half
+     was not, and short enough that the bar is gone before it is furniture. */
+  NAV_END_HOLD: 4000,
   /* Two spoken calls per corner, timed rather than measured out - see the
      Voice block. The seconds are what a driver needs: twenty-five to read
      the turn, slow, and move across; four to make it. The floors are for a
@@ -5067,8 +5153,13 @@ function platePanels() {
     const left = sr.left + bar.offsetLeft, top = sr.top + bar.offsetTop;
     pl.setAttribute("width", w); pl.setAttribute("height", h);
     pl.setAttribute("viewBox", "0 0 " + w + " " + h);
+    /* The face's bevel, top to foot of the bar as it is now, under an id of
+       the bar's own - ids are the document's, and three plates share it. */
+    const id = "pf-" + bar.id;
     pl.innerHTML = w > 60 && h > 6
-      ? '<path class="pl-face" d="' + barShape(w, h, cx - left, cy - top, R, nose) + '"/>'
+      ? '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1" class="pl-bevel">' +
+        '<stop offset="0"/><stop offset="1"/></linearGradient></defs>' +
+        '<path class="pl-face" fill="url(#' + id + ')" d="' + barShape(w, h, cx - left, cy - top, R, nose) + '"/>'
       : "";
   });
 }
@@ -16939,7 +17030,9 @@ const TURN_ART = {
   arrive: ["M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z",
            "M14.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"],
   head:   ["M12 2.8 20 20.5 12 16.2 4 20.5Z", ""],
-  recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"]
+  recalc: ["M20 12a8 8 0 1 1-2.4-5.7", "M20 3.5V9h-5.5"],
+  /* the same cross the console's Cancel draws, at the tile's size */
+  cancelled: ["M6.5 6.5l11 11", "M17.5 6.5l-11 11"]
 };
 
 /* Do these points lie on a circle, and is it the size of a roundabout?
@@ -17828,6 +17921,41 @@ function navHideTurn() {
   navTurnFit();
 }
 
+/* The bar's last word when a route ends: Arrived, or Navigation cancelled,
+   over the destination's name, for NAV_END_HOLD and then gone. It used to
+   be a toast - a chip from nowhere under the bar that had been giving every
+   instruction up to then, gone again before a driver looking back up from
+   the road had found it. Said here, it is where the eye already goes for
+   what navigation is doing, and it is the same bar ending rather than a
+   different thing starting. */
+function navEndBar(kind, name) {
+  const bar = $("#turnBar");
+  if (!bar) return;
+  navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind === "arrived" ? "arrive" : "cancelled"]);
+  const act = kind === "arrived" ? "Arrived" : "Navigation cancelled";
+  $("#turnDist").textContent = "";
+  $("#turnAct").textContent = act;
+  $("#turnRoad").textContent = name || "";
+  $("#turnThen").classList.add("hidden");
+  bar.classList.remove("recalc", "arrived", "cancelled");
+  bar.classList.add(kind);
+  bar.classList.remove("hidden");
+  navTurnFit();
+  $("#turnSay").textContent = act + (name ? ", " + name : "");
+  clearTimeout(navEndBar.timer);
+  navEndBar.timer = setTimeout(function () { navEndClear(false); }, CFG.NAV_END_HOLD);
+}
+/* Ends the hold. keep: a route is running again and about to draw over it,
+   so only the end state goes; otherwise the bar goes with it. */
+function navEndClear(keep) {
+  const bar = $("#turnBar");
+  clearTimeout(navEndBar.timer);
+  if (!bar || !bar.classList.contains("arrived") && !bar.classList.contains("cancelled")) return;
+  bar.classList.remove("arrived", "cancelled");
+  $("#turnSay").textContent = "";
+  if (!keep) navHideTurn();
+}
+
 /* at: metres already driven along the route. remain: metres left of it. */
 function navRenderTurn(at, remain) {
   const bar = $("#turnBar");
@@ -17862,6 +17990,8 @@ function navRenderTurn(at, remain) {
     }
   }
 
+  /* A new route inside the last one's four seconds takes the bar back. */
+  navEndClear(true);
   navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
   $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
   $("#turnAct").textContent = act;
@@ -18211,12 +18341,12 @@ function navProgress() {
 }
 
 function navArrive() {
-  const name = Nav.dest ? Nav.dest.name : "destination";
+  const name = Nav.dest ? Nav.dest.name : "";
   /* The cancel first, because it stops whatever was still being said about
      a corner that no longer matters. This is the last word either way. */
   cancelNav(true);
   Voice.say("You have arrived at " + (sayName(name) || "your destination"), true);
-  toast("Arrived at " + name, "ok");
+  navEndBar("arrived", name);
 }
 
 /* Both bars up means half a console each - recording on top, navigating on
@@ -18350,6 +18480,7 @@ function showNavPanel() {
 function setNavNote(s) { Nav.note = s || ""; $("#navNote").textContent = Nav.note; }
 
 function cancelNav(quiet) {
+  const name = Nav.dest ? Nav.dest.name : "";
   Nav.active = false;
   Nav.dest = null;
   Nav.coords = [];
@@ -18362,7 +18493,10 @@ function cancelNav(quiet) {
   Nav.via = "";
   Nav.standing = "";
   Voice.stop();
-  navHideTurn();
+  /* Cancelled by hand, the bar says so; ended by anything else - an
+     arrival, which says its own - it goes. */
+  if (quiet) navHideTurn();
+  else navEndBar("cancelled", name);
   navLine.setLatLngs([]);
   navCasing.setLatLngs([]);
   navDestMk.clearLayers();
@@ -18370,7 +18504,6 @@ function cancelNav(quiet) {
   setNavNote("");
   syncPanelStack();
   if (typeof Wake !== "undefined") Wake.apply();
-  if (!quiet) toast("Navigation cancelled", "warn");
 }
 /* Cumulative distance along SIM_ROUTE, built once on first use. */
 let simCum = null;
