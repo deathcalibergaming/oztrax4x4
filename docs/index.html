@@ -1990,6 +1990,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
+#btnBoostNormal.on,#btnBoostLoud.on,#btnBoostMax.on,#btnMusicLower.on,#btnMusicPause.on,
 #btnNightAuto.on,#btnNightDay.on,#btnNightOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
@@ -3113,6 +3114,15 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="row hidden" id="voicePickRow">
           <select id="voicePick" aria-label="Which voice speaks the turns"></select>
         </div>
+        <div class="sublabel hidden" id="voiceBoostRow" role="radiogroup" aria-label="How loud the voice is">Loudness
+          <button class="btn xs ghost" id="btnBoostNormal">Normal</button>
+          <button class="btn xs ghost" id="btnBoostLoud">Loud</button>
+          <button class="btn xs ghost" id="btnBoostMax">Max</button>
+        </div>
+        <div class="sublabel hidden" id="voiceMusicRow" role="radiogroup" aria-label="Music while the voice speaks">Music
+          <button class="btn xs ghost" id="btnMusicLower">Lower</button>
+          <button class="btn xs ghost" id="btnMusicPause">Pause</button>
+        </div>
         <div class="row">
           <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
         </div>
@@ -3779,6 +3789,11 @@ const CFG = {
      with a glance back up from the road, which the toast's two and a half
      was not, and short enough that the bar is gone before it is furniture. */
   NAV_END_HOLD: 4000,
+  /* How far the app lifts the voice past the top of the media volume, in
+     millibels, through Android's LoudnessEnhancer - see NavVoicePlugin. Six
+     decibels is about half as loud again, twelve about twice; the effect
+     limits the peaks, so Max is louder and flatter rather than clipped. */
+  VOICE_BOOST_MB: { normal: 0, loud: 600, max: 1200 },
   /* Auto units - see Units. The band past a land border inside which
      nothing changes: the outlines' 130 m there and some GPS. The shore: how
      far off a rough coast is still that country - the 7 km mid-span of the
@@ -4658,6 +4673,13 @@ const S = Object.assign({
   speedAlert: false,    /* chime when the speed passes the posted limit */
   navVoice: false,      /* and speak the turn across the top of the map */
   voiceName: "",        /* the voice chosen by name, "" to let the ranking choose */
+  /* The app only - a page cannot do either. How far past the media volume
+     the voice is lifted, "normal", "loud" or "max" (CFG.VOICE_BOOST_MB),
+     and whether music is "lower"ed under a line or "pause"d for it. Loud by
+     default: the first report from a car was the voice under music that had
+     already been turned down for it. */
+  voiceBoost: "loud",
+  voiceMusic: "lower",
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
   zoom: 15,
@@ -4721,6 +4743,7 @@ function saveSettings() {
                         units: S.units, unitsHere: S.unitsHere, unitsAutoApplied: S.unitsAutoApplied,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
+                        voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
@@ -17569,7 +17592,9 @@ function navArt(p1, p2, art) {
       cur = { id: id, u: u };
       this.speaking = true;
       cap.nativePromise("NavVoice", "speak", {
-        text: u.text, id: id, rate: u.rate || 1, voice: (u.voice && u.voice.voiceURI) || null
+        text: u.text, id: id, rate: u.rate || 1, voice: (u.voice && u.voice.voiceURI) || null,
+        /* read at each line, so a change in the settings is heard on the next */
+        boost: CFG.VOICE_BOOST_MB[S.voiceBoost] || 0, pause: S.voiceMusic === "pause"
       }).catch(function () { settle(id, false); });
     },
     cancel: function () {
@@ -20095,6 +20120,17 @@ function syncVoiceButtons() {
   $("#btnVoiceOff").classList.toggle("on", !S.navVoice);
   $("#voiceState").textContent = voiceStateLine();
   renderVoicePick();
+  /* The app's two, shown only where they can work and only while the voice
+     is on - a page cannot lift the voice past the media volume, nor ask
+     for the music to pause rather than duck. */
+  const own = NATIVE && !!S.navVoice;
+  $("#voiceBoostRow").classList.toggle("hidden", !own);
+  $("#voiceMusicRow").classList.toggle("hidden", !own);
+  $("#btnBoostNormal").classList.toggle("on", S.voiceBoost === "normal");
+  $("#btnBoostLoud").classList.toggle("on", S.voiceBoost === "loud");
+  $("#btnBoostMax").classList.toggle("on", S.voiceBoost === "max");
+  $("#btnMusicLower").classList.toggle("on", S.voiceMusic !== "pause");
+  $("#btnMusicPause").classList.toggle("on", S.voiceMusic === "pause");
   const f = Voice.found;
   /* The Android path is a path, so it is set out as one. Written as prose it
      ran to six commas in a row and had to be parsed rather than followed. */
@@ -20109,14 +20145,17 @@ function syncVoiceButtons() {
      stops the music, which is the opposite of what was asked. */
   const VOL = "Settings \u2192 Sounds and vibration \u2192 Volume";
   $("#voiceNote").textContent =
-    "Speaks each turn twice - in time to move across, then at the corner - and turns music down while it talks. Works with no signal. " +
+    "Speaks each turn twice - in time to move across, then at the corner - and " +
+    (NATIVE && S.voiceMusic === "pause" ? "pauses music while it talks" : "turns music down while it talks") +
+    ". Works with no signal. " +
     (f && f.au
       ? "For a different or male voice: " + TTS + ". "
       : f && f.en
       ? "No Australian voice on this phone - add one in " + TTS + ". "
       : "No voice installed - add one in " + TTS + ". ") +
     (NATIVE
-      ? "Its loudness is the media volume, and the volume buttons set it."
+      ? "Its loudness is the media volume, and the volume buttons set it; Loud and Max lift it past the top of that. " +
+        "If lowered music still drowns it out, set Music to Pause."
       : "Its loudness is the media volume. On a Samsung, turn on volume keys for media in " + VOL +
         " so the buttons set it at any time.");
 }
@@ -20149,6 +20188,20 @@ $("#voicePick").addEventListener("change", function () {
   syncVoiceButtons();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
 });
+/* Loudness and music are judged by ear, like the accent: each choice says a
+   line there and then, at the new setting, over whatever is playing. */
+function setVoiceSound(key, val) {
+  if (S[key] === val) return;
+  S[key] = val;
+  saveSettings();
+  syncVoiceButtons();
+  Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
+}
+$("#btnBoostNormal").addEventListener("click", function () { setVoiceSound("voiceBoost", "normal"); });
+$("#btnBoostLoud").addEventListener("click", function () { setVoiceSound("voiceBoost", "loud"); });
+$("#btnBoostMax").addEventListener("click", function () { setVoiceSound("voiceBoost", "max"); });
+$("#btnMusicLower").addEventListener("click", function () { setVoiceSound("voiceMusic", "lower"); });
+$("#btnMusicPause").addEventListener("click", function () { setVoiceSound("voiceMusic", "pause"); });
 /* A real instruction rather than a word, because what is being tested is
    whether the road names come out right, and those are the hard part. */
 $("#btnVoiceTest").addEventListener("click", function () {
