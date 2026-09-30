@@ -401,6 +401,17 @@ collected by the developer.
   under `docs/addr/` and served off this origin; 11.4 million addresses in
   80,382 tiles, built quarterly by `tools/build-gnaf.mjs`
 * Place search — Nominatim
+* Units — Auto, the default, shows miles and mph where the GPS fix is in the
+  United States or its territories (feet for short distances and heights)
+  or the United Kingdom or its Crown Dependencies (yards, heights in
+  metres), and kilometres everywhere else. It works with no signal: the
+  outlines of those places are carried in index.html, cut from
+  [Natural Earth](https://www.naturalearthdata.com)'s public-domain 1:10m
+  countries by `tools/build-units.mjs` - 13.3 MB in, 63 KB out, the land
+  borders kept to about 130 m and the coasts left rough, with the reasons in
+  the tool. Rebuild only if the list of places changes:
+  `node tools/build-units.mjs <ne_10m_admin_0_countries.geojson>`.
+  Metric and Imperial are there to fix it by hand
 * Fuel prices — the state reporting schemes, fetched server-side once a day by
   `tools/build-fuel.mjs` into `docs/fuel.json`: South Australia's Fuel Pricing
   Information Scheme, whose subscriber token is a repository secret because its
