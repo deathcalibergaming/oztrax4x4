@@ -346,11 +346,12 @@ build, which will have an origin of its own.
 
 **Menu → Storage → Back Up** writes one JSON file holding what the driver
 made: tracks with their points, waypoints, favourites, settings, home, the
-fuel choices and what they have hidden. **Restore** reads it back.
+fuel choices, the fuel calculator's vehicle figures and fill log, and what
+they have hidden. **Restore** reads it back.
 
     { "app": "OzTrax Recon", "backup": 1, "at": "…", "from": "…",
       "counts": { "tracks": n, "waypoints": n, "favourites": n },
-      "settings": {…}, "home": {…}, "fuelSel": {…},
+      "settings": {…}, "home": {…}, "fuelSel": {…}, "fuelCalc": {…},
       "hiddenKinds": […], "hiddenPoi": […],
       "waypoints": […], "favourites": […], "tracks": […] }
 
@@ -448,6 +449,15 @@ collected by the developer.
   geocoder — and fifty-two are left alone, their registered address being one
   nobody can answer: a street the town does not have, a corner rather than a
   number, a Lot, or a number the street does not carry
+* Fuel calculator — Menu → Fuel Calculator. Three sums from the driver's
+  own figures (tank, reserve, and fuel use on sealed road and off it): what
+  a trip takes and costs, whether what is in the tank reaches it, and a
+  fill-up log that works out what the vehicle really uses. The distance is
+  the running route's unless one is typed; the price is offered from the
+  nearest servo listing the driver's fuel; and with a route running it names
+  the next servo along it and the last one inside the tank's range, from the
+  price schemes' list above - which has no Northern Territory and misses
+  some roadhouses, and the section says so. Nothing is fetched or sent
 * Roads — OpenStreetMap via the Geofabrik state extracts, cut into a national
   spine and z13 packs under `docs/route/` and served off this origin; built
   monthly by `tools/build-routing.mjs`

@@ -1729,6 +1729,20 @@ details.sub > .sec-body{padding:12px 0 0}
 .diag .ok{color:var(--green)}
 .diag .bad{color:var(--danger2)}
 .diag .warn{color:var(--warn)}
+/* ---------- fuel calculator ----------
+   Nothing of its own to look at: the fields are the track dialog's, the two
+   answers are the GPS section's verdict block - a heading in the state's
+   colour over the sentence a stranger needs - and the fill log is its
+   diagnostics rows. What is here is only the spacing that lets a form sit in
+   a drawer section rather than a dialog. */
+#secFuelCalc .fld{margin-bottom:8px}
+#secFuelCalc .gps-state{margin:2px 0 4px}
+#secFuelCalc .diag{margin-top:6px}
+#secFuelCalc .diag b{color:var(--sand)}
+/* Quarter, half, three quarters, full: what a gauge says, for a driver who
+   knows the needle and not the litres. */
+.fc-quick{display:flex;gap:6px;margin:0 0 8px}
+.fc-quick .btn{flex:1 1 0;min-width:0}
 /* A status line: what the app currently knows, and its text changes. "No home
    set", "696 sites, updated 2026-09-04", a Wake Lock refusal. Meta and lightly
    tracked, with tabular figures so a count that updates does not shuffle the
@@ -3041,6 +3055,71 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
     </details>
 
+    <details id="secFuelCalc">
+      <summary>
+        <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
+        Fuel Calculator <span class="chev"></span>
+      </summary>
+      <div class="sec-body">
+        <div class="sublabel">Vehicle</div>
+        <div class="fld2">
+          <div class="fld"><label for="fcTank">Tank (L)</label><input id="fcTank" type="number" min="0" step="1" inputmode="decimal"></div>
+          <div class="fld"><label for="fcReserve">Reserve (L)</label><input id="fcReserve" type="number" min="0" step="1" inputmode="decimal"></div>
+        </div>
+        <div class="fld2">
+          <div class="fld"><label for="fcSealed">Sealed (L/100 km)</label><input id="fcSealed" type="number" min="0" step="0.1" inputmode="decimal"></div>
+          <div class="fld"><label for="fcOff">Off-road (L/100 km)</label><input id="fcOff" type="number" min="0" step="0.1" inputmode="decimal"></div>
+        </div>
+
+        <div class="sublabel">Trip</div>
+        <div class="fld">
+          <span class="fld-cap" id="fcSurfCap">Surface</span>
+          <div class="seg" role="radiogroup" aria-labelledby="fcSurfCap">
+            <button type="button" id="fcSurfSealed" role="radio">Sealed</button>
+            <button type="button" id="fcSurfOff" role="radio">Off-road</button>
+          </div>
+        </div>
+        <div class="fld2">
+          <div class="fld"><label for="fcDist" id="fcDistLbl">Distance (km)</label><input id="fcDist" type="number" min="0" step="1" inputmode="decimal"></div>
+          <div class="fld"><label for="fcPrice">Price (c/L)</label><input id="fcPrice" type="number" min="0" step="0.1" inputmode="decimal"></div>
+        </div>
+        <div class="row">
+          <button class="btn sm ghost hidden" id="fcUseRoute">Use The Route</button>
+          <button class="btn sm ghost hidden" id="fcUsePrice">Use This Price</button>
+        </div>
+        <div class="poi-status" id="fcHint"></div>
+        <div class="gps-state" id="fcTrip" role="status"></div>
+
+        <div class="sublabel">Range</div>
+        <div class="fld"><label for="fcLevel">In the tank now (L)</label><input id="fcLevel" type="number" min="0" step="1" inputmode="decimal"></div>
+        <div class="fc-quick" role="group" aria-label="Set what is in the tank from the gauge">
+          <button class="btn xs ghost" data-fc-level="0.25">Quarter</button>
+          <button class="btn xs ghost" data-fc-level="0.5">Half</button>
+          <button class="btn xs ghost" data-fc-level="0.75">3/4</button>
+          <button class="btn xs ghost" data-fc-level="1">Full</button>
+        </div>
+        <div class="gps-state" id="fcVerdict" role="status"></div>
+        <div class="note" id="fcNext"></div>
+
+        <div class="sublabel">Fill-Up Log</div>
+        <div class="fld2">
+          <div class="fld"><label for="fcOdo" id="fcOdoLbl">Odometer (km)</label><input id="fcOdo" type="number" min="0" step="1" inputmode="decimal"></div>
+          <div class="fld"><label for="fcLitres">Litres added</label><input id="fcLitres" type="number" min="0" step="0.1" inputmode="decimal"></div>
+        </div>
+        <div class="row">
+          <button class="btn sm primary" id="fcAddFill">Add Fill</button>
+          <button class="btn sm ghost hidden" id="fcDropFill">Remove Last</button>
+        </div>
+        <div class="diag" id="fcFills"></div>
+        <div class="poi-status" id="fcFillSay"></div>
+        <div class="row">
+          <button class="btn sm ghost hidden" id="fcUseSealed">Use For Sealed</button>
+          <button class="btn sm ghost hidden" id="fcUseOff">Use For Off-Road</button>
+        </div>
+        <div class="note">Fill the tank each time and enter the odometer and the litres it took: litres over the distance since the last fill is what the vehicle really uses. Fuel on a route is read from the state price schemes' lists, which have no Northern Territory and miss some roadhouses - check before counting on it. Nothing here leaves the phone.</div>
+      </div>
+    </details>
+
     <details id="secGps">
       <summary>
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8.5"/><path d="M12 1.2v3.4M12 19.4v3.4M1.2 12h3.4M19.4 12h3.4"/></svg>
@@ -3802,6 +3881,10 @@ const CFG = {
      coast to, less the 3.3 km that coast was simplified by. And how many
      fixes in a row have to agree before the units change: five is five
      seconds. */
+  /* How far off the route a servo can stand and still be "on the route" for
+     the fuel calculator. A roadhouse is on the highway; a town's servo is a
+     street or two off it, and the scheme's coordinate is a street address. */
+  FUEL_NEAR_ROUTE: 1500,
   UNITS_BAND: 250,
   UNITS_SHORE: 8000,
   UNITS_SETTLE: 5,
@@ -4019,6 +4102,7 @@ const LS = {
   country: "tt.country",
   home: "tt.home",
   fuelSel: "tt.fuelSel",
+  fuelCalc: "tt.fuelCalc", /* the vehicle's figures and the fill log - see FuelCalc */
   favs: "tt.favs",
   states: "tt.states",     /* which states' data is on this phone, and from which cut */
   swept: "tt.swept",       /* the old map's picture tiles have been cleared - see sweepOldTiles */
@@ -11003,6 +11087,350 @@ const FUEL_GROUPS = {
    an opinion about yet. */
 const FUEL_ORDER = ["12", "2", "5", "8", "diesel", "19", "4"];
 
+/* =====================================================================
+   Fuel calculator
+
+   Three questions asked at a stop, in the menu, and the one that matters
+   out here is the second.
+
+   - What will this trip take, and cost? Distance times the vehicle's fuel
+     use, at a price. The distance is the route's if one is running, and the
+     price is offered from the nearest servo that lists the driver's fuel.
+   - Will what is in the tank get there? Range to a reserve the driver
+     sets, against the distance - and the next servo the price schemes list
+     along the rest of the route, with whether it is inside that range.
+   - What does the vehicle really use? A fill log: fill the tank, enter the
+     odometer and the litres. Litres over the distance since the last fill
+     is the figure, which is the only honest way to get one.
+
+   Two figures for fuel use, not one, because a loaded 4x4 on sand or
+   corrugations uses half as much again as it does on the highway, and a
+   range worked out at the highway figure is the one that strands people.
+
+   Litres, cents a litre and L/100 km whatever the units are set to: it is
+   what an Australian bowser and logbook say. Distances follow the units.
+   Everything is the driver's own typing or already on the phone; nothing is
+   fetched and nothing is sent. It is in the backup (LS.fuelCalc).
+
+   The servo list is the price schemes' - Fuel.data - and that is said in
+   the section, because it has no Northern Territory and misses roadhouses
+   the schemes do not cover, and "no fuel on this route" from a list with
+   holes in it is not something to print without saying so.
+   ===================================================================== */
+const FuelCalc = {
+  d: null,
+  fromRoute: true,     /* the distance is the route's until the driver types one */
+  near: null,          /* the nearest servo with a price for the chosen fuel */
+  ahead: null,         /* servos along the rest of the route, nearest first */
+  left: null,          /* navLeft() as of the last sync */
+  cellsOf: null,
+  cellMap: null,
+  FIELDS: [["fcTank", "tank"], ["fcReserve", "reserve"], ["fcSealed", "sealed"], ["fcOff", "off"],
+           ["fcLevel", "level"], ["fcPrice", "price"]],
+
+  init: function () {
+    const self = this;
+    this.d = Object.assign({ tank: null, reserve: 10, sealed: null, off: null, surf: "sealed",
+                             level: null, price: null, distKm: null, fills: [] },
+                           loadLS(LS.fuelCalc, null) || {});
+    if (!Array.isArray(this.d.fills)) this.d.fills = [];
+    const num = function (el) { const v = parseFloat(el.value); return isFinite(v) && v >= 0 ? v : null; };
+    this.FIELDS.forEach(function (f) {
+      $("#" + f[0]).addEventListener("input", function () { self.d[f[1]] = num(this); self.save(); self.work(); });
+    });
+    $("#fcDist").addEventListener("input", function () {
+      const v = num(this);
+      self.d.distKm = v == null ? null : v / self.k();
+      self.fromRoute = false;          /* a distance of the driver's own */
+      self.save(); self.work();
+    });
+    $("#fcSurfSealed").addEventListener("click", function () { self.d.surf = "sealed"; self.save(); self.work(); });
+    $("#fcSurfOff").addEventListener("click", function () { self.d.surf = "off"; self.save(); self.work(); });
+    $("#fcUseRoute").addEventListener("click", function () { self.fromRoute = true; self.sync(); });
+    $("#fcUsePrice").addEventListener("click", function () {
+      if (!self.near) return;
+      self.d.price = self.near.c; self.save(); self.sync();
+    });
+    document.querySelectorAll("[data-fc-level]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (!self.d.tank) { toast("Enter the tank size first", "warn"); return; }
+        self.d.level = Math.round(self.d.tank * Number(b.dataset.fcLevel) * 10) / 10;
+        self.save(); self.sync();
+      });
+    });
+    $("#fcAddFill").addEventListener("click", function () { self.addFill(); });
+    $("#fcDropFill").addEventListener("click", function () {
+      if (!self.d.fills.length) return;
+      self.d.fills.pop(); self.save(); self.sync();
+    });
+    $("#fcUseSealed").addEventListener("click", function () { self.useLast("sealed"); });
+    $("#fcUseOff").addEventListener("click", function () { self.useLast("off"); });
+    $("#secFuelCalc").addEventListener("toggle", function () { if (this.open) self.sync(); });
+    this.sync();
+  },
+
+  save: function () { saveLS(LS.fuelCalc, this.d); },
+  /* display units per kilometre */
+  k: function () { return imperial() ? MI_PER_KM : 1; },
+  /* whole kilometres from a hundred up, a tenth below, and no ".0" */
+  km: function (km) {
+    const v = km * this.k();
+    return (v >= 100 ? Math.round(v).toLocaleString() : String(Math.round(v * 10) / 10)) + " " + unitLabel("dist");
+  },
+  rate: function () { return this.d.surf === "off" ? this.d.off : this.d.sealed; },
+
+  /* What this servo charges for the driver's fuel: the cheapest of the
+     grades switched on, in cents a litre. Null if it sells none of them, or
+     none is switched on. */
+  priceAt: function (site) {
+    if (!Fuel.sel || !Fuel.sel.size || !site.p) return null;
+    let best = null;
+    Fuel.sel.forEach(function (id) {
+      const p = site.p[id];
+      if (p != null && (best === null || p < best.p)) best = { p: p, id: id };
+    });
+    return best && { c: best.p / 10, id: best.id };
+  },
+  /* With no grade switched on every servo counts, since any fuel is fuel. */
+  sells: function (site) { return !Fuel.sel || !Fuel.sel.size || !!this.priceAt(site); },
+
+  nearest: function (here) {
+    if (!Fuel.data) return null;
+    const kx = Math.cos(rad(here.lat));
+    let best = null, bd = Infinity;
+    for (const st of Fuel.data.sites) {
+      if (!this.sells(st)) continue;
+      const dx = (st.x - here.lng) * kx, dy = st.y - here.lat, dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = st; }
+    }
+    if (!best) return null;
+    const pr = this.priceAt(best);
+    return { site: best, km: haversine(here, { lat: best.y, lng: best.x }) / 1000,
+             c: pr ? pr.c : null, id: pr ? pr.id : null };
+  },
+
+  /* The servo list in cells of a fiftieth of a degree - about two
+     kilometres - built once per price file, so walking a route asks nine
+     cells a step rather than eight thousand servos. */
+  cells: function () {
+    if (this.cellsOf === Fuel.data) return this.cellMap;
+    const m = new Map();
+    ((Fuel.data && Fuel.data.sites) || []).forEach(function (st) {
+      const key = Math.floor(st.x / 0.02) + ":" + Math.floor(st.y / 0.02);
+      if (!m.has(key)) m.set(key, []);
+      m.get(key).push(st);
+    });
+    this.cellsOf = Fuel.data;
+    this.cellMap = m;
+    return m;
+  },
+
+  /* Servos within CFG.FUEL_NEAR_ROUTE of the rest of the route, each at
+     the point the route passes closest, nearest first. The route is stepped
+     every 300 m, which is well inside that reach. */
+  along: function (left) {
+    if (!Fuel.data || !left) return null;
+    const g = this.cells(), co = Nav.coords, cum = Nav.cum, out = new Map(), self = this;
+    let last = -Infinity;
+    for (let i = left.i; i <= Nav.end; i++) {
+      if (cum[i] - last < 300 && i !== Nav.end) continue;
+      last = cum[i];
+      const p = { lat: co[i][0], lng: co[i][1] };
+      const cx = Math.floor(p.lng / 0.02), cy = Math.floor(p.lat / 0.02);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        (g.get((cx + dx) + ":" + (cy + dy)) || []).forEach(function (st) {
+          if (!self.sells(st)) return;
+          const d = haversine(p, { lat: st.y, lng: st.x });
+          if (d > CFG.FUEL_NEAR_ROUTE) return;
+          const was = out.get(st.i);
+          if (!was || d < was.d) out.set(st.i, { site: st, d: d, km: (cum[i] - left.at) / 1000 });
+        });
+      }
+    }
+    return Array.from(out.values()).filter(function (o) { return o.km > 0.3; })
+      .sort(function (a, b) { return a.km - b.km; });
+  },
+
+  /* Read the world again - the route, the position, the prices - and put
+     the stored figures in the fields. Run when the section is opened, not
+     on every key: work() does the sums. */
+  sync: function () {
+    if (!this.d) return;
+    const d = this.d, k = this.k(), u = unitLabel("dist");
+    this.left = navLeft();
+    if (this.left && this.fromRoute) d.distKm = this.left.remain / 1000;
+    const here = view.has ? (view.fix || view.cur) : null;
+    this.near = here ? this.nearest(here) : null;
+    this.ahead = this.along(this.left);
+    const put = function (id, v, dp) {
+      const el = $("#" + id);
+      if (document.activeElement === el) return;      /* not under the driver's thumb */
+      el.value = v == null ? "" : String(Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp));
+    };
+    put("fcTank", d.tank, 1); put("fcReserve", d.reserve, 1);
+    put("fcSealed", d.sealed, 1); put("fcOff", d.off, 1);
+    put("fcLevel", d.level, 1); put("fcPrice", d.price, 1);
+    put("fcDist", d.distKm == null ? null : d.distKm * k, d.distKm * k >= 100 ? 0 : 1);
+    $("#fcDistLbl").textContent = "Distance (" + u + ")";
+    $("#fcOdoLbl").textContent = "Odometer (" + u + ")";
+    this.work();
+  },
+
+  /* The sums, from what is stored. */
+  work: function () {
+    const d = this.d, rate = this.rate(), self = this;
+    $("#fcSurfSealed").classList.toggle("on", d.surf !== "off");
+    $("#fcSurfOff").classList.toggle("on", d.surf === "off");
+    $("#fcSurfSealed").setAttribute("aria-checked", String(d.surf !== "off"));
+    $("#fcSurfOff").setAttribute("aria-checked", String(d.surf === "off"));
+    const say = function (el, cls, head, line) {
+      el.className = "gps-state" + (cls ? " " + cls : "");
+      el.innerHTML = "<b></b><span></span>";
+      el.firstChild.textContent = head;
+      el.lastChild.textContent = line;
+    };
+    const surf = d.surf === "off" ? "off-road" : "on sealed road";
+
+    /* the trip */
+    const need = rate && d.distKm != null ? d.distKm * rate / 100 : null;
+    const hint = [];
+    if (this.left) {
+      hint.push(this.fromRoute ? "Distance is the route" + (Nav.dest ? " to " + Nav.dest.name : "") + "."
+                               : "Your own distance - the route has " + this.km(this.left.remain / 1000) + " left.");
+    }
+    if (this.near && this.near.c != null) {
+      const days = this.near.site.t ? Math.floor((Date.now() - Date.parse(this.near.site.t)) / 864e5) : 0;
+      hint.push(fuelLabel(this.near.id) + " is " + this.near.c.toFixed(1) + " c/L at " + this.near.site.n +
+                ", " + this.km(this.near.km) + " away" + (days > 2 ? " - priced " + days + " days ago" : "") + ".");
+    } else if (!Fuel.sel || !Fuel.sel.size) {
+      hint.push("Switch a fuel on in Settings, Fuel Type, to be offered its price.");
+    }
+    $("#fcHint").textContent = hint.join(" ");
+    $("#fcUseRoute").classList.toggle("hidden", !this.left || this.fromRoute);
+    $("#fcUsePrice").classList.toggle("hidden", !this.near || this.near.c == null || this.near.c === d.price);
+    /* the button says the number it will put in the field */
+    if (this.near && this.near.c != null) $("#fcUsePrice").textContent = "Use " + this.near.c.toFixed(1) + " c/L";
+    if (need == null) {
+      say($("#fcTrip"), "", "Fuel for the trip",
+          "Enter a distance and what the vehicle uses " + surf + ".");
+    } else {
+      say($("#fcTrip"), "", need.toFixed(1) + " L" + (d.price ? " - $" + (need * d.price / 100).toFixed(2) : ""),
+          "For " + this.km(d.distKm) + " " + surf + " at " + rate + " L/100 km" +
+          (d.price ? ", fuel at " + d.price.toFixed(1) + " c/L." : ". Enter a price to see the cost."));
+    }
+
+    /* the range */
+    const reserve = d.reserve || 0;
+    const range = d.level != null && rate ? Math.max(0, d.level - reserve) / rate * 100 : null;
+    const keeps = reserve ? ", keeping " + reserve + " L in reserve" : "";
+    if (range == null) {
+      say($("#fcVerdict"), "", "Range",
+          "Enter what is in the tank and what the vehicle uses " + surf + ".");
+    } else if (!d.distKm) {
+      say($("#fcVerdict"), "", "Range " + this.km(range),
+          "From " + d.level + " L " + surf + keeps + ". Enter a distance, or navigate somewhere, to see whether that is enough.");
+    } else {
+      const spare = range - d.distKm;
+      if (spare < 0) {
+        say($("#fcVerdict"), "bad", "Short by " + this.km(-spare),
+            "Range is " + this.km(range) + " " + surf + keeps + ". The trip needs " +
+            (-spare * rate / 100).toFixed(1) + " L more than that.");
+      } else {
+        /* under a tenth of the trip, or twenty kilometres, is not a margin */
+        const thin = spare < Math.max(20, d.distKm * 0.1);
+        say($("#fcVerdict"), thin ? "warn" : "ok", thin ? "Only just reaches it" : "Reaches it",
+            "Range is " + this.km(range) + " " + surf + keeps + ": " + this.km(spare) + " to spare.");
+      }
+    }
+    let next = "";
+    if (this.left) {
+      const a = this.ahead || [];
+      if (!Fuel.data) next = "";
+      else if (!a.length) next = "No listed fuel on the rest of this route.";
+      else {
+        next = "Next listed fuel on the route: " + a[0].site.n + " in " + this.km(a[0].km) +
+          (range == null ? "." : a[0].km <= range ? " - within range." : " - " + this.km(a[0].km - range) + " beyond range.");
+        /* Short of the destination, the servo that matters is the last one
+           the tank will reach - that is where it has to be filled by. With
+           fuel to spare it is only noise. */
+        if (range != null && d.distKm && range < d.distKm) {
+          const inside = a.filter(function (o) { return o.km <= range; });
+          const lastIn = inside[inside.length - 1];
+          if (lastIn && lastIn !== a[0]) next += " The last one within range is " + lastIn.site.n + " in " + this.km(lastIn.km) + ".";
+        }
+      }
+    } else if (this.near) {
+      next = "Nearest listed fuel: " + this.near.site.n + ", " + this.km(this.near.km) + " in a straight line.";
+    }
+    $("#fcNext").textContent = next;
+    $("#fcNext").classList.toggle("hidden", !next);
+
+    /* the log: a tank is the litres of one fill over the distance since the
+       fill before it */
+    const fills = d.fills, k = this.k(), u = unitLabel("dist");
+    const tanks = [];
+    for (let i = 1; i < fills.length; i++) {
+      const km = fills[i].odo - fills[i - 1].odo;
+      if (km > 0) tanks.push({ t: fills[i].t, l: fills[i].l, km: km, rate: fills[i].l / km * 100 });
+    }
+    const box = $("#fcFills");
+    box.innerHTML = "";
+    const row = function (a, b) {
+      const r = document.createElement("div"), s1 = document.createElement("span"), s2 = document.createElement("b");
+      s1.textContent = a; s2.textContent = b; r.appendChild(s1); r.appendChild(s2); box.appendChild(r);
+    };
+    const day = function (t) { return new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
+    tanks.slice(-5).reverse().forEach(function (t) {
+      row(day(t.t) + " - " + t.l.toFixed(1) + " L over " + self.km(t.km), t.rate.toFixed(1) + " L/100 km");
+    });
+    if (fills.length && tanks.length < 5) {
+      row(day(fills[0].t) + " - starting point", Math.round(fills[0].odo * k).toLocaleString() + " " + u);
+    }
+    const lastTank = tanks[tanks.length - 1];
+    let fillSay = "";
+    if (tanks.length) {
+      const L = tanks.reduce(function (a, t) { return a + t.l; }, 0), K = tanks.reduce(function (a, t) { return a + t.km; }, 0);
+      fillSay = "Last tank " + lastTank.rate.toFixed(1) + " L/100 km" +
+        (tanks.length > 1 ? "; " + (L / K * 100).toFixed(1) + " averaged over " + tanks.length + " tanks." : ".");
+    } else if (fills.length) {
+      fillSay = "One fill in. The next one gives the first figure.";
+    }
+    $("#fcFillSay").textContent = fillSay;
+    $("#fcFillSay").classList.toggle("hidden", !fillSay);
+    $("#fcDropFill").classList.toggle("hidden", !fills.length);
+    $("#fcUseSealed").classList.toggle("hidden", !lastTank);
+    $("#fcUseOff").classList.toggle("hidden", !lastTank);
+    this.lastRate = lastTank ? Math.round(lastTank.rate * 10) / 10 : null;
+  },
+
+  addFill: function () {
+    const d = this.d, k = this.k();
+    const odoV = parseFloat($("#fcOdo").value), l = parseFloat($("#fcLitres").value);
+    if (!(odoV > 0) || !(l > 0)) { toast("Enter the odometer and the litres added", "warn"); return; }
+    const odo = odoV / k, prev = d.fills[d.fills.length - 1];
+    if (prev && odo <= prev.odo) {
+      toast("The odometer has to be past the last fill's " + Math.round(prev.odo * k).toLocaleString(), "warn");
+      return;
+    }
+    d.fills.push({ t: Date.now(), odo: odo, l: l });
+    if (d.fills.length > 60) d.fills.splice(0, d.fills.length - 60);
+    if (d.tank) d.level = d.tank;        /* a fill is a full tank */
+    $("#fcOdo").value = ""; $("#fcLitres").value = "";
+    this.save();
+    this.sync();
+    toast(prev ? "Fill added - " + (l / (odo - prev.odo) * 100).toFixed(1) + " L/100 km for that tank"
+               : "Fill added - the next one gives the first figure", "ok");
+  },
+
+  useLast: function (which) {
+    if (this.lastRate == null) return;
+    this.d[which] = this.lastRate;
+    this.save();
+    this.sync();
+    toast((which === "off" ? "Off-road" : "Sealed") + " set to " + this.lastRate + " L/100 km", "ok");
+  }
+};
+
 /* The scheme calls 91 plain "Unleaded". The bowser does not, and neither
    does anybody standing at one. */
 function fuelLook(id) {
@@ -16677,7 +17105,7 @@ async function sweepOldTiles() {
    ===================================================================== */
 const Backup = {
   /* The single-value keys, and what each is called in the file. */
-  KEYS: [["settings", LS.settings], ["home", LS.home], ["fuelSel", LS.fuelSel],
+  KEYS: [["settings", LS.settings], ["home", LS.home], ["fuelSel", LS.fuelSel], ["fuelCalc", LS.fuelCalc],
          ["hiddenKinds", LS.hiddenKinds], ["hiddenPoi", LS.hiddenPoi]],
 
   tally: async function () {
@@ -18491,6 +18919,18 @@ function navArrived(near, remain) {
   return near.off <= CFG.NAV_SNAP_M && remain <= (stopped ? CFG.NAV_ARRIVE_STOP : CFG.NAV_ARRIVE);
 }
 
+/* Where the vehicle is along the route and how much is left, in metres, for
+   whoever asks between fixes - the fuel calculator does. Null with no route. */
+function navLeft() {
+  if (!Nav.active || !Nav.coords.length) return null;
+  const near = navNearestIdx();
+  const total = Nav.cum[Nav.end] || 0;
+  const at = Nav.cum[near.i + 1] === undefined
+    ? Nav.cum[near.i]
+    : Nav.cum[near.i] + (Nav.cum[near.i + 1] - Nav.cum[near.i]) * near.t;
+  return { at: at, remain: Math.max(0, total - at), i: near.i };
+}
+
 function navProgress() {
   if (!Nav.active || !Nav.coords.length) return;
   const near = navNearestIdx();
@@ -19477,6 +19917,7 @@ function openDrawer() {
   renderTracks(); renderWaypoints(); renderOfflineMaps(); refreshStorageStats();
   syncAwakeButtons();
   syncNightButtons();
+  if ($("#secFuelCalc").open) FuelCalc.sync();   /* the route and the prices may have moved on */
   readGeoPermission().then(renderGpsPanel);
 }
 /* Closing the drawer always means the same thing - get out of the way, the
@@ -19960,6 +20401,7 @@ function setUnits(u) {
    redraws and that is all. */
 function redrawUnits() {
   syncUnitButtons();
+  FuelCalc.sync();
   updateStats();
   layoutHud();       /* the units change how wide the widest readings are */
   if (poiStatusNote != null) setPoiStatus(poiStatusText());
@@ -20651,6 +21093,7 @@ document.addEventListener("keydown", function (e) {
   Compass.start().then(renderGpsPanel);
   Wake.apply();                 /* the screen is wanted from the moment it opens */
   if (!NATIVE) Batt.init();      /* the app shows Android's own, up top */
+  FuelCalc.init();
   Fuel.load(false).then(renderFuelTypes);
   renderGpsPanel();
   setTimeout(function () { fetchPois(); }, 1200);

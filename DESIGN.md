@@ -1290,6 +1290,27 @@ bar is doing is said inside it, so the frame is a frame. The navigation
 bar's figures and their labels are Instrument White, as the stat bar's are;
 the destination is sand, as the track's name is.
 
+### Fuel Calculator
+
+A section of the menu, used at a stop: Vehicle, Trip, Range, Fill-Up Log
+under sublabels, in that order because each feeds the next. It brings no
+component of its own. The fields are the track dialog's, two to a row. The
+two answers - fuel and cost for the trip, and whether the tank reaches it -
+are the GPS section's verdict block: the figure or the verdict as the
+heading, the working as the sentence under it. **Reaches it** is Signal
+Green, **Only just reaches it** (under a tenth of the trip, or twenty
+kilometres, to spare) Caution Yellow, **Short by** Alert Red Lit, and the
+words carry it without the colour. The fill log is the diagnostics rows.
+
+Sealed or off-road is a segmented choice, because it is a state of the trip;
+Quarter, Half, 3/4 and Full are plain buttons, because they are a way of
+typing a number and not a state. Add Fill is the section's one Primary.
+
+Litres, cents a litre and L/100 km whatever the units are; distances follow
+the units. The section says where its servo list comes from and what that
+list is missing, in the note at its foot, rather than printing "no fuel on
+this route" as if it knew.
+
 ### Menu Badge
 
 The menu button wears the start screen's compass badge in its finished
