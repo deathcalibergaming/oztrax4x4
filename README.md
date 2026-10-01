@@ -257,6 +257,27 @@ corner. On the same 40 trips, of the 241 corners onto a named road:
 | lines cut off before their end | 11 | 1 |
 
 
+The vehicle marker is measured by `NavSim.wrong`: each trip is told to go
+one way and driven, along real roads, another, so the route is recalculated
+over and over. Thirty of them - 12,701 fixes, 933 recalculations - and how
+far the arrow was from the way the vehicle was really going:
+
+| arrow off the direction of travel by | snapped to the nearest piece of line | only to road running the vehicle's way |
+|---|---|---|
+| more than 30 degrees | 653 fixes, 414 of them on a recalculation | 59, 2 on a recalculation |
+| more than 90 | 183 | 0 |
+| more than 150 - pointing back the way it came | 154 | 0 |
+| worst | 180 | 52 |
+
+Two causes. A new route starts with a stub from the fix across to the road,
+and the arrow took its direction from the stub: sideways, at every
+recalculation. And a route that says turn round runs back down the road the
+vehicle is on, so the marker was drawn on that returning line and pointed
+along it. On trips driven as told nothing changed - 3,646 of 4,212 fixes
+drawn on the line either way, 2.4 m from the road on average. The 59 left
+are the marker following the line for a fix or two as the vehicle peels off
+it at a shallow fork.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to

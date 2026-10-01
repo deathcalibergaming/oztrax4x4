@@ -18796,10 +18796,33 @@ function navSnap(near, hdg) {
   if (hdg != null && along != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) return;
   /* The drawn target is not always the fix - stopped, it is held against
      the receiver's wander - so it is the target that goes onto the line,
-     looked for a few segments either side of where the fix landed. */
+     looked for a few segments either side of where the fix landed.
+
+     Only a segment that is road, and that runs the way the vehicle is
+     going. The check above asks that of the segment the fix is nearest;
+     this loop then took whichever was nearest the drawn target, and those
+     are not always the same one. Two ways that went wrong, both at a
+     recalculation, both measured on a drive that ignored its route for
+     five kilometres - 24 recalculations, the arrow more than thirty
+     degrees off the direction of travel on 23 fixes:
+
+     - A new route begins with a stub from the fix across to the road. The
+       target is standing on the end of that stub, so the stub was the
+       nearest segment, and the arrow was pointed along it: ninety degrees
+       off, sideways, at every recalculation.
+     - A new route that says turn round runs back down the road the vehicle
+       is on. A short piece of it runs forward to the next corner first, so
+       the check passed, and the loop then chose the returning line an inch
+       away - and pointed the arrow back the way it had come, for as long as
+       the driver carried on.
+
+     Heading up, the whole map swings with the arrow. */
   const t = view.tgt, n = Nav.coords.length;
+  const lo = Math.max(Nav.head || 0, near.i - 3);
+  const hi = Math.min(Nav.tail > 0 ? Nav.tail : n - 1, n - 1, near.i + 4);
   let best = null, at = near.i;
-  for (let i = Math.max(0, near.i - 3); i < Math.min(n - 1, near.i + 4); i++) {
+  for (let i = lo; i < hi; i++) {
+    if (hdg != null && angleOff(navSegBearing(i), hdg) > CFG.NAV_SNAP_ANGLE) continue;
     const r = segNear(t, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] },
                          { lat: Nav.coords[i + 1][0], lng: Nav.coords[i + 1][1] });
     if (!best || r.d < best.d) { best = r; at = i; }

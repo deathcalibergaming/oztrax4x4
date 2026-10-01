@@ -21,6 +21,7 @@
      NavSim.sum(await NavSim.run(40, 7, { turnIn: 40 }))  turn in for the pin
      NavSim.sum(await NavSim.run(60, 21, { miss: true })) straight on at a turn
      NavSim.sum(await NavSim.runList(NavSim.divided(30, 3)))  across a divided road
+     await NavSim.wrong(30, 11)                       told one way, driven another
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -45,6 +46,16 @@
      build, keep the list - localStorage survives the reload - and hand it
      to runList. For the other build, git show main:docs/index.html into
      docs/_old.html and open that.
+
+   wrong() is a different drive and reads a different thing. Each trip is
+   told to go to one place and driven, along real roads, to another - so
+   turns are missed where roads really fork and the route is recalculated
+   again and again, a second a fix as on the road. What it reports is the
+   vehicle marker: how many fixes the arrow was more than 30, 90 and 150
+   degrees off the direction of travel, how many of those fell on a
+   recalculation and how many while the marker was drawn on the route line.
+   A long run: start it without awaiting and collect the answer, or the
+   preview's script timeout cuts it off.
 
    The numbers the arrival rule was measured on are in the README, under
    "Measuring navigation".
@@ -322,6 +333,70 @@
     });
   }
 
+  /* Told to go to nav, driven to drive. Returns a row per fix: was the
+     route lost, was it recalculated on this fix, is the marker drawn off the
+     fix (on the line), and how far its arrow is from the way the vehicle is
+     really going. */
+  async function wrongRoad(o, to, nav, opt) {
+    opt = opt || {};
+    const r = rng(opt.seed || 1), sigma = opt.sigma == null ? 3 : opt.sigma, V = opt.v || 13;
+    const off = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+    if (Nav.active) cancelNav(true);
+    pushPosition({ lat: o.lat, lng: o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+    await navigateTo({ lat: to.lat, lng: to.lng, name: "driven" });
+    if (!Nav.active || Nav.via !== "local") return { skip: "no route to drive" };
+    const co = Nav.coords.slice(), cum = Nav.cum.slice(), head = Nav.head, tail = Nav.tail;
+    cancelNav(true);
+    await navigateTo({ lat: nav.lat, lng: nav.lng, name: "told" });
+    if (!Nav.active) return { skip: "no route to be told" };
+    const log = [];
+    let ex = 0, ey = 0, last = Nav.coords, calcs = 0;
+    for (let s = cum[head] + 5; s < cum[tail] - 20; s += V) {
+      const p = pointAt(co, cum, s);
+      ex = 0.8 * ex + 0.6 * gauss(r) * sigma;
+      ey = 0.8 * ey + 0.6 * gauss(r) * sigma;
+      const f = offset(p, ex, ey);
+      /* a second a fix, as on the road: the sim runs far faster than
+         NAV_RECALC_GAP, and without this a recalculation never starts */
+      Nav.lastCalc -= 1000;
+      pushPosition({ lat: f.lat, lng: f.lng, spd: V, hdg: (p.hdg + gauss(r) * 4 + 360) % 360,
+                     acc: 5, sim: false, t: Date.now() });
+      await settle();
+      if (!Nav.active) break;
+      const re = Nav.coords !== last;
+      last = Nav.coords;
+      if (re) calcs++;
+      log.push({ s: Math.round(s), lost: Nav.lost, re: re, snap: haversine(view.tgt, f) > 0.5,
+                 hdgErr: Math.round(off(view.hdgTgt, p.hdg)), posErr: Math.round(haversine(view.tgt, p)) });
+    }
+    if (Nav.active) cancelNav(true);
+    return { fixes: log.length, calcs: calcs, log: log };
+  }
+
+  /* n such drives across metropolitan Adelaide, three kilometres each way,
+     the two destinations 60 to 180 degrees apart - and what the marker did
+     over all of them. */
+  async function wrong(n, seed) {
+    stub();
+    const r = rng(seed);
+    const sum = { trips: 0, fixes: 0, calcs: 0, off30: 0, off90: 0, off150: 0, atCalc: 0, onLine: 0, worst: 0 };
+    for (let k = 0; k < n; k++) {
+      const o = { lat: -34.95 + r() * 0.17, lng: 138.56 + r() * 0.14 };
+      const a = r() * 2 * Math.PI, b = a + (0.5 + r()) * Math.PI * 0.66;
+      const res = await wrongRoad(o, offset(o, Math.cos(a) * 3000, Math.sin(a) * 3000),
+                                  offset(o, Math.cos(b) * 3000, Math.sin(b) * 3000), { seed: (r() * 1e9) | 0 });
+      if (res.skip) continue;
+      sum.trips++; sum.fixes += res.fixes; sum.calcs += res.calcs;
+      res.log.forEach(function (x) {
+        if (x.hdgErr > 30) { sum.off30++; if (x.re) sum.atCalc++; if (x.snap) sum.onLine++; }
+        if (x.hdgErr > 90) sum.off90++;
+        if (x.hdgErr > 150) sum.off150++;
+        if (x.hdgErr > sum.worst) sum.worst = x.hdgErr;
+      });
+    }
+    return sum;
+  }
+
   function stub() {
     S.follow = false;
     window.fetchPois = function () {};
@@ -343,6 +418,7 @@
 
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
+    wrongRoad: wrongRoad, wrong: wrong,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up
