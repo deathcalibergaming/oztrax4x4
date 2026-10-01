@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Twitch Ad Shield</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="../icons/icon32.png" alt="" width="24" height="24">
+    <h1>Twitch Ad Shield</h1>
+  </header>
+
+  <label class="row">
+    <span>
+      <strong>Block ads</strong>
+      <small>Applies to open players straight away.</small>
+    </span>
+    <input type="checkbox" id="enabled" role="switch">
+  </label>
+
+  <label class="row">
+    <span>
+      <strong>Use ad-free backup stream</strong>
+      <small>Keeps the stream playing during a break. Off: the picture holds until the break ends.</small>
+    </span>
+    <input type="checkbox" id="useBackupStream" role="switch">
+  </label>
+
+  <div class="stat">
+    <span id="count">0</span>
+    <span>ad breaks blocked</span>
+    <button type="button" id="reset">Reset</button>
+  </div>
+
+  <p class="note">Just installed? Reload any Twitch tabs that were already open.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "twitch-ad-shield",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension that blocks Twitch stream ads. Load this folder unpacked; there is nothing to build.",
+  "scripts": {
+    "test": "node --test test/worker-hook.test.mjs",
+    "icons": "node tools/make-icons.mjs"
+  }
+}

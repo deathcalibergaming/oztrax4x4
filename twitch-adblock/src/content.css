@@ -1,0 +1,11 @@
+/* Leftover ad furniture Twitch can still draw around the player: the "Ad"
+   label and countdown, the side-by-side "squeezeback" ad frame, and the
+   "ads help support" overlay. Only hidden while the extension is enabled. */
+.ttvab-on [data-a-target="video-ad-label"],
+.ttvab-on [data-a-target="video-ad-countdown"],
+.ttvab-on [data-test-selector="ad-banner-default-text"],
+.ttvab-on .stream-display-ad__wrapper,
+.ttvab-on .stream-display-ad__container,
+.ttvab-on [data-test-selector="sda-wrapper"] {
+  display: none !important;
+}
