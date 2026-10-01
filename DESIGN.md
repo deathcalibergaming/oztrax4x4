@@ -2059,6 +2059,33 @@ not — the box is always there and Navigate always stands in it, and an inset
 that came and went with a recording would walk the vehicle up and down the
 screen while somebody was driving.
 
+### Auto Zoom
+
+The map closes in where there is something to see and opens out again where
+there is not. For a turn on the route - an intersection, a ramp, a
+roundabout, the destination - from twelve seconds out and never less than
+250 m, until the turn is behind; and whenever the speed comes down to
+30 km/h, until it is back over 40. Close is zoom 17, where a junction's arms
+are apart on the glass; what it opens out to is the driver's own zoom, and
+that is the only zoom saved. A zoom by hand while it is closed in is taken
+for now and not fought, and the map still returns to the driver's zoom when
+the road opens up.
+
+Eased over about a second, on the follow camera, because a zoom that snaps
+reads as a different map. This is the one thing that moves on its own while
+the vehicle is moving, and it is allowed to because it is the map showing
+the road, not the interface performing. It never happens at a standstill
+after launch - only a vehicle that has been at speed closes in when it
+slows - and it is one switch in Settings to turn off.
+
+**The arrow keeps the way it was going.** Stopped, a phone reports no
+course, and its compass reports which way the cradle faces; the arrow, and
+heading up the whole map, used to swing to that at every junction. Once the
+vehicle has travelled, the arrow holds its last direction until the next
+fix at speed, or - crawling - until the position has moved twelve metres,
+which is a direction. The compass has the arrow only before the first
+movement.
+
 ### Night Map
 
 **Only the map changes.** Everything around it has been a warm dark

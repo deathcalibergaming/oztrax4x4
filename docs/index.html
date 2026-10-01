@@ -2000,7 +2000,7 @@ details.sub > .sec-body{padding:12px 0 0}
    fix this one would be the larger change. */
 #btnUnitAuto.on,#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
-#btnTiltOn.on,#btnTiltOff.on,
+#btnTiltOn.on,#btnTiltOff.on,#btnAzOn.on,#btnAzOff.on,
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
@@ -3217,6 +3217,11 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
         </div>
         <div class="note" id="tiltNote">Tilts the map so you see further ahead. Heading up only.</div>
+        <div class="sublabel">Auto Zoom
+          <button class="btn xs ghost" id="btnAzOn">On</button>
+          <button class="btn xs ghost" id="btnAzOff">Off</button>
+        </div>
+        <div class="note" id="azNote"></div>
         <div class="sublabel" role="radiogroup" aria-label="Night map">Night Map
           <button class="btn xs ghost" id="btnNightAuto">Auto</button>
           <button class="btn xs ghost" id="btnNightDay">Day</button>
@@ -3962,6 +3967,26 @@ const CFG = {
   SPEED_HOLD_MS: 12000,
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
+  /* Under that speed, once the vehicle has travelled, the arrow keeps the
+     way it was going - see pushPosition. Crawling, it is turned by how the
+     position has moved instead: this far from where the direction was last
+     taken is a new direction, and nearer than that is the receiver
+     wandering. A move of more than HDG_JUMP_M between two slow fixes is not
+     travel at all - the simulated drive handing back to the real GPS - and
+     turns nothing. */
+  HDG_CRAWL_M: 12,
+  HDG_JUMP_M: 150,
+  /* The map closing in - see AutoZoom. In at or under ZOOM_SLOW, out again
+     at ZOOM_FAST, ten kilometres an hour apart so a vehicle sitting on
+     thirty does not have the map breathing. For a turn: ZOOM_TURN_S seconds
+     out at the speed being driven, and never less than ZOOM_TURN_M. Close
+     is street level, where a junction's arms are apart on the glass. */
+  ZOOM_SLOW: 30 / 3.6,
+  ZOOM_FAST: 40 / 3.6,
+  ZOOM_TURN_M: 250,
+  ZOOM_TURN_S: 12,
+  ZOOM_CLOSE: 17,
+  ZOOM_EASE_MS: 260,
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   /* How much of the trail is kept in the piece that is drawn again on every
@@ -4780,6 +4805,7 @@ const S = Object.assign({
      view with coarse tiles rather than fine ones. Counted over every source
      at Hawker: 52 tiles flat, 60 leaning. Fifteen per cent, not double. */
   tilt: false,
+  autoZoom: true,      /* the map closes in for a turn and at low speed - see AutoZoom */
   /* "auto", "day" or "night". Auto is the default because the driver has one
      hand and their eyes on the track, and a setting nobody remembers to flip
      at dusk is a setting that leaves them dazzled. */
@@ -4829,7 +4855,7 @@ function saveSettings() {
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic,
-                        zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
+                        zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
@@ -4854,6 +4880,8 @@ const view = {
   cur: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
   tgt: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
   hdgCur: 0, hdgTgt: 0, hdgFrom: "",
+  course: false,         /* the vehicle has travelled, so there is a way it was going */
+  courseAt: null,        /* where that direction was last taken */
   mapRot: 0,
   sim: false,
   speed: 0, alt: null, acc: null, lastFixAt: 0
@@ -7019,6 +7047,98 @@ function visibleBounds() {
    jumpTo is handed { follow: true }, which MapLibre passes through to the
    events it fires, so the app's moveend never hears about these. Written
    only when something would change: a parked vehicle asks for nothing. */
+/* ---------------------------------------------------------------------
+   The map closes in where there is something to see.
+
+   On the open road the driver's own zoom is right: a kilometre or two of
+   what is coming. At a junction it is wrong - the arms of the turn are a
+   few pixels apart - and every sat-nav closes in for one. So does this:
+
+   - for a turn on the route, from ZOOM_TURN_S seconds out (never less than
+     ZOOM_TURN_M) until the turn is behind - an intersection, a ramp on or
+     off, a roundabout, and the destination;
+   - whenever the speed comes down to ZOOM_SLOW, which is every junction
+     driven without a route, a town, a car park, a creek crossing - and
+     back out once it is over ZOOM_FAST again. Only after the vehicle has
+     been at speed: a phone opened at a camp is left at the zoom it was.
+
+   Close is ZOOM_CLOSE, or the driver's own zoom if that is already closer.
+   What it goes back out to is the zoom the driver had, which is also the
+   only zoom that is saved: closed in, a zoom by hand is taken for now and
+   not for keeps - it stops this easing, it is not fought, and the map still
+   goes back to the driver's own zoom when the road opens up.
+
+   Only while following. The follow camera writes the zoom, eased over
+   ZOOM_EASE_MS, as it writes the centre and the bearing; a map the driver
+   has dragged away is the driver's. Off in Settings, Auto Zoom. */
+const AutoZoom = {
+  fast: false,     /* has been at speed since the app opened */
+  slow: false,     /* at or under ZOOM_SLOW, and not back over ZOOM_FAST yet */
+  at: null,        /* the turn ahead, by its place on the route */
+  near: null,      /* the turn that has come inside its reach */
+  close: false,
+  base: null,      /* the driver's own zoom, to go back to */
+  goal: null,      /* the zoom being eased to, or null when there is none */
+
+  /* every fix */
+  fix: function () {
+    const v = view.speed;
+    if (v >= CFG.ZOOM_FAST) { this.fast = true; this.slow = false; }
+    else if (v <= CFG.ZOOM_SLOW && this.fast) this.slow = true;
+    this.settle();
+  },
+  /* From the turn bar: which turn is next and how far. Latched to the turn
+     rather than to the distance, so slowing for it - which shortens the
+     reach - cannot open the map out again half way there. */
+  turn: function (mark, dist) {
+    const reach = Math.max(CFG.ZOOM_TURN_M, view.speed * CFG.ZOOM_TURN_S);
+    /* Through one turn with the next - or the destination - less than two
+       reaches on, the map stays close rather than opening out for four
+       seconds and closing again. */
+    const through = this.near != null && this.near === this.at && mark !== this.at;
+    this.at = mark;
+    if (mark == null) this.near = null;
+    else if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
+  },
+  settle: function () {
+    const want = !!S.autoZoom && (this.slow || (this.near != null && this.near === this.at));
+    if (want === this.close) return;
+    this.close = want;
+    if (want) {
+      this.base = map.getZoom();
+      this.goal = this.base < CFG.ZOOM_CLOSE ? CFG.ZOOM_CLOSE : null;
+    } else {
+      this.goal = this.base != null && Math.abs(map.getZoom() - this.base) > 0.01 ? this.base : null;
+    }
+  },
+  /* The zoom for this frame of the follow camera, or null to leave it be. */
+  step: function (ms) {
+    if (this.goal == null) return null;
+    /* It lands a fiftieth of a zoom out and is put on the goal, which
+       nobody can see. An ease that only ever closes a fraction of what is
+       left never arrives: at sixty frames a second the last steps were
+       under the thousandth the follow camera counts as a change, so it
+       wrote nothing, and the zoom sat 0.013 short for good - still easing,
+       the camera running every frame, the pins never regrouped. */
+    const z = map.getZoom(), d = this.goal - z;
+    if (Math.abs(d) < 0.02) {
+      const g = this.goal;
+      this.goal = null;
+      /* what a zoom by hand does when it ends: the pins are grouped in
+         screen pixels, so a new zoom is a new grouping */
+      renderPois();
+      schedulePoi();
+      return g;
+    }
+    return z + d * (1 - Math.exp(-ms / CFG.ZOOM_EASE_MS));
+  },
+  /* The driver zoomed. True while closed in, when it is not theirs to keep. */
+  manual: function () {
+    this.goal = null;
+    return this.close;
+  }
+};
+
 function followCamera() {
   /* Twenty times a second, not every frame. Each move is a whole WebGL
      redraw of the map, where the Leaflet build moved a CSS layer and the
@@ -7027,18 +7147,24 @@ function followCamera() {
      driving zoom the map moves about 7 px a second at 100 km/h, so 50 ms is
      a third of a pixel - nothing to see. A changed mode or size clears the
      key and goes straight through. */
+  /* Every frame while the zoom is easing, which is under a second: at
+     twenty a second a zoom is a staircase. */
   const now = performance.now();
-  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS) return;
+  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS && AutoZoom.goal == null) return;
+  const zoom = AutoZoom.step(Math.min(100, now - followCamera.at));
   followCamera.at = now;
   const headUp = !S.northLock && view.has;
   const bearing = headUp ? view.hdgCur : 0;
   const top = Math.round(followShift * 2 * 10) / 10;
   const lean = Math.round(tiltCur * 10) / 10;
-  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + lean + "," + viewInsX + "," + viewInsY;
+  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + lean + "," + viewInsX + "," + viewInsY +
+              (zoom == null ? "" : "," + zoom.toFixed(4));
   if (key === followCamera.key) return;
   followCamera.key = key;
-  gl.jumpTo({ center: [view.cur.lng, view.cur.lat], bearing: bearing, pitch: lean,
-              padding: { top: top, bottom: viewInsY, left: 0, right: viewInsX } }, { follow: true });
+  const cam = { center: [view.cur.lng, view.cur.lat], bearing: bearing, pitch: lean,
+                padding: { top: top, bottom: viewInsY, left: 0, right: viewInsX } };
+  if (zoom != null) cam.zoom = zoom - ZOOM_OFF;
+  gl.jumpTo(cam, { follow: true });
 }
 followCamera.key = "";
 followCamera.at = 0;
@@ -7102,8 +7228,9 @@ map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
 map.on("zoomend", function () {
-  S.zoom = map.getZoom();
-  saveSettings();
+  /* Closed in for a turn or a town, a zoom by hand is for now and is not
+     saved over the driver's own - see AutoZoom. */
+  if (!AutoZoom.manual()) { S.zoom = map.getZoom(); saveSettings(); }
   renderPois();
   schedulePoi();
 });
@@ -7216,9 +7343,11 @@ function frame(ts) {
   const kh = 1 - Math.pow(1 - CFG.LERP_HDG, dt / 16.7);
 
   /* Which way to face. Driving, the GPS course is the honest answer and is
-     not upset by the steel of the vehicle; stopped, it reports nothing at
-     all, so the magnetometer takes over and the arrow turns on the spot. */
-  if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN) {
+     not upset by the steel of the vehicle. Before the vehicle has moved it
+     reports nothing at all, so the magnetometer has the arrow and turns it
+     on the spot. After that a stop keeps the way it was going - see
+     pushPosition - and the magnetometer is left out of it. */
+  if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN && !view.course) {
     /* The same hold as the position, for the same reason: a magnetometer
        standing still still reads a degree or two either way, and heading
        up that rocks the map. Under the deadband the arrow keeps what it
@@ -7230,7 +7359,8 @@ function frame(ts) {
     if (view.hdgFrom !== "compass" || off > CFG.STILL_HDG) view.hdgTgt = Compass.heading;
     view.hdgFrom = "compass";
   } else if (view.has) {
-    view.hdgFrom = Sim.active ? "simulated" : "gps course";
+    view.hdgFrom = Sim.active ? "simulated"
+      : view.speed < CFG.HDG_GPS_MIN && view.course ? "last course" : "gps course";
   }
 
   view.cur.lat += (view.tgt.lat - view.cur.lat) * kp;
@@ -7480,7 +7610,34 @@ function pushPosition(fix) {
   const still = view.has && !fix.sim && fixSpd <= CFG.STILL_SPD;
   const slack = Math.max(CFG.STILL_M, (fix.acc || 0) * CFG.STILL_ACC);
   if (!still || haversine(view.tgt, pt) > slack) view.tgt = { lat: pt.lat, lng: pt.lng };
-  if (hdg != null) view.hdgTgt = hdg;
+  /* Which way the arrow points.
+
+     At speed, the GPS course. Stopped or crawling, a phone's course is
+     noise - some report the last one, some report nought, and the fallback
+     above reads a bearing off the receiver's own wander - and the
+     magnetometer that used to take over says which way the phone is
+     mounted, not which way the vehicle faces. So a vehicle that pulled up
+     at a junction had its arrow, and heading up the whole map, swing round
+     to wherever the cradle pointed.
+
+     Once it has travelled, the arrow keeps the way it was going. It is
+     turned again by the next fix at speed, or - crawling over rocks, in a
+     queue, reversing out - by where the position has actually gone: a move
+     of HDG_CRAWL_M, or more where the fix is poor, is a direction. The
+     compass still has the arrow before the first movement, which is the
+     one time nothing else knows which way is forward. */
+  const hdgSpd = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : 0;
+  if (fix.sim || hdgSpd >= CFG.HDG_GPS_MIN || !view.course) {
+    if (hdg != null) view.hdgTgt = hdg;
+    if (!fix.sim && hdgSpd >= CFG.HDG_GPS_MIN && hdg != null) { view.course = true; view.courseAt = pt; }
+  } else {
+    const moved = view.courseAt ? haversine(view.courseAt, pt) : Infinity;
+    if (moved > CFG.HDG_JUMP_M) view.courseAt = pt;
+    else if (moved >= Math.max(CFG.HDG_CRAWL_M, (fix.acc || 0) * 1.5)) {
+      view.hdgTgt = bearing(view.courseAt, pt);
+      view.courseAt = pt;
+    }
+  }
   view.sim = !!fix.sim;
   view.speed = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : 0;
   view.alt = (fix.alt != null && isFinite(fix.alt)) ? fix.alt : null;
@@ -7505,6 +7662,7 @@ function pushPosition(fix) {
   updateGpsPill();
   updateStats();
   Units.fix(pt.lat, pt.lng);
+  AutoZoom.fix();     /* after navProgress, which says what turn is ahead */
 }
 
 function updateGpsPill() {
@@ -18624,6 +18782,9 @@ function navRenderTurn(at, remain) {
 
   /* A new route inside the last one's four seconds takes the bar back. */
   navEndClear(true);
+  /* what the map closes in for: a turn, or the end - not a line being
+     worked out again */
+  AutoZoom.turn(kind === "recalc" ? null : kind === "head" ? -3 : mark, dist === "" ? Infinity : dist);
   navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
   $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
   $("#turnAct").textContent = act;
@@ -18829,9 +18990,8 @@ function navSnap(near, hdg) {
   }
   if (!best || best.d > CFG.NAV_SNAP_M) return;
   view.tgt = { lat: best.lat, lng: best.lng };
-  /* Pointed along the line only while moving. Stopped, the compass has the
-     arrow and turns it on the spot, which is the one thing a line cannot
-     tell it. */
+  /* Pointed along the line only while moving. Stopped, the arrow keeps the
+     way it was going - see pushPosition. */
   if (hdg != null) { const b = navSegBearing(at); if (b != null) view.hdgTgt = b; }
 }
 
@@ -19159,6 +19319,8 @@ function cancelNav(quiet) {
   Nav.lost = false;
   Nav.via = "";
   Nav.standing = "";
+  AutoZoom.turn(null);
+  AutoZoom.settle();
   Voice.stop();
   /* Cancelled by hand, the bar says so; ended by anything else - an
      arrival, which says its own - it goes. */
@@ -19821,7 +19983,7 @@ function renderGpsPanel() {
     }
     trow("Compass", Compass.status(), Compass.fresh() ? "ok" : "warn");
     trow("Arrow follows", view.hdgFrom || "nothing yet",
-         view.hdgFrom === "compass" || view.hdgFrom === "gps course" ? "ok" : "warn");
+         view.hdgFrom === "compass" || view.hdgFrom === "gps course" || view.hdgFrom === "last course" ? "ok" : "warn");
     if (typeof Wake !== "undefined") {
       trow("Screen lock", Wake.status(), Wake.lock ? "ok" : "warn");
     }
@@ -20416,6 +20578,7 @@ function setUnits(u) {
    redraws and that is all. */
 function redrawUnits() {
   syncUnitButtons();
+  syncZoomButtons();
   FuelCalc.sync();
   updateStats();
   layoutHud();       /* the units change how wide the widest readings are */
@@ -20705,6 +20868,20 @@ function syncTiltButtons() {
   $("#btnTiltOff").classList.toggle("on", !S.tilt);
 }
 
+function setAutoZoom(on) {
+  S.autoZoom = on;
+  saveSettings();
+  AutoZoom.settle();          /* off while closed in, it goes back out now */
+  syncZoomButtons();
+}
+function syncZoomButtons() {
+  $("#btnAzOn").classList.toggle("on", !!S.autoZoom);
+  $("#btnAzOff").classList.toggle("on", !S.autoZoom);
+  /* the speed in the driver's own units: 30 km/h, or 19 mph */
+  $("#azNote").textContent = "Zooms in for turns and below " + Math.round(dispSpeed(CFG.ZOOM_SLOW)) + " " +
+    unitLabel("speed") + ", then back out.";
+}
+
 /* The state line says what is drawn and why, because Auto is the default and
    a driver who has never touched this should still be able to find out why
    the map went dark - or why it has not. */
@@ -20724,6 +20901,8 @@ function syncNightButtons() {
 $("#btnNightAuto").addEventListener("click", function () { setNight("auto"); });
 $("#btnNightDay").addEventListener("click", function () { setNight("day"); });
 $("#btnNightOff").addEventListener("click", function () { setNight("night"); });
+$("#btnAzOn").addEventListener("click", function () { setAutoZoom(true); });
+$("#btnAzOff").addEventListener("click", function () { setAutoZoom(false); });
 $("#btnTiltOn").addEventListener("click", function () { setTilt(true); });
 $("#btnTiltOff").addEventListener("click", function () { setTilt(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
@@ -21084,6 +21263,7 @@ document.addEventListener("keydown", function (e) {
      until this build, which is to say it was every install. */
   syncHillshadeButtons();
   syncTiltButtons();
+  syncZoomButtons();
   syncNightButtons();
   Night.load();
   /* before anything measures the bars, since it can change their height */

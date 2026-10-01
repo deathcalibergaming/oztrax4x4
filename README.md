@@ -278,6 +278,14 @@ drawn on the line either way, 2.4 m from the road on average. The 59 left
 are the marker following the line for a fix or two as the vehicle peels off
 it at a shallow fork.
 
+The same branch of work stopped the arrow swinging at a standstill. Stopped,
+a phone's GPS course is noise and its compass points wherever the cradle
+does; with a compass reading of 200 degrees faked in and six stopped fixes
+carrying junk courses, the arrow's target went 137, 200, 251, 200, 148, 200,
+12, 200... on the old code and stayed on the 0 it had been driving on the
+new. It then turned to 90 after a 19 m crawl east at walking pace, and to
+180 on the first fix driving south.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to
