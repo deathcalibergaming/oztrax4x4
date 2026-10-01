@@ -3100,6 +3100,7 @@ input[type=date],input[type=time]{color-scheme:dark}
         </div>
         <div class="gps-state" id="fcVerdict" role="status"></div>
         <div class="note" id="fcNext"></div>
+        <div class="note">Servos come from the fuel-price lists: none in the NT, and some roadhouses are missing. Check before relying on it.</div>
 
         <div class="sublabel">Fill-Up Log</div>
         <div class="fld2">
@@ -3116,7 +3117,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost hidden" id="fcUseSealed">Use For Sealed</button>
           <button class="btn sm ghost hidden" id="fcUseOff">Use For Off-Road</button>
         </div>
-        <div class="note">Fill the tank each time and enter the odometer and the litres it took: litres over the distance since the last fill is what the vehicle really uses. Fuel on a route is read from the state price schemes' lists, which have no Northern Territory and miss some roadhouses - check before counting on it. Nothing here leaves the phone.</div>
+        <div class="note">Fill to full each time, then enter the odometer and the litres.</div>
       </div>
     </details>
 
@@ -3169,13 +3170,13 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnText1" data-scale="1">Normal</button>
           <button class="btn xs ghost" id="btnText2" data-scale="1.15">Large</button>
         </div>
-        <div class="note" id="textNote">Every label and reading in the app. The map, the speed sign and the buttons do not change.</div>
+        <div class="note" id="textNote">Makes labels and readings bigger. The map and buttons stay the same.</div>
         <div class="sublabel">Screen Lock
           <button class="btn xs ghost" id="btnAwakeOn">On</button>
           <button class="btn xs ghost" id="btnAwakeOff">Off</button>
         </div>
         <div class="poi-status" id="awakeState"></div>
-        <div class="note" id="awakeNote">Keeps the screen on. A phone that goes dark stops recording; off saves battery when parked.</div>
+        <div class="note" id="awakeNote">Keeps the screen on. If the screen goes dark, recording stops.</div>
         <div class="sublabel">Over-Speed Alert
           <button class="btn xs ghost" id="btnAlertOn">On</button>
           <button class="btn xs ghost" id="btnAlertOff">Off</button>
@@ -3210,19 +3211,19 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
         </div>
-        <div class="note" id="shadeNote">Shows which way the ground falls. Needs a connection - with no signal the map draws flat.</div>
+        <div class="note" id="shadeNote">Shades hills and valleys. Needs signal - without it the map is flat.</div>
         <div class="sublabel">Map Tilt
           <button class="btn xs ghost" id="btnTiltOn">On</button>
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
         </div>
-        <div class="note" id="tiltNote">Leans the map so you see twice as far up the road. Heading up only - N Up stays flat.</div>
+        <div class="note" id="tiltNote">Tilts the map so you see further ahead. Heading up only.</div>
         <div class="sublabel" role="radiogroup" aria-label="Night map">Night Map
           <button class="btn xs ghost" id="btnNightAuto">Auto</button>
           <button class="btn xs ghost" id="btnNightDay">Day</button>
           <button class="btn xs ghost" id="btnNightOff">Night</button>
         </div>
         <div class="poi-status" id="nightState"></div>
-        <div class="note" id="nightNote">Darkens the map at dusk so it does not dazzle. Auto follows the sun where you are; Day or Night holds until the next one.</div>
+        <div class="note" id="nightNote">Dark map at night. Auto switches at sunset and sunrise.</div>
         <details class="sub" id="secFuel">
           <summary>
             <svg viewBox="0 0 24 24"><path d="M4.5 20.5v-15a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15"/><path d="M3 20.5h11.5M4.5 10h8"/><path d="M12.5 8.5h4a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 0 3 0V10l-2.5-2.5"/></svg>
@@ -3245,7 +3246,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnHomeSearch">Set From Search</button>
           <button class="btn sm ghost" id="btnHomeHere">Use My Position</button>
         </div>
-        <div class="note" id="homeNote">Type &quot;home&quot; in Navigate to route back to it from anywhere.</div>
+        <div class="note" id="homeNote">Type &quot;home&quot; in Navigate to route there.</div>
       </div>
     </details>
 
@@ -3280,7 +3281,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnRestore">Restore</button>
         </div>
         <input type="file" id="fileRestore" accept="application/json,.json" hidden>
-        <div class="note">Tracks, waypoints, favourites and settings in one file. Maps are not in it. Restoring adds, never deletes.</div>
+        <div class="note">Backs up tracks, waypoints, favourites and settings - not maps. Restore adds, never deletes.</div>
       </div>
     </details>
 
@@ -3598,7 +3599,7 @@ if (NATIVE) {
   if (privacy) privacy.href = SITE + "privacy.html";
   /* and the one thing the settings say that the app has made untrue */
   const awake = document.getElementById("awakeNote");
-  if (awake) awake.textContent = "Keeps the screen on; off saves battery. A recording carries on with the screen dark either way.";
+  if (awake) awake.textContent = "Keeps the screen on. Recording carries on with the screen off.";
 }
 
 const CFG = {
@@ -11289,21 +11290,21 @@ const FuelCalc = {
       el.firstChild.textContent = head;
       el.lastChild.textContent = line;
     };
-    const surf = d.surf === "off" ? "off-road" : "on sealed road";
+    const surf = d.surf === "off" ? "off-road" : "sealed";
 
     /* the trip */
     const need = rate && d.distKm != null ? d.distKm * rate / 100 : null;
     const hint = [];
     if (this.left) {
-      hint.push(this.fromRoute ? "Distance is the route" + (Nav.dest ? " to " + Nav.dest.name : "") + "."
-                               : "Your own distance - the route has " + this.km(this.left.remain / 1000) + " left.");
+      hint.push(this.fromRoute ? "Distance: route" + (Nav.dest ? " to " + Nav.dest.name : "") + "."
+                               : "Your own distance. Route has " + this.km(this.left.remain / 1000) + " left.");
     }
     if (this.near && this.near.c != null) {
       const days = this.near.site.t ? Math.floor((Date.now() - Date.parse(this.near.site.t)) / 864e5) : 0;
-      hint.push(fuelLabel(this.near.id) + " is " + this.near.c.toFixed(1) + " c/L at " + this.near.site.n +
-                ", " + this.km(this.near.km) + " away" + (days > 2 ? " - priced " + days + " days ago" : "") + ".");
+      hint.push(fuelLabel(this.near.id) + " " + this.near.c.toFixed(1) + " c/L at " + this.near.site.n +
+                ", " + this.km(this.near.km) + " away" + (days > 2 ? " (" + days + " days old)" : "") + ".");
     } else if (!Fuel.sel || !Fuel.sel.size) {
-      hint.push("Switch a fuel on in Settings, Fuel Type, to be offered its price.");
+      hint.push("Pick a fuel in Settings \u2192 Fuel Type to see prices.");
     }
     $("#fcHint").textContent = hint.join(" ");
     $("#fcUseRoute").classList.toggle("hidden", !this.left || this.fromRoute);
@@ -11312,55 +11313,55 @@ const FuelCalc = {
     if (this.near && this.near.c != null) $("#fcUsePrice").textContent = "Use " + this.near.c.toFixed(1) + " c/L";
     if (need == null) {
       say($("#fcTrip"), "", "Fuel for the trip",
-          "Enter a distance and what the vehicle uses " + surf + ".");
+          "Enter a distance and your " + surf + " fuel use.");
     } else {
       say($("#fcTrip"), "", need.toFixed(1) + " L" + (d.price ? " - $" + (need * d.price / 100).toFixed(2) : ""),
-          "For " + this.km(d.distKm) + " " + surf + " at " + rate + " L/100 km" +
-          (d.price ? ", fuel at " + d.price.toFixed(1) + " c/L." : ". Enter a price to see the cost."));
+          this.km(d.distKm) + " " + surf + " at " + rate + " L/100 km" +
+          (d.price ? ", " + d.price.toFixed(1) + " c/L." : ". Add a price for the cost."));
     }
 
     /* the range */
     const reserve = d.reserve || 0;
     const range = d.level != null && rate ? Math.max(0, d.level - reserve) / rate * 100 : null;
-    const keeps = reserve ? ", keeping " + reserve + " L in reserve" : "";
+    const keeps = reserve ? ", " + reserve + " L kept in reserve" : "";
     if (range == null) {
       say($("#fcVerdict"), "", "Range",
-          "Enter what is in the tank and what the vehicle uses " + surf + ".");
+          "Enter what is in the tank and your " + surf + " fuel use.");
     } else if (!d.distKm) {
       say($("#fcVerdict"), "", "Range " + this.km(range),
-          "From " + d.level + " L " + surf + keeps + ". Enter a distance, or navigate somewhere, to see whether that is enough.");
+          d.level + " L " + surf + keeps + ". Enter a distance to check a trip.");
     } else {
       const spare = range - d.distKm;
       if (spare < 0) {
         say($("#fcVerdict"), "bad", "Short by " + this.km(-spare),
-            "Range is " + this.km(range) + " " + surf + keeps + ". The trip needs " +
-            (-spare * rate / 100).toFixed(1) + " L more than that.");
+            "Range " + this.km(range) + " " + surf + keeps + ". You need " +
+            (-spare * rate / 100).toFixed(1) + " L more.");
       } else {
         /* under a tenth of the trip, or twenty kilometres, is not a margin */
         const thin = spare < Math.max(20, d.distKm * 0.1);
         say($("#fcVerdict"), thin ? "warn" : "ok", thin ? "Only just reaches it" : "Reaches it",
-            "Range is " + this.km(range) + " " + surf + keeps + ": " + this.km(spare) + " to spare.");
+            "Range " + this.km(range) + " " + surf + keeps + ". " + this.km(spare) + " to spare.");
       }
     }
     let next = "";
     if (this.left) {
       const a = this.ahead || [];
       if (!Fuel.data) next = "";
-      else if (!a.length) next = "No listed fuel on the rest of this route.";
+      else if (!a.length) next = "No fuel listed on the rest of this route.";
       else {
-        next = "Next listed fuel on the route: " + a[0].site.n + " in " + this.km(a[0].km) +
-          (range == null ? "." : a[0].km <= range ? " - within range." : " - " + this.km(a[0].km - range) + " beyond range.");
+        next = "Next fuel on route: " + a[0].site.n + " in " + this.km(a[0].km) +
+          (range == null ? "." : a[0].km <= range ? " - in range." : " - " + this.km(a[0].km - range) + " out of range.");
         /* Short of the destination, the servo that matters is the last one
            the tank will reach - that is where it has to be filled by. With
            fuel to spare it is only noise. */
         if (range != null && d.distKm && range < d.distKm) {
           const inside = a.filter(function (o) { return o.km <= range; });
           const lastIn = inside[inside.length - 1];
-          if (lastIn && lastIn !== a[0]) next += " The last one within range is " + lastIn.site.n + " in " + this.km(lastIn.km) + ".";
+          if (lastIn && lastIn !== a[0]) next += " Last in range: " + lastIn.site.n + " in " + this.km(lastIn.km) + ".";
         }
       }
     } else if (this.near) {
-      next = "Nearest listed fuel: " + this.near.site.n + ", " + this.km(this.near.km) + " in a straight line.";
+      next = "Nearest fuel: " + this.near.site.n + ", " + this.km(this.near.km) + " in a straight line.";
     }
     $("#fcNext").textContent = next;
     $("#fcNext").classList.toggle("hidden", !next);
@@ -11393,7 +11394,7 @@ const FuelCalc = {
       fillSay = "Last tank " + lastTank.rate.toFixed(1) + " L/100 km" +
         (tanks.length > 1 ? "; " + (L / K * 100).toFixed(1) + " averaged over " + tanks.length + " tanks." : ".");
     } else if (fills.length) {
-      fillSay = "One fill in. The next one gives the first figure.";
+      fillSay = "First fill saved. The next one gives your fuel use.";
     }
     $("#fcFillSay").textContent = fillSay;
     $("#fcFillSay").classList.toggle("hidden", !fillSay);
@@ -12456,9 +12457,6 @@ function renderFuelTypes() {
       ? Fuel.data.sources
       : [{ name: Fuel.data.source || "SA Fuel Pricing Information Scheme",
            state: "South Australia", sites: n, url: "" }];
-    const where = srcs.map(function (s) {
-      return (s.sites || 0) + " in " + (s.state || "?");
-    }).join(", ");
     const named = srcs.map(function (s) {
       return s.url
         ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>"
@@ -12467,9 +12465,8 @@ function renderFuelTypes() {
     const credit = named.length > 1
       ? named.slice(0, -1).join(", ") + " and " + named[named.length - 1]
       : named[0] || "";
-    note.innerHTML = esc(n + " sites - " + where + (when ? ", updated " + when : "") +
-      ". Source: ") + credit +
-      esc(". Switch off what you do not burn and the cards stay short.");
+    note.innerHTML = esc(n.toLocaleString() + " servos" + (when ? ", updated " + when : "") +
+      ". Prices from ") + credit + esc(".");
   }
 }
 
@@ -19631,7 +19628,7 @@ function gpsVerdict() {
 
   if (!navigator.geolocation) {
     return { cls: "bad", head: "This browser cannot use location",
-      sub: "It has no location support at all, so the map cannot follow you. Chrome, Firefox and Safari all can." };
+      sub: "It has no location support. Use Chrome, Firefox or Safari." };
   }
   /* Not a browser setting and not fixable from inside the app: the page has
      been opened in a way the browser will never trust with a position -
@@ -19640,48 +19637,46 @@ function gpsVerdict() {
     const why = contextNote();
     return { cls: "bad", head: "Location cannot work here",
       sub: why.charAt(0).toUpperCase() + why.slice(1) +
-        ". Open the app from its web address instead of from a saved copy." };
+        ". Open the app from its web address, not a saved copy." };
   }
   if (GPS.perm === "denied") {
     return { cls: "bad", head: "Location is blocked",
-      sub: "This site is not allowed to use your location. Tap the padlock beside the web address, " +
-        "turn Location on for this site, then tap Request A Fix Now below." };
+      /* the app has no address bar and no padlock: its switch is Android's */
+      sub: NATIVE
+        ? "Allow location in Android Settings \u2192 Apps \u2192 OzTrax Recon \u2192 Permissions, then tap Request A Fix Now."
+        : "Tap the padlock by the web address, turn Location on, then tap Request A Fix Now." };
   }
   if (!f && GPS.lastErr && GPS.lastErr.code === 2) {
     return { cls: "bad", head: "No position yet",
-      sub: "The phone cannot see enough sky. Check location is switched on in the phone's own settings, " +
-        "then try again away from buildings and heavy timber." };
+      sub: "The phone cannot see enough sky. Check location is on in the phone's settings, then try in the open." };
   }
   if (!f && GPS.lastErr && GPS.lastErr.code === 3) {
     return { cls: "warn", head: "Still searching",
-      sub: "The phone has not answered yet. A first fix from cold can take a minute or two outdoors." };
+      sub: "No answer yet. A first fix can take a minute or two outdoors." };
   }
   if (!f) {
     return looking
       ? { cls: "warn", head: "Looking for your position",
-          sub: "A first fix usually lands within a few seconds outdoors, and can take a minute from cold." }
+          sub: "Usually a few seconds outdoors, sometimes a minute." }
       : { cls: "bad", head: "Not looking yet",
-          sub: "Tap Request A Fix Now below and allow location when the browser asks." };
+          sub: "Tap Request A Fix Now and allow location when asked." };
   }
   if (age > 60) {
     return { cls: "warn", head: "Position is out of date",
-      sub: "The last fix was " + gpsAgo(age) + ". This usually means the phone has lost sight of the sky - " +
-        "a gorge, a shed, or a windscreen with a heat-reflective coating." };
+      sub: "Last fix was " + gpsAgo(age) + ". The phone has probably lost sight of the sky." };
   }
   /* The accuracy radius is the only read the web gives on where a position
      came from, so it is what the wording is built on - see fixSource. */
   if (f.acc > 200) {
     return { cls: "warn", head: "Rough position only",
-      sub: "This is coming from the mobile network rather than satellites and can be a kilometre out. " +
-        "It should sharpen once the phone sees the sky." };
+      sub: "From the mobile network, not satellites - can be a kilometre out. It sharpens under open sky." };
   }
   if (f.acc > 35) {
     return { cls: "warn", head: "Working, but roughly",
-      sub: "Accurate to about " + fmtDist(f.acc) + ", which is not a satellite fix. " +
-        "It should sharpen in the open." };
+      sub: "Accurate to about " + fmtDist(f.acc) + " - not a satellite fix yet. It sharpens in the open." };
   }
   return { cls: "ok", head: "Location is working",
-    sub: "Good satellite fix, accurate to about " + fmtDist(f.acc) + "." };
+    sub: "Satellite fix, accurate to about " + fmtDist(f.acc) + "." };
 }
 
 /* Two readers, one panel.
@@ -19822,9 +19817,8 @@ function renderGpsPanel() {
      warning, is now the verdict at the top where it cannot be missed. */
   const note = $("#gpsNote");
   if (note) {
-    note.textContent = "The web location API reports a fused position and its accuracy only. " +
-      "It exposes no satellite list or signal strengths, so the accuracy radius is the best " +
-      "available read on whether the fix came from satellites.";
+    note.textContent = "The phone reports a position and its accuracy, not satellites. " +
+      "The smaller the accuracy figure, the better the fix.";
     note.className = "note";
   }
 }
@@ -20375,12 +20369,10 @@ function syncUnitButtons() {
   $("#btnUnitMetric").classList.toggle("on", S.units === "metric");
   $("#btnUnitImperial").classList.toggle("on", S.units === "imperial");
   const sys = unitSys();
-  const now = sys === "us" ? "miles, mph and feet" : sys === "uk" ? "miles, mph and yards, heights in metres"
-            : "kilometres, km/h and metres";
-  $("#unitNote").textContent = (S.units === "auto"
-    ? "Follows where you are: miles in the US and the UK, kilometres everywhere else. Now " + now + "."
-    : now.charAt(0).toUpperCase() + now.slice(1) + ".") +
-    " Display only - nothing recorded changes.";
+  const now = sys === "us" ? "miles and mph" : sys === "uk" ? "miles and mph, with yards" : "kilometres and km/h";
+  $("#unitNote").textContent = S.units === "auto"
+    ? "Miles in the US and UK, kilometres elsewhere. Now " + now + "."
+    : "Always " + now + ", wherever you are.";
   syncUnitLabels();
 }
 function setUnits(u) {
@@ -20450,7 +20442,15 @@ $("#btnUnitImperial").addEventListener("click", function () { setUnits("imperial
 function syncAwakeButtons() {
   $("#btnAwakeOn").classList.toggle("on", S.keepAwake);
   $("#btnAwakeOff").classList.toggle("on", !S.keepAwake);
-  if (typeof Wake !== "undefined") $("#awakeState").textContent = "Screen lock: " + Wake.status();
+  /* In plain words. The browser's own - "refused: Wake Lock permission
+     request denied" - is still in Technical Details, where a fault is
+     looked for. */
+  if (typeof Wake !== "undefined") {
+    $("#awakeState").textContent = Wake.lock ? "Screen is staying on"
+      : !Wake.supported ? "Keeping the screen on is not supported here"
+      : !S.keepAwake ? "Off"
+      : "Could not keep the screen on";
+  }
 }
 function setKeepAwake(on) {
   if (S.keepAwake === on) return;
@@ -20473,7 +20473,7 @@ function setKeepAwake(on) {
 function alertStateLine() {
   if (!S.speedAlert) return "Off";
   if (!Chime.supported()) return "On, but this browser cannot play a sound";
-  if (!Chime.ready()) return "On - tap Test Sound once to let the browser play it";
+  if (!Chime.ready()) return "On - tap Test Sound once to enable it";
   if (GPS.last && GPS.last.spd == null) return "On, but this phone is not reporting a speed";
   return OverSpeed.over ? "Sounding - you are over the limit" : "On and ready";
 }
@@ -20482,13 +20482,10 @@ function syncAlertButtons() {
   $("#btnAlertOn").classList.toggle("on", !!S.speedAlert);
   $("#btnAlertOff").classList.toggle("on", !S.speedAlert);
   $("#alertState").textContent = alertStateLine();
-  /* the two marks in the driver's own units: 3 and 2 km/h, or 2 and 1 mph */
+  /* the mark in the driver's own units: 3 km/h, or 2 mph */
   const over = Math.round(dispSpeed(CFG.ALERT_OVER / 3.6)) + " " + unitLabel("speed");
-  const clear = Math.round(dispSpeed(CFG.ALERT_CLEAR / 3.6)) + " " + unitLabel("speed");
   $("#alertNote").textContent =
-    "A chime and red figures more than " + over + " over the limit, repeating every " +
-    Math.round(CFG.ALERT_REPEAT / 1000) + " seconds. Limits come from OpenStreetMap - trust the " +
-    "sign beside the road, not this.";
+    "Chimes when you are " + over + " over the limit. Limits can be wrong - trust the road signs.";
 }
 
 function setSpeedAlert(on) {
@@ -20576,7 +20573,7 @@ function syncVoiceButtons() {
   const f = Voice.found;
   /* The Android path is a path, so it is set out as one. Written as prose it
      ran to six commas in a row and had to be parsed rather than followed. */
-  const TTS = "Android Settings \u2192 Text-to-speech \u2192 Install voice data";
+  const TTS = "Android Settings \u2192 Text-to-speech";
   /* The volume is the one thing about the voice the app cannot set. It is
      the phone's media volume, and which volume the buttons change is
      Android's call: whatever is playing, or with nothing playing, the
@@ -20587,19 +20584,16 @@ function syncVoiceButtons() {
      stops the music, which is the opposite of what was asked. */
   const VOL = "Settings \u2192 Sounds and vibration \u2192 Volume";
   $("#voiceNote").textContent =
-    "Speaks each turn twice - in time to move across, then at the corner - and " +
-    (NATIVE && S.voiceMusic === "pause" ? "pauses music while it talks" : "turns music down while it talks") +
-    ". Works with no signal. " +
-    (f && f.au
-      ? "For a different or male voice: " + TTS + ". "
-      : f && f.en
-      ? "No Australian voice on this phone - add one in " + TTS + ". "
-      : "No voice installed - add one in " + TTS + ". ") +
+    "Speaks each turn twice and " +
+    (NATIVE && S.voiceMusic === "pause" ? "pauses" : "lowers") + " your music. Works offline. " +
     (NATIVE
-      ? "Its loudness is the media volume, and the volume buttons set it; Loud and Max lift it past the top of that. " +
-        "If lowered music still drowns it out, set Music to Pause."
-      : "Its loudness is the media volume. On a Samsung, turn on volume keys for media in " + VOL +
-        " so the buttons set it at any time.");
+      ? "The volume buttons set how loud it is. "
+      : "For the volume buttons to work on a Samsung, turn on volume keys for media in " + VOL + ". ") +
+    (f && f.au
+      ? "For another voice: " + TTS + "."
+      : f && f.en
+      ? "No Australian voice here - add one in " + TTS + "."
+      : "No voice installed - add one in " + TTS + ".");
 }
 
 function setNavVoice(on) {

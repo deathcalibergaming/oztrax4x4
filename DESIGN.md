@@ -856,9 +856,22 @@ Two small text blocks sit under controls and look similar until you read
 them, so they are separate classes.
 
 **A note** (`.note`) is a sentence explaining a control, written once and
-never changing: "Keeps the screen on. A phone that goes dark stops recording;
-off saves battery when parked." Note size, untracked, leading 1.45, muted sand. The
-more readable of the two on purpose — this is the text a stranger needs.
+never changing: "Keeps the screen on. If the screen goes dark, recording
+stops." Note size, untracked, leading 1.45, muted sand. The more readable of
+the two on purpose — this is the text a stranger needs.
+
+**A note is short: one or two plain sentences, about twenty words.** It is
+read on a phone, in a menu, by somebody who wants to get back to the map.
+Every note in the menu was cut to that on 2026-10-01, at the owner's
+request - they had grown to thirty and seventy words, each addition true and
+each making the next one less likely to be read. What does not fit is
+either said by the control itself (a Lower / Pause choice needs no sentence
+about lowering and pausing), belongs in a status line, or is documentation
+and belongs in the README. The words are the driver's, not the platform's:
+"needs signal", not "needs a connection"; "the road signs", not
+"OpenStreetMap"; "Could not keep the screen on", not a Wake Lock refusal -
+the browser's own wording stays in Technical Details, where a fault is
+looked for.
 
 **A status** (`.poi-status`) is the app reporting what it currently knows,
 and its text changes: "No home set", "696 South Australian sites, updated
@@ -885,10 +898,10 @@ half that earns the note its room. Terrain Shading ends "with no signal the
 map draws flat", because the elevation it shades from is fetched from the
 network and is not in the worker's shell — an app whose first principle is
 that nothing may quietly depend on a connection has to name the features that
-do. Over-Speed Alert spends forty of its words saying where the limits come
-from and that the sign beside the road outranks them. A note that only
-flatters the control is the confident surface this system forbids everywhere
-else.
+do. Over-Speed Alert ends "Limits can be wrong - trust the road signs". Short
+does not mean flattering: the half that gets cut is the explanation, never
+the warning. A note that only flatters the control is the confident surface
+this system forbids everywhere else.
 
 **A path is set out as a path.** Where a note has to send somebody into the
 phone's own settings, the steps are joined with arrows — *Settings → General
