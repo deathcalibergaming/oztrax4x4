@@ -2005,6 +2005,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
 #btnBoostNormal.on,#btnBoostLoud.on,#btnBoostMax.on,#btnMusicLower.on,#btnMusicPause.on,
+#btnRateSlow.on,#btnRateMedium.on,#btnRateFast.on,
 #btnNightAuto.on,#btnNightDay.on,#btnNightOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
@@ -3194,6 +3195,11 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="row hidden" id="voicePickRow">
           <select id="voicePick" aria-label="Which voice speaks the turns"></select>
         </div>
+        <div class="sublabel hidden" id="voiceRateRow" role="radiogroup" aria-label="How fast the voice talks">Speed
+          <button class="btn xs ghost" id="btnRateSlow">Slow</button>
+          <button class="btn xs ghost" id="btnRateMedium">Medium</button>
+          <button class="btn xs ghost" id="btnRateFast">Fast</button>
+        </div>
         <div class="sublabel hidden" id="voiceBoostRow" role="radiogroup" aria-label="How loud the voice is">Loudness
           <button class="btn xs ghost" id="btnBoostNormal">Normal</button>
           <button class="btn xs ghost" id="btnBoostLoud">Loud</button>
@@ -3854,6 +3860,11 @@ const CFG = {
      it. Just past nothing: see navBearAt. */
   NAV_TURN_WIN: 5,
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
+  /* Unless it is a jog: one way and then the other, with a road between.
+     From ten metres - under that the two side streets still face each
+     other, a street being seven or eight metres wide, and straight across
+     is what a driver does. See navBuildTurns. */
+  NAV_TURN_JOG: 10,
   NAV_TURN_LINK: 90,       /* a one-way unnamed leg this short is a ring arc */
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
   NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
@@ -3913,11 +3924,17 @@ const CFG = {
      speed floor is for a vehicle pulling away, which is about to be doing
      it. */
   VOICE_WPS: 2, VOICE_START: 1.4, VOICE_SPD_MIN: 5,
-  /* Said at the rate the voice was built at. Not left to the phone's own
-     setting, which belongs to whoever set it: a screen reader cranked to
-     double speed is a common thing to find on a phone, and an instruction
-     is no use at all if it arrives as a burst. */
-  VOICE_RATE: 1,
+  /* How fast it talks, against the rate the voice was built at. Not left
+     to the phone's own setting, which belongs to whoever set it: a screen
+     reader cranked to double speed is a common thing to find on a phone,
+     and an instruction is no use at all if it arrives as a burst.
+
+     It was the built rate and nothing else, and the report from the car
+     was "a little fast": a road name is heard once, over an engine, by
+     someone looking at the road. So the built rate is now Fast, a tenth
+     slower is what it starts on, and a fifth slower is there for whoever
+     wants it. */
+  VOICE_RATES: { slow: 0.8, medium: 0.9, fast: 1 },
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
@@ -4790,6 +4807,7 @@ const S = Object.assign({
      already been turned down for it. */
   voiceBoost: "loud",
   voiceMusic: "lower",
+  voiceRate: "medium",  /* "slow", "medium" or "fast" - CFG.VOICE_RATES */
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
   zoom: 15,
@@ -4854,7 +4872,7 @@ function saveSettings() {
                         units: S.units, unitsHere: S.unitsHere, unitsAutoApplied: S.unitsAutoApplied,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
-                        voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic,
+                        voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
@@ -17915,7 +17933,9 @@ function navBuildTurns() {
     if (kind === "uturn" && end - cum[at] < 120) kind = null;
 
     js.push({ at: at, m: cum[at], ang: ang, kind: kind, name: name,
-              bIn: bIn, bOut: bOut, link: legs[k].name || "", one: !!legs[k].one });
+              bIn: bIn, bOut: bOut, link: legs[k].name || "", one: !!legs[k].one,
+              /* the leg from here is another road, by name - see the jog */
+              road: !!legs[k].name && legs[k].name.toLowerCase() !== was });
   }
 
   /* Corners that run into one another are one corner to drive.
@@ -17962,14 +17982,51 @@ function navBuildTurns() {
      instructions vanished. A named leg is a road you are driving along
      however short it is, and it ends the group.
 
-     What it still costs is a jog: a right and then a left joined by a few
-     metres of unnamed connector nets out to nothing and is not announced.
-     That is one lane change rather than two decisions - it leaves you on
-     the same bearing a lane over, with the line on the map to follow.
+     A jog is the exception, and it ends the group where it is found. One
+     way and then the other is two turns, however close together, when
+     there is a road between them: Chess Street meets Clayson Road at a T,
+     and Northbri Avenue leaves Clayson Road twenty metres along. Grouped,
+     the right and the left summed to nothing, so nothing was said at the
+     end of Chess Street - a T-junction, with the route going on down a
+     road the driver had not been told to take - and the next word was two
+     hundred metres down Northbri Avenue, about a corner after it.
+
+     What makes it a road between them rather than one junction drawn as
+     two is the same question twice, and jog asks it:
+
+     - The first turn is onto a road of another name, and the second is off
+       it onto something else. From NAV_TURN_JOG apart. A name that comes
+       straight back - left onto Goodwood Road and right onto Goodwood Road
+       twelve metres on - is the two carriageways of one road, which is one
+       turn, and stays one.
+     - Or the leg between them is two-way and they are further apart than
+       one junction is ever drawn. That is a car park: left out of the
+       aisle, fifty metres, right onto the street.
+
+     A one-way leg with no name is neither, so the arcs of a roundabout and
+     the slip lanes of a median still sum the way they did. Measured over
+     599 trips round Adelaide: 24 of them changed, at 20 places, and the
+     corners announced went from 3,908 to 3,947. Eleven of the twenty had
+     said nothing at all, three had been called by their net angle - "bear
+     right onto Alpha Road" for a sharp right and a left - and two had been
+     taken for roundabouts.
+
+     What is still not announced is a jog across a few metres of unnamed
+     connector. That is one lane change rather than two decisions - it
+     leaves you on the same bearing a lane over, with the line on the map
+     to follow.
 
      NAV_TURN_RUN stops a group running away with a road, at the
      circumference of the largest roundabout worth the name. */
-  let i = 0;
+  /* Is b the second half of a jog whose first half was the corner c? */
+  const jog = function (c, b) {
+    if (!b.kind || b.kind === "uturn" || c.kind === "uturn") return false;
+    if ((b.ang < 0) === (c.ang < 0)) return false;
+    const gap = b.m - c.m;
+    if (c.road && b.link.toLowerCase() !== c.link.toLowerCase()) return gap >= CFG.NAV_TURN_JOG;
+    return !c.one && gap >= CFG.NAV_TURN_MERGE;
+  };
+  let i = 0, floor = 0;
   while (i < js.length) {
     if (!js[i].kind) { i++; continue; }
 
@@ -17992,7 +18049,9 @@ function navBuildTurns() {
              (a.one && !a.link && gap < CFG.NAV_TURN_LINK);
     };
     let b0 = i;
-    while (b0 > 0) {
+    /* and never back past a jog, whose first half ends at the junction
+       before this corner */
+    while (b0 > floor) {
       const p = js[b0 - 1];
       if (p.kind || !joins(p, js[b0].m - p.m)) break;
       if (js[i].m - p.m >= CFG.NAV_TURN_RUN) break;
@@ -18000,10 +18059,12 @@ function navBuildTurns() {
     }
     const s = js[b0];
 
-    let e = i;
+    let e = i, last = js[i];
     while (e + 1 < js.length) {
       const a = js[e], b = js[e + 1];
       if (!joins(a, b.m - a.m) || b.m - s.m >= CFG.NAV_TURN_RUN) break;
+      if (jog(last, b)) { floor = e + 1; break; }
+      if (b.kind) last = b;
       e++;
     }
     if (e === i && b0 === i) { Nav.turns.push(s); i++; continue; }
@@ -18253,6 +18314,7 @@ const Voice = {
   coverNext: false, /* the corner after this one has been warned of already */
   heard: -1,        /* the corner whose road has been said to the end of a line */
   heardNext: false, /* and the one after it, said on the end of this one's */
+  tailLine: null,   /* the call at a corner that went on to name the next one */
   headSaid: "",     /* the bearing last spoken, and when */
   headAt: 0,
   startedAt: 0,     /* when the current utterance began, for the watchdog */
@@ -18263,6 +18325,7 @@ const Voice = {
 
   supported: function () { return "speechSynthesis" in window; },
   ready: function () { return !!this.voice; },
+  rate: function () { return CFG.VOICE_RATES[S.voiceRate] || CFG.VOICE_RATES.medium; },
 
   /* getVoices comes back empty until the engine has listed itself, and on a
      phone that is after the page has loaded rather than during it - the
@@ -18363,7 +18426,7 @@ const Voice = {
       const u = new SpeechSynthesisUtterance(text);
       u.voice = this.voice;
       u.lang = this.voice.lang;
-      u.rate = CFG.VOICE_RATE;
+      u.rate = this.rate();
       /* Only the line still talking lets the music back up. Cancelling one
          to say another reports the first as ended a moment after the second
          has started, and that must not release the second. */
@@ -18455,12 +18518,12 @@ const Voice = {
   reset: function () {
     this.turns = null; this.mark = -1; this.stage = 0; this.coverNext = false;
     this.lostSaid = false; this.headSaid = ""; this.headAt = 0;
-    this.heard = -1; this.heardNext = false;
+    this.heard = -1; this.heardNext = false; this.tailLine = null;
   },
 
   /* The bar's own values, at the bar's own moment. All that is decided here
      is which of them becomes a sentence, and when. */
-  turn: function (kind, dist, act, road, then, mark, thenRoad) {
+  turn: function (kind, dist, act, road, then, mark, thenRoad, thenIn) {
     if (!S.navVoice || !this.ready()) return;
 
     /* Off the route is said over the top of anything else, because anything
@@ -18547,7 +18610,7 @@ const Voice = {
          nothing: eleven of them in forty simulated trips round Adelaide,
          one now. Left unsaid, the name goes on the call at the corner
          instead. */
-      const secs = CFG.VOICE_START + line.split(" ").length / CFG.VOICE_WPS;
+      const secs = CFG.VOICE_START + line.split(" ").length / (CFG.VOICE_WPS * this.rate());
       if (dist - near < Math.max(spd, CFG.VOICE_SPD_MIN) * secs) { this.stage = 1; return; }
       const self = this;
       const spoke = this.utter(line.charAt(0).toUpperCase() + line.slice(1), false, function () {
@@ -18580,8 +18643,28 @@ const Voice = {
          Arriving is left out - it has its own line, said at the door by
          navArrive rather than a hundred metres short of it. */
       if (kind === "arrive") return;
+      /* This corner is being said this moment, on the end of the call at
+         the one before - see below. Urgent would cut that line off to say
+         the half of it that is left. */
+      if (this.tailLine && this.talking === this.tailLine) return;
       const name = this.heard !== mark && road && kind !== "uturn" ? sayName(road) : "";
-      this.utter(name ? act + " onto " + name : act, true);
+      /* And the corner after, when it comes up inside the distance its own
+         call is made at. That call is not due until fifteen metres past
+         this corner - the next one only takes the bar over there - so on a
+         twenty metre jog it lands five metres from the wheel being turned,
+         and "turn right" on its own leaves a driver turning right and
+         looking for somewhere to go. Its road goes in unless the heads-up
+         has already named it. */
+      let tail = "", nextName = "";
+      if (then && TURN_WORD[then] && thenIn < near) {
+        nextName = !this.heardNext && then !== "uturn" ? sayName(thenRoad || "") : "";
+        tail = ", then " + TURN_WORD[then].toLowerCase() + (nextName ? " onto " + nextName : "");
+      }
+      const self = this;
+      this.utter((name ? act + " onto " + name : act) + tail, true, function () {
+        if (self.mark === mark && nextName) self.heardNext = true;
+      });
+      if (tail) { this.coverNext = true; this.tailLine = this.talking; }
     }
   }
 };
@@ -18752,7 +18835,7 @@ function navRenderTurn(at, remain) {
   if (!bar) return;
   if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
 
-  let kind, dist, act, road, then = null, thenRoad = "", mark = -1;
+  let kind, dist, act, road, then = null, thenRoad = "", thenIn = Infinity, mark = -1;
 
   if (Nav.lost && Nav.via !== "direct") {
     /* Whatever the old line said to do next is about a road the vehicle is
@@ -18773,7 +18856,7 @@ function navRenderTurn(at, remain) {
     if (t) {
       kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name; mark = t.m;
       const nx = Nav.turns[i + 1];
-      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) { then = nx.kind; thenRoad = nx.name; }
+      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) { then = nx.kind; thenRoad = nx.name; thenIn = nx.m - t.m; }
     } else {
       kind = "arrive"; dist = remain; act = "Arrive"; mark = -2;
       road = Nav.dest ? Nav.dest.name : "";
@@ -18797,7 +18880,7 @@ function navRenderTurn(at, remain) {
   navTurnFit();
   /* Last, and from the same values the bar was just drawn from, so what is
      said and what is shown cannot come apart. */
-  Voice.turn(kind, dist, act, road, then, mark, thenRoad);
+  Voice.turn(kind, dist, act, road, then, mark, thenRoad, thenIn);
 }
 
 /* A bearing and a distance, for when there is no road data and no router.
@@ -20749,6 +20832,12 @@ function syncVoiceButtons() {
      is on - a page cannot lift the voice past the media volume, nor ask
      for the music to pause rather than duck. */
   const own = NATIVE && !!S.navVoice;
+  /* How fast it talks is the page's to set anywhere there is a voice. */
+  const rate = CFG.VOICE_RATES[S.voiceRate] ? S.voiceRate : "medium";
+  $("#voiceRateRow").classList.toggle("hidden", !S.navVoice || !Voice.ready());
+  $("#btnRateSlow").classList.toggle("on", rate === "slow");
+  $("#btnRateMedium").classList.toggle("on", rate === "medium");
+  $("#btnRateFast").classList.toggle("on", rate === "fast");
   $("#voiceBoostRow").classList.toggle("hidden", !own);
   $("#voiceMusicRow").classList.toggle("hidden", !own);
   $("#btnBoostNormal").classList.toggle("on", S.voiceBoost === "normal");
@@ -20810,8 +20899,8 @@ $("#voicePick").addEventListener("change", function () {
   syncVoiceButtons();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
 });
-/* Loudness and music are judged by ear, like the accent: each choice says a
-   line there and then, at the new setting, over whatever is playing. */
+/* Speed, loudness and music are judged by ear, like the accent: each choice
+   says a line there and then, at the new setting, over whatever is playing. */
 function setVoiceSound(key, val) {
   if (S[key] === val) return;
   S[key] = val;
@@ -20819,6 +20908,9 @@ function setVoiceSound(key, val) {
   syncVoiceButtons();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
 }
+$("#btnRateSlow").addEventListener("click", function () { setVoiceSound("voiceRate", "slow"); });
+$("#btnRateMedium").addEventListener("click", function () { setVoiceSound("voiceRate", "medium"); });
+$("#btnRateFast").addEventListener("click", function () { setVoiceSound("voiceRate", "fast"); });
 $("#btnBoostNormal").addEventListener("click", function () { setVoiceSound("voiceBoost", "normal"); });
 $("#btnBoostLoud").addEventListener("click", function () { setVoiceSound("voiceBoost", "loud"); });
 $("#btnBoostMax").addEventListener("click", function () { setVoiceSound("voiceBoost", "max"); });

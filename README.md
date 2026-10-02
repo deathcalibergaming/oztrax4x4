@@ -256,6 +256,39 @@ corner. On the same 40 trips, of the 241 corners onto a named road:
 | joined with "then" | 64, up to 238 m apart | 21, under 80 m |
 | lines cut off before their end | 11 | 1 |
 
+A report from the road is replayed with `NavSim.path`: the app is told the
+destination and the vehicle is driven the way the driver went. The report
+was 30 Turquoise Drive to the IGA on Northbri Avenue, by Chess Street -
+nothing said at the end of Chess Street, where the route turns right onto
+Clayson Road and left onto Northbri Avenue twenty metres along, and nothing
+again until well down Northbri Avenue. Turns that close were being read as
+one junction drawn as two, and a right and a left sum to nothing.
+
+| on Chess Street and after | turns under 20 m apart are one junction | a jog is two turns |
+|---|---|---|
+| 21 m into Chess Street | - | In 180 metres, turn right onto Clayson Road, then turn left onto Northbri Avenue |
+| 33 m before the T | - | Turn right, then turn left |
+| at the left | - | Turn left |
+| 201 m down Northbri Avenue | In 400 metres, turn right onto Eusebio Drive... | the same |
+
+Over 599 trips round Adelaide the two rules give different instructions on
+24, at 20 places, and the corners announced go from 3,908 to 3,947. Eleven
+of the twenty places had said nothing at all, three had been called by their
+net angle - a sharp right and a left as "bear right" - and two had been
+taken for roundabouts. Which pairs count as a jog, and which are still one
+junction, is in `navBuildTurns`.
+
+The call at the corner now carries the next corner too when that one is
+closer than its own call could be made - "Turn right, then turn left" - and
+the voice has a speed: Slow, Medium and Fast are 0.8, 0.9 and 1.0 of the
+rate the voice was built at, Medium being the default after "a little fast"
+from the car. The same 40 trips, 245 corners onto a named road:
+
+| | Fast | Medium | Slow |
+|---|---|---|---|
+| road names heard | 245 | 245 | 245 |
+| corners with a heads-up of their own | 207 | 206 | 196 |
+| lines cut off before their end | 1 | 0 | 4 |
 
 The vehicle marker is measured by `NavSim.wrong`: each trip is told to go
 one way and driven, along real roads, another, so the route is recalculated
@@ -315,7 +348,8 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
 - **Louder than the media volume, and music paused if need be.** In a car
   the ducked music still came out over the words, because music is mastered
   loud and a synthesised voice is not. Settings -> Navigation Voice has two
-  rows only the app shows. **Loudness** (Normal, Loud, Max): Loud and Max
+  rows only the app shows (Speed, above them, is the website's too).
+  **Loudness** (Normal, Loud, Max): Loud and Max
   write the line to a file and play it through Android's LoudnessEnhancer,
   +6 dB and +12 dB (`CFG.VOICE_BOOST_MB`), limited so it does not clip; the
   file costs a fraction of a second per line. Loud is the default. **Music**

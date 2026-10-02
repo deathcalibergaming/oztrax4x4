@@ -22,6 +22,7 @@
      NavSim.sum(await NavSim.run(60, 21, { miss: true })) straight on at a turn
      NavSim.sum(await NavSim.runList(NavSim.divided(30, 3)))  across a divided road
      await NavSim.wrong(30, 11)                       told one way, driven another
+     await NavSim.path(start, [via], pin)             one trip, the way it was driven
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -56,6 +57,12 @@
    recalculation and how many while the marker was drawn on the route line.
    A long run: start it without awaiting and collect the answer, or the
    preview's script timeout cuts it off.
+
+   path() is for a report from the road - "it said nothing at the end of
+   Chess Street". The app is told the destination and the vehicle is driven
+   the way the driver went, through each via in turn, with the voice on. It
+   hands back each route the app worked out and each line it said, with
+   where on the drive it said it.
 
    The numbers the arrival rule was measured on are in the README, under
    "Measuring navigation".
@@ -111,7 +118,7 @@
       speaking: false, pending: false, paused: false, end: 0, u: null, now: 0,
       speak: function (u) {
         this.u = u; this.speaking = true;
-        this.end = this.now + 0.4 + u.text.split(/\s+/).length / (wps || 2);
+        this.end = this.now + 0.4 + u.text.split(/\s+/).length / ((wps || 2) * (u.rate || 1));
       },
       cancel: function () {
         const u = this.u; this.u = null; this.speaking = false;
@@ -148,7 +155,9 @@
       },
       remove: function () {
         Voice.utter = rig.utter; Voice.duck = rig.duck; Voice.unduck = rig.unduck;
-        delete window.speechSynthesis;
+        /* put back, not deleted: it is the window's own property, and a
+           delete left the page with no voice at all until it was reloaded */
+        Object.defineProperty(window, "speechSynthesis", { value: rig.real, configurable: true, writable: true });
       }
     };
     return rig;
@@ -397,6 +406,81 @@
     return sum;
   }
 
+  /* One trip off a field report: the app is told only where it is going,
+     and the vehicle is driven the way the driver went - the app's own route
+     through each via in turn, which is how to say "down Chess Street" to
+     it. A fix a second, slowing to walking pace for the corners of the road
+     driven, the route recalculated whenever the app decides it has to be.
+     What comes back is every route it was given and every line it said,
+     with the metres driven and the road under the wheels when it said it. */
+  async function path(start, vias, dest, opt) {
+    opt = opt || {};
+    stub();
+    if (Nav.active) cancelNav(true);
+    const co = [], names = [];
+    let from = start;
+    for (const v of vias.concat([dest])) {
+      pushPosition({ lat: from.lat, lng: from.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+      await navigateTo({ lat: v.lat, lng: v.lng, name: "via" });
+      if (!Nav.active || Nav.via !== "local") return { skip: "no route through a via" };
+      for (let i = Nav.head; i <= Nav.tail; i++) {
+        if (co.length && i === Nav.head) continue;
+        let nm = "";
+        for (const l of Nav.legs || []) if (l.at <= i) nm = l.name || "-";
+        co.push(Nav.coords[i]); names.push(nm);
+      }
+      from = { lat: Nav.coords[Nav.tail][0], lng: Nav.coords[Nav.tail][1] };
+      cancelNav(true);
+    }
+    const cum = [0], corners = [];
+    for (let i = 1; i < co.length; i++) {
+      cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+    }
+    for (let i = 1; i < co.length - 1; i++) {
+      const a = bearing({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+      const b = bearing({ lat: co[i][0], lng: co[i][1] }, { lat: co[i + 1][0], lng: co[i + 1][1] });
+      if (angleOff(a, b) > 45) corners.push(cum[i]);
+    }
+    const on = function (s) {
+      let i = 0;
+      while (i < cum.length - 2 && cum[i + 1] < s) i++;
+      return names[i];
+    };
+    const told = function () {
+      return Nav.turns.map((t) => Math.round(t.m) + " " + t.kind + " " + (t.name || "-")).join(" | ");
+    };
+
+    const rig = voiceRig(opt.wps), wasVoice = S.navVoice;
+    rig.install(); S.navVoice = true; Voice.reset();
+    pushPosition({ lat: start.lat, lng: start.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+    await navigateTo({ lat: dest.lat, lng: dest.lng, name: opt.name || "the pin" });
+    const routes = ["at the start: " + told()];
+    const V = opt.v || 13, end = cum[cum.length - 1];
+    let s = 0, was = 0, last = Nav.coords;
+    for (let n = 0; n < 3000 && Nav.active && s < end; n++) {
+      let d = Infinity;
+      for (const c of corners) d = Math.min(d, Math.abs(c - s));
+      const v = Math.min(V, 4 + 0.1 * d, was + 2.5, Math.max(2, (end - s) / 6));
+      was = v;
+      s = Math.min(end, s + v);
+      const p = pointAt(co, cum, s);
+      rig.tick(s);
+      Nav.lastCalc -= 1000;
+      pushPosition({ lat: p.lat, lng: p.lng, spd: v, hdg: p.hdg, acc: 5, sim: false, t: Date.now() });
+      await settle();
+      if (Nav.active && Nav.coords !== last) {
+        last = Nav.coords;
+        routes.push("recalculated " + Math.round(s) + " m in, on " + on(s) + ": " + told());
+      }
+    }
+    const said = rig.lines.filter((l) => l.said)
+      .map((l) => l.s + " m, on " + on(l.s) + ": " + l.text + (l.cut ? " [CUT]" : ""));
+    if (Nav.active) cancelNav(true);
+    rig.remove(); S.navVoice = wasVoice;
+    return { len: Math.round(end), driven: names.filter((x, i) => x !== names[i - 1]).join(" > "),
+             routes: routes, said: said };
+  }
+
   function stub() {
     S.follow = false;
     window.fetchPois = function () {};
@@ -418,7 +502,7 @@
 
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
-    wrongRoad: wrongRoad, wrong: wrong,
+    wrongRoad: wrongRoad, wrong: wrong, path: path,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up

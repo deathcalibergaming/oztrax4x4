@@ -1728,6 +1728,20 @@ seconds of speech over six seconds of driving. The same three corners are now
 four lines, and the whole 11.8km route with seven turns in it is fourteen
 lines across 609 fixes.
 
+**A jog is two turns, and both are said.** Right at the end of one street
+and left into the next twenty metres along is *turn right onto Clayson Road,
+then turn left onto Northbri Avenue* - not one junction, whose right and left
+sum to nothing and leave a driver at a T with nothing said. And where the
+second turn comes up sooner than its own call could be made, the call at the
+first carries it: *Turn right, then turn left*. The second is still called
+at its corner, unless that line is the one being said.
+
+**How fast it talks is the driver's.** Speed - Slow, Medium, Fast - sits
+with the voice's other rows and says a line when it is changed, the way
+Loudness does. Medium is a tenth under the rate the voice was built at and
+is where it starts; the built rate, which it used to be, is Fast. A road
+name is heard once, over an engine, by someone looking at the road.
+
 **Turning around is not announced onto anywhere.** At a hundred and sixty
 degrees the road you come out on is the road you went in on, and *turn around
 onto Webb Road* is a sentence describing nothing.
