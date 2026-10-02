@@ -4001,12 +4001,22 @@ const CFG = {
      at ZOOM_FAST, ten kilometres an hour apart so a vehicle sitting on
      thirty does not have the map breathing. For a turn: ZOOM_TURN_S seconds
      out at the speed being driven, and never less than ZOOM_TURN_M. Close
-     is street level, where a junction's arms are apart on the glass. */
+     is street level, where a junction's arms are apart on the glass.
+
+     Then the turn itself, ZOOM_AT_S seconds out and never less than
+     ZOOM_AT_M: a level closer, where the junction is most of the screen.
+     At eighteen a phone shows about a hundred and seventy metres ahead of
+     the vehicle, so a corner a hundred metres off is on the glass as the
+     map arrives at it. Six seconds is ahead of the voice's call at the
+     corner, which is four. */
   ZOOM_SLOW: 30 / 3.6,
   ZOOM_FAST: 40 / 3.6,
   ZOOM_TURN_M: 250,
   ZOOM_TURN_S: 12,
   ZOOM_CLOSE: 17,
+  ZOOM_AT_M: 100,
+  ZOOM_AT_S: 6,
+  ZOOM_TURN: 18,
   ZOOM_EASE_MS: 260,
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
@@ -7090,6 +7100,18 @@ function visibleBounds() {
    not for keeps - it stops this easing, it is not fought, and the map still
    goes back to the driver's own zoom when the road opens up.
 
+   And closer again at the turn itself: ZOOM_TURN from ZOOM_AT_S seconds
+   out, never less than ZOOM_AT_M, and always a level in from the driver's
+   own zoom. Closing in once was not enough, and the report from the road
+   was that it did nothing coming up to a turn. In town it did nothing
+   because it had already done it: the turns of a suburb are inside one
+   another's reach and most of it is driven under forty, so on the reported
+   trip - Turquoise Drive to Northbri Avenue, eleven turns - the map closed
+   in four seconds after setting off and was closed in on 272 fixes of 297.
+   Every turn arrived on a map that was already as close as it was going to
+   get. A second step is something to see at each one, and it is the step
+   that puts the junction itself across the glass.
+
    Only while following. The follow camera writes the zoom, eased over
    ZOOM_EASE_MS, as it writes the centre and the bearing; a map the driver
    has dragged away is the driver's. Off in Settings, Auto Zoom. */
@@ -7098,7 +7120,8 @@ const AutoZoom = {
   slow: false,     /* at or under ZOOM_SLOW, and not back over ZOOM_FAST yet */
   at: null,        /* the turn ahead, by its place on the route */
   near: null,      /* the turn that has come inside its reach */
-  close: false,
+  hot: null,       /* and the one that has come right up - inside ZOOM_AT */
+  level: 0,        /* 0 the driver's own zoom, 1 closed in, 2 at a turn */
   base: null,      /* the driver's own zoom, to go back to */
   goal: null,      /* the zoom being eased to, or null when there is none */
 
@@ -7114,24 +7137,40 @@ const AutoZoom = {
      reach - cannot open the map out again half way there. */
   turn: function (mark, dist) {
     const reach = Math.max(CFG.ZOOM_TURN_M, view.speed * CFG.ZOOM_TURN_S);
+    const tight = Math.max(CFG.ZOOM_AT_M, view.speed * CFG.ZOOM_AT_S);
     /* Through one turn with the next - or the destination - less than two
        reaches on, the map stays close rather than opening out for four
-       seconds and closing again. */
+       seconds and closing again.
+
+       Not so the closer step. Held through the same way it never let go
+       either: on the reported trip it stood at the turn's zoom for 205
+       fixes of 297, one run of them five turns long, which is the first
+       step's fault over again one level in. It lets go once a turn is
+       behind and comes back for the next, and where the next is inside
+       ZOOM_AT already - a jog, a roundabout's exit - it never left. */
     const through = this.near != null && this.near === this.at && mark !== this.at;
     this.at = mark;
-    if (mark == null) this.near = null;
-    else if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
+    if (mark == null) { this.near = null; this.hot = null; return; }
+    if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
+    if (dist <= tight) this.hot = mark;
   },
   settle: function () {
-    const want = !!S.autoZoom && (this.slow || (this.near != null && this.near === this.at));
-    if (want === this.close) return;
-    this.close = want;
-    if (want) {
-      this.base = map.getZoom();
-      this.goal = this.base < CFG.ZOOM_CLOSE ? CFG.ZOOM_CLOSE : null;
-    } else {
-      this.goal = this.base != null && Math.abs(map.getZoom() - this.base) > 0.01 ? this.base : null;
+    let level = 0;
+    if (S.autoZoom) {
+      if (this.at != null && this.hot === this.at) level = 2;
+      else if (this.slow || (this.at != null && this.near === this.at)) level = 1;
     }
+    if (level === this.level) return;
+    /* The driver's own zoom is where the map stood when this first took it.
+       Each step after that is worked out from it, so a zoom by hand while
+       closed in lasts until the next step and no longer. */
+    if (!this.level || this.base == null) this.base = map.getZoom();
+    this.level = level;
+    const z = level === 2 ? Math.max(CFG.ZOOM_TURN, this.base + 1)
+            : level === 1 ? Math.max(CFG.ZOOM_CLOSE, this.base)
+            : this.base;
+    const to = Math.min(CFG.MAX_Z, z);
+    this.goal = Math.abs(map.getZoom() - to) > 0.01 ? to : null;
   },
   /* The zoom for this frame of the follow camera, or null to leave it be. */
   step: function (ms) {
@@ -7157,7 +7196,7 @@ const AutoZoom = {
   /* The driver zoomed. True while closed in, when it is not theirs to keep. */
   manual: function () {
     this.goal = null;
-    return this.close;
+    return this.level > 0;
   }
 };
 
@@ -18940,9 +18979,11 @@ function navRenderTurn(at, remain) {
 
   /* A new route inside the last one's four seconds takes the bar back. */
   navEndClear(true);
-  /* what the map closes in for: a turn, or the end - not a line being
-     worked out again */
-  AutoZoom.turn(kind === "recalc" ? null : kind === "head" ? -3 : mark, dist === "" ? Infinity : dist);
+  /* What the map closes in for: a turn, or the end. A line being worked out
+     again says nothing either way, so the map is left as it is - told there
+     was no turn, it opened out for the second the new route took and closed
+     straight back in for that route's first corner. */
+  if (kind !== "recalc") AutoZoom.turn(kind === "head" ? -3 : mark, dist);
   navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
   $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
   $("#turnAct").textContent = act;

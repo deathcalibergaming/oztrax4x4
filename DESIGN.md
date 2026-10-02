@@ -2085,6 +2085,18 @@ that is the only zoom saved. A zoom by hand while it is closed in is taken
 for now and not fought, and the map still returns to the driver's zoom when
 the road opens up.
 
+**Two steps, because one could not be seen.** Closer again at the turn
+itself: zoom 18 from six seconds out, never less than 100 m, and always a
+level in from the driver's own zoom - then back to 17 once the turn is
+behind. The first step alone did nothing in a town. The turns of a suburb
+are inside one another's reach and most of it is driven under forty, so the
+map closed in as the trip began and stayed closed: on the trip it was
+reported from, 272 fixes of 297. Each turn arrived on a map already as
+close as it was going to get, and the driver's word for that was *not
+working*. The second step lets go between turns and comes back for the
+next, so each one is something that happens. A zoom by hand lasts until the
+next step.
+
 Eased over about a second, on the follow camera, because a zoom that snaps
 reads as a different map. This is the one thing that moves on its own while
 the vehicle is moving, and it is allowed to because it is the map showing

@@ -348,6 +348,18 @@ Arrival, the voice and the marker were run again on the new packs: 33 of 33
 arrived, at most 18 m short; 245 of 245 road names heard; and the arrow more
 than 30 degrees off on 68 fixes of 12,703 against 59, none over 90.
 
+**The map closes in twice for a turn.** Auto Zoom went to 17 for a turn
+and the report was that nothing happened coming up to one. Replayed with
+`NavSim.path` on the Turquoise Drive trip, the map was closed in on 272
+fixes of 297 - from four seconds after setting off - because suburban turns
+sit inside one another's 250 m reach. Now 18 from 100 m (or six seconds)
+before each turn and back to 17 after it: on the same trip it steps in for
+Marquisite Drive, Welby Avenue, Daphne Road, Chess Street, Clayson Road and
+Eusebio Drive, staying in where the next turn is under 100 m on. Checked on
+the camera itself with the frames driven by hand: 15 to 17 at 186 m, 18 at
+86 m, 15 once past; a pinch out to 16 held until the next step and was not
+saved.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to
