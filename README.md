@@ -319,6 +319,35 @@ carrying junk courses, the arrow's target went 137, 200, 251, 200, 148, 200,
 new. It then turned to 90 after a 19 m crawl east at walking pace, and to
 180 on the first fix driving south.
 
+**The route goes round a slow point, not through it.** Reported from
+Northbri Avenue, which splits round an island at Douglas Road: the route
+was drawn straight through the island. The road packs thinned every leg to
+within five metres of the survey, and the two lanes there bow 3.9 and 4.6
+metres off the straight line between their ends, so both arrived as
+two-point chords. One-way legs are now kept to a metre
+(`SIMPLIFY_ONEWAY` in `tools/build-routing.mjs`): they are the carriageways,
+split lanes and slip lanes that lie four to ten metres from their twin, where
+five metres of slack is most of the gap. On South Australia that is 17.66 MB
+to 17.75 - half a percent - where a metre on every leg off the spine would
+be 20.52.
+
+The corners are still read off the line as it was. Slip lanes and
+roundabout exits turn inside the leg once it is drawn to the metre, where
+no junction is, and the turn reader measures at junctions. So
+`navTurnLine` thins the one-way legs of a route by the packs' old rule
+before the corners are read, and the map draws every point. 400 trips round
+Adelaide, old packs against new:
+
+| | corners read off the new packs as drawn | read off the thinned line |
+|---|---|---|
+| trips whose instructions changed | 63 | 1, a different route through a car park |
+| turns no longer said | 64 | 0 |
+| on the old packs | - | 400 of 400 unchanged |
+
+Arrival, the voice and the marker were run again on the new packs: 33 of 33
+arrived, at most 18 m short; 245 of 245 road names heard; and the arrow more
+than 30 degrees off on 68 fixes of 12,703 against 59, none over 90.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to

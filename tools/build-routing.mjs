@@ -140,6 +140,35 @@ const SIMPLIFY_M = 5;
 const SIMPLIFY_REL = 0.08;
 const SIMPLIFY_FLOOR = 0.5;
 
+/* The ceiling for a one-way leg: a metre, not five.
+
+   A one-way leg is one of two lines lying side by side - the carriageways
+   of a divided road, the two lanes a street splits into round the island
+   of a slow point, a slip lane beside the road it leaves. They stand four
+   to ten metres apart, so five metres of slack is most of the gap between
+   them, and the thing in the gap is what the driver steers round.
+
+   Reported from Northbri Avenue. At Douglas Road it splits round an island
+   for sixty metres: OpenStreetMap draws each lane with nine points, bowing
+   3.9 and 4.6 metres off the straight line between its ends, and eight
+   percent of sixty metres is 4.8, so both arrived as two-point chords. The
+   route was drawn straight through the island, and the vehicle with it.
+   SIMPLIFY_REL had saved the roundabouts, whose arcs are short; a slow
+   point is a long shallow bow, and nothing short of a lower ceiling keeps
+   one. At a metre those two lanes keep seven points and four.
+
+   Only the one-way legs, because that is where it is cheap and where it
+   shows. Measured on South Australia: a metre on one-way legs alone takes
+   the packs from 17.66 MB to 17.75, half a percent, and keeps 16,000 more
+   corners of 2.5 million; a metre on every leg off the spine is 20.52 MB,
+   sixteen percent, to move lines that already lie inside the road they
+   are on.
+
+   The app reads its corners off these legs thinned back to five - see
+   navTurnLine in index.html - because a slip lane drawn to the metre does
+   its turning between junctions, where the turn reader does not look. */
+const SIMPLIFY_ONEWAY = 1;
+
 /* Smallest first, so a build that is going to fall over does it in the
    first minute rather than the fortieth. */
 const SOURCES = [
@@ -484,6 +513,7 @@ function cutStamp(source) {
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
     [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M, SIMPLIFY_REL, SIMPLIFY_FLOOR,
+    SIMPLIFY_ONEWAY,
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
     "dir1"
@@ -738,8 +768,9 @@ async function main() {
   const tally = { edges: 0, spine: 0, region: 0, local: 0, pts: 0, kept: 0 };
   function emit(edge) {
     const name = CLASSES[edge.cls];
+    const tol = edge.f & (F_ONEWAY | F_REVERSE) ? SIMPLIFY_ONEWAY : SIMPLIFY_M;
     if (SPINE.has(name)) {
-      const pts = simplify(edge.pts, SIMPLIFY_M);
+      const pts = simplify(edge.pts, tol);
       tally.pts += edge.pts.length / 2;
       tally.kept += pts.length / 2;
       spine([edge.cls, edge.f, edge.v, edge.name, pts, edge.d]);
@@ -755,7 +786,7 @@ async function main() {
        run is exactly what gets thinned, and the boundary points survive
        because they are each piece's ends. */
     for (const dense of splitByTile(edge.pts, z)) {
-      const piece = simplify(dense, SIMPLIFY_M);
+      const piece = simplify(dense, tol);
       tally.pts += dense.length / 2;
       tally.kept += piece.length / 2;
       const x = lngToX(piece[1] / PRECISION, z), y = latToY(piece[0] / PRECISION, z);
@@ -776,7 +807,7 @@ async function main() {
     }
     console.log(`  running total: ${tally.spine} spine, ${tally.region} tertiary, ${tally.local} local`);
     console.log(`  corners: ${tally.kept} kept of ${tally.pts} ` +
-                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m)`);
+                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m, ${SIMPLIFY_ONEWAY} m one-way)`);
   }
   region.flush();
   local.flush();

@@ -3859,6 +3859,10 @@ const CFG = {
   /* How far either side of a junction the line is read to find the angle of
      it. Just past nothing: see navBearAt. */
   NAV_TURN_WIN: 5,
+  /* How the corners' line is thinned - see navTurnLine. The road packs'
+     own rule as it was when every leg was held to five metres: the ceiling
+     in metres, the share of a stretch's own length, and the floor. */
+  NAV_THIN: [5, 0.08, 0.5],
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
   /* Unless it is a jog: one way and then the other, with a road between.
      From ten metres - under that the two side streets still face each
@@ -17751,9 +17755,9 @@ function navBuildCum() {
    roundabout on Northbri Avenue turn -57, +54, +48 and -44 degrees, and
    read over twenty metres they came out as +4, +11, +12 and -2. Nothing
    reached the threshold and no roundabout on that road was ever mentioned. */
-function navBearAt(i, dir) {
-  const c = Nav.coords, cum = Nav.cum;
-  const lo = Nav.head, hi = Nav.tail;
+function navBearAt(L, i, dir) {
+  const c = L.c, cum = L.cum;
+  const lo = L.lo, hi = L.hi;
   let j = i;
   if (dir < 0) { while (j > lo && cum[i] - cum[j] < CFG.NAV_TURN_WIN) j--; }
   else { while (j < hi && cum[j] - cum[i] < CFG.NAV_TURN_WIN) j++; }
@@ -17847,8 +17851,8 @@ const TURN_ART = {
    D, E and F. No iteration, a 3x3 solve, and exact enough for something
    that only has to tell a ring from a wiggle. Flat earth: these are tens of
    metres across. Returns the radius, or 0 for anything that is not one. */
-function navRingR(i0, i1) {
-  const c = Nav.coords, n = i1 - i0 + 1;
+function navRingR(L, i0, i1) {
+  const c = L.c, n = i1 - i0 + 1;
   if (n < 4) return 0;
   const mLat = 111320, mLng = 111320 * Math.cos(rad(c[i0][0]));
   const x = [], y = [];
@@ -17893,12 +17897,83 @@ function navRingR(i0, i1) {
   return Math.sqrt(err / x.length) < R * 0.18 ? R : 0;
 }
 
+/* The line the corners are read off, which is not quite the line drawn.
+
+   The packs keep a one-way leg to within a metre of the road now, so the
+   route goes round the island of a slow point instead of through it - see
+   SIMPLIFY_ONEWAY in tools/build-routing.mjs. Everything below was measured
+   on legs kept to five: the angle at a junction is read over five metres of
+   line, and on a leg drawn as a chord five metres of it points the way the
+   whole leg goes. Drawn to the metre, a slip lane leaves its road at ten
+   degrees and does its turning in the middle, where no junction is, and a
+   roundabout's exit is still swinging round the splitter island when the
+   group is closed. Read off the new packs as they stand, 63 trips in 400
+   round Adelaide changed their instructions and 64 turns went unsaid - the
+   left onto Port Wakefield Road, the left onto Torrens Road - while
+   straight through a roundabout came out as bear right.
+
+   So the corners are read off the route with its one-way legs thinned the
+   way the packs used to thin them: the same rule, the same three numbers,
+   leg by leg, ends kept. Thinning a leg the packs kept to a metre gives the
+   points thinning the survey to five gave, because the furthest point from
+   a chord is the first one either keeps. What a driver is told does not
+   depend on how finely the road under it happens to be drawn; the line on
+   the map and the vehicle on it use every point there is.
+
+   Two-way legs are left alone: the packs still thin those to five, and a
+   route from OSRM has no one-way legs at all. */
+function navTurnLine() {
+  const c = Nav.coords, legs = Nav.legs, n = c.length;
+  const keep = new Uint8Array(n).fill(1);
+  for (let k = 0; k < legs.length; k++) {
+    if (!legs[k].one) continue;
+    const a = Math.max(legs[k].at, Nav.head);
+    const b = Math.min(k + 1 < legs.length ? legs[k + 1].at : Nav.tail, Nav.tail);
+    if (b - a < 2) continue;
+    const kx = Math.cos(rad(c[a][0]));
+    const off = function (p, u, v) {
+      const px = (p[1] - u[1]) * kx, py = p[0] - u[0];
+      const bx = (v[1] - u[1]) * kx, by = v[0] - u[0];
+      const len = bx * bx + by * by;
+      let t = len > 0 ? (px * bx + py * by) / len : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return Math.hypot(px - bx * t, py - by * t) * 111320;
+    };
+    for (let q = a + 1; q < b; q++) keep[q] = 0;
+    const stack = [[a, b]];
+    while (stack.length) {
+      const span = stack.pop(), i = span[0], j = span[1];
+      if (j - i < 2) continue;
+      let worst = -1, at = -1;
+      for (let q = i + 1; q < j; q++) {
+        const d = off(c[q], c[i], c[j]);
+        if (d > worst) { worst = d; at = q; }
+      }
+      const chord = haversine({ lat: c[i][0], lng: c[i][1] }, { lat: c[j][0], lng: c[j][1] });
+      const allow = Math.min(CFG.NAV_THIN[0], Math.max(CFG.NAV_THIN[2], chord * CFG.NAV_THIN[1]));
+      if (worst > allow) { keep[at] = 1; stack.push([i, at], [at, j]); }
+    }
+  }
+  const L = { c: [], cum: [], ix: new Int32Array(n).fill(-1), lo: 0, hi: 0 };
+  for (let i = 0; i < n; i++) {
+    if (!keep[i]) continue;
+    const m = L.c.length;
+    L.ix[i] = m;
+    L.cum.push(m ? L.cum[m - 1] + haversine({ lat: L.c[m - 1][0], lng: L.c[m - 1][1] },
+                                            { lat: c[i][0], lng: c[i][1] }) : 0);
+    L.c.push(c[i]);
+  }
+  L.lo = L.ix[Nav.head]; L.hi = L.ix[Nav.tail];
+  return L;
+}
+
 function navBuildTurns() {
   Nav.turns = [];
   const legs = Nav.legs, c = Nav.coords, cum = Nav.cum;
   if (!legs || legs.length < 2 || c.length < 3) return;
   if (Nav.tail <= Nav.head) return;
   const end = cum[Nav.tail];
+  const L = navTurnLine();
 
   /* Every junction on the route, with the angle the line turns through at
      it and the road it puts you on. Most of them turn through nothing -
@@ -17910,7 +17985,7 @@ function navBuildTurns() {
     const at = legs[k].at;
     if (at <= Nav.head || at >= Nav.tail) continue;
     if (at === legs[k - 1].at) continue;        /* a leg the join-dedupe emptied */
-    const bIn = navBearAt(at, -1), bOut = navBearAt(at, 1);
+    const bIn = navBearAt(L, L.ix[at], -1), bOut = navBearAt(L, L.ix[at], 1);
     if (bIn === null || bOut === null) continue;
     const ang = ((bOut - bIn + 540) % 360) - 180;
 
@@ -18094,7 +18169,7 @@ function navBuildTurns() {
     if (!kind && e > b0) {
       let ring = false;
       for (let j = b0; j <= e && !ring; j++) ring = js[j].one && !js[j].link;
-      if (ring && navRingR(s.at, js[e].at)) kind = "straight";
+      if (ring && navRingR(L, L.ix[s.at], L.ix[js[e].at])) kind = "straight";
     }
 
     if (kind) {
