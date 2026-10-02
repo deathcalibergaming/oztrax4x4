@@ -340,7 +340,7 @@ Adelaide, old packs against new:
 
 | | corners read off the new packs as drawn | read off the thinned line |
 |---|---|---|
-| trips whose instructions changed | 63 | 1, a different route through a car park |
+| trips whose instructions changed | 93: 63 gaining or losing a turn, 30 a bear for a turn | 1, a different route through a car park |
 | turns no longer said | 64 | 0 |
 | on the old packs | - | 400 of 400 unchanged |
 
