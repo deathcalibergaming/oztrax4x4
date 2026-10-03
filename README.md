@@ -256,6 +256,322 @@ corner. On the same 40 trips, of the 241 corners onto a named road:
 | joined with "then" | 64, up to 238 m apart | 21, under 80 m |
 | lines cut off before their end | 11 | 1 |
 
+A report from the road is replayed with `NavSim.path`: the app is told the
+destination and the vehicle is driven the way the driver went. The report
+was 30 Turquoise Drive to the IGA on Northbri Avenue, by Chess Street -
+nothing said at the end of Chess Street, where the route turns right onto
+Clayson Road and left onto Northbri Avenue twenty metres along, and nothing
+again until well down Northbri Avenue. Turns that close were being read as
+one junction drawn as two, and a right and a left sum to nothing.
+
+| on Chess Street and after | turns under 20 m apart are one junction | a jog is two turns |
+|---|---|---|
+| 21 m into Chess Street | - | In 180 metres, turn right onto Clayson Road, then turn left onto Northbri Avenue |
+| 33 m before the T | - | Turn right, then turn left |
+| at the left | - | Turn left |
+| 201 m down Northbri Avenue | In 400 metres, turn right onto Eusebio Drive... | the same |
+
+Over 599 trips round Adelaide the two rules give different instructions on
+24, at 20 places, and the corners announced go from 3,908 to 3,947. Eleven
+of the twenty places had said nothing at all, three had been called by their
+net angle - a sharp right and a left as "bear right" - and two had been
+taken for roundabouts. Which pairs count as a jog, and which are still one
+junction, is in `navBuildTurns`.
+
+One more shape was found later, by a route that left Lobethal Road for
+Crescent Drive without a word. Crescent Drive leaves square, runs 18 m and
+turns square again to run alongside, and it is Crescent Drive both sides of
+that bend - so the pair passed for the two carriageways of one road, which
+are rightly one turn, and summed to six degrees, which is no turn at all.
+A square corner onto a road of another name, then the first bend in that
+road, leaving on the bearing the route came in on, is now a jog too.
+Replayed with `NavSim.path`, from Old Norton Summit Road:
+
+| where | before | now |
+|---|---|---|
+| setting off | In 120 metres, turn right onto Lobethal Road | In 120 metres, turn right onto Lobethal Road, then turn right onto Crescent Drive |
+| 79 m | Turn right | Turn right |
+| 151 m, on Lobethal Road | - | Turn right, then turn left |
+| 205 m, at the bend in Crescent Drive | - | Turn left |
+
+Old builder against new over 11,184 trips round Adelaide and the hills
+(3,194 of 2 to 8 km and 7,990 short ones): three places change, all of them
+silent before, and the corners announced go from 50,991 to 50,997. The
+other two are the end of Highet Street at Chapel Road, a T-junction, and
+the track that leaves Greenhill Road for Chambers Gully.
+
+Two earlier cuts of it were wrong and the same diff showed both. Adding the
+two corners up, rather than taking the bearing in against the bearing out,
+also split Compton Street into Gouger Street - left onto one carriageway,
+right round the median onto the other, which is a right turn - into "turn
+left, then turn right". And any corner over 45 degrees, rather than a
+square one (`NAV_TURN_SQUARE`, 60), called the splayed mouth of Farnell
+Place "turn right, then turn left" where the wheel goes nearly straight.
+
+A road is named once in a line now: "then turn left", not "then turn left
+onto Crescent Drive" to a driver just told they are turning onto it, and
+"Turn left" at the bend.
+
+The call at the corner now carries the next corner too when that one is
+closer than its own call could be made - "Turn right, then turn left" - and
+the voice has a speed: Slow, Medium and Fast are 0.8, 0.9 and 1.0 of the
+rate the voice was built at, Medium being the default after "a little fast"
+from the car. The same 40 trips, 245 corners onto a named road:
+
+| | Fast | Medium | Slow |
+|---|---|---|---|
+| road names heard | 245 | 245 | 245 |
+| corners with a heads-up of their own | 207 | 206 | 196 |
+| lines cut off before their end | 1 | 0 | 4 |
+
+The vehicle marker is measured by `NavSim.wrong`: each trip is told to go
+one way and driven, along real roads, another, so the route is recalculated
+over and over. Thirty of them - 12,701 fixes, 933 recalculations - and how
+far the arrow was from the way the vehicle was really going:
+
+| arrow off the direction of travel by | snapped to the nearest piece of line | only to road running the vehicle's way |
+|---|---|---|
+| more than 30 degrees | 653 fixes, 414 of them on a recalculation | 59, 2 on a recalculation |
+| more than 90 | 183 | 0 |
+| more than 150 - pointing back the way it came | 154 | 0 |
+| worst | 180 | 52 |
+
+Two causes. A new route starts with a stub from the fix across to the road,
+and the arrow took its direction from the stub: sideways, at every
+recalculation. And a route that says turn round runs back down the road the
+vehicle is on, so the marker was drawn on that returning line and pointed
+along it. On trips driven as told nothing changed - 3,646 of 4,212 fixes
+drawn on the line either way, 2.4 m from the road on average. The 59 left
+are the marker following the line for a fix or two as the vehicle peels off
+it at a shallow fork.
+
+The same branch of work stopped the arrow swinging at a standstill. Stopped,
+a phone's GPS course is noise and its compass points wherever the cradle
+does; with a compass reading of 200 degrees faked in and six stopped fixes
+carrying junk courses, the arrow's target went 137, 200, 251, 200, 148, 200,
+12, 200... on the old code and stayed on the 0 it had been driving on the
+new. It then turned to 90 after a 19 m crawl east at walking pace, and to
+180 on the first fix driving south.
+
+**The route goes round a slow point, not through it.** Reported from
+Northbri Avenue, which splits round an island at Douglas Road: the route
+was drawn straight through the island. The road packs thinned every leg to
+within five metres of the survey, and the two lanes there bow 3.9 and 4.6
+metres off the straight line between their ends, so both arrived as
+two-point chords. One-way legs are now kept to a metre
+(`SIMPLIFY_ONEWAY` in `tools/build-routing.mjs`): they are the carriageways,
+split lanes and slip lanes that lie four to ten metres from their twin, where
+five metres of slack is most of the gap. On South Australia that is 17.66 MB
+to 17.75 - half a percent - where a metre on every leg off the spine would
+be 20.52.
+
+The corners are still read off the line as it was. Slip lanes and
+roundabout exits turn inside the leg once it is drawn to the metre, where
+no junction is, and the turn reader measures at junctions. So
+`navTurnLine` thins the one-way legs of a route by the packs' old rule
+before the corners are read, and the map draws every point. 400 trips round
+Adelaide, old packs against new:
+
+| | corners read off the new packs as drawn | read off the thinned line |
+|---|---|---|
+| trips whose instructions changed | 93: 63 gaining or losing a turn, 30 a bear for a turn | 1, a different route through a car park |
+| turns no longer said | 64 | 0 |
+| on the old packs | - | 400 of 400 unchanged |
+
+Arrival, the voice and the marker were run again on the new packs: 33 of 33
+arrived, at most 18 m short; 245 of 245 road names heard; and the arrow more
+than 30 degrees off on 68 fixes of 12,703 against 59, none over 90.
+
+**The map closes in twice for a turn.** Auto Zoom went to 17 for a turn
+and the report was that nothing happened coming up to one. Replayed with
+`NavSim.path` on the Turquoise Drive trip, the map was closed in on 272
+fixes of 297 - from four seconds after setting off - because suburban turns
+sit inside one another's 250 m reach. Now 18 from 100 m (or six seconds)
+before each turn and back to 17 after it: on the same trip it steps in for
+Marquisite Drive, Welby Avenue, Daphne Road, Chess Street, Clayson Road and
+Eusebio Drive, staying in where the next turn is under 100 m on. Checked on
+the camera itself with the frames driven by hand: 15 to 17 at 186 m, 18 at
+86 m, 15 once past; a pinch out to 16 held until the next step and was not
+saved.
+
+**A trip to Woodside, and three things wrong with it.** Reported from a
+drive from Salisbury East to a shop in Woodside: sent round Lobethal by its
+truck bypass instead of down the main street, told to turn left and left
+again at a roundabout where the way was right, and no speed limit shown in
+the back streets.
+
+*The route.* The search priced roads by length over limit and nothing else:
+a corner was free, and a road with no limit posted was priced at an
+open-road figure for its class wherever it ran. Lobethal's bypass is
+tertiary with nothing posted, so it was a 65 km/h road beside a main street
+posted at 50, and three corners cost nothing. Now:
+
+- A corner costs time (`Route.turnSecs`): 4 s left, 7 s right, 30 s to
+  turn round, and 5 s more to come out of a smaller road onto a bigger one
+  or across it. The search settles an edge and its direction rather than a
+  junction, which is what lets it know the road it arrived by.
+- A sealed road with nothing posted is priced as a town road where it meets
+  another every 250 m or so (`ROAD_TOWN`). Measured on the posted roads
+  round Adelaide, tertiary edges under 120 m are 50 km/h on 72% and those
+  over a kilometre are 80 or more on 88%.
+- A residential street is priced at four fifths of its limit, posted or not.
+
+| 199 trips of 2 to 12 km round Adelaide | before | after |
+|---|---|---|
+| corners driven (the line swings more than 45 degrees) | 2,179 | 1,902 |
+| distance | 2,015 km | 2,043 km |
+| the same route | - | 96 |
+| search, with 160,000 edges loaded | 77 ms | 143 ms |
+
+Sydney to Broome is the same 4,479 km either way, in 1.4 s where it was 1.0.
+Through Lobethal the main street now wins by 32 seconds, and by 19 at half
+the corner costs. Forty of the trips were also asked of the public OSRM
+server, to see which pricing came closest to a router with nothing to do
+with this one, and it did not tell them apart: every variant shared 71 to
+83% of its length with OSRM's line, the old one included.
+
+*The roundabout.* The turn reader took a roundabout to be a ring of
+one-way legs with no name. The one at Woodside is named B34, so it was a
+left onto the B34 and a left off it - for the third exit, which is a right
+turn. The road packs now carry OpenStreetMap's own roundabout tag (flag 16,
+and `"r":1` on a pack that has it), and for a pack cut before that
+`Route.ringLoop` finds the ring by its shape. One instruction for the whole
+of it, given at the entry: which exit, counted off the graph, and which way,
+from the road in and the road out.
+
+| | |
+|---|---|
+| roundabout edges round Adelaide found by shape, against the tag | 6,294 of 6,358 |
+| other one-way edges it calls a roundabout | 63 of 12,430 |
+| exit number, against OSRM's for the same roundabout | 30 of 30 |
+| the reported trip, on the packs as shipped | "at the roundabout, take the third exit onto Onkaparinga Valley Scenic Drive" |
+
+The first cut of the shape test stopped at the first loop back to where it
+started, which is often off by a slip lane and on again, and found 65%.
+It also took the square where two divided roads cross for a ring - four
+one-way edges running the same way round, corners on a circle exactly -
+until the middle of each side was tested too.
+
+*The limit.* 29,793 of the 65,563 residential edges loaded round Adelaide
+carry no limit, and the roundel went dark on them. A street with nothing
+posted now shows the built-up default, 50, which is what 99% of the posted
+ones say (`builtUpLimit`). Only for streets, and not in the Northern
+Territory, where the default is 60.
+
+The voice run after all three: 229 of 229 road names heard, 33 of 33
+arrived, at most 13 m short; the marker more than 30 degrees off on 57
+fixes of 12,475, none over 90.
+
+**The route is drawn as a curve, on roads held to two metres.** Reported as
+"jagged lines along a road". The road packs keep a corner of a road only
+where dropping it would move the line more than a few metres, so a bend
+arrives as the fewest straight pieces that stay inside that - a joint every
+37 degrees round anything tighter than a hundred metres. On 19 km of Gorge
+Road, 183 of the route's 280 joints swing 15 to 45 degrees, and the line
+was drawn joint to joint.
+
+Two changes, because it turned out to be two faults.
+
+`navFlow` draws the line through the same points as a curve. A joint that
+swings up to 45 degrees is a bend and the curve goes through it; past that
+it is a corner and is cut inside, by two metres at most. The curve may
+stand no more than a metre off the straight leg between two joints. The
+vehicle is drawn on the curve too (`navSnap`), so it turns with the line
+through a bend rather than one joint at a time. Progress, the turns and the
+off-route check still read the route's own points.
+
+And the packs hold a road to two metres where they held it to five
+(`SIMPLIFY_M` in `tools/build-routing.mjs`). The curve took the elbows
+out and left the line where it was, which at the zoom a turn is driven at
+was up to four metres to one side of the road.
+
+Measured with `tools/line-fit.js`: 120 trips of 2 to 8 km, half round
+Adelaide and half in the hills, routed on packs built from one extract at
+five metres, at two, and with every surveyed point kept. 114 took the same
+roads at five as on the survey, 918 km; 115 at two. A point every two
+metres along the drawn line, and how far it is from the surveyed road:
+
+| | five, joint to joint | five, as a curve | two, joint to joint | two, as a curve |
+|---|---|---|---|---|
+| average | 0.60 m | 0.59 m | 0.21 m | 0.26 m |
+| nine points in ten within | 1.98 m | 1.83 m | 0.72 m | 0.76 m |
+| ninety-nine in a hundred within | 3.98 m | 3.83 m | 1.56 m | 1.51 m |
+| more than 2 m off | 9.8% | 8.7% | 0.01% | 0.07% |
+| joints swinging over 20 degrees, per km | 4.74 | 0.14 | 4.46 | 0.13 |
+| joints swinging over 45 degrees, per km | 1.09 | 0.01 | 0.98 | 0.01 |
+| points in the line | 14,166 | 54,272 | 17,286 | 58,415 |
+
+The first column is what was reported and the last is what ships. The curve
+takes out the elbows on either pack and moves the line hardly at all; the
+finer packs put the line on the road and leave the elbows in. The elbows
+that remain are under a metre across. Until the packs are rebuilt a phone
+has the second column: on the packs as shipped today, a month older than
+that survey, 0.70 m to 0.68 and 4.77 elbows a kilometre to 0.13.
+
+Two metres costs a tenth: the country goes from 198.4 MB to 217.2, and the
+spine from 25.86 to 27.21. Keeping every point is 268.5.
+
+What the curve was chosen over, on the roads held to two:
+
+| | average | over 2 m off | elbows over 20 degrees, per km |
+|---|---|---|---|
+| as shipped | 0.26 m | 0.07% | 0.13 |
+| a curve with no limit on how far it bows | 0.37 m | 2.4% | 0.13 |
+| every joint cut inside, none run through | 0.39 m | 0.6% | 0.12 |
+| every joint run through, none cut | 0.27 m | 0.1% | 0.97 |
+
+The second assumes every leg is the chord of an arc, and plenty are mapped
+as straight as they are drawn. The third cannot swing wide, which is why it
+is the usual choice, but it pulls the joints in - the one part of the line
+that was exact. The fourth swings out wide of both roads before a street
+corner. Sydney to Broome, 9,801 points, comes out as 13,326 in under a
+hundredth of a second.
+
+**The turns are still read off five metres.** Every figure the turn reader
+works to was measured on legs held to five, so `navTurnLine` thins every
+leg of a route back to five before the corners are read - it did that for
+the one-way legs already. 520 trips, 400 round Adelaide and the 120 above:
+
+| | trips reading the same as on five |
+|---|---|
+| the new reader on the packs as shipped | 520 of 520 |
+| the new reader on roads held to five | 520 of 520 |
+| the new reader on roads held to two | 505 of the 506 that keep to the same roads |
+| the old reader on roads held to two | 440 of 506, with 31 turns unsaid |
+
+The one that differs takes another road with the same names. So the app
+goes on the phone before the packs are rebuilt, as it did for the slow
+points.
+
+**The vehicle on the curve** was measured two ways. Followed: the same
+trips navigated by the app while the vehicle is driven along the surveyed
+road with three metres of GPS wander (`LineFit.follow`), reading the arrow
+against the way the surveyed road runs - 113 trips and 70,059 fixes on the
+packs as shipped, about 61,000 of them drawn on the line. And not followed:
+`NavSim.wrong(30, 11)`, told one way and driven another, 12,475 fixes.
+
+| | before | this build, packs as shipped | this build, roads held to two |
+|---|---|---|---|
+| followed: arrow off the road's direction, average | 2.02 degrees | 2.05 | 1.46 |
+| followed: more than 15 degrees off | 876 fixes | 871 | 782 |
+| followed: more than 30 degrees off | 170 | 23 | 21 |
+| followed: worst | 57 degrees | 37 | 33 |
+| followed: marker from the vehicle, average | 2.69 m | 2.67 m | 2.45 m |
+| not followed: more than 30 degrees off | 57 | 14 | 12 |
+| not followed: worst | 57 degrees | 36 | 35 |
+
+Most of the drop in the last two rows is `NAV_SNAP_LEAN`, and the curve
+needed it. A vehicle carrying straight on past its turn is nearest a piece
+of the corner's curve that has already begun to swing, and pointed along it
+the arrow leaned up to fifty degrees into a turn nobody was making: 102
+fixes over thirty degrees, not 57, until the line was allowed to turn the
+arrow no more than 25 degrees from the way the GPS says the vehicle is
+moving. `NavSim.wrong` takes `{ curve: true }` now, which drives the
+corners as a curve rather than pivoting at the joint; it reads 13 where the
+pivoting drive reads 14.
+
+Arrival and the voice, run again on both packs: 33 of 33 arrived, at most
+13 m short; 229 of 229 road names heard.
 
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
@@ -286,7 +602,8 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
 - **Louder than the media volume, and music paused if need be.** In a car
   the ducked music still came out over the words, because music is mastered
   loud and a synthesised voice is not. Settings -> Navigation Voice has two
-  rows only the app shows. **Loudness** (Normal, Loud, Max): Loud and Max
+  rows only the app shows (Speed, above them, is the website's too).
+  **Loudness** (Normal, Loud, Max): Loud and Max
   write the line to a file and play it through Android's LoudnessEnhancer,
   +6 dB and +12 dB (`CFG.VOICE_BOOST_MB`), limited so it does not clip; the
   file costs a fraction of a second per line. Loud is the default. **Music**

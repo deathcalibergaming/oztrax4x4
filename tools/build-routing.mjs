@@ -99,20 +99,41 @@ const PRECISION = 100000;     /* five decimals, a bit over a metre */
    between their neighbours. Measured over the whole country at five metres,
    46% of the corners on the spine carry no shape at all.
 
-   Five rather than ten. Ten only saves another 14 MB and triples what it
-   does to the length of the local roads. Five costs 0.060% of the spine's
-   length and 0.167% of the local network's - on Perth to Sydney, about two
-   kilometres in 3,853 and under two minutes in forty hours - and stays under
-   a screen pixel until roughly zoom 18, which is past where anyone reads a
-   road shape.
+   Two, where it was five. Five was picked when nothing read a road's shape
+   closer than the zoom it is driven at: it cost 0.060% of the spine's
+   length, and ten would have saved another 14 MB for three times the
+   damage to the local roads. Then the map began closing to zoom 18 at
+   every turn - see AutoZoom in index.html - where five metres is ten
+   pixels and the route line, which is drawn from these points, is five
+   and a half wide. Measured against a build with every surveyed point
+   kept, over 918 km of routes round Adelaide and the hills behind it
+   (tools/line-fit.js): at five the line was more than two metres from the
+   road on 9.8% of its length, and four metres from it at the worst
+   hundredth; at two that is 0.01% and a metre and a half. The line is
+   drawn as a curve now and was smooth either way - see navFlow - but a
+   smooth line along the kerb is still not on the road.
+
+   It costs a tenth. The country goes from 198.4 MB to 217.2 and the spine
+   from 25.86 to 27.21, keeping 20.0 million corners of 29.6 where five
+   kept 16.8; keeping all of them is 268.5 MB. What two takes off the
+   length of the network is 0.011% of the spine and 0.028% of the local
+   roads.
 
    This is only safe because snapping projects onto the segment between
    corners rather than onto the corners themselves. While it went corner to
    corner, thinning them took the 99th percentile snap error from 155 m to
    791 m. See segNear in index.html.
 
-   Five metres is the ceiling, not the rule - see SIMPLIFY_REL. */
-const SIMPLIFY_M = 5;
+   And because the app reads its turns off these legs thinned back to five
+   - see navTurnLine in index.html. Every figure the turn reader works to
+   was measured on legs held to five. Read off legs held to two, 66 trips
+   in 506 round Adelaide changed their instructions and 31 turns went
+   unsaid; thinned back, 505 say word for word what they said, and the
+   other one takes a different road. An app older than that reader must
+   not be given these packs.
+
+   Two metres is the ceiling, not the rule - see SIMPLIFY_REL. */
+const SIMPLIFY_M = 2;
 
 /* The tolerance for a stretch is this fraction of its own length, between
    SIMPLIFY_FLOOR and SIMPLIFY_M.
@@ -130,15 +151,46 @@ const SIMPLIFY_M = 5;
    less visibly.
 
    A stretch is judged against its own length instead. Eight percent of a
-   five hundred metre chord is forty metres, so the five metre ceiling
-   still governs every long road exactly as before and a straight is still
-   cut back to its ends; eight percent of the eleven metre chord across a
+   five hundred metre chord is forty metres, so the ceiling still governs
+   every long road exactly as before and a straight is still cut back to
+   its ends; eight percent of the eleven metre chord across a
    quarter of a roundabout is under a metre, which keeps the arc. The floor
    is the grid itself: PRECISION puts a coordinate on a lattice a bit over
    a metre apart, and a tolerance finer than half of that is asking about a
    difference the file cannot hold. */
 const SIMPLIFY_REL = 0.08;
 const SIMPLIFY_FLOOR = 0.5;
+
+/* The ceiling for a one-way leg: a metre. Written when every other leg was
+   held to five, which is the five in what follows; they are held to two
+   now, and a metre is still what it takes to keep a slow point.
+
+   A one-way leg is one of two lines lying side by side - the carriageways
+   of a divided road, the two lanes a street splits into round the island
+   of a slow point, a slip lane beside the road it leaves. They stand four
+   to ten metres apart, so five metres of slack is most of the gap between
+   them, and the thing in the gap is what the driver steers round.
+
+   Reported from Northbri Avenue. At Douglas Road it splits round an island
+   for sixty metres: OpenStreetMap draws each lane with nine points, bowing
+   3.9 and 4.6 metres off the straight line between its ends, and eight
+   percent of sixty metres is 4.8, so both arrived as two-point chords. The
+   route was drawn straight through the island, and the vehicle with it.
+   SIMPLIFY_REL had saved the roundabouts, whose arcs are short; a slow
+   point is a long shallow bow, and nothing short of a lower ceiling keeps
+   one. At a metre those two lanes keep seven points and four.
+
+   Only the one-way legs, because that is where it is cheap and where it
+   shows. Measured on South Australia: a metre on one-way legs alone takes
+   the packs from 17.66 MB to 17.75, half a percent, and keeps 16,000 more
+   corners of 2.5 million; a metre on every leg off the spine is 20.52 MB,
+   sixteen percent, to move lines that already lie inside the road they
+   are on.
+
+   The app reads its corners off every leg thinned back to five - see
+   navTurnLine in index.html - because a slip lane drawn to the metre does
+   its turning between junctions, where the turn reader does not look. */
+const SIMPLIFY_ONEWAY = 1;
 
 /* Smallest first, so a build that is going to fall over does it in the
    first minute rather than the fortieth. */
@@ -202,6 +254,13 @@ const F_ONEWAY = 1;       /* forward only */
 const F_REVERSE = 2;      /* the way is drawn against the direction of travel */
 const F_PRIVATE = 4;      /* gated, station access, permit - routable but a last resort */
 const F_UNPAVED = 8;      /* dirt, gravel, sand */
+/* A roundabout, as OpenStreetMap tags one. The app used to work this out
+   from what a ring looks like - one-way, unnamed, short - and a ring with a
+   name on it, which is most of the big ones, was read as a run of corners:
+   the third exit at Woodside came out as "turn left, then turn left". It
+   can still work it out, for a pack cut before this; a pack that carries
+   the flag says so with "r" beside its rows, and is taken at its word. */
+const F_RING = 16;
 
 /* ---------------------------------------------------------------------
    Protobuf, only as much of it as an OSM extract uses. Ids and coordinates
@@ -453,6 +512,7 @@ function flagsOf(tags) {
      anybody tagged them so. */
   else if (tags.junction === "roundabout" || tags.junction === "circular" ||
            tags.highway === "motorway") f |= F_ONEWAY;
+  if (tags.junction === "roundabout" || tags.junction === "circular") f |= F_RING;
 
   const acc = tags.motor_vehicle || tags.vehicle || tags.access;
   if (acc === "private" || acc === "no" || acc === "permit" ||
@@ -484,6 +544,7 @@ function cutStamp(source) {
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
     [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M, SIMPLIFY_REL, SIMPLIFY_FLOOR,
+    SIMPLIFY_ONEWAY, "ring1",
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
     "dir1"
@@ -703,7 +764,10 @@ async function main() {
     throw new Error("--pbf reads one extract, so it wants --only naming one state");
   }
 
-  const stamp = await sourceStamps(sources);
+  /* A local extract is stamped as what it is. It used to ask Geofabrik for
+     the checksum of the file it was not going to download, so a trial build
+     off a file on the desk failed whenever their server was busy. */
+  const stamp = pbfPath ? sources[0].state + ":local" : await sourceStamps(sources);
   const cut = cutStamp(stamp);
   console.log("extracts:");
   for (const line of stamp.split(" ")) console.log("  " + line);
@@ -738,8 +802,9 @@ async function main() {
   const tally = { edges: 0, spine: 0, region: 0, local: 0, pts: 0, kept: 0 };
   function emit(edge) {
     const name = CLASSES[edge.cls];
+    const tol = edge.f & (F_ONEWAY | F_REVERSE) ? SIMPLIFY_ONEWAY : SIMPLIFY_M;
     if (SPINE.has(name)) {
-      const pts = simplify(edge.pts, SIMPLIFY_M);
+      const pts = simplify(edge.pts, tol);
       tally.pts += edge.pts.length / 2;
       tally.kept += pts.length / 2;
       spine([edge.cls, edge.f, edge.v, edge.name, pts, edge.d]);
@@ -755,7 +820,7 @@ async function main() {
        run is exactly what gets thinned, and the boundary points survive
        because they are each piece's ends. */
     for (const dense of splitByTile(edge.pts, z)) {
-      const piece = simplify(dense, SIMPLIFY_M);
+      const piece = simplify(dense, tol);
       tally.pts += dense.length / 2;
       tally.kept += piece.length / 2;
       const x = lngToX(piece[1] / PRECISION, z), y = latToY(piece[0] / PRECISION, z);
@@ -776,7 +841,7 @@ async function main() {
     }
     console.log(`  running total: ${tally.spine} spine, ${tally.region} tertiary, ${tally.local} local`);
     console.log(`  corners: ${tally.kept} kept of ${tally.pts} ` +
-                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m)`);
+                `(${(100 * (tally.pts - tally.kept) / (tally.pts || 1)).toFixed(0)}% dropped at ${SIMPLIFY_M} m, ${SIMPLIFY_ONEWAY} m one-way)`);
   }
   region.flush();
   local.flush();
@@ -819,7 +884,7 @@ async function main() {
     first = false;
   });
   spineFile.write('],"n":' + JSON.stringify(names) +
-                  (spineD.length ? ',"d":' + JSON.stringify(spineD) : "") + "}");
+                  (spineD.length ? ',"d":' + JSON.stringify(spineD) : "") + ',"r":1}');
   await new Promise((res) => spineFile.end(res));
   console.log(`\nspine: ${tally.spine} edges, ${spineKm.toFixed(0)} km`);
 
@@ -1021,7 +1086,8 @@ function pack(edges, origin) {
     }
     out.push(row);
   }
-  return d.length ? { o: origin, n: names, e: out, d: d } : { o: origin, n: names, e: out };
+  /* r: these rows say which of them are roundabouts - see F_RING */
+  return d.length ? { o: origin, n: names, e: out, d: d, r: 1 } : { o: origin, n: names, e: out, r: 1 };
 }
 
 main().catch((e) => {

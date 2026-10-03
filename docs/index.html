@@ -2000,11 +2000,12 @@ details.sub > .sec-body{padding:12px 0 0}
    fix this one would be the larger change. */
 #btnUnitAuto.on,#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
-#btnTiltOn.on,#btnTiltOff.on,
+#btnTiltOn.on,#btnTiltOff.on,#btnAzOn.on,#btnAzOff.on,
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
 #btnBoostNormal.on,#btnBoostLoud.on,#btnBoostMax.on,#btnMusicLower.on,#btnMusicPause.on,
+#btnRateSlow.on,#btnRateMedium.on,#btnRateFast.on,
 #btnNightAuto.on,#btnNightDay.on,#btnNightOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
   background:var(--rust);border-color:var(--rust);color:#12100E}
@@ -3194,6 +3195,11 @@ input[type=date],input[type=time]{color-scheme:dark}
         <div class="row hidden" id="voicePickRow">
           <select id="voicePick" aria-label="Which voice speaks the turns"></select>
         </div>
+        <div class="sublabel hidden" id="voiceRateRow" role="radiogroup" aria-label="How fast the voice talks">Speed
+          <button class="btn xs ghost" id="btnRateSlow">Slow</button>
+          <button class="btn xs ghost" id="btnRateMedium">Medium</button>
+          <button class="btn xs ghost" id="btnRateFast">Fast</button>
+        </div>
         <div class="sublabel hidden" id="voiceBoostRow" role="radiogroup" aria-label="How loud the voice is">Loudness
           <button class="btn xs ghost" id="btnBoostNormal">Normal</button>
           <button class="btn xs ghost" id="btnBoostLoud">Loud</button>
@@ -3217,6 +3223,11 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnTiltOff">Off</button>
         </div>
         <div class="note" id="tiltNote">Tilts the map so you see further ahead. Heading up only.</div>
+        <div class="sublabel">Auto Zoom
+          <button class="btn xs ghost" id="btnAzOn">On</button>
+          <button class="btn xs ghost" id="btnAzOff">Off</button>
+        </div>
+        <div class="note" id="azNote"></div>
         <div class="sublabel" role="radiogroup" aria-label="Night map">Night Map
           <button class="btn xs ghost" id="btnNightAuto">Auto</button>
           <button class="btn xs ghost" id="btnNightDay">Day</button>
@@ -3788,7 +3799,21 @@ const CFG = {
      no answer. Darwin to Hobart has no route at any cap, because you cannot
      drive across Bass Strait, and this is what decides how long it takes to
      say so. */
-  ROUTE_MAX_POPS: 1500000,
+  ROUTE_MAX_POPS: 4000000,
+  /* What a corner costs, in seconds - see Route.turnSecs. Under `straight`
+     degrees is no corner; `round` and over is turning round. Left and right
+     are for a country that drives on the left: a left turn waits for
+     nothing but the corner itself, a right turn waits for a gap coming the
+     other way. `give` is on top of either, for coming out of a smaller
+     road onto a bigger one or across it. `back` is the edge driven straight
+     back along, which is a three-point turn in the road.
+
+     Not fine figures, and they do not need to be. Through Lobethal the
+     main street beats the bypass by 19 seconds at half these and by 40 at
+     half as much again, and over 40 trips round Adelaide anything from two
+     seconds a turn to nine took the corners driven from 470 to between 404
+     and 412. What matters is that a corner costs something. */
+  ROUTE_TURN: { straight: 30, round: 150, left: 4, right: 7, uturn: 30, back: 60, give: 5 },
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -3845,13 +3870,46 @@ const CFG = {
      is seen on the screen as soon as it is made. */
   NAV_SNAP_M: 25,
   NAV_SNAP_ANGLE: 50,
+  /* And how far the line may turn the arrow from the way the vehicle is
+     moving, once it is drawn on it. Under this the arrow lies along the
+     line and the wander in the GPS course never shows; past it the line
+     has its pull and no more. */
+  NAV_SNAP_LEAN: 25,
   /* How far either side of a junction the line is read to find the angle of
      it. Just past nothing: see navBearAt. */
   NAV_TURN_WIN: 5,
+  /* How the corners' line is thinned - see navTurnLine. The road packs'
+     own rule as it was when every leg was held to five metres: the ceiling
+     in metres, the share of a stretch's own length, and the floor. */
+  NAV_THIN: [5, 0.08, 0.5],
+  /* How the route line is drawn - see navFlow. Degrees, metres and shares.
+     A joint that swings up to `bend` is a bend in a road and the line is
+     run through it; past that, up to `sharp`, it is a corner and is cut
+     inside, by no more than `inside` metres; past `sharp` it is turning
+     round and is left as it is. `bulge` is the furthest a curve may stand
+     off the straight line between two joints. `reach` is the share of a
+     leg a corner may round off - twice that where the joint at the far end
+     wants none of it, a bend giving its half up as its own swing falls from
+     `spare` to nothing. A curve is cut into pieces that each turn under
+     `step` or are under `least` long, halved `deep` times at most. */
+  NAV_FLOW: { bend: 45, sharp: 150, bulge: 1, inside: 2, reach: 0.45, spare: 30, step: 8, least: 0.5, deep: 5 },
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
+  /* Unless it is a jog: one way and then the other, with a road between.
+     From ten metres - under that the two side streets still face each
+     other, a street being seven or eight metres wide, and straight across
+     is what a driver does. See navBuildTurns. */
+  NAV_TURN_JOG: 10,
+  /* And how square the corner off a road has to be before it and the first
+     bend of the road it goes onto are told as two turns - see the third
+     test in navBuildTurns. Short of this it is the mouth of a street
+     splayed where it meets a curve, and the wheel never goes that way. */
+  NAV_TURN_SQUARE: 60,
   NAV_TURN_LINK: 90,       /* a one-way unnamed leg this short is a ring arc */
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
   NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
+  NAV_RING_FIT: 0.1,       /* how round, how many corners and how small a ring of */
+  NAV_RING_PTS: 6,         /* one-way edges can be and still be a roundabout - see */
+  NAV_RING_MIN: 3.5,       /* Route.ringLoop */
   /* A second corner this close is said on the end of the first: "turn
      right onto Hare Street, then turn left onto Pulsford Road". Only when it
      is too close to be given a line of its own - and it is the voice that
@@ -3908,11 +3966,17 @@ const CFG = {
      speed floor is for a vehicle pulling away, which is about to be doing
      it. */
   VOICE_WPS: 2, VOICE_START: 1.4, VOICE_SPD_MIN: 5,
-  /* Said at the rate the voice was built at. Not left to the phone's own
-     setting, which belongs to whoever set it: a screen reader cranked to
-     double speed is a common thing to find on a phone, and an instruction
-     is no use at all if it arrives as a burst. */
-  VOICE_RATE: 1,
+  /* How fast it talks, against the rate the voice was built at. Not left
+     to the phone's own setting, which belongs to whoever set it: a screen
+     reader cranked to double speed is a common thing to find on a phone,
+     and an instruction is no use at all if it arrives as a burst.
+
+     It was the built rate and nothing else, and the report from the car
+     was "a little fast": a road name is heard once, over an engine, by
+     someone looking at the road. So the built rate is now Fast, a tenth
+     slower is what it starts on, and a fifth slower is there for whoever
+     wants it. */
+  VOICE_RATES: { slow: 0.8, medium: 0.9, fast: 1 },
   POI_REFETCH: 3500,       /* refetch once you have travelled this far - a 5 km
                               bubble still leaves 1.5 km loaded ahead of you */
   POI_CLUSTER_PX: 34,      /* pins closer than this on screen collapse into one */
@@ -3960,8 +4024,39 @@ const CFG = {
      only while still heading the same way. A turn is a new road. */
   SPEED_HOLD_M: 150,
   SPEED_HOLD_MS: 12000,
+  SPEED_BUILT_UP: 50,      /* km/h on a street with nothing posted - see builtUpLimit */
   HDG_STALE: 2500,         /* a compass reading older than this is not trusted */
   HDG_GPS_MIN: 2.2,        /* m/s above which GPS course beats the magnetometer */
+  /* Under that speed, once the vehicle has travelled, the arrow keeps the
+     way it was going - see pushPosition. Crawling, it is turned by how the
+     position has moved instead: this far from where the direction was last
+     taken is a new direction, and nearer than that is the receiver
+     wandering. A move of more than HDG_JUMP_M between two slow fixes is not
+     travel at all - the simulated drive handing back to the real GPS - and
+     turns nothing. */
+  HDG_CRAWL_M: 12,
+  HDG_JUMP_M: 150,
+  /* The map closing in - see AutoZoom. In at or under ZOOM_SLOW, out again
+     at ZOOM_FAST, ten kilometres an hour apart so a vehicle sitting on
+     thirty does not have the map breathing. For a turn: ZOOM_TURN_S seconds
+     out at the speed being driven, and never less than ZOOM_TURN_M. Close
+     is street level, where a junction's arms are apart on the glass.
+
+     Then the turn itself, ZOOM_AT_S seconds out and never less than
+     ZOOM_AT_M: a level closer, where the junction is most of the screen.
+     At eighteen a phone shows about a hundred and seventy metres ahead of
+     the vehicle, so a corner a hundred metres off is on the glass as the
+     map arrives at it. Six seconds is ahead of the voice's call at the
+     corner, which is four. */
+  ZOOM_SLOW: 30 / 3.6,
+  ZOOM_FAST: 40 / 3.6,
+  ZOOM_TURN_M: 250,
+  ZOOM_TURN_S: 12,
+  ZOOM_CLOSE: 17,
+  ZOOM_AT_M: 100,
+  ZOOM_AT_S: 6,
+  ZOOM_TURN: 18,
+  ZOOM_EASE_MS: 260,
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   /* How much of the trail is kept in the piece that is drawn again on every
@@ -4765,6 +4860,7 @@ const S = Object.assign({
      already been turned down for it. */
   voiceBoost: "loud",
   voiceMusic: "lower",
+  voiceRate: "medium",  /* "slow", "medium" or "fast" - CFG.VOICE_RATES */
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
   zoom: 15,
@@ -4780,6 +4876,7 @@ const S = Object.assign({
      view with coarse tiles rather than fine ones. Counted over every source
      at Hawker: 52 tiles flat, 60 leaning. Fifteen per cent, not double. */
   tilt: false,
+  autoZoom: true,      /* the map closes in for a turn and at low speed - see AutoZoom */
   /* "auto", "day" or "night". Auto is the default because the driver has one
      hand and their eyes on the track, and a setting nobody remembers to flip
      at dusk is a setting that leaves them dazzled. */
@@ -4828,8 +4925,8 @@ function saveSettings() {
                         units: S.units, unitsHere: S.unitsHere, unitsAutoApplied: S.unitsAutoApplied,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
-                        voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic,
-                        zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt,
+                        voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
+                        zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
@@ -4854,6 +4951,8 @@ const view = {
   cur: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
   tgt: { lat: CFG.SIM_START[0], lng: CFG.SIM_START[1] },
   hdgCur: 0, hdgTgt: 0, hdgFrom: "",
+  course: false,         /* the vehicle has travelled, so there is a way it was going */
+  courseAt: null,        /* where that direction was last taken */
   mapRot: 0,
   sim: false,
   speed: 0, alt: null, acc: null, lastFixAt: 0
@@ -7019,6 +7118,127 @@ function visibleBounds() {
    jumpTo is handed { follow: true }, which MapLibre passes through to the
    events it fires, so the app's moveend never hears about these. Written
    only when something would change: a parked vehicle asks for nothing. */
+/* ---------------------------------------------------------------------
+   The map closes in where there is something to see.
+
+   On the open road the driver's own zoom is right: a kilometre or two of
+   what is coming. At a junction it is wrong - the arms of the turn are a
+   few pixels apart - and every sat-nav closes in for one. So does this:
+
+   - for a turn on the route, from ZOOM_TURN_S seconds out (never less than
+     ZOOM_TURN_M) until the turn is behind - an intersection, a ramp on or
+     off, a roundabout, and the destination;
+   - whenever the speed comes down to ZOOM_SLOW, which is every junction
+     driven without a route, a town, a car park, a creek crossing - and
+     back out once it is over ZOOM_FAST again. Only after the vehicle has
+     been at speed: a phone opened at a camp is left at the zoom it was.
+
+   Close is ZOOM_CLOSE, or the driver's own zoom if that is already closer.
+   What it goes back out to is the zoom the driver had, which is also the
+   only zoom that is saved: closed in, a zoom by hand is taken for now and
+   not for keeps - it stops this easing, it is not fought, and the map still
+   goes back to the driver's own zoom when the road opens up.
+
+   And closer again at the turn itself: ZOOM_TURN from ZOOM_AT_S seconds
+   out, never less than ZOOM_AT_M, and always a level in from the driver's
+   own zoom. Closing in once was not enough, and the report from the road
+   was that it did nothing coming up to a turn. In town it did nothing
+   because it had already done it: the turns of a suburb are inside one
+   another's reach and most of it is driven under forty, so on the reported
+   trip - Turquoise Drive to Northbri Avenue, eleven turns - the map closed
+   in four seconds after setting off and was closed in on 272 fixes of 297.
+   Every turn arrived on a map that was already as close as it was going to
+   get. A second step is something to see at each one, and it is the step
+   that puts the junction itself across the glass.
+
+   Only while following. The follow camera writes the zoom, eased over
+   ZOOM_EASE_MS, as it writes the centre and the bearing; a map the driver
+   has dragged away is the driver's. Off in Settings, Auto Zoom. */
+const AutoZoom = {
+  fast: false,     /* has been at speed since the app opened */
+  slow: false,     /* at or under ZOOM_SLOW, and not back over ZOOM_FAST yet */
+  at: null,        /* the turn ahead, by its place on the route */
+  near: null,      /* the turn that has come inside its reach */
+  hot: null,       /* and the one that has come right up - inside ZOOM_AT */
+  level: 0,        /* 0 the driver's own zoom, 1 closed in, 2 at a turn */
+  base: null,      /* the driver's own zoom, to go back to */
+  goal: null,      /* the zoom being eased to, or null when there is none */
+
+  /* every fix */
+  fix: function () {
+    const v = view.speed;
+    if (v >= CFG.ZOOM_FAST) { this.fast = true; this.slow = false; }
+    else if (v <= CFG.ZOOM_SLOW && this.fast) this.slow = true;
+    this.settle();
+  },
+  /* From the turn bar: which turn is next and how far. Latched to the turn
+     rather than to the distance, so slowing for it - which shortens the
+     reach - cannot open the map out again half way there. */
+  turn: function (mark, dist) {
+    const reach = Math.max(CFG.ZOOM_TURN_M, view.speed * CFG.ZOOM_TURN_S);
+    const tight = Math.max(CFG.ZOOM_AT_M, view.speed * CFG.ZOOM_AT_S);
+    /* Through one turn with the next - or the destination - less than two
+       reaches on, the map stays close rather than opening out for four
+       seconds and closing again.
+
+       Not so the closer step. Held through the same way it never let go
+       either: on the reported trip it stood at the turn's zoom for 205
+       fixes of 297, one run of them five turns long, which is the first
+       step's fault over again one level in. It lets go once a turn is
+       behind and comes back for the next, and where the next is inside
+       ZOOM_AT already - a jog, a roundabout's exit - it never left. */
+    const through = this.near != null && this.near === this.at && mark !== this.at;
+    this.at = mark;
+    if (mark == null) { this.near = null; this.hot = null; return; }
+    if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
+    if (dist <= tight) this.hot = mark;
+  },
+  settle: function () {
+    let level = 0;
+    if (S.autoZoom) {
+      if (this.at != null && this.hot === this.at) level = 2;
+      else if (this.slow || (this.at != null && this.near === this.at)) level = 1;
+    }
+    if (level === this.level) return;
+    /* The driver's own zoom is where the map stood when this first took it.
+       Each step after that is worked out from it, so a zoom by hand while
+       closed in lasts until the next step and no longer. */
+    if (!this.level || this.base == null) this.base = map.getZoom();
+    this.level = level;
+    const z = level === 2 ? Math.max(CFG.ZOOM_TURN, this.base + 1)
+            : level === 1 ? Math.max(CFG.ZOOM_CLOSE, this.base)
+            : this.base;
+    const to = Math.min(CFG.MAX_Z, z);
+    this.goal = Math.abs(map.getZoom() - to) > 0.01 ? to : null;
+  },
+  /* The zoom for this frame of the follow camera, or null to leave it be. */
+  step: function (ms) {
+    if (this.goal == null) return null;
+    /* It lands a fiftieth of a zoom out and is put on the goal, which
+       nobody can see. An ease that only ever closes a fraction of what is
+       left never arrives: at sixty frames a second the last steps were
+       under the thousandth the follow camera counts as a change, so it
+       wrote nothing, and the zoom sat 0.013 short for good - still easing,
+       the camera running every frame, the pins never regrouped. */
+    const z = map.getZoom(), d = this.goal - z;
+    if (Math.abs(d) < 0.02) {
+      const g = this.goal;
+      this.goal = null;
+      /* what a zoom by hand does when it ends: the pins are grouped in
+         screen pixels, so a new zoom is a new grouping */
+      renderPois();
+      schedulePoi();
+      return g;
+    }
+    return z + d * (1 - Math.exp(-ms / CFG.ZOOM_EASE_MS));
+  },
+  /* The driver zoomed. True while closed in, when it is not theirs to keep. */
+  manual: function () {
+    this.goal = null;
+    return this.level > 0;
+  }
+};
+
 function followCamera() {
   /* Twenty times a second, not every frame. Each move is a whole WebGL
      redraw of the map, where the Leaflet build moved a CSS layer and the
@@ -7027,18 +7247,24 @@ function followCamera() {
      driving zoom the map moves about 7 px a second at 100 km/h, so 50 ms is
      a third of a pixel - nothing to see. A changed mode or size clears the
      key and goes straight through. */
+  /* Every frame while the zoom is easing, which is under a second: at
+     twenty a second a zoom is a staircase. */
   const now = performance.now();
-  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS) return;
+  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS && AutoZoom.goal == null) return;
+  const zoom = AutoZoom.step(Math.min(100, now - followCamera.at));
   followCamera.at = now;
   const headUp = !S.northLock && view.has;
   const bearing = headUp ? view.hdgCur : 0;
   const top = Math.round(followShift * 2 * 10) / 10;
   const lean = Math.round(tiltCur * 10) / 10;
-  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + lean + "," + viewInsX + "," + viewInsY;
+  const key = view.cur.lat + "," + view.cur.lng + "," + bearing.toFixed(2) + "," + top + "," + lean + "," + viewInsX + "," + viewInsY +
+              (zoom == null ? "" : "," + zoom.toFixed(4));
   if (key === followCamera.key) return;
   followCamera.key = key;
-  gl.jumpTo({ center: [view.cur.lng, view.cur.lat], bearing: bearing, pitch: lean,
-              padding: { top: top, bottom: viewInsY, left: 0, right: viewInsX } }, { follow: true });
+  const cam = { center: [view.cur.lng, view.cur.lat], bearing: bearing, pitch: lean,
+                padding: { top: top, bottom: viewInsY, left: 0, right: viewInsX } };
+  if (zoom != null) cam.zoom = zoom - ZOOM_OFF;
+  gl.jumpTo(cam, { follow: true });
 }
 followCamera.key = "";
 followCamera.at = 0;
@@ -7102,8 +7328,9 @@ map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
 map.on("zoomend", function () {
-  S.zoom = map.getZoom();
-  saveSettings();
+  /* Closed in for a turn or a town, a zoom by hand is for now and is not
+     saved over the driver's own - see AutoZoom. */
+  if (!AutoZoom.manual()) { S.zoom = map.getZoom(); saveSettings(); }
   renderPois();
   schedulePoi();
 });
@@ -7216,9 +7443,11 @@ function frame(ts) {
   const kh = 1 - Math.pow(1 - CFG.LERP_HDG, dt / 16.7);
 
   /* Which way to face. Driving, the GPS course is the honest answer and is
-     not upset by the steel of the vehicle; stopped, it reports nothing at
-     all, so the magnetometer takes over and the arrow turns on the spot. */
-  if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN) {
+     not upset by the steel of the vehicle. Before the vehicle has moved it
+     reports nothing at all, so the magnetometer has the arrow and turns it
+     on the spot. After that a stop keeps the way it was going - see
+     pushPosition - and the magnetometer is left out of it. */
+  if (!Sim.active && Compass.fresh() && view.speed < CFG.HDG_GPS_MIN && !view.course) {
     /* The same hold as the position, for the same reason: a magnetometer
        standing still still reads a degree or two either way, and heading
        up that rocks the map. Under the deadband the arrow keeps what it
@@ -7230,7 +7459,8 @@ function frame(ts) {
     if (view.hdgFrom !== "compass" || off > CFG.STILL_HDG) view.hdgTgt = Compass.heading;
     view.hdgFrom = "compass";
   } else if (view.has) {
-    view.hdgFrom = Sim.active ? "simulated" : "gps course";
+    view.hdgFrom = Sim.active ? "simulated"
+      : view.speed < CFG.HDG_GPS_MIN && view.course ? "last course" : "gps course";
   }
 
   view.cur.lat += (view.tgt.lat - view.cur.lat) * kp;
@@ -7480,7 +7710,34 @@ function pushPosition(fix) {
   const still = view.has && !fix.sim && fixSpd <= CFG.STILL_SPD;
   const slack = Math.max(CFG.STILL_M, (fix.acc || 0) * CFG.STILL_ACC);
   if (!still || haversine(view.tgt, pt) > slack) view.tgt = { lat: pt.lat, lng: pt.lng };
-  if (hdg != null) view.hdgTgt = hdg;
+  /* Which way the arrow points.
+
+     At speed, the GPS course. Stopped or crawling, a phone's course is
+     noise - some report the last one, some report nought, and the fallback
+     above reads a bearing off the receiver's own wander - and the
+     magnetometer that used to take over says which way the phone is
+     mounted, not which way the vehicle faces. So a vehicle that pulled up
+     at a junction had its arrow, and heading up the whole map, swing round
+     to wherever the cradle pointed.
+
+     Once it has travelled, the arrow keeps the way it was going. It is
+     turned again by the next fix at speed, or - crawling over rocks, in a
+     queue, reversing out - by where the position has actually gone: a move
+     of HDG_CRAWL_M, or more where the fix is poor, is a direction. The
+     compass still has the arrow before the first movement, which is the
+     one time nothing else knows which way is forward. */
+  const hdgSpd = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : 0;
+  if (fix.sim || hdgSpd >= CFG.HDG_GPS_MIN || !view.course) {
+    if (hdg != null) view.hdgTgt = hdg;
+    if (!fix.sim && hdgSpd >= CFG.HDG_GPS_MIN && hdg != null) { view.course = true; view.courseAt = pt; }
+  } else {
+    const moved = view.courseAt ? haversine(view.courseAt, pt) : Infinity;
+    if (moved > CFG.HDG_JUMP_M) view.courseAt = pt;
+    else if (moved >= Math.max(CFG.HDG_CRAWL_M, (fix.acc || 0) * 1.5)) {
+      view.hdgTgt = bearing(view.courseAt, pt);
+      view.courseAt = pt;
+    }
+  }
   view.sim = !!fix.sim;
   view.speed = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : 0;
   view.alt = (fix.alt != null && isFinite(fix.alt)) ? fix.alt : null;
@@ -7505,6 +7762,7 @@ function pushPosition(fix) {
   updateGpsPill();
   updateStats();
   Units.fix(pt.lat, pt.lng);
+  AutoZoom.fix();     /* after navProgress, which says what turn is ahead */
 }
 
 function updateGpsPill() {
@@ -7687,6 +7945,32 @@ function cardinal(deg) {
    own - a low number with the chime armed, which is worse than none. A
    way signed only in the other direction, or with no direction to go on,
    posts nothing here. */
+/* The limit on a street that posts none: the one the law gives it.
+
+   Over half of the streets in the packs carry no limit - 7,640 of the
+   13,703 residential edges loaded round Adelaide - because nobody signs a
+   back street and so nobody maps one, and the roundel went dark the moment
+   a driver turned off the main road. It was honest and it read as broken.
+
+   A street with no sign is not a street with no limit. It is the built-up
+   default, which is 50 in every state, and of the 6,063 residential edges
+   that do carry a limit here 99% say exactly that. So a residential street
+   with nothing posted shows 50, after the road's own limit and after the
+   limit held along a road, and only for the class that means a street:
+   an unposted road of any other class could be a 100 as easily as a 50,
+   and still shows nothing.
+
+   Not in the Northern Territory, where the default is 60 and its streets
+   are signed down from it one suburb at a time. There the roundel stays
+   dark rather than guess. The box is the Territory's borders, which are
+   three straight lines and a coast. */
+function builtUpLimit(hit) {
+  if (hit.road.cls !== "residential") return null;
+  const p = hit.at;
+  if (p && p.lat > -26 && p.lng > 129 && p.lng < 138) return null;
+  return CFG.SPEED_BUILT_UP;
+}
+
 function postedLimit(hit) {
   const r = hit.road;
   if (hit.fwd === true && r.f) return r.f;
@@ -7728,7 +8012,7 @@ function roadHere(p, hdg, moving, snap) {
   if (!Route.holds(p)) return null;
   let h = Route.roadAt(p, hdg, moving, snap);
   if (h && !h.v && !h.fw && !h.bw && !h.name) h = Route.roadAt(p, hdg, moving, snap, true);
-  return h ? { road: { name: h.name, v: h.v || null, f: h.fw, b: h.bw }, fwd: h.fwd } : null;
+  return h ? { road: { name: h.name, v: h.v || null, f: h.fw, b: h.bw, cls: h.cls }, fwd: h.fwd, at: p } : null;
 }
 
 /* The sign is hidden whenever the limit is not known, and never shown
@@ -7915,6 +8199,7 @@ function updateSpeedSign() {
     if (hit) {
       v = postedLimit(hit);
       if (v == null && h && sameRoad(hit.road, h.road)) v = h.v;
+      if (v == null) v = builtUpLimit(hit);
       speedHold = v == null ? null
         : { v: v, road: hit.road, at: { lat: view.cur.lat, lng: view.cur.lng }, hdg: view.hdgCur, t: Date.now() };
     } else if (h && haversine(h.at, view.cur) < CFG.SPEED_HOLD_M && Date.now() - h.t < CFG.SPEED_HOLD_MS &&
@@ -13971,6 +14256,48 @@ const ROAD_SPEED = {
   service: 20, track: 30, road: 50, busway: 40
 };
 
+/* The same, for a sealed road with no limit posted that runs through a
+   town - under 250 m between junctions, and under 500.
+
+   The figures above are for the open road, and a road with nothing posted
+   was priced at them wherever it ran. Ridge Road is Lobethal's bypass for
+   trucks: tertiary, nothing posted, so it was a 65 km/h road and eighty-one
+   seconds, beside a main street posted at 50 and a hundred and four. The
+   route left the main street for it, round three corners, to save a
+   quarter of a minute that was never there - in a town the road with no
+   sign on it is a 50 road like its neighbours.
+
+   What says town is how often the road meets another. Measured over the
+   posted roads loaded round Adelaide: of tertiary edges under 120 m, 72%
+   are posted 50 and 19% 60, and of those over a kilometre 88% are 80 or
+   more; secondary and primary are 60 below 250 m (55 to 68%) and 100 above
+   a kilometre (87 and 93%). So a short edge is priced as the town it is in
+   and a long one as it always was. Unsealed roads keep the figures above
+   whatever their length: nothing posted on a dirt road is not a promise of
+   anything. */
+const ROAD_TOWN = {
+  primary: [60, 75], secondary: [60, 70], tertiary: [50, 60], unclassified: [50, 50]
+};
+
+/* What an edge is priced at, km/h: cls its class, posted its limit or 0,
+   flags the pack's, m its length.
+
+   A street is priced under its limit. Fifty is the limit of nearly every
+   residential street there is - 99% of the posted ones round Adelaide -
+   and nobody averages it past parked cars and slow points; the ones with
+   nothing posted were already priced at forty, so until this the streets
+   somebody had tagged were the quicker ones, and a route preferred them
+   for it. */
+function roadPace(cls, posted, flags, m) {
+  if (cls === "residential" || cls === "living_street") {
+    return posted ? posted * 0.8 : ROAD_SPEED[cls];
+  }
+  if (posted) return posted;
+  const town = !(flags & 8) && ROAD_TOWN[cls];
+  if (town && m < 500) return m < 250 ? town[0] : town[1];
+  return ROAD_SPEED[cls] || 40;
+}
+
 /* The pack stores a class as its index into this list, so it matches
    CLASSES in tools/build-routing.mjs exactly and may be appended to but
    never reordered. Kept here rather than read out of the manifest: a phone
@@ -14041,8 +14368,10 @@ function packSpine(pk) {
     for (let i = 0; i < row.length; i++) f[at++] = row[i] == null ? 0 : row[i];
   }
   x[pk.e.length] = at;
-  return pk.d ? { o: pk.o, n: pk.n, f: f, x: x, d: pk.d, __cut: pk.__cut }
-              : { o: pk.o, n: pk.n, f: f, x: x, __cut: pk.__cut };
+  const out = pk.d ? { o: pk.o, n: pk.n, f: f, x: x, d: pk.d, __cut: pk.__cut }
+                   : { o: pk.o, n: pk.n, f: f, x: x, __cut: pk.__cut };
+  if (pk.r) out.r = pk.r;
+  return out;
 }
 
 /* A pack's limits signed one direction at a time, as a Map from row to
@@ -14129,6 +14458,7 @@ const Route = {
      read off the roads already here rather than fetched - see roadAt. */
   eCap: 0,                 /* how many edges the columns have room for */
   nE: 0,                   /* how many they hold */
+  ringMemo: new Map(), ringN: -1,   /* isRing's answers, for the graph as it stood */
   eCls: null, eF: null, eName: null, eOff: null, eNp: null,
   eM: null, eCost: null, eA: null, eB: null, eV: null, eFw: null, eBw: null, eBox: null,
   /* Interned road names, shared across packs - which is what this always
@@ -14688,7 +15018,7 @@ const Route = {
         pLa = la; pLng = lng;
       }
       if (!m) { this.geoN = off; continue; }
-      const v = row[2] || ROAD_SPEED[cls] || 40;
+      const v = roadPace(cls, row[2], row[1], m);
       if (v > this.vMax) this.vMax = v;
       let cost = m / (v / 3.6);
       /* Gated, private or permit-only. Still routable, because out here a
@@ -14702,7 +15032,8 @@ const Route = {
       const i = this.nE;
       this.edgeRoom();
       this.eCls[i] = row[0];
-      this.eF[i] = row[1];
+      /* 32: this pack says which of its edges are roundabouts - see isRing */
+      this.eF[i] = pk.r ? (row[1] | 32) : (row[1] & 15);
       this.eName[i] = -1;
       const nm = row[3] >= 0 ? pk.n[row[3]] : null;
       if (nm) {
@@ -14887,6 +15218,7 @@ const Route = {
     }
     if (best < 0) return null;
     return { i: best, v: this.eV[best], fw: this.eFw[best], bw: this.eBw[best], d: bestD, fwd: fwd,
+             cls: ROAD_CLASSES[this.eCls[best]] || "",
              name: this.eName[best] >= 0 ? this.names[this.eName[best]] : "" };
   },
 
@@ -15069,6 +15401,180 @@ const Route = {
     return fwd ? b : (b + 180) % 360;
   },
 
+  /* Whether edge i is part of a roundabout.
+
+     A pack cut since the builder learned to say so says so: 32 on the edge
+     is "this pack knows" and 16 is the answer, which is OpenStreetMap's own
+     junction=roundabout. A pack from before then is asked the only way
+     there is - by its shape. A roundabout is a ring of one-way edges that
+     comes back to where it started, small enough to drive round, round
+     enough to fit a circle, with at least two ways off it; the second is
+     what keeps the turning loop at the end of a court from being one.
+
+     Measured against the tag itself, on a pack that carries it: of the
+     6,358 edges tagged as roundabout round Adelaide the shape finds 6,294,
+     and it calls 63 of the other 12,430 one-way edges one - rings nobody
+     tagged, a loop round a memorial, the lanes of a car park.
+
+     It matters because nothing else about a roundabout can be trusted.
+     The turn reader took a ring for one-way legs with no name, and a ring
+     with a name - the B34 at Woodside, the A11 at Golden Grove - was just
+     a run of corners: left onto it, left off it. At Woodside that was
+     "turn left onto B34, then turn left" for the third exit, which is a
+     right turn. */
+  isRing: function (i) {
+    const f = this.eF[i];
+    if (f & 32) return !!(f & 16);
+    if (!(f & 3)) return false;
+    if (this.ringN !== this.nE) { this.ringMemo.clear(); this.ringN = this.nE; }
+    let got = this.ringMemo.get(i);
+    if (got === undefined) {
+      const loop = this.ringLoop(i);
+      got = !!loop;
+      /* every edge of the ring it found is one, and need not ask again */
+      if (loop) for (const e of loop) this.ringMemo.set(e, true);
+      this.ringMemo.set(i, got);
+    }
+    return got;
+  },
+
+  /* The ring edge i lies on, as the edges of it, or null. */
+  ringLoop: function (i) {
+    const f = this.eF[i];
+    if (!(f & 3)) return null;
+    const first = i * 2 + ((f & 2) ? 1 : 0);
+    const home = (first & 1) ? this.eB[i] : this.eA[i];
+    const lim = 2 * Math.PI * CFG.NAV_RING_R[1] * 1.15;
+    if (this.eM[i] > lim) return null;
+    const la0 = this.geo[this.eOff[i]], lo0 = this.geo[this.eOff[i] + 1];
+    const kx = Math.cos(la0 * 1.7453292519943295e-7) * 1.1132, ky = 1.1132;
+    const path = [first];
+    const self = this;
+    /* Is the loop in path a roundabout: round, the size of one, and with
+       somewhere to go from it twice over. */
+    const round = function () {
+      /* Every corner, and the middle of every stretch between two. The
+         corners alone are not enough: the four corners of a rectangle lie
+         on a circle exactly, and where two divided roads cross, the four
+         pieces of carriageway inside the junction are a rectangle of
+         one-way edges that runs the same way round as a roundabout does.
+         The middle of a straight side is nowhere near the circle; the
+         middle of a roundabout's arc is on it. */
+      const xs = [], ys = [], on = new Set();
+      let corners = 0;
+      for (const sl of path) {
+        const e = sl >> 1, off = self.eOff[e], np = self.eNp[e];
+        on.add(e);
+        corners += np - 1;
+        for (let p = 0; p < np; p++) {
+          const x = (self.geo[off + p * 2 + 1] - lo0) * kx, y = (self.geo[off + p * 2] - la0) * ky;
+          if (p) { xs.push((x + xs[xs.length - 1]) / 2); ys.push((y + ys[ys.length - 1]) / 2); }
+          xs.push(x); ys.push(y);
+        }
+      }
+      if (corners < CFG.NAV_RING_PTS || !circleR(xs, ys, CFG.NAV_RING_FIT, CFG.NAV_RING_MIN)) return null;
+      let ways = 0;
+      for (const sl of path) {
+        const n = (sl & 1) ? self.eA[sl >> 1] : self.eB[sl >> 1];
+        for (let s2 = self.adjHead.get(n); s2 !== undefined && s2 >= 0; s2 = self.adjNext[s2]) {
+          if (!on.has(s2 >> 1)) { ways++; break; }
+        }
+      }
+      return ways >= 2 ? Array.from(on) : null;
+    };
+    /* Every way back to where the edge began, until one of them is round.
+       The first way back is not always the ring: off the roundabout by a
+       slip lane and back onto it is a loop too, and stopping at that one
+       lost a third of the roundabouts in Adelaide. */
+    let tries = 0;
+    const walk = function (sl, len) {
+      const n = (sl & 1) ? self.eA[sl >> 1] : self.eB[sl >> 1];
+      if (n === home) return round();
+      if (path.length >= 20 || ++tries > 400) return null;
+      for (let s2 = self.adjHead.get(n); s2 !== undefined && s2 >= 0; s2 = self.adjNext[s2]) {
+        const e = s2 >> 1;
+        if (!(self.eF[e] & 3) || len + self.eM[e] > lim) continue;
+        if (path.indexOf(s2) >= 0) continue;
+        path.push(s2);
+        const got = walk(s2, len + self.eM[e]);
+        if (got) return got;
+        path.pop();
+      }
+      return null;
+    };
+    return walk(first, this.eM[i]);
+  },
+
+  /* How many ways there are off the ring at the end of slot sl - the exits
+     a driver counts going past. */
+  waysOff: function (sl) {
+    const n = (sl & 1) ? this.eA[sl >> 1] : this.eB[sl >> 1];
+    let c = 0;
+    for (let s2 = this.adjHead.get(n); s2 !== undefined && s2 >= 0; s2 = this.adjNext[s2]) {
+      if (!this.isRing(s2 >> 1)) c++;
+    }
+    return c;
+  },
+
+  /* The way an edge points where it is left (out) or entered (in), driven
+     along slot sl - a slot being an edge and a direction, see link. Read
+     over the first five metres of it rather than the first segment: the
+     packs keep a coordinate to about a metre, so a two-metre segment points
+     to the nearest forty-five degrees. Flat arithmetic, because this runs
+     for every edge the search looks down. */
+  slotHdg: function (sl, out) {
+    const i = sl >> 1, off = this.eOff[i], n = this.eNp[i], geo = this.geo;
+    /* driven backwards, a slot leaves from the edge's last point */
+    const fromEnd = (sl & 1) ? out : !out;
+    const a = fromEnd ? n - 1 : 0, step = fromEnd ? -1 : 1;
+    const la = geo[off + a * 2], lo = geo[off + a * 2 + 1];
+    const kx = Math.cos(la * 1.7453292519943295e-7);       /* 1e-5 degrees to radians */
+    let dx = 0, dy = 0;
+    for (let k = a + step; k >= 0 && k < n; k += step) {
+      dx = (geo[off + k * 2 + 1] - lo) * kx;
+      dy = geo[off + k * 2] - la;
+      if (dx * dx + dy * dy > 20.25) break;                /* 4.5 units, five metres */
+    }
+    /* that is the way from the node along the edge; arriving, it is the
+       way the edge was driven into the node */
+    const b = (deg(Math.atan2(dx, dy)) + 360) % 360;
+    return out ? b : (b + 180) % 360;
+  },
+
+  /* What the corner at node n costs, coming in along slot a and going out
+     along slot b, in seconds.
+
+     The search priced roads and nothing else, so a corner was free and so
+     was coming out of a side street onto a highway. Ten seconds saved on
+     the limit was worth any number of turns: through Lobethal it left the
+     main street, went round the back of the town by three corners and came
+     out onto the road it had been on. A driver counts the corners. This is
+     the count.
+
+     Nothing where there is nowhere else to go - a bend, or a seam between
+     two packs, is not a junction. Straight through a junction is free, on
+     the road that has the right of way; a turn costs the turn, and more
+     across the traffic than with it; and leaving a smaller road for a
+     bigger one, or crossing one, costs the wait for a gap on top. */
+  turnSecs: function (n, a, b) {
+    const i = a >> 1, j = b >> 1, T = CFG.ROUTE_TURN;
+    if (i === j) return T.back;
+    let ways = 0, major = 99;
+    for (let s = this.adjHead.get(n); s !== undefined && s >= 0; s = this.adjNext[s]) {
+      const e = s >> 1;
+      if (e === i) continue;
+      ways++;
+      if (e !== j && this.eCls[e] < major) major = this.eCls[e];
+    }
+    if (ways < 2) return 0;
+    const turn = ((this.slotHdg(b, true) - this.slotHdg(a, false) + 540) % 360) - 180;
+    const by = Math.abs(turn);
+    let t = by < T.straight ? 0 : by >= T.round ? T.uturn : turn < 0 ? T.left : T.right;
+    const ci = this.eCls[i], cj = this.eCls[j];
+    if (cj < ci || major < Math.min(ci, cj)) t += T.give;
+    return t;
+  },
+
   /* What setting off a way the vehicle is not facing costs - see
      ROUTE_UTURN_S. Nothing when the heading is unknown, which is a vehicle
      standing still: parked, it can pull out either way. */
@@ -15121,6 +15627,8 @@ const Route = {
         stub.gap = gap;
         stub.d = c.d;
         stub.i = c.i;                 /* the road this last stretch is on */
+        /* and the way it is driven, for the corner onto it */
+        stub.sl = c.i * 2 + (node === this.eB[c.i] ? 1 : 0);
         finish.set(node, stub);
       }
     }
@@ -15134,12 +15642,12 @@ const Route = {
     for (const c of near) {
       const gap = this.gapCost(c.d);
       if (this.canBwd(c.i)) {
-        seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, i: c.i,
+        seeds.push({ node: this.eA[c.i], d: c.d, gap: gap, i: c.i, sl: c.i * 2 + 1,
                      pen: this.turnCost(this.headingAt(c.i, c.u, false), hdg),
                      stub: this.part(c.i, c.u, 0) });
       }
       if (this.canFwd(c.i)) {
-        seeds.push({ node: this.eB[c.i], d: c.d, gap: gap, i: c.i,
+        seeds.push({ node: this.eB[c.i], d: c.d, gap: gap, i: c.i, sl: c.i * 2,
                      pen: this.turnCost(this.headingAt(c.i, c.u, true), hdg),
                      stub: this.part(c.i, c.u, this.eNp[c.i] - 1) });
       }
@@ -15169,65 +15677,68 @@ const Route = {
        as GOAL; the search stops when GOAL is the cheapest thing left, which
        with an admissible estimate means nothing still queued can beat it.
        Node keys are never negative, so -1 cannot be a real node. */
+    /* What the search settles is an edge and the way it was driven - a slot
+       - rather than the junction at the end of it. It has to be, to charge
+       for corners: what a turn costs depends on the road arrived by, and a
+       junction settled once has forgotten which that was. A junction is
+       reached once for each road into it, so there is about twice as much
+       to settle, and ROUTE_MAX_POPS went up to match. */
     const GOAL = -1;
     const goal = { lat: to.lat, lng: to.lng };
-    const g = new Map(), prev = new Map(), done = new Set();
+    const g = new Map(), prev = new Map(), done = new Set(), seedAt = new Map();
     const open = new RouteHeap();
     if (direct) open.push(best, GOAL);
     for (const sd of seeds) {
       const c = sd.stub.cost + sd.gap + sd.pen;
-      if (g.has(sd.node) && g.get(sd.node) <= c) continue;
-      g.set(sd.node, c);
-      prev.set(sd.node, null);
-      open.push(c + this.hope(sd.node, goal), sd.node);
+      if (g.has(sd.sl) && g.get(sd.sl) <= c) continue;
+      g.set(sd.sl, c);
+      prev.set(sd.sl, -1);
+      seedAt.set(sd.sl, sd);
+      open.push(c + this.hope(sd.node, goal), sd.sl);
     }
 
-    let end = null;
+    let end = -1, endTurn = 0;
     let popped = 0;
     while (open.size()) {
-      const n = open.pop();
-      if (n === GOAL) break;
-      if (done.has(n)) continue;
-      done.add(n);
+      const at = open.pop();
+      if (at === GOAL) break;
+      if (done.has(at)) continue;
+      done.add(at);
       if (++popped > CFG.ROUTE_MAX_POPS) break;
+      const n = (at & 1) ? this.eA[at >> 1] : this.eB[at >> 1];
+      const base = g.get(at);
       const fin = finish.get(n);
       if (fin) {
-        const total = g.get(n) + fin.cost + fin.gap;
-        if (total < best) { best = total; end = n; open.push(total, GOAL); }
+        const turn = this.turnSecs(n, at, fin.sl);
+        const total = base + turn + fin.cost + fin.gap;
+        if (total < best) { best = total; end = at; endTurn = turn; open.push(total, GOAL); }
       }
       let sl = this.adjHead.get(n);
       if (sl === undefined) continue;
-      const base = g.get(n);
       for (; sl >= 0; sl = this.adjNext[sl]) {
         const i = sl >> 1;
-        const to2 = (sl & 1) ? this.eA[i] : this.eB[i];
-        const cost = base + this.eCost[i];
-        if (g.has(to2) && g.get(to2) <= cost) continue;
-        g.set(to2, cost);
-        prev.set(to2, [n, sl]);
-        open.push(cost + this.hope(to2, goal), to2);
+        const cost = base + this.turnSecs(n, at, sl) + this.eCost[i];
+        if (g.has(sl) && g.get(sl) <= cost) continue;
+        g.set(sl, cost);
+        prev.set(sl, at);
+        open.push(cost + this.hope((sl & 1) ? this.eA[i] : this.eB[i], goal), sl);
       }
     }
-    if (end === null) {
+    if (end < 0) {
       if (!direct) return null;
       return this.route([[from.lat, from.lng]].concat(direct.pts, [[to.lat, to.lng]]),
                         direct.m, direct.cost, a.d, b.d, [{ at: 0, i: a.i }]);
     }
 
     /* Walked back from the arrival, so the chain comes out in reverse and
-       each edge is read in the direction it was driven. */
+       each edge is read in the direction it was driven. The first slot is
+       the stretch the trip began on, which is a seed's and is laid from
+       its stub rather than whole. */
     const chain = [];
     let n = end;
-    while (prev.get(n)) { chain.push(prev.get(n)); n = prev.get(n)[0]; }
+    while (prev.get(n) >= 0) { chain.push(n); n = prev.get(n); }
     chain.reverse();
-
-    /* Several seeds can sit on the same node; the one that set g is the one
-       the chain came back through, so the cheapest is the one to report. */
-    let seed = null;
-    for (const sd of seeds) {
-      if (sd.node !== n) continue;
-      if (!seed || sd.stub.cost + sd.gap + sd.pen < seed.stub.cost + seed.gap + seed.pen) seed = sd;
-    }
+    const seed = seedAt.get(n);
     if (!seed) return null;
     const startStub = seed.stub;
     const pts = [[from.lat, from.lng]].concat(startStub.pts);
@@ -15236,13 +15747,13 @@ const Route = {
        chain the search already walked, written down on the way past
        instead of thrown away, and it is what says "onto Main North Road"
        rather than "in 400 metres, something". */
-    const marks = [{ at: 0, i: seed.i }];
+    const marks = [{ at: 0, i: seed.i, sl: seed.sl }];
     let m = startStub.m;
-    for (const [, sl] of chain) {
+    for (const sl of chain) {
       const i = sl >> 1;
       const off = this.eOff[i], np = this.eNp[i];
       const back = !!(sl & 1);
-      marks.push({ at: pts.length, i: i });
+      marks.push({ at: pts.length, i: i, sl: sl });
       for (let p = 0; p < np; p++) {
         const q = back ? np - 1 - p : p;
         pts.push([this.geo[off + q * 2] / 1e5, this.geo[off + q * 2 + 1] / 1e5]);
@@ -15258,7 +15769,7 @@ const Route = {
        and landed. That hook was a false U-turn at the end of every trip, a
        distance remaining that ran long, and a turn in the instructions that
        was never there. */
-    const endStub = finish.get(end);
+    const endStub = finish.get((end & 1) ? this.eA[end >> 1] : this.eB[end >> 1]);
     marks.push({ at: pts.length, i: endStub.i });
     for (const p of endStub.pts) pts.push(p);
     pts.push([to.lat, to.lng]);
@@ -15273,7 +15784,7 @@ const Route = {
 
        Reported against the roads actually used, not the ones that happened
        to be nearest, which is the whole point of there being a choice. */
-    return this.route(pts, m, g.get(end) - seed.gap - seed.pen + endStub.cost,
+    return this.route(pts, m, g.get(end) - seed.gap - seed.pen + endTurn + endStub.cost,
                       seed.d, endStub.d, marks);
   },
 
@@ -15344,13 +15855,18 @@ const Route = {
       head: map ? map[1] : 0,
       tail: map ? map[pts.length - 2] : coords.length - 1,
       legs: marks ? marks.map(function (k) {
+        const ring = self.isRing(k.i);
         return {
           at: map[k.at],
           name: self.eName[k.i] >= 0 ? self.names[self.eName[k.i]] : "",
           cls: ROAD_CLASSES[self.eCls[k.i]] || "",
           /* Either direction bit. It is what tells a roundabout's ring from
              a car park's driveway - see navBuildTurns. */
-          one: !!(self.eF[k.i] & 3)
+          one: !!(self.eF[k.i] & 3),
+          /* On a roundabout, and how many exits there are where this piece
+             of it ends - the ones a driver counts off going round. */
+          ring: ring,
+          exits: ring && k.sl != null ? self.waysOff(k.sl) : 0
         };
       }) : null
     };
@@ -17441,6 +17957,7 @@ const Nav = {
   dest: null,            /* {lat,lng,name} */
   coords: [],            /* route geometry, [lat,lng] pairs */
   cum: [],               /* cumulative metres along the route */
+  flow: null,            /* { line, at } - the route as it is drawn, see navFlow */
   legs: null,            /* [{at, name, cls, one}] - where each road's stretch starts */
   offFor: 0,             /* fixes running that the vehicle has been off the line */
   lost: false,           /* and whether that has gone on long enough to believe */
@@ -17575,9 +18092,9 @@ function navBuildCum() {
    roundabout on Northbri Avenue turn -57, +54, +48 and -44 degrees, and
    read over twenty metres they came out as +4, +11, +12 and -2. Nothing
    reached the threshold and no roundabout on that road was ever mentioned. */
-function navBearAt(i, dir) {
-  const c = Nav.coords, cum = Nav.cum;
-  const lo = Nav.head, hi = Nav.tail;
+function navBearAt(L, i, dir) {
+  const c = L.c, cum = L.cum;
+  const lo = L.lo, hi = L.hi;
   let j = i;
   if (dir < 0) { while (j > lo && cum[i] - cum[j] < CFG.NAV_TURN_WIN) j--; }
   else { while (j < hi && cum[j] - cum[i] < CFG.NAV_TURN_WIN) j++; }
@@ -17619,8 +18136,29 @@ const TURN_WORD = {
   bearL: "Bear left", bearR: "Bear right",
   turnL: "Turn left", turnR: "Turn right",
   sharpL: "Sharp left", sharpR: "Sharp right",
-  uturn: "Turn around"
+  uturn: "Turn around",
+  /* a roundabout whose exits could not be counted - see navAct */
+  ringL: "Left at the roundabout", ringR: "Right at the roundabout",
+  ringS: "Straight through the roundabout", ringU: "Back round the roundabout"
 };
+
+/* Which exit, as the bar prints it and as it is said. Past the eighth a
+   roundabout is a gyratory and nobody is counting. */
+const EXIT_NTH = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+const EXIT_SAY = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
+
+/* What a turn is called on the bar, and what the voice says for it: the
+   same thing, except at a roundabout, where the bar has room for "Take the
+   2nd exit" and the sentence wants "at the roundabout, take the second
+   exit". Lower case, for the middle of a line. */
+function navAct(t) {
+  if (t.exit && EXIT_NTH[t.exit]) return "Take the " + EXIT_NTH[t.exit] + " exit";
+  return TURN_WORD[t.kind];
+}
+function navSay(t) {
+  if (t.exit && EXIT_SAY[t.exit]) return "at the roundabout, take the " + EXIT_SAY[t.exit] + " exit";
+  return TURN_WORD[t.kind].toLowerCase();
+}
 
 /* Line art at the weight everything else here is drawn at: the shaft the
    road comes in on, and the head where it goes. Two paths each, because
@@ -17639,6 +18177,13 @@ const TURN_ART = {
   sharpL: ["M16 21V15a4 4 0 0 0-6.8-2.8L6 15.3",      "M6 10.3v5h5"],
   sharpR: ["M8 21V15a4 4 0 0 1 6.8-2.8L18 15.3",      "M18 10.3v5h-5"],
   uturn:  ["M8 21v-8a4 4 0 0 1 8 0v4",  "M12.8 13.8 16 17l3.2-3.2"],
+  /* A roundabout: the road in from the foot, the ring, and the way out. The
+     ring is what says roundabout, so it is the same in all four and only
+     the arrow moves. */
+  ringL:  ["M12 21v-5.5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z", "M8.5 12H3.5M6.5 9l-3 3 3 3"],
+  ringR:  ["M12 21v-5.5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z", "M15.5 12h5M17.5 9l3 3-3 3"],
+  ringS:  ["M12 21v-5.5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z", "M12 8.5V3M9 6l3-3 3 3"],
+  ringU:  ["M14.5 21v-6M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z", "M9.5 15v5.5M6.8 18 9.5 20.7l2.7-2.7"],
   /* the destination's own pin, and the refresh arc the update chip wears */
   arrive: ["M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z",
            "M14.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"],
@@ -17671,15 +18216,27 @@ const TURN_ART = {
    D, E and F. No iteration, a 3x3 solve, and exact enough for something
    that only has to tell a ring from a wiggle. Flat earth: these are tens of
    metres across. Returns the radius, or 0 for anything that is not one. */
-function navRingR(i0, i1) {
-  const c = Nav.coords, n = i1 - i0 + 1;
+function navRingR(L, i0, i1) {
+  const c = L.c, n = i1 - i0 + 1;
   if (n < 4) return 0;
   const mLat = 111320, mLng = 111320 * Math.cos(rad(c[i0][0]));
   const x = [], y = [];
-  let Sx = 0, Sy = 0, Sz = 0, Sxx = 0, Syy = 0, Sxy = 0, Sxz = 0, Syz = 0;
   for (let k = i0; k <= i1; k++) {
-    const px = (c[k][1] - c[i0][1]) * mLng, py = (c[k][0] - c[i0][0]) * mLat;
-    x.push(px); y.push(py);
+    x.push((c[k][1] - c[i0][1]) * mLng);
+    y.push((c[k][0] - c[i0][0]) * mLat);
+  }
+  return circleR(x, y);
+}
+
+/* The radius of the circle through these points, in whatever they are
+   measured in - metres - or 0 if they do not lie on one a vehicle could
+   drive round. */
+function circleR(x, y, tol, least) {
+  const n = x.length;
+  if (n < 4) return 0;
+  let Sx = 0, Sy = 0, Sz = 0, Sxx = 0, Syy = 0, Sxy = 0, Sxz = 0, Syz = 0;
+  for (let k = 0; k < n; k++) {
+    const px = x[k], py = y[k];
     const z = px * px + py * py;
     Sx += px; Sy += py; Sz += z;
     Sxx += px * px; Syy += py * py; Sxy += px * py;
@@ -17706,7 +18263,7 @@ function navRingR(i0, i1) {
   const cx = -D / 2, cy = -E / 2, r2 = cx * cx + cy * cy - F;
   if (!(r2 > 0)) return 0;
   const R = Math.sqrt(r2);
-  if (R < CFG.NAV_RING_R[0] || R > CFG.NAV_RING_R[1]) return 0;
+  if (R < (least || CFG.NAV_RING_R[0]) || R > CFG.NAV_RING_R[1]) return 0;
   let err = 0;
   for (let k = 0; k < x.length; k++) {
     const e = Math.hypot(x[k] - cx, y[k] - cy) - R;
@@ -17714,7 +18271,277 @@ function navRingR(i0, i1) {
   }
   /* A ring's corners sit on it to within a fraction of its radius. A kink
      in a road does not sit on one at all. */
-  return Math.sqrt(err / x.length) < R * 0.18 ? R : 0;
+  return Math.sqrt(err / x.length) < R * (tol || 0.18) ? R : 0;
+}
+
+/* The line that is drawn, which is not point to point along the route.
+
+   The packs keep a corner of a road only where dropping it would move the
+   line by more than a few metres - see SIMPLIFY_M in
+   tools/build-routing.mjs - so a bend arrives as the fewest straight
+   pieces that stay inside that. The rule is a share of each piece's own
+   length, and round anything tighter than a hundred metres that works out
+   at a joint every thirty-seven degrees. Drawn joint to joint, a road
+   through the hills was a run of rulers with an elbow between each: on
+   nineteen kilometres of Gorge Road, 183 of the 280 joints swing fifteen
+   to forty-five degrees. Reported as "jagged lines along a road", and it
+   was. Nothing was wrong with which roads the line took. At the zoom a
+   turn is driven at, everything was wrong with how it got along them.
+
+   So it is drawn as a curve through the same points.
+
+   - A bend is a joint on a road, and the curve goes through it. The way it
+     is heading there is the two legs' directions weighed by their lengths,
+     so a long straight keeps its line and the short leg after it does the
+     turning. Each leg is one cubic with handles a third of its length,
+     which between evenly spaced joints is an arc - and evenly spaced
+     joints are what the builder leaves of one.
+   - How far the curve may stand off the straight leg is capped at a
+     metre (bulge), or at what the builder would have let a leg that long
+     stray if that is less. A leg is as often straight as it is the chord
+     of an arc. Plenty of roads are mapped as rulers with elbows, the map
+     under the line draws them that way, and a curve that bows out of a
+     road drawn straight is off the road.
+   - A corner is a turn out of one road into another, or a road mapped with
+     a single point where it turns. A curve run through that point swings
+     wide of both roads on its way in. It is cut inside instead, a
+     quadratic from short of the corner to past it that never comes more
+     than inside metres in from the point - 5.7 m back along each road for
+     a right angle, which is near enough what a car does.
+   - Turning round is left sharp, and so are the two joints handed in as
+     `sharp`: where the stub from the fix meets the road, and where the
+     road meets the hop to the pin. Neither is a road.
+
+   Measured against the survey: 120 trips of two to eight kilometres, half
+   round Adelaide and half in the hills behind it, routed on packs built
+   from one extract three times - held to five metres as they were, held
+   to two as they are, and with every surveyed point kept. 114 took the
+   same roads at five as on the survey, 918 km of them, and 115 at two. A
+   point every two metres along the drawn line, and how far it is from the
+   surveyed road:
+
+                              five metres            two metres
+                           joints     curve       joints     curve
+     average               0.60 m     0.59 m      0.21 m     0.26 m
+     nine in ten within    1.98 m     1.83 m      0.72 m     0.76 m
+     99 in 100 within      3.98 m     3.83 m      1.56 m     1.51 m
+     over two metres off   9.8%       8.7%        0.01%      0.07%
+     elbows over 20        4.74       0.14        4.46       0.13   a km
+     points in the line    14,166     54,272      17,286     58,415
+
+   Two faults, then, and each wants its own cure. The curve takes the
+   elbows out and leaves the line where it was; holding the roads to two
+   metres puts the line on the road and leaves the elbows in. The elbows
+   that are left are under a metre across - the point of a hairpin, a
+   corner between two legs a metre long - and not there to see.
+
+   What else was tried, on the roads held to two. Without the cap the line
+   is 0.37 m off and 2.4% of it is over two metres, further than the
+   joints ever were. Cutting every joint inside, which is the smoothing
+   that cannot swing wide, is 0.39 m: it leaves the mid-legs where they
+   were and pulls the joints, the one part that was exact, in to meet
+   them. Running through every joint is 0.27 m and 0.97 elbows a
+   kilometre, at the street corners it swings wide of. The legs'
+   directions weighed evenly, or by the other leg's length as a spline
+   would, were both further off than weighed by their own.
+
+   Sydney to Broome is 9,801 points and comes out as 13,326 in under a
+   hundredth of a second; a highway does not bend enough to need many.
+
+   The curve is the drawing and nothing else. Nav.coords is still the
+   route: progress, the turns and the off-route check are all read off it
+   exactly as before. `at` says where in the drawn line each of its points
+   landed, which is how navSnap finds the stretch to put the vehicle on. */
+function navFlow(co, sharp) {
+  const n = co.length, F = CFG.NAV_FLOW, TH = CFG.NAV_THIN;
+  const line = [], at = new Int32Array(n);
+  /* On Mercator's grid, where an angle is an angle at any latitude and a
+     metre is K degrees. A point stood on twice has no direction, so each
+     is taken once and `of` says which. */
+  const X = [], Y = [], K = [], hard = [], of = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = co[i][1], y = deg(Math.log(Math.tan(Math.PI / 4 + rad(co[i][0]) / 2)));
+    let m = X.length;
+    if (!m || x !== X[m - 1] || y !== Y[m - 1]) { X.push(x); Y.push(y); K.push(111320 * Math.cos(rad(co[i][0]))); m++; }
+    of[i] = m - 1;
+    if (sharp && sharp.indexOf(i) >= 0) hard[m - 1] = 1;
+  }
+  const m = X.length;
+  if (m < 3) {
+    for (let i = 0; i < n; i++) { line.push(co[i]); at[i] = i; }
+    return { line: line, at: at };
+  }
+  const put = function (x, y) { line.push([deg(2 * Math.atan(Math.exp(rad(y))) - Math.PI / 2), x]); };
+
+  /* each leg: the way it runs, and how long it is in metres */
+  const ux = new Float64Array(m), uy = new Float64Array(m), len = new Float64Array(m);
+  for (let j = 0; j < m - 1; j++) {
+    const dx = X[j + 1] - X[j], dy = Y[j + 1] - Y[j], l = Math.hypot(dx, dy);
+    ux[j] = dx / l; uy[j] = dy / l; len[j] = l * (K[j] + K[j + 1]) / 2;
+  }
+
+  /* each joint: 0 left sharp, 1 a bend and the way the curve heads through
+     it, 2 a corner and how far back along each leg it is cut */
+  const kind = new Uint8Array(m), tx = new Float64Array(m), ty = new Float64Array(m);
+  const cut = new Float64Array(m), swing = new Float64Array(m);
+  for (let j = 1; j < m - 1; j++) {
+    const a = len[j - 1], b = len[j];
+    swing[j] = Math.abs(Math.atan2(ux[j - 1] * uy[j] - uy[j - 1] * ux[j], ux[j - 1] * ux[j] + uy[j - 1] * uy[j]));
+    if (hard[j] || swing[j] > rad(F.sharp)) continue;
+    if (swing[j] > rad(F.bend)) { kind[j] = 2; continue; }
+    const vx = ux[j - 1] * a + ux[j] * b, vy = uy[j - 1] * a + uy[j] * b, vl = Math.hypot(vx, vy);
+    kind[j] = 1; tx[j] = vx / vl; ty[j] = vy / vl;
+  }
+  /* A corner rounds off what it likes of a leg, short of meeting the joint
+     at the other end coming the other way. A turn across a divided road is
+     a corner, seven metres of median and a joint that barely bends; held
+     to half of the seven it came out as an elbow with the point filed. */
+  const share = function (j) {
+    if (kind[j] === 2) return F.reach;
+    if (kind[j] === 1) return F.reach * (1 + Math.max(0, 1 - swing[j] / rad(F.spare)));
+    return F.reach * 2;
+  };
+  for (let j = 1; j < m - 1; j++) {
+    if (kind[j] !== 2) continue;
+    cut[j] = Math.min(len[j - 1] * share(j - 1), len[j] * share(j + 1), 2 * F.inside / Math.sin(swing[j] / 2));
+  }
+
+  /* A cubic, halved until each piece turns less than a step or is too
+     short to matter. Its first point is put; its last is left for whatever
+     comes next, which starts there. */
+  const step = rad(F.step);
+  const off = function (ax, ay, bx, by) {
+    if (!(ax || ay) || !(bx || by)) return 0;
+    return Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+  };
+  const curve = function (x0, y0, x1, y1, x2, y2, x3, y3, k, deep) {
+    const turn = x1 === x2 && y1 === y2 ? off(x1 - x0, y1 - y0, x3 - x2, y3 - y2)
+               : off(x1 - x0, y1 - y0, x2 - x1, y2 - y1) + off(x2 - x1, y2 - y1, x3 - x2, y3 - y2);
+    if (deep >= F.deep || turn <= step || Math.hypot(x3 - x0, y3 - y0) * k <= F.least) { put(x0, y0); return; }
+    const ax = (x0 + x1) / 2, ay = (y0 + y1) / 2, bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
+    const cx = (x2 + x3) / 2, cy = (y2 + y3) / 2;
+    const dx = (ax + bx) / 2, dy = (ay + by) / 2, ex = (bx + cx) / 2, ey = (by + cy) / 2;
+    const mx = (dx + ex) / 2, my = (dy + ey) / 2;
+    curve(x0, y0, ax, ay, dx, dy, mx, my, k, deep + 1);
+    curve(mx, my, ex, ey, cx, cy, x3, y3, k, deep + 1);
+  };
+
+  const idx = new Int32Array(m);
+  for (let j = 0; j < m - 1; j++) {
+    const k0 = K[j], k1 = K[j + 1], k = (k0 + k1) / 2;
+    /* where this leg's own stretch starts and ends, and the way the line
+       is heading at each: along the leg, unless the joint is a bend */
+    let ax = X[j], ay = Y[j], bx = X[j + 1], by = Y[j + 1];
+    let t0x = ux[j], t0y = uy[j], t1x = ux[j], t1y = uy[j];
+    if (kind[j] === 2) { ax += ux[j] * cut[j] / k0; ay += uy[j] * cut[j] / k0; }
+    else if (kind[j] === 1) { t0x = tx[j]; t0y = ty[j]; }
+    if (kind[j + 1] === 2) { bx -= ux[j] * cut[j + 1] / k1; by -= uy[j] * cut[j + 1] / k1; }
+    else if (kind[j + 1] === 1) { t1x = tx[j + 1]; t1y = ty[j + 1]; }
+    const c = Math.hypot(bx - ax, by - ay) * k;
+    const s0 = Math.abs(ux[j] * t0y - uy[j] * t0x), s1 = Math.abs(ux[j] * t1y - uy[j] * t1x);
+    if (s0 < 1e-4 && s1 < 1e-4) put(ax, ay);
+    else {
+      /* A handle standing four thirds of the cap off the leg, at both
+         ends, is a curve standing the cap off it in the middle. */
+      const cap = Math.min(F.bulge, TH[0], Math.max(TH[2], c * TH[1])) * 4 / 3;
+      const h0 = Math.min(c / 3, s0 > 1e-6 ? cap / s0 : Infinity) / k;
+      const h1 = Math.min(c / 3, s1 > 1e-6 ? cap / s1 : Infinity) / k;
+      curve(ax, ay, ax + t0x * h0, ay + t0y * h0, bx - t1x * h1, by - t1y * h1, bx, by, k, 0);
+    }
+    if (kind[j + 1] === 2) {
+      /* the corner itself: a quadratic with the joint as its one handle,
+         written as the cubic it is */
+      const vx = X[j + 1], vy = Y[j + 1];
+      const ex = vx + ux[j + 1] * cut[j + 1] / k1, ey = vy + uy[j + 1] * cut[j + 1] / k1;
+      const from = line.length;
+      curve(bx, by, bx + (vx - bx) * 2 / 3, by + (vy - by) * 2 / 3,
+            ex + (vx - ex) * 2 / 3, ey + (vy - ey) * 2 / 3, ex, ey, k1, 0);
+      idx[j + 1] = (from + line.length) >> 1;
+    } else idx[j + 1] = line.length;
+  }
+  put(X[m - 1], Y[m - 1]);
+  for (let i = 0; i < n; i++) at[i] = idx[of[i]];
+  return { line: line, at: at };
+}
+
+/* The line the corners are read off, which is not quite the line drawn.
+
+   The packs keep a one-way leg to within a metre of the road now, so the
+   route goes round the island of a slow point instead of through it - see
+   SIMPLIFY_ONEWAY in tools/build-routing.mjs. Everything below was measured
+   on legs kept to five: the angle at a junction is read over five metres of
+   line, and on a leg drawn as a chord five metres of it points the way the
+   whole leg goes. Drawn to the metre, a slip lane leaves its road at ten
+   degrees and does its turning in the middle, where no junction is, and a
+   roundabout's exit is still swinging round the splitter island when the
+   group is closed. Read off the new packs as they stand, 93 trips in 400
+   round Adelaide changed their instructions and 64 turns went unsaid - the
+   left onto Port Wakefield Road, the left onto Torrens Road - while
+   straight through a roundabout came out as bear right.
+
+   So the corners are read off the route with its legs thinned the way the
+   packs used to thin them: the same rule, the same three numbers, leg by
+   leg, ends kept. Thinning a leg the packs kept to a metre gives the
+   points thinning the survey to five gave, because the furthest point from
+   a chord is the first one either keeps. What a driver is told does not
+   depend on how finely the road under it happens to be drawn; the line on
+   the map and the vehicle on it use every point there is.
+
+   Every leg, since the packs came down from five metres to two on the
+   rest - see SIMPLIFY_M. It was only the one-way legs while the others
+   were still held to five, and thinning those again changes nothing: 520
+   trips round Adelaide and the hills read the same either way, on the
+   packs as shipped and on the same roads cut at five. On roads cut at two,
+   506 of those trips keep to the same roads. Read as drawn, 66 of them
+   change their instructions and 31 turns go unsaid; thinned, 505 are word
+   for word what they were on five, and the one that is not takes a
+   different road with the same names.
+
+   A route from OSRM is read as it comes. Its legs are whole roads, not the
+   stretches between junctions, and it was never thinned to begin with. */
+function navTurnLine() {
+  const c = Nav.coords, legs = Nav.legs, n = c.length;
+  const keep = new Uint8Array(n).fill(1);
+  for (let k = 0; k < legs.length; k++) {
+    if (Nav.via !== "local") break;
+    const a = Math.max(legs[k].at, Nav.head);
+    const b = Math.min(k + 1 < legs.length ? legs[k + 1].at : Nav.tail, Nav.tail);
+    if (b - a < 2) continue;
+    const kx = Math.cos(rad(c[a][0]));
+    const off = function (p, u, v) {
+      const px = (p[1] - u[1]) * kx, py = p[0] - u[0];
+      const bx = (v[1] - u[1]) * kx, by = v[0] - u[0];
+      const len = bx * bx + by * by;
+      let t = len > 0 ? (px * bx + py * by) / len : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return Math.hypot(px - bx * t, py - by * t) * 111320;
+    };
+    for (let q = a + 1; q < b; q++) keep[q] = 0;
+    const stack = [[a, b]];
+    while (stack.length) {
+      const span = stack.pop(), i = span[0], j = span[1];
+      if (j - i < 2) continue;
+      let worst = -1, at = -1;
+      for (let q = i + 1; q < j; q++) {
+        const d = off(c[q], c[i], c[j]);
+        if (d > worst) { worst = d; at = q; }
+      }
+      const chord = haversine({ lat: c[i][0], lng: c[i][1] }, { lat: c[j][0], lng: c[j][1] });
+      const allow = Math.min(CFG.NAV_THIN[0], Math.max(CFG.NAV_THIN[2], chord * CFG.NAV_THIN[1]));
+      if (worst > allow) { keep[at] = 1; stack.push([i, at], [at, j]); }
+    }
+  }
+  const L = { c: [], cum: [], ix: new Int32Array(n).fill(-1), lo: 0, hi: 0 };
+  for (let i = 0; i < n; i++) {
+    if (!keep[i]) continue;
+    const m = L.c.length;
+    L.ix[i] = m;
+    L.cum.push(m ? L.cum[m - 1] + haversine({ lat: L.c[m - 1][0], lng: L.c[m - 1][1] },
+                                            { lat: c[i][0], lng: c[i][1] }) : 0);
+    L.c.push(c[i]);
+  }
+  L.lo = L.ix[Nav.head]; L.hi = L.ix[Nav.tail];
+  return L;
 }
 
 function navBuildTurns() {
@@ -17723,6 +18550,7 @@ function navBuildTurns() {
   if (!legs || legs.length < 2 || c.length < 3) return;
   if (Nav.tail <= Nav.head) return;
   const end = cum[Nav.tail];
+  const L = navTurnLine();
 
   /* Every junction on the route, with the angle the line turns through at
      it and the road it puts you on. Most of them turn through nothing -
@@ -17734,7 +18562,7 @@ function navBuildTurns() {
     const at = legs[k].at;
     if (at <= Nav.head || at >= Nav.tail) continue;
     if (at === legs[k - 1].at) continue;        /* a leg the join-dedupe emptied */
-    const bIn = navBearAt(at, -1), bOut = navBearAt(at, 1);
+    const bIn = navBearAt(L, L.ix[at], -1), bOut = navBearAt(L, L.ix[at], 1);
     if (bIn === null || bOut === null) continue;
     const ang = ((bOut - bIn + 540) % 360) - 180;
 
@@ -17757,8 +18585,56 @@ function navBuildTurns() {
     if (kind === "uturn" && end - cum[at] < 120) kind = null;
 
     js.push({ at: at, m: cum[at], ang: ang, kind: kind, name: name,
-              bIn: bIn, bOut: bOut, link: legs[k].name || "", one: !!legs[k].one });
+              bIn: bIn, bOut: bOut, link: legs[k].name || "", one: !!legs[k].one,
+              /* the leg from here is another road, by name - see the jog */
+              road: !!legs[k].name && legs[k].name.toLowerCase() !== was,
+              /* onto a roundabout here, or off one - see below */
+              ring: !!legs[k].ring, off: !!legs[k - 1].ring, k: k });
   }
+
+  /* The way the route is going between two places along it, read off the
+     line as drawn. For a roundabout, where the question is which way the
+     road in and the road out point and both are settled by then. */
+  const going = function (m0, m1) {
+    const lo = cum[Nav.head], hi = cum[Nav.tail];
+    m0 = Math.max(lo, Math.min(hi, m0)); m1 = Math.max(lo, Math.min(hi, m1));
+    if (m1 - m0 < 3) return null;
+    const at = function (m) {
+      let i = Nav.head;
+      while (i < Nav.tail - 1 && cum[i + 1] < m) i++;
+      const len = cum[i + 1] - cum[i], f = len > 0 ? (m - cum[i]) / len : 0;
+      return { lat: c[i][0] + (c[i + 1][0] - c[i][0]) * f, lng: c[i][1] + (c[i + 1][1] - c[i][1]) * f };
+    };
+    return bearing(at(m0), at(m1));
+  };
+
+  /* A roundabout is one instruction, given where it is entered.
+
+     The legs say which pieces of the route are ring (Route.isRing), so
+     there is nothing to infer: from the junction that goes onto the ring to
+     the junction that comes off it is one manoeuvre, whatever the pieces
+     are named and however many there are. Which way it goes is the road out
+     against the road in, each read a little way clear of the ring - the
+     splitter islands either side bend the last few metres of both - and
+     which exit is the count of ways off passed on the way round, plus the
+     one taken. The count is what a driver uses; the direction is what the
+     arrow is drawn from, and what is said where a count is not to be had. */
+  const ringTurn = function (i0, i1) {
+    const a = js[i0], x = js[i1];
+    const bIn = going(a.m - 60, a.m - 20), bOut = going(x.m + 20, x.m + 60);
+    const ang = bIn == null || bOut == null
+      ? ((x.bOut - a.bIn + 540) % 360) - 180
+      : ((bOut - bIn + 540) % 360) - 180;
+    const by = Math.abs(ang);
+    const kind = by >= 150 ? "ringU" : by < 40 ? "ringS" : ang < 0 ? "ringL" : "ringR";
+    let exit = 0;
+    if (x.off && !x.ring) {
+      exit = 1;
+      for (let k = a.k; k < x.k - 1; k++) exit += legs[k].exits || 0;
+    }
+    return { at: a.at, m: a.m, end: x.m, ang: ang, kind: kind, name: x.off && !x.ring ? x.name : "",
+             exit: exit > 8 ? 0 : exit, ring: true };
+  };
 
   /* Corners that run into one another are one corner to drive.
 
@@ -17804,15 +18680,100 @@ function navBuildTurns() {
      instructions vanished. A named leg is a road you are driving along
      however short it is, and it ends the group.
 
-     What it still costs is a jog: a right and then a left joined by a few
-     metres of unnamed connector nets out to nothing and is not announced.
-     That is one lane change rather than two decisions - it leaves you on
-     the same bearing a lane over, with the line on the map to follow.
+     A jog is the exception, and it ends the group where it is found. One
+     way and then the other is two turns, however close together, when
+     there is a road between them: Chess Street meets Clayson Road at a T,
+     and Northbri Avenue leaves Clayson Road twenty metres along. Grouped,
+     the right and the left summed to nothing, so nothing was said at the
+     end of Chess Street - a T-junction, with the route going on down a
+     road the driver had not been told to take - and the next word was two
+     hundred metres down Northbri Avenue, about a corner after it.
+
+     What makes it a road between them rather than one junction drawn as
+     two is the same question twice, and jog asks it:
+
+     - The first turn is onto a road of another name, and the second is off
+       it onto something else. From NAV_TURN_JOG apart. A name that comes
+       straight back - left onto Goodwood Road and right onto Goodwood Road
+       twelve metres on - is the two carriageways of one road, which is one
+       turn, and stays one.
+     - Or the leg between them is two-way and they are further apart than
+       one junction is ever drawn. That is a car park: left out of the
+       aisle, fifty metres, right onto the street.
+     - Or the first is a square corner onto a road of another name, the
+       second is the first bend in that road, and the route leaves the
+       second on the bearing it came into the first on. Crescent Drive
+       leaves Lobethal Road square, runs eighteen metres and turns square
+       again to run alongside it. The name comes straight back, so by the
+       first test that was the two carriageways of one road - but two
+       carriageways sum to a turn, which is why they are left as one, and
+       these summed to six degrees. Nothing was said, and the route left
+       Lobethal Road, which carries straight on. The same shape is the end
+       of Highet Street at Chapel Road - a T, left for fifteen metres,
+       right down the other arm of Chapel Road - and the track that leaves
+       Greenhill Road for Chambers Gully.
+
+       The bearing in against the bearing out, not the two corners added
+       up. Compton Street into Gouger Street is a left onto one carriageway
+       and a right round the end of the median onto the other, ninety-eight
+       degrees and a hundred and twenty-one, which add to twenty-three; but
+       the fourteen metres between them bend, and the route comes out
+       eighty-two degrees from the way it went in. That is a right turn
+       onto Gouger Street and is still called one.
+
+       And square - NAV_TURN_SQUARE - because the mouth of a street is
+       often splayed. Farnell Place leaves Dunbarton Crescent forty-nine
+       degrees to the right for ten metres and then swings seventy-two
+       left, where the crescent is itself curving right, and what the
+       wheel does there is go nearly straight on. Told as a right and a
+       left it would have been wrong twice.
+
+     A one-way leg with no name is neither, so the arcs of a roundabout and
+     the slip lanes of a median still sum the way they did. Measured over
+     599 trips round Adelaide: 24 of them changed, at 20 places, and the
+     corners announced went from 3,908 to 3,947. Eleven of the twenty had
+     said nothing at all, three had been called by their net angle - "bear
+     right onto Alpha Road" for a sharp right and a left - and two had been
+     taken for roundabouts.
+
+     What is still not announced is a jog across a few metres of unnamed
+     connector. That is one lane change rather than two decisions - it
+     leaves you on the same bearing a lane over, with the line on the map
+     to follow.
+
+     The third test came later and is much the rarest. Over 11,184 trips
+     round Adelaide and the hills behind it - 3,194 of two to eight
+     kilometres and 7,990 short ones - it changes three places, each of
+     which had said nothing, and the corners announced go from 50,991 to
+     50,997.
 
      NAV_TURN_RUN stops a group running away with a road, at the
      circumference of the largest roundabout worth the name. */
-  let i = 0;
+  /* Is b the second half of a jog whose first half was the corner c? */
+  const jog = function (c, b) {
+    if (!b.kind || b.kind === "uturn" || c.kind === "uturn") return false;
+    if ((b.ang < 0) === (c.ang < 0)) return false;
+    const gap = b.m - c.m;
+    if (c.road && b.link.toLowerCase() !== c.link.toLowerCase()) return gap >= CFG.NAV_TURN_JOG;
+    /* off the road by a square corner, and round the first bend of the
+       road it is now on, leaving on the bearing it came in on */
+    if (c.road && gap >= CFG.NAV_TURN_JOG && Math.abs(c.ang) >= CFG.NAV_TURN_SQUARE &&
+        !navTurnKind(((b.bOut - c.bIn + 540) % 360) - 180, true)) return true;
+    return !c.one && gap >= CFG.NAV_TURN_MERGE;
+  };
+  let i = 0, floor = 0;
   while (i < js.length) {
+    if (js[i].ring) {
+      /* onto the ring here; off it at the first junction whose leg is not */
+      let x = i;
+      while (x + 1 < js.length && js[x].ring) x++;
+      const t = ringTurn(i, x);
+      /* not at the very end, where arriving is the instruction */
+      if (end - t.m >= 25) Nav.turns.push(t);
+      floor = x + 1;
+      i = x + 1;
+      continue;
+    }
     if (!js[i].kind) { i++; continue; }
 
     /* Backwards first. A roundabout is entered at a junction whose own
@@ -17834,18 +18795,22 @@ function navBuildTurns() {
              (a.one && !a.link && gap < CFG.NAV_TURN_LINK);
     };
     let b0 = i;
-    while (b0 > 0) {
+    /* and never back past a jog, whose first half ends at the junction
+       before this corner */
+    while (b0 > floor) {
       const p = js[b0 - 1];
-      if (p.kind || !joins(p, js[b0].m - p.m)) break;
+      if (p.kind || p.ring || !joins(p, js[b0].m - p.m)) break;
       if (js[i].m - p.m >= CFG.NAV_TURN_RUN) break;
       b0--;
     }
     const s = js[b0];
 
-    let e = i;
+    let e = i, last = js[i];
     while (e + 1 < js.length) {
       const a = js[e], b = js[e + 1];
-      if (!joins(a, b.m - a.m) || b.m - s.m >= CFG.NAV_TURN_RUN) break;
+      if (b.ring || !joins(a, b.m - a.m) || b.m - s.m >= CFG.NAV_TURN_RUN) break;
+      if (jog(last, b)) { floor = e + 1; break; }
+      if (b.kind) last = b;
       e++;
     }
     if (e === i && b0 === i) { Nav.turns.push(s); i++; continue; }
@@ -17875,7 +18840,7 @@ function navBuildTurns() {
     if (!kind && e > b0) {
       let ring = false;
       for (let j = b0; j <= e && !ring; j++) ring = js[j].one && !js[j].link;
-      if (ring && navRingR(s.at, js[e].at)) kind = "straight";
+      if (ring && navRingR(L, L.ix[s.at], L.ix[js[e].at])) kind = "straight";
     }
 
     if (kind) {
@@ -17892,7 +18857,9 @@ function navBuildTurns() {
    turned - which is the moment it is being looked at. */
 function navNextTurnIdx(at) {
   const ts = Nav.turns;
-  for (let i = 0; i < ts.length; i++) if (ts[i].m - at > -15) return i;
+  /* A roundabout is still the instruction all the way round it: it begins
+     where the ring is entered and is over where it is left. */
+  for (let i = 0; i < ts.length; i++) if ((ts[i].end || ts[i].m) - at > -15) return i;
   return -1;
 }
 
@@ -18095,6 +19062,7 @@ const Voice = {
   coverNext: false, /* the corner after this one has been warned of already */
   heard: -1,        /* the corner whose road has been said to the end of a line */
   heardNext: false, /* and the one after it, said on the end of this one's */
+  tailLine: null,   /* the call at a corner that went on to name the next one */
   headSaid: "",     /* the bearing last spoken, and when */
   headAt: 0,
   startedAt: 0,     /* when the current utterance began, for the watchdog */
@@ -18105,6 +19073,7 @@ const Voice = {
 
   supported: function () { return "speechSynthesis" in window; },
   ready: function () { return !!this.voice; },
+  rate: function () { return CFG.VOICE_RATES[S.voiceRate] || CFG.VOICE_RATES.medium; },
 
   /* getVoices comes back empty until the engine has listed itself, and on a
      phone that is after the page has loaded rather than during it - the
@@ -18205,7 +19174,7 @@ const Voice = {
       const u = new SpeechSynthesisUtterance(text);
       u.voice = this.voice;
       u.lang = this.voice.lang;
-      u.rate = CFG.VOICE_RATE;
+      u.rate = this.rate();
       /* Only the line still talking lets the music back up. Cancelling one
          to say another reports the first as ended a moment after the second
          has started, and that must not release the second. */
@@ -18297,13 +19266,25 @@ const Voice = {
   reset: function () {
     this.turns = null; this.mark = -1; this.stage = 0; this.coverNext = false;
     this.lostSaid = false; this.headSaid = ""; this.headAt = 0;
-    this.heard = -1; this.heardNext = false;
+    this.heard = -1; this.heardNext = false; this.tailLine = null;
   },
 
   /* The bar's own values, at the bar's own moment. All that is decided here
      is which of them becomes a sentence, and when. */
-  turn: function (kind, dist, act, road, then, mark, thenRoad) {
+  turn: function (kind, dist, act, road, then, mark, thenRoad, thenIn, say, thenSay) {
     if (!S.navVoice || !this.ready()) return;
+    /* what is said for this turn and the next, where that is not the bar's
+       own words - a roundabout's, see navSay */
+    say = say || String(act || "").toLowerCase();
+    thenSay = thenSay || (then && TURN_WORD[then] ? TURN_WORD[then].toLowerCase() : "");
+    /* A road is named once in a line. Where the corner after is a bend in
+       the road this one turns onto - off Lobethal Road into Crescent Drive,
+       which turns again eighteen metres in - it was "turn right onto
+       Crescent Drive, then turn left onto Crescent Drive", and then "turn
+       left onto Crescent Drive" at the bend, to a driver already on it.
+       Named with this corner, it counts as named for the next. */
+    const again = !!(then && thenRoad && road && kind !== "uturn" &&
+                     String(thenRoad).toLowerCase() === String(road).toLowerCase());
 
     /* Off the route is said over the top of anything else, because anything
        else being said is about a road that is no longer under the wheels.
@@ -18377,10 +19358,10 @@ const Voice = {
         /* The corner after, with its road. Said here or not at all: it is
            too close to get a heads-up of its own, and a "then turn left"
            with no name was a road the driver was never told. */
-        next = then && TURN_WORD[then] && then !== "uturn" ? sayName(thenRoad || "") : "";
-        line = lead + act.toLowerCase() +
+        next = then && thenSay && then !== "uturn" && !again ? sayName(thenRoad || "") : "";
+        line = lead + say +
                (road && kind !== "uturn" ? " onto " + sayName(road) : "") +
-               (then && TURN_WORD[then] ? ", then " + TURN_WORD[then].toLowerCase() : "") +
+               (then && thenSay ? ", then " + thenSay : "") +
                (next ? " onto " + next : "");
       }
       /* Not started where it cannot be finished. The call at the corner is
@@ -18389,13 +19370,13 @@ const Voice = {
          nothing: eleven of them in forty simulated trips round Adelaide,
          one now. Left unsaid, the name goes on the call at the corner
          instead. */
-      const secs = CFG.VOICE_START + line.split(" ").length / CFG.VOICE_WPS;
+      const secs = CFG.VOICE_START + line.split(" ").length / (CFG.VOICE_WPS * this.rate());
       if (dist - near < Math.max(spd, CFG.VOICE_SPD_MIN) * secs) { this.stage = 1; return; }
       const self = this;
       const spoke = this.utter(line.charAt(0).toUpperCase() + line.slice(1), false, function () {
         if (self.mark !== mark) return;
         self.heard = mark;
-        if (next) self.heardNext = true;
+        if (next || again) self.heardNext = true;
       });
       /* Something else still talking. Not queued - the distance in it would
          be wrong by the time it was said - but asked again on the next fix,
@@ -18404,7 +19385,7 @@ const Voice = {
          whose road was never named. */
       if (!spoke) return;
       this.stage = 1;
-      this.coverNext = !!(then && TURN_WORD[then]);
+      this.coverNext = !!(then && thenSay);
       return;
     }
 
@@ -18422,8 +19403,31 @@ const Voice = {
          Arriving is left out - it has its own line, said at the door by
          navArrive rather than a hundred metres short of it. */
       if (kind === "arrive") return;
+      /* This corner is being said this moment, on the end of the call at
+         the one before - see below. Urgent would cut that line off to say
+         the half of it that is left. */
+      if (this.tailLine && this.talking === this.tailLine) return;
       const name = this.heard !== mark && road && kind !== "uturn" ? sayName(road) : "";
-      this.utter(name ? act + " onto " + name : act, true);
+      /* And the corner after, when it comes up inside the distance its own
+         call is made at. That call is not due until fifteen metres past
+         this corner - the next one only takes the bar over there - so on a
+         twenty metre jog it lands five metres from the wheel being turned,
+         and "turn right" on its own leaves a driver turning right and
+         looking for somewhere to go. Its road goes in unless the heads-up
+         has already named it. */
+      let tail = "", nextName = "";
+      if (then && thenSay && thenIn < near) {
+        nextName = !this.heardNext && then !== "uturn" && !again ? sayName(thenRoad || "") : "";
+        tail = ", then " + thenSay + (nextName ? " onto " + nextName : "");
+      }
+      const self = this;
+      /* the roundabout is in sight by now: "take the second exit" */
+      const call = say.replace(/^at the roundabout, /, "");
+      const now = call.charAt(0).toUpperCase() + call.slice(1);
+      this.utter((name ? now + " onto " + name : now) + tail, true, function () {
+        if (self.mark === mark && (nextName || again)) self.heardNext = true;
+      });
+      if (tail) { this.coverNext = true; this.tailLine = this.talking; }
     }
   }
 };
@@ -18594,7 +19598,8 @@ function navRenderTurn(at, remain) {
   if (!bar) return;
   if (!Nav.active || Nav.coords.length < 2) { navHideTurn(); return; }
 
-  let kind, dist, act, road, then = null, thenRoad = "", mark = -1;
+  let kind, dist, act, road, then = null, thenRoad = "", thenIn = Infinity, mark = -1;
+  let say = "", thenSay = "";
 
   if (Nav.lost && Nav.via !== "direct") {
     /* Whatever the old line said to do next is about a road the vehicle is
@@ -18613,9 +19618,11 @@ function navRenderTurn(at, remain) {
     const i = navNextTurnIdx(at);
     const t = i < 0 ? null : Nav.turns[i];
     if (t) {
-      kind = t.kind; dist = t.m - at; act = TURN_WORD[t.kind]; road = t.name; mark = t.m;
+      kind = t.kind; dist = t.m - at; act = navAct(t); say = navSay(t); road = t.name; mark = t.m;
       const nx = Nav.turns[i + 1];
-      if (nx && nx.m - t.m < CFG.NAV_TURN_THEN) { then = nx.kind; thenRoad = nx.name; }
+      /* from where this one is over, which for a roundabout is where it is left */
+      const gap = nx ? nx.m - (t.end || t.m) : Infinity;
+      if (nx && gap < CFG.NAV_TURN_THEN) { then = nx.kind; thenSay = navSay(nx); thenRoad = nx.name; thenIn = gap; }
     } else {
       kind = "arrive"; dist = remain; act = "Arrive"; mark = -2;
       road = Nav.dest ? Nav.dest.name : "";
@@ -18624,6 +19631,11 @@ function navRenderTurn(at, remain) {
 
   /* A new route inside the last one's four seconds takes the bar back. */
   navEndClear(true);
+  /* What the map closes in for: a turn, or the end. A line being worked out
+     again says nothing either way, so the map is left as it is - told there
+     was no turn, it opened out for the second the new route took and closed
+     straight back in for that route's first corner. */
+  if (kind !== "recalc") AutoZoom.turn(kind === "head" ? -3 : mark, dist);
   navArt($("#turnP1"), $("#turnP2"), TURN_ART[kind] || TURN_ART.head);
   $("#turnDist").textContent = dist === "" ? "" : fmtTurnDist(Math.max(0, dist));
   $("#turnAct").textContent = act;
@@ -18636,7 +19648,7 @@ function navRenderTurn(at, remain) {
   navTurnFit();
   /* Last, and from the same values the bar was just drawn from, so what is
      said and what is shown cannot come apart. */
-  Voice.turn(kind, dist, act, road, then, mark, thenRoad);
+  Voice.turn(kind, dist, act, road, then, mark, thenRoad, thenIn, say, thenSay);
 }
 
 /* A bearing and a distance, for when there is no road data and no router.
@@ -18723,8 +19735,11 @@ async function navigateTo(dest, quiet) {
   Nav.idx = 0;
   navBuildCum();
   navBuildTurns();
-  navLine.setLatLngs(Nav.coords);
-  navCasing.setLatLngs(Nav.coords);
+  /* drawn as a curve through the route's points, with the two joints that
+     are not road left alone - see navFlow */
+  Nav.flow = navFlow(Nav.coords, [Nav.head, Nav.tail]);
+  navLine.setLatLngs(Nav.flow.line);
+  navCasing.setLatLngs(Nav.flow.line);
   navDestMk.clearLayers();
   L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon(PAINT.nav, "flag", false), keyboard: false })
     .bindPopup('<div class="pop-t" style="color:var(--nav2)">' + esc(Nav.dest.name) + "</div>", popOpts())
@@ -18796,20 +19811,67 @@ function navSnap(near, hdg) {
   if (hdg != null && along != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) return;
   /* The drawn target is not always the fix - stopped, it is held against
      the receiver's wander - so it is the target that goes onto the line,
-     looked for a few segments either side of where the fix landed. */
-  const t = view.tgt, n = Nav.coords.length;
-  let best = null, at = near.i;
-  for (let i = Math.max(0, near.i - 3); i < Math.min(n - 1, near.i + 4); i++) {
-    const r = segNear(t, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] },
-                         { lat: Nav.coords[i + 1][0], lng: Nav.coords[i + 1][1] });
-    if (!best || r.d < best.d) { best = r; at = i; }
+     looked for a few segments either side of where the fix landed.
+
+     Only a segment that is road, and that runs the way the vehicle is
+     going. The check above asks that of the segment the fix is nearest;
+     this loop then took whichever was nearest the drawn target, and those
+     are not always the same one. Two ways that went wrong, both at a
+     recalculation, both measured on a drive that ignored its route for
+     five kilometres - 24 recalculations, the arrow more than thirty
+     degrees off the direction of travel on 23 fixes:
+
+     - A new route begins with a stub from the fix across to the road. The
+       target is standing on the end of that stub, so the stub was the
+       nearest segment, and the arrow was pointed along it: ninety degrees
+       off, sideways, at every recalculation.
+     - A new route that says turn round runs back down the road the vehicle
+       is on. A short piece of it runs forward to the next corner first, so
+       the check passed, and the loop then chose the returning line an inch
+       away - and pointed the arrow back the way it had come, for as long as
+       the driver carried on.
+
+     Heading up, the whole map swings with the arrow.
+
+     The line it goes onto is the one that is drawn - the curve, not the
+     route's own points. The same few legs either side of the fix, looked
+     for along the pieces of the curve that came out of them. On the route's
+     points the vehicle ran along a chord while the line it was meant to be
+     on bowed out to the road beside it, and the arrow turned through a
+     bend one elbow at a time. On the curve it turns a few degrees a piece,
+     and round a corner with the line. */
+  const F = Nav.flow;
+  if (!F) return;
+  const t = view.tgt, n = Nav.coords.length, L = F.line;
+  const lo = Math.max(Nav.head || 0, near.i - 3);
+  const hi = Math.min(Nav.tail > 0 ? Nav.tail : n - 1, n - 1, near.i + 4);
+  let best = null, way = null;
+  for (let q = F.at[lo]; q < F.at[hi]; q++) {
+    const a = { lat: L[q][0], lng: L[q][1] }, b = { lat: L[q + 1][0], lng: L[q + 1][1] };
+    const along = bearing(a, b);
+    if (hdg != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) continue;
+    const r = segNear(t, a, b);
+    if (!best || r.d < best.d) { best = r; way = along; }
   }
   if (!best || best.d > CFG.NAV_SNAP_M) return;
   view.tgt = { lat: best.lat, lng: best.lng };
-  /* Pointed along the line only while moving. Stopped, the compass has the
-     arrow and turns it on the spot, which is the one thing a line cannot
-     tell it. */
-  if (hdg != null) { const b = navSegBearing(at); if (b != null) view.hdgTgt = b; }
+  /* Pointed along the line only while moving. Stopped, the arrow keeps the
+     way it was going - see pushPosition.
+
+     And along it only as far as NAV_SNAP_LEAN from the way the vehicle is
+     moving. A corner is drawn as a curve, and a vehicle carrying straight
+     on past its turn is nearest a piece of that curve which has already
+     begun to swing: pointed along it, the arrow leaned fifty degrees into
+     a turn the driver was not making, for the two seconds it takes to
+     believe the turn was missed. Told one way and driven another over
+     thirty trips, the arrow was more than thirty degrees off the direction
+     of travel on 102 fixes of 12,475 without this, on 57 when the line was
+     drawn joint to joint, and is on 14 with it. Anything still pulling
+     that hard is a line the vehicle is not following. */
+  if (hdg != null && way != null) {
+    const pull = ((way - hdg + 540) % 360) - 180, most = CFG.NAV_SNAP_LEAN;
+    view.hdgTgt = (hdg + Math.max(-most, Math.min(most, pull)) + 360) % 360;
+  }
 }
 
 /* Progress is measured against the nearest point on the route. The cursor
@@ -18830,10 +19892,11 @@ function navNearestIdx() {
 
      Projecting onto the segment is what fixed that, and it is also what
      lets the wrong-turn threshold be a sane number again. The builder
-     thins corners with a five metre tolerance measured the same way, so the
-     drawn line is never more than five metres from the surveyed road
-     however long the chord across it - and NAV_OFF_ROUTE no longer has to
-     carry the slack that the corners used to need.
+     thins corners with a tolerance measured the same way - five metres
+     when this was written, two now - so the drawn line is never more than
+     that from the surveyed road however long the chord across it, and
+     NAV_OFF_ROUTE no longer has to carry the slack that the corners used to
+     need.
 
      And the line going the way the vehicle is going. A route that passes
      its destination on one side of a divided road, turns at the next gap
@@ -19129,6 +20192,7 @@ function cancelNav(quiet) {
   Nav.dest = null;
   Nav.coords = [];
   Nav.cum = [];
+  Nav.flow = null;
   Nav.legs = null;
   Nav.turns = [];
   Nav.idx = 0;
@@ -19136,6 +20200,8 @@ function cancelNav(quiet) {
   Nav.lost = false;
   Nav.via = "";
   Nav.standing = "";
+  AutoZoom.turn(null);
+  AutoZoom.settle();
   Voice.stop();
   /* Cancelled by hand, the bar says so; ended by anything else - an
      arrival, which says its own - it goes. */
@@ -19798,7 +20864,7 @@ function renderGpsPanel() {
     }
     trow("Compass", Compass.status(), Compass.fresh() ? "ok" : "warn");
     trow("Arrow follows", view.hdgFrom || "nothing yet",
-         view.hdgFrom === "compass" || view.hdgFrom === "gps course" ? "ok" : "warn");
+         view.hdgFrom === "compass" || view.hdgFrom === "gps course" || view.hdgFrom === "last course" ? "ok" : "warn");
     if (typeof Wake !== "undefined") {
       trow("Screen lock", Wake.status(), Wake.lock ? "ok" : "warn");
     }
@@ -20393,6 +21459,7 @@ function setUnits(u) {
    redraws and that is all. */
 function redrawUnits() {
   syncUnitButtons();
+  syncZoomButtons();
   FuelCalc.sync();
   updateStats();
   layoutHud();       /* the units change how wide the widest readings are */
@@ -20563,6 +21630,12 @@ function syncVoiceButtons() {
      is on - a page cannot lift the voice past the media volume, nor ask
      for the music to pause rather than duck. */
   const own = NATIVE && !!S.navVoice;
+  /* How fast it talks is the page's to set anywhere there is a voice. */
+  const rate = CFG.VOICE_RATES[S.voiceRate] ? S.voiceRate : "medium";
+  $("#voiceRateRow").classList.toggle("hidden", !S.navVoice || !Voice.ready());
+  $("#btnRateSlow").classList.toggle("on", rate === "slow");
+  $("#btnRateMedium").classList.toggle("on", rate === "medium");
+  $("#btnRateFast").classList.toggle("on", rate === "fast");
   $("#voiceBoostRow").classList.toggle("hidden", !own);
   $("#voiceMusicRow").classList.toggle("hidden", !own);
   $("#btnBoostNormal").classList.toggle("on", S.voiceBoost === "normal");
@@ -20624,8 +21697,8 @@ $("#voicePick").addEventListener("change", function () {
   syncVoiceButtons();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
 });
-/* Loudness and music are judged by ear, like the accent: each choice says a
-   line there and then, at the new setting, over whatever is playing. */
+/* Speed, loudness and music are judged by ear, like the accent: each choice
+   says a line there and then, at the new setting, over whatever is playing. */
 function setVoiceSound(key, val) {
   if (S[key] === val) return;
   S[key] = val;
@@ -20633,6 +21706,9 @@ function setVoiceSound(key, val) {
   syncVoiceButtons();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
 }
+$("#btnRateSlow").addEventListener("click", function () { setVoiceSound("voiceRate", "slow"); });
+$("#btnRateMedium").addEventListener("click", function () { setVoiceSound("voiceRate", "medium"); });
+$("#btnRateFast").addEventListener("click", function () { setVoiceSound("voiceRate", "fast"); });
 $("#btnBoostNormal").addEventListener("click", function () { setVoiceSound("voiceBoost", "normal"); });
 $("#btnBoostLoud").addEventListener("click", function () { setVoiceSound("voiceBoost", "loud"); });
 $("#btnBoostMax").addEventListener("click", function () { setVoiceSound("voiceBoost", "max"); });
@@ -20682,6 +21758,20 @@ function syncTiltButtons() {
   $("#btnTiltOff").classList.toggle("on", !S.tilt);
 }
 
+function setAutoZoom(on) {
+  S.autoZoom = on;
+  saveSettings();
+  AutoZoom.settle();          /* off while closed in, it goes back out now */
+  syncZoomButtons();
+}
+function syncZoomButtons() {
+  $("#btnAzOn").classList.toggle("on", !!S.autoZoom);
+  $("#btnAzOff").classList.toggle("on", !S.autoZoom);
+  /* the speed in the driver's own units: 30 km/h, or 19 mph */
+  $("#azNote").textContent = "Zooms in for turns and below " + Math.round(dispSpeed(CFG.ZOOM_SLOW)) + " " +
+    unitLabel("speed") + ", then back out.";
+}
+
 /* The state line says what is drawn and why, because Auto is the default and
    a driver who has never touched this should still be able to find out why
    the map went dark - or why it has not. */
@@ -20701,6 +21791,8 @@ function syncNightButtons() {
 $("#btnNightAuto").addEventListener("click", function () { setNight("auto"); });
 $("#btnNightDay").addEventListener("click", function () { setNight("day"); });
 $("#btnNightOff").addEventListener("click", function () { setNight("night"); });
+$("#btnAzOn").addEventListener("click", function () { setAutoZoom(true); });
+$("#btnAzOff").addEventListener("click", function () { setAutoZoom(false); });
 $("#btnTiltOn").addEventListener("click", function () { setTilt(true); });
 $("#btnTiltOff").addEventListener("click", function () { setTilt(false); });
 $("#btnAwakeOn").addEventListener("click", function () { setKeepAwake(true); });
@@ -21061,6 +22153,7 @@ document.addEventListener("keydown", function (e) {
      until this build, which is to say it was every install. */
   syncHillshadeButtons();
   syncTiltButtons();
+  syncZoomButtons();
   syncNightButtons();
   Night.load();
   /* before anything measures the bars, since it can change their height */

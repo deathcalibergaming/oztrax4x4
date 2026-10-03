@@ -21,6 +21,9 @@
      NavSim.sum(await NavSim.run(40, 7, { turnIn: 40 }))  turn in for the pin
      NavSim.sum(await NavSim.run(60, 21, { miss: true })) straight on at a turn
      NavSim.sum(await NavSim.runList(NavSim.divided(30, 3)))  across a divided road
+     await NavSim.wrong(30, 11)                       told one way, driven another
+     await NavSim.wrong(30, 11, { curve: true })      the same, driven round the corners
+     await NavSim.path(start, [via], pin)             one trip, the way it was driven
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -45,6 +48,30 @@
      build, keep the list - localStorage survives the reload - and hand it
      to runList. For the other build, git show main:docs/index.html into
      docs/_old.html and open that.
+
+   wrong() is a different drive and reads a different thing. Each trip is
+   told to go to one place and driven, along real roads, to another - so
+   turns are missed where roads really fork and the route is recalculated
+   again and again, a second a fix as on the road. What it reports is the
+   vehicle marker: how many fixes the arrow was more than 30, 90 and 150
+   degrees off the direction of travel, how many of those fell on a
+   recalculation and how many while the marker was drawn on the route line.
+   A long run: start it without awaiting and collect the answer, or the
+   preview's script timeout cuts it off.
+
+   The vehicle in wrong() runs joint to joint along the route's own points,
+   and swings the whole of a corner between one fix and the next. With
+   curve: true it drives the road as the app draws it - see navFlow in
+   index.html - so its heading turns through a corner over the ten metres a
+   corner takes, as a vehicle's does. Use both for anything that changes
+   where the marker is put or which way it points: a rule that only looks
+   right against a vehicle that pivots is not right.
+
+   path() is for a report from the road - "it said nothing at the end of
+   Chess Street". The app is told the destination and the vehicle is driven
+   the way the driver went, through each via in turn, with the voice on. It
+   hands back each route the app worked out and each line it said, with
+   where on the drive it said it.
 
    The numbers the arrival rule was measured on are in the README, under
    "Measuring navigation".
@@ -100,7 +127,7 @@
       speaking: false, pending: false, paused: false, end: 0, u: null, now: 0,
       speak: function (u) {
         this.u = u; this.speaking = true;
-        this.end = this.now + 0.4 + u.text.split(/\s+/).length / (wps || 2);
+        this.end = this.now + 0.4 + u.text.split(/\s+/).length / ((wps || 2) * (u.rate || 1));
       },
       cancel: function () {
         const u = this.u; this.u = null; this.speaking = false;
@@ -137,7 +164,9 @@
       },
       remove: function () {
         Voice.utter = rig.utter; Voice.duck = rig.duck; Voice.unduck = rig.unduck;
-        delete window.speechSynthesis;
+        /* put back, not deleted: it is the window's own property, and a
+           delete left the page with no voice at all until it was reloaded */
+        Object.defineProperty(window, "speechSynthesis", { value: rig.real, configurable: true, writable: true });
       }
     };
     return rig;
@@ -322,6 +351,158 @@
     });
   }
 
+  /* Told to go to nav, driven to drive. Returns a row per fix: was the
+     route lost, was it recalculated on this fix, is the marker drawn off the
+     fix (on the line), and how far its arrow is from the way the vehicle is
+     really going. */
+  async function wrongRoad(o, to, nav, opt) {
+    opt = opt || {};
+    const r = rng(opt.seed || 1), sigma = opt.sigma == null ? 3 : opt.sigma, V = opt.v || 13;
+    const off = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+    if (Nav.active) cancelNav(true);
+    pushPosition({ lat: o.lat, lng: o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+    await navigateTo({ lat: to.lat, lng: to.lng, name: "driven" });
+    if (!Nav.active || Nav.via !== "local") return { skip: "no route to drive" };
+    let co = Nav.coords.slice(), cum = Nav.cum.slice(), head = Nav.head, tail = Nav.tail;
+    /* curve: driven as a vehicle drives it - round the corners and through
+       the bends, on the curve the app would draw for this road - so its
+       heading turns as it goes rather than all at once at a joint. */
+    if (opt.curve && typeof navFlow === "function") {
+      const fl = navFlow(co, [head, tail]);
+      co = fl.line.slice(fl.at[head], fl.at[tail] + 1);
+      cum = [0];
+      for (let i = 1; i < co.length; i++) {
+        cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+      }
+      head = 0; tail = co.length - 1;
+    }
+    cancelNav(true);
+    await navigateTo({ lat: nav.lat, lng: nav.lng, name: "told" });
+    if (!Nav.active) return { skip: "no route to be told" };
+    const log = [];
+    let ex = 0, ey = 0, last = Nav.coords, calcs = 0;
+    for (let s = cum[head] + 5; s < cum[tail] - 20; s += V) {
+      const p = pointAt(co, cum, s);
+      ex = 0.8 * ex + 0.6 * gauss(r) * sigma;
+      ey = 0.8 * ey + 0.6 * gauss(r) * sigma;
+      const f = offset(p, ex, ey);
+      /* a second a fix, as on the road: the sim runs far faster than
+         NAV_RECALC_GAP, and without this a recalculation never starts */
+      Nav.lastCalc -= 1000;
+      pushPosition({ lat: f.lat, lng: f.lng, spd: V, hdg: (p.hdg + gauss(r) * 4 + 360) % 360,
+                     acc: 5, sim: false, t: Date.now() });
+      await settle();
+      if (!Nav.active) break;
+      const re = Nav.coords !== last;
+      last = Nav.coords;
+      if (re) calcs++;
+      log.push({ s: Math.round(s), lost: Nav.lost, re: re, snap: haversine(view.tgt, f) > 0.5,
+                 hdgErr: Math.round(off(view.hdgTgt, p.hdg)), posErr: Math.round(haversine(view.tgt, p)) });
+    }
+    if (Nav.active) cancelNav(true);
+    return { fixes: log.length, calcs: calcs, log: log };
+  }
+
+  /* n such drives across metropolitan Adelaide, three kilometres each way,
+     the two destinations 60 to 180 degrees apart - and what the marker did
+     over all of them. */
+  async function wrong(n, seed, opt) {
+    stub();
+    const r = rng(seed);
+    const sum = { trips: 0, fixes: 0, calcs: 0, off30: 0, off90: 0, off150: 0, atCalc: 0, onLine: 0, worst: 0 };
+    for (let k = 0; k < n; k++) {
+      const o = { lat: -34.95 + r() * 0.17, lng: 138.56 + r() * 0.14 };
+      const a = r() * 2 * Math.PI, b = a + (0.5 + r()) * Math.PI * 0.66;
+      const res = await wrongRoad(o, offset(o, Math.cos(a) * 3000, Math.sin(a) * 3000),
+                                  offset(o, Math.cos(b) * 3000, Math.sin(b) * 3000),
+                                  Object.assign({}, opt, { seed: (r() * 1e9) | 0 }));
+      if (res.skip) continue;
+      sum.trips++; sum.fixes += res.fixes; sum.calcs += res.calcs;
+      res.log.forEach(function (x) {
+        if (x.hdgErr > 30) { sum.off30++; if (x.re) sum.atCalc++; if (x.snap) sum.onLine++; }
+        if (x.hdgErr > 90) sum.off90++;
+        if (x.hdgErr > 150) sum.off150++;
+        if (x.hdgErr > sum.worst) sum.worst = x.hdgErr;
+      });
+    }
+    return sum;
+  }
+
+  /* One trip off a field report: the app is told only where it is going,
+     and the vehicle is driven the way the driver went - the app's own route
+     through each via in turn, which is how to say "down Chess Street" to
+     it. A fix a second, slowing to walking pace for the corners of the road
+     driven, the route recalculated whenever the app decides it has to be.
+     What comes back is every route it was given and every line it said,
+     with the metres driven and the road under the wheels when it said it. */
+  async function path(start, vias, dest, opt) {
+    opt = opt || {};
+    stub();
+    if (Nav.active) cancelNav(true);
+    const co = [], names = [];
+    let from = start;
+    for (const v of vias.concat([dest])) {
+      pushPosition({ lat: from.lat, lng: from.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+      await navigateTo({ lat: v.lat, lng: v.lng, name: "via" });
+      if (!Nav.active || Nav.via !== "local") return { skip: "no route through a via" };
+      for (let i = Nav.head; i <= Nav.tail; i++) {
+        if (co.length && i === Nav.head) continue;
+        let nm = "";
+        for (const l of Nav.legs || []) if (l.at <= i) nm = l.name || "-";
+        co.push(Nav.coords[i]); names.push(nm);
+      }
+      from = { lat: Nav.coords[Nav.tail][0], lng: Nav.coords[Nav.tail][1] };
+      cancelNav(true);
+    }
+    const cum = [0], corners = [];
+    for (let i = 1; i < co.length; i++) {
+      cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+    }
+    for (let i = 1; i < co.length - 1; i++) {
+      const a = bearing({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+      const b = bearing({ lat: co[i][0], lng: co[i][1] }, { lat: co[i + 1][0], lng: co[i + 1][1] });
+      if (angleOff(a, b) > 45) corners.push(cum[i]);
+    }
+    const on = function (s) {
+      let i = 0;
+      while (i < cum.length - 2 && cum[i + 1] < s) i++;
+      return names[i];
+    };
+    const told = function () {
+      return Nav.turns.map((t) => Math.round(t.m) + " " + t.kind + " " + (t.name || "-")).join(" | ");
+    };
+
+    const rig = voiceRig(opt.wps), wasVoice = S.navVoice;
+    rig.install(); S.navVoice = true; Voice.reset();
+    pushPosition({ lat: start.lat, lng: start.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+    await navigateTo({ lat: dest.lat, lng: dest.lng, name: opt.name || "the pin" });
+    const routes = ["at the start: " + told()];
+    const V = opt.v || 13, end = cum[cum.length - 1];
+    let s = 0, was = 0, last = Nav.coords;
+    for (let n = 0; n < 20000 && Nav.active && s < end; n++) {
+      let d = Infinity;
+      for (const c of corners) d = Math.min(d, Math.abs(c - s));
+      const v = Math.min(V, 4 + 0.1 * d, was + 2.5, Math.max(2, (end - s) / 6));
+      was = v;
+      s = Math.min(end, s + v);
+      const p = pointAt(co, cum, s);
+      rig.tick(s);
+      Nav.lastCalc -= 1000;
+      pushPosition({ lat: p.lat, lng: p.lng, spd: v, hdg: p.hdg, acc: 5, sim: false, t: Date.now() });
+      await settle();
+      if (Nav.active && Nav.coords !== last) {
+        last = Nav.coords;
+        routes.push("recalculated " + Math.round(s) + " m in, on " + on(s) + ": " + told());
+      }
+    }
+    const said = rig.lines.filter((l) => l.said)
+      .map((l) => l.s + " m, on " + on(l.s) + ": " + l.text + (l.cut ? " [CUT]" : ""));
+    if (Nav.active) cancelNav(true);
+    rig.remove(); S.navVoice = wasVoice;
+    return { len: Math.round(end), driven: names.filter((x, i) => x !== names[i - 1]).join(" > "),
+             routes: routes, said: said };
+  }
+
   function stub() {
     S.follow = false;
     window.fetchPois = function () {};
@@ -343,6 +524,7 @@
 
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
+    wrongRoad: wrongRoad, wrong: wrong, path: path,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up

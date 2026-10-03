@@ -1355,7 +1355,14 @@ the next sign, so the roundel does too:
 - **Over a gap:** off every mapped road for a moment - a wandering fix, a
   bend drawn across its corner - the last limit stays for 150m or 12 seconds
   while still heading the same way.
-- **Gone:** a turn onto a road with no limit posted, or nothing known at all.
+- **A street with nothing posted:** 50, the built-up default. Over half the
+  back streets in the packs carry no limit, because nobody signs one and so
+  nobody maps one, and a roundel that went dark at every side street read
+  as broken. Of the streets that do carry a limit, 99% carry this one. Only
+  for a residential street, after everything above, and not in the Northern
+  Territory, where the default is 60.
+- **Gone:** a turn onto any other road with no limit posted, or nothing
+  known at all.
 
 The roads come from the road packs the router already holds - every drivable
 road in the country, with the limit OpenStreetMap had for it at the monthly
@@ -1407,6 +1414,36 @@ The sentence under the switch says where the limits come from, because the
 app is not the authority here and should not sound like one: *those limits
 come from OpenStreetMap — they are missing on many roads and can be out of
 date, so the sign beside the road is the one that counts.*
+
+### Route Line
+
+Navigation Blue, 5.5px, on a near-black casing twice its width, round at
+every end and join.
+
+**A curve, not a ruler between points.** The road packs hold a bend as the
+fewest straight pieces that stay within a few metres of it, and the line
+used to be drawn piece by piece: an elbow every thirty-odd degrees round
+anything that curved, which at the zoom a turn is driven at read as a route
+that did not know the road. It is drawn through the same points as a curve
+now. A bend in a road is run through; a corner between two roads is rounded
+on the inside, by about the arc a car takes; turning round stays a point.
+The curve never stands more than a metre off the straight piece it
+replaced, because a road mapped straight is drawn straight underneath it,
+and a line bowing out of the road it is on is worse than an elbow.
+
+**On the road, not beside it.** A smooth line a lane's width to one side is
+still wrong, and at the zoom a turn is driven at that is what five metres
+of slack in the road packs came to. They hold a road to two now, and the
+line sits within a metre and a half of the surveyed centre for all but a
+hundredth of its length.
+
+**The vehicle rides the curve.** While it is on the route the arrow is
+drawn on the line and pointed along it, and the line it is drawn on is the
+one on the screen. Through a bend it turns a few degrees at a time with the
+road, where it used to hold one heading down each straight piece and jump
+at the joint. The line turns the arrow no more than 25° from the way the
+GPS says the vehicle is moving: carry straight on past a turn and the arrow
+goes straight on too, rather than leaning round a corner nobody took.
 
 ### Turn Instructions
 
@@ -1727,6 +1764,40 @@ three hundred metres north of Hawker produced six sentences in fourteen
 seconds of speech over six seconds of driving. The same three corners are now
 four lines, and the whole 11.8km route with seven turns in it is fourteen
 lines across 609 fixes.
+
+**A jog is two turns, and both are said.** Right at the end of one street
+and left into the next twenty metres along is *turn right onto Clayson Road,
+then turn left onto Northbri Avenue* - not one junction, whose right and left
+sum to nothing and leave a driver at a T with nothing said. And where the
+second turn comes up sooner than its own call could be made, the call at the
+first carries it: *Turn right, then turn left*. The second is still called
+at its corner, unless that line is the one being said.
+
+The same goes for a side road that turns straight after its mouth: *turn
+right onto Crescent Drive, then turn left*, where the right and the bend
+eighteen metres into Crescent Drive had cancelled and the route left the
+main road in silence.
+
+**A road is named once in a line.** *Then turn left onto Crescent Drive*
+would be telling a driver to turn onto the road they were told, four words
+earlier, they were turning onto. Where the corner after is on the road this
+one goes onto, it is *then turn left*, and *Turn left* at the corner itself.
+
+**How fast it talks is the driver's.** Speed - Slow, Medium, Fast - sits
+with the voice's other rows and says a line when it is changed, the way
+Loudness does. Medium is a tenth under the rate the voice was built at and
+is where it starts; the built rate, which it used to be, is Fast. A road
+name is heard once, over an engine, by someone looking at the road.
+
+**A roundabout is one instruction: which exit.** *At the roundabout, take
+the third exit onto Onkaparinga Valley Road*, given where the ring is
+entered and held on the bar until it is left; at the roundabout itself,
+*Take the third exit*. The bar says *Take the 3rd exit* over the road name,
+beside a ring with an arrow out of it - left, right, ahead or back, which
+is the way the exit goes and is the only part read at a glance. It used to
+be whatever corners the ring happened to be drawn with: at Woodside, *turn
+left onto B34, then turn left* for a right turn. Where the exits cannot be
+counted - a route from the online router - it is *Left at the roundabout*.
 
 **Turning around is not announced onto anywhere.** At a hundred and sixty
 degrees the road you come out on is the road you went in on, and *turn around
@@ -2058,6 +2129,45 @@ measurement always came back zero. The band is reserved whether a bar is up or
 not — the box is always there and Navigate always stands in it, and an inset
 that came and went with a recording would walk the vehicle up and down the
 screen while somebody was driving.
+
+### Auto Zoom
+
+The map closes in where there is something to see and opens out again where
+there is not. For a turn on the route - an intersection, a ramp, a
+roundabout, the destination - from twelve seconds out and never less than
+250 m, until the turn is behind; and whenever the speed comes down to
+30 km/h, until it is back over 40. Close is zoom 17, where a junction's arms
+are apart on the glass; what it opens out to is the driver's own zoom, and
+that is the only zoom saved. A zoom by hand while it is closed in is taken
+for now and not fought, and the map still returns to the driver's zoom when
+the road opens up.
+
+**Two steps, because one could not be seen.** Closer again at the turn
+itself: zoom 18 from six seconds out, never less than 100 m, and always a
+level in from the driver's own zoom - then back to 17 once the turn is
+behind. The first step alone did nothing in a town. The turns of a suburb
+are inside one another's reach and most of it is driven under forty, so the
+map closed in as the trip began and stayed closed: on the trip it was
+reported from, 272 fixes of 297. Each turn arrived on a map already as
+close as it was going to get, and the driver's word for that was *not
+working*. The second step lets go between turns and comes back for the
+next, so each one is something that happens. A zoom by hand lasts until the
+next step.
+
+Eased over about a second, on the follow camera, because a zoom that snaps
+reads as a different map. This is the one thing that moves on its own while
+the vehicle is moving, and it is allowed to because it is the map showing
+the road, not the interface performing. It never happens at a standstill
+after launch - only a vehicle that has been at speed closes in when it
+slows - and it is one switch in Settings to turn off.
+
+**The arrow keeps the way it was going.** Stopped, a phone reports no
+course, and its compass reports which way the cradle faces; the arrow, and
+heading up the whole map, used to swing to that at every junction. Once the
+vehicle has travelled, the arrow holds its last direction until the next
+fix at speed, or - crawling - until the position has moved twelve metres,
+which is a direction. The compass has the arrow only before the first
+movement.
 
 ### Night Map
 
