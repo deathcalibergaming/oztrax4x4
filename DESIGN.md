@@ -1441,7 +1441,9 @@ hundredth of its length.
 drawn on the line and pointed along it, and the line it is drawn on is the
 one on the screen. Through a bend it turns a few degrees at a time with the
 road, where it used to hold one heading down each straight piece and jump
-at the joint.
+at the joint. The line turns the arrow no more than 25° from the way the
+GPS says the vehicle is moving: carry straight on past a turn and the arrow
+goes straight on too, rather than leaning round a corner nobody took.
 
 ### Turn Instructions
 
