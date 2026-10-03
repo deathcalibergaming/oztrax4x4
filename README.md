@@ -428,6 +428,86 @@ The voice run after all three: 229 of 229 road names heard, 33 of 33
 arrived, at most 13 m short; the marker more than 30 degrees off on 57
 fixes of 12,475, none over 90.
 
+**The route is drawn as a curve.** Reported as "jagged lines along a road".
+The road packs keep a corner of a road only where dropping it would move the
+line more than a few metres, so a bend arrives as the fewest straight
+pieces that stay inside that - a joint every 37 degrees round anything
+tighter than a hundred metres. On 19 km of Gorge Road, 183 of the route's 280 joints
+swing 15 to 45 degrees, and the line was drawn joint to joint.
+
+`navFlow` draws it through the same points as a curve. A joint that swings
+up to 45 degrees is a bend and the curve goes through it; past that it is a
+corner and is cut inside, by two metres at most. The curve may stand no
+more than two metres off the straight leg between two joints. The vehicle
+is drawn on the curve too (`navSnap`), so it turns with the line through a
+bend rather than one joint at a time. Progress, the turns and the off-route
+check still read the route's own points.
+
+Measured with `tools/line-fit.js`: 120 trips of 2 to 8 km, half round
+Adelaide and half in the hills, routed on packs built twice from one
+extract - as shipped, and with every surveyed point kept. 114 took the same
+roads both times, 918 km. A point every two metres along the drawn line,
+and how far it is from the surveyed road:
+
+| | joint to joint | as a curve |
+|---|---|---|
+| average | 0.60 m | 0.60 m |
+| nine points in ten within | 1.98 m | 1.78 m |
+| ninety-nine in a hundred within | 3.98 m | 3.76 m |
+| more than 2 m off | 9.8% | 8.0% |
+| joints swinging over 20 degrees, per km | 4.74 | 0.12 |
+| joints swinging over 45 degrees, per km | 1.09 | 0.01 |
+| points in the line | 14,166 | 53,025 |
+
+So it is no further from the road and a little closer on the bends; what
+changed is the elbows. The ones left are under a metre across. On the packs as
+shipped today, a month older than that survey, the average goes from 0.70 m
+to 0.68 and the elbows from 4.77 a kilometre to 0.11.
+
+What it was chosen over, same trips:
+
+| | average | over 2 m off | elbows over 20 degrees, per km |
+|---|---|---|---|
+| a curve with no limit on how far it bows | 0.65 m | 9.4% | 0.12 |
+| every joint cut inside, none run through | 0.78 m | 11.8% | 0.11 |
+| every joint run through, none cut | 0.62 m | 7.8% | 0.86 |
+
+The first assumes every leg is the chord of an arc, and plenty are mapped as
+straight as they are drawn. The second cannot swing wide, which is why it
+is the usual choice, but it pulls the joints in - the one part of the line
+that was exact. The third swings out wide of both roads before a street
+corner. Sydney to Broome, 9,801 points, comes out as 13,441 in about 12 ms.
+
+The vehicle on the curve was measured two ways. Followed: the same trips
+navigated on the shipped packs while the vehicle is driven along the
+surveyed road with three metres of GPS wander (`LineFit.follow`), reading
+the arrow against the way the surveyed road runs - 113 trips, 70,059 fixes,
+about 61,000 of them drawn on the line. And not followed:
+`NavSim.wrong(30, 11)`, told one way and driven another, 12,475 fixes.
+
+| | on the route's points | on the curve |
+|---|---|---|
+| followed: arrow off the road's direction, average | 2.02 degrees | 2.09 |
+| followed: more than 15 degrees off | 876 fixes | 816 |
+| followed: more than 30 degrees off | 170 | 23 |
+| followed: worst | 57 degrees | 37 |
+| followed: marker from the vehicle, average | 2.69 m | 2.67 m |
+| not followed: more than 30 degrees off | 57 | 14 |
+| not followed: worst | 57 degrees | 36 |
+
+Most of that last drop is `NAV_SNAP_LEAN`, and the curve needed it. A
+vehicle carrying straight on past its turn is nearest a piece of the
+corner's curve that has already begun to swing, and pointed along it the
+arrow leaned up to fifty degrees into a turn nobody was making: 102 fixes
+over thirty degrees, not 57, until the line was allowed to turn the arrow
+no more than 25 degrees from the way the GPS says the vehicle is moving.
+`NavSim.wrong` takes `{ curve: true }` now, which drives the corners as a
+curve rather than pivoting at the joint; it reads 13 where the pivoting
+drive reads 14.
+
+Arrival and the voice, run again: 33 of 33 arrived, at most 13 m short;
+229 of 229 road names heard.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to

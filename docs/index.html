@@ -3870,6 +3870,11 @@ const CFG = {
      is seen on the screen as soon as it is made. */
   NAV_SNAP_M: 25,
   NAV_SNAP_ANGLE: 50,
+  /* And how far the line may turn the arrow from the way the vehicle is
+     moving, once it is drawn on it. Under this the arrow lies along the
+     line and the wander in the GPS course never shows; past it the line
+     has its pull and no more. */
+  NAV_SNAP_LEAN: 25,
   /* How far either side of a junction the line is read to find the angle of
      it. Just past nothing: see navBearAt. */
   NAV_TURN_WIN: 5,
@@ -3877,6 +3882,17 @@ const CFG = {
      own rule as it was when every leg was held to five metres: the ceiling
      in metres, the share of a stretch's own length, and the floor. */
   NAV_THIN: [5, 0.08, 0.5],
+  /* How the route line is drawn - see navFlow. Degrees, metres and shares.
+     A joint that swings up to `bend` is a bend in a road and the line is
+     run through it; past that, up to `sharp`, it is a corner and is cut
+     inside, by no more than `inside` metres; past `sharp` it is turning
+     round and is left as it is. `bulge` is the furthest a curve may stand
+     off the straight line between two joints. `reach` is the share of a
+     leg a corner may round off - twice that where the joint at the far end
+     wants none of it, a bend giving its half up as its own swing falls from
+     `spare` to nothing. A curve is cut into pieces that each turn under
+     `step` or are under `least` long, halved `deep` times at most. */
+  NAV_FLOW: { bend: 45, sharp: 150, bulge: 2, inside: 2, reach: 0.45, spare: 30, step: 8, least: 0.5, deep: 5 },
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
   /* Unless it is a jog: one way and then the other, with a road between.
      From ten metres - under that the two side streets still face each
@@ -17936,6 +17952,7 @@ const Nav = {
   dest: null,            /* {lat,lng,name} */
   coords: [],            /* route geometry, [lat,lng] pairs */
   cum: [],               /* cumulative metres along the route */
+  flow: null,            /* { line, at } - the route as it is drawn, see navFlow */
   legs: null,            /* [{at, name, cls, one}] - where each road's stretch starts */
   offFor: 0,             /* fixes running that the vehicle has been off the line */
   lost: false,           /* and whether that has gone on long enough to believe */
@@ -18250,6 +18267,190 @@ function circleR(x, y, tol, least) {
   /* A ring's corners sit on it to within a fraction of its radius. A kink
      in a road does not sit on one at all. */
   return Math.sqrt(err / x.length) < R * (tol || 0.18) ? R : 0;
+}
+
+/* The line that is drawn, which is not point to point along the route.
+
+   The packs keep a corner of a road only where dropping it would move the
+   line by more than a few metres - see SIMPLIFY_M in
+   tools/build-routing.mjs - so a bend arrives as the fewest straight
+   pieces that stay inside that. The rule is a share of each piece's own
+   length, and round anything tighter than a hundred metres that works out
+   at a joint every thirty-seven degrees. Drawn joint to joint, a road
+   through the hills was a run of rulers with an elbow between each: on
+   nineteen kilometres of Gorge Road, 183 of the 280 joints swing fifteen
+   to forty-five degrees. Reported as "jagged lines along a road", and it
+   was.
+   Nothing was wrong with where the line went. At the zoom a turn is driven
+   at, everything was wrong with how it got there.
+
+   So it is drawn as a curve through the same points.
+
+   - A bend is a joint on a road, and the curve goes through it. The way it
+     is heading there is the two legs' directions weighed by their lengths,
+     so a long straight keeps its line and the short leg after it does the
+     turning. Each leg is one cubic with handles a third of its length,
+     which between evenly spaced joints is an arc - and evenly spaced
+     joints are what the builder leaves of one.
+   - How far the curve may stand off the straight leg is capped: bulge
+     metres, or what the builder would have let a leg that long stray if
+     that is less. A leg is as often straight as it is the chord of an arc.
+     Plenty of roads are mapped as rulers with elbows, the map under the
+     line draws them that way, and a curve that bows four metres out of a
+     road drawn straight is off the road.
+   - A corner is a turn out of one road into another, or a road mapped with
+     a single point where it turns. A curve run through that point swings
+     wide of both roads on its way in. It is cut inside instead, a
+     quadratic from short of the corner to past it that never comes more
+     than inside metres in from the point - 5.7 m back along each road for
+     a right angle, which is near enough what a car does.
+   - Turning round is left sharp, and so are the two joints handed in as
+     `sharp`: where the stub from the fix meets the road, and where the
+     road meets the hop to the pin. Neither is a road.
+
+   Measured against the survey: 120 trips of two to eight kilometres, half
+   round Adelaide and half in the hills behind it, routed on packs built
+   from one extract twice - as shipped, and with every surveyed point kept.
+   114 took the same roads both times, 918 km of them. A point every two
+   metres along the drawn line, and how far it is from the surveyed road:
+
+                                    joint to joint    as a curve
+     average                            0.60 m          0.60 m
+     nine points in ten within          1.98 m          1.78 m
+     ninety-nine in a hundred within    3.98 m          3.76 m
+     more than two metres off           9.8%            8.0%
+     elbows over 20 degrees, per km     4.74            0.12
+     points in the line                 14,166          53,025
+
+   The elbows that are left are under a metre across - the point of a
+   hairpin, a corner between two legs a metre long - and not there to see. On the packs as shipped, a month
+   older than that survey, it is 0.70 m to 0.68 and 4.77 elbows to 0.11.
+
+   What else was tried, same trips. Without the cap the line is further off
+   than the rulers were, 0.65 m, with 9.4% of it over two metres. Cutting
+   every joint inside, which is the smoothing that cannot swing wide, is
+   0.78 m and 11.8%: it leaves the mid-legs where they were and pulls the
+   joints, the one part that was exact, in to meet them. The legs'
+   directions weighed evenly, or by the other leg's length as a spline
+   would, are both 0.62.
+
+   Sydney to Broome is 9,801 points and comes out as 13,441 in about a
+   hundredth of a second; a highway does not bend enough to need many.
+
+   The curve is the drawing and nothing else. Nav.coords is still the
+   route: progress, the turns and the off-route check are all read off it
+   exactly as before. `at` says where in the drawn line each of its points
+   landed, which is how navSnap finds the stretch to put the vehicle on. */
+function navFlow(co, sharp) {
+  const n = co.length, F = CFG.NAV_FLOW, TH = CFG.NAV_THIN;
+  const line = [], at = new Int32Array(n);
+  /* On Mercator's grid, where an angle is an angle at any latitude and a
+     metre is K degrees. A point stood on twice has no direction, so each
+     is taken once and `of` says which. */
+  const X = [], Y = [], K = [], hard = [], of = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = co[i][1], y = deg(Math.log(Math.tan(Math.PI / 4 + rad(co[i][0]) / 2)));
+    let m = X.length;
+    if (!m || x !== X[m - 1] || y !== Y[m - 1]) { X.push(x); Y.push(y); K.push(111320 * Math.cos(rad(co[i][0]))); m++; }
+    of[i] = m - 1;
+    if (sharp && sharp.indexOf(i) >= 0) hard[m - 1] = 1;
+  }
+  const m = X.length;
+  if (m < 3) {
+    for (let i = 0; i < n; i++) { line.push(co[i]); at[i] = i; }
+    return { line: line, at: at };
+  }
+  const put = function (x, y) { line.push([deg(2 * Math.atan(Math.exp(rad(y))) - Math.PI / 2), x]); };
+
+  /* each leg: the way it runs, and how long it is in metres */
+  const ux = new Float64Array(m), uy = new Float64Array(m), len = new Float64Array(m);
+  for (let j = 0; j < m - 1; j++) {
+    const dx = X[j + 1] - X[j], dy = Y[j + 1] - Y[j], l = Math.hypot(dx, dy);
+    ux[j] = dx / l; uy[j] = dy / l; len[j] = l * (K[j] + K[j + 1]) / 2;
+  }
+
+  /* each joint: 0 left sharp, 1 a bend and the way the curve heads through
+     it, 2 a corner and how far back along each leg it is cut */
+  const kind = new Uint8Array(m), tx = new Float64Array(m), ty = new Float64Array(m);
+  const cut = new Float64Array(m), swing = new Float64Array(m);
+  for (let j = 1; j < m - 1; j++) {
+    const a = len[j - 1], b = len[j];
+    swing[j] = Math.abs(Math.atan2(ux[j - 1] * uy[j] - uy[j - 1] * ux[j], ux[j - 1] * ux[j] + uy[j - 1] * uy[j]));
+    if (hard[j] || swing[j] > rad(F.sharp)) continue;
+    if (swing[j] > rad(F.bend)) { kind[j] = 2; continue; }
+    const vx = ux[j - 1] * a + ux[j] * b, vy = uy[j - 1] * a + uy[j] * b, vl = Math.hypot(vx, vy);
+    kind[j] = 1; tx[j] = vx / vl; ty[j] = vy / vl;
+  }
+  /* A corner rounds off what it likes of a leg, short of meeting the joint
+     at the other end coming the other way. A turn across a divided road is
+     a corner, seven metres of median and a joint that barely bends; held
+     to half of the seven it came out as an elbow with the point filed. */
+  const share = function (j) {
+    if (kind[j] === 2) return F.reach;
+    if (kind[j] === 1) return F.reach * (1 + Math.max(0, 1 - swing[j] / rad(F.spare)));
+    return F.reach * 2;
+  };
+  for (let j = 1; j < m - 1; j++) {
+    if (kind[j] !== 2) continue;
+    cut[j] = Math.min(len[j - 1] * share(j - 1), len[j] * share(j + 1), 2 * F.inside / Math.sin(swing[j] / 2));
+  }
+
+  /* A cubic, halved until each piece turns less than a step or is too
+     short to matter. Its first point is put; its last is left for whatever
+     comes next, which starts there. */
+  const step = rad(F.step);
+  const off = function (ax, ay, bx, by) {
+    if (!(ax || ay) || !(bx || by)) return 0;
+    return Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+  };
+  const curve = function (x0, y0, x1, y1, x2, y2, x3, y3, k, deep) {
+    const turn = x1 === x2 && y1 === y2 ? off(x1 - x0, y1 - y0, x3 - x2, y3 - y2)
+               : off(x1 - x0, y1 - y0, x2 - x1, y2 - y1) + off(x2 - x1, y2 - y1, x3 - x2, y3 - y2);
+    if (deep >= F.deep || turn <= step || Math.hypot(x3 - x0, y3 - y0) * k <= F.least) { put(x0, y0); return; }
+    const ax = (x0 + x1) / 2, ay = (y0 + y1) / 2, bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
+    const cx = (x2 + x3) / 2, cy = (y2 + y3) / 2;
+    const dx = (ax + bx) / 2, dy = (ay + by) / 2, ex = (bx + cx) / 2, ey = (by + cy) / 2;
+    const mx = (dx + ex) / 2, my = (dy + ey) / 2;
+    curve(x0, y0, ax, ay, dx, dy, mx, my, k, deep + 1);
+    curve(mx, my, ex, ey, cx, cy, x3, y3, k, deep + 1);
+  };
+
+  const idx = new Int32Array(m);
+  for (let j = 0; j < m - 1; j++) {
+    const k0 = K[j], k1 = K[j + 1], k = (k0 + k1) / 2;
+    /* where this leg's own stretch starts and ends, and the way the line
+       is heading at each: along the leg, unless the joint is a bend */
+    let ax = X[j], ay = Y[j], bx = X[j + 1], by = Y[j + 1];
+    let t0x = ux[j], t0y = uy[j], t1x = ux[j], t1y = uy[j];
+    if (kind[j] === 2) { ax += ux[j] * cut[j] / k0; ay += uy[j] * cut[j] / k0; }
+    else if (kind[j] === 1) { t0x = tx[j]; t0y = ty[j]; }
+    if (kind[j + 1] === 2) { bx -= ux[j] * cut[j + 1] / k1; by -= uy[j] * cut[j + 1] / k1; }
+    else if (kind[j + 1] === 1) { t1x = tx[j + 1]; t1y = ty[j + 1]; }
+    const c = Math.hypot(bx - ax, by - ay) * k;
+    const s0 = Math.abs(ux[j] * t0y - uy[j] * t0x), s1 = Math.abs(ux[j] * t1y - uy[j] * t1x);
+    if (s0 < 1e-4 && s1 < 1e-4) put(ax, ay);
+    else {
+      /* A handle standing four thirds of the cap off the leg, at both
+         ends, is a curve standing the cap off it in the middle. */
+      const cap = Math.min(F.bulge, TH[0], Math.max(TH[2], c * TH[1])) * 4 / 3;
+      const h0 = Math.min(c / 3, s0 > 1e-6 ? cap / s0 : Infinity) / k;
+      const h1 = Math.min(c / 3, s1 > 1e-6 ? cap / s1 : Infinity) / k;
+      curve(ax, ay, ax + t0x * h0, ay + t0y * h0, bx - t1x * h1, by - t1y * h1, bx, by, k, 0);
+    }
+    if (kind[j + 1] === 2) {
+      /* the corner itself: a quadratic with the joint as its one handle,
+         written as the cubic it is */
+      const vx = X[j + 1], vy = Y[j + 1];
+      const ex = vx + ux[j + 1] * cut[j + 1] / k1, ey = vy + uy[j + 1] * cut[j + 1] / k1;
+      const from = line.length;
+      curve(bx, by, bx + (vx - bx) * 2 / 3, by + (vy - by) * 2 / 3,
+            ex + (vx - ex) * 2 / 3, ey + (vy - ey) * 2 / 3, ex, ey, k1, 0);
+      idx[j + 1] = (from + line.length) >> 1;
+    } else idx[j + 1] = line.length;
+  }
+  put(X[m - 1], Y[m - 1]);
+  for (let i = 0; i < n; i++) at[i] = idx[of[i]];
+  return { line: line, at: at };
 }
 
 /* The line the corners are read off, which is not quite the line drawn.
@@ -19468,8 +19669,11 @@ async function navigateTo(dest, quiet) {
   Nav.idx = 0;
   navBuildCum();
   navBuildTurns();
-  navLine.setLatLngs(Nav.coords);
-  navCasing.setLatLngs(Nav.coords);
+  /* drawn as a curve through the route's points, with the two joints that
+     are not road left alone - see navFlow */
+  Nav.flow = navFlow(Nav.coords, [Nav.head, Nav.tail]);
+  navLine.setLatLngs(Nav.flow.line);
+  navCasing.setLatLngs(Nav.flow.line);
   navDestMk.clearLayers();
   L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon(PAINT.nav, "flag", false), keyboard: false })
     .bindPopup('<div class="pop-t" style="color:var(--nav2)">' + esc(Nav.dest.name) + "</div>", popOpts())
@@ -19561,22 +19765,47 @@ function navSnap(near, hdg) {
        away - and pointed the arrow back the way it had come, for as long as
        the driver carried on.
 
-     Heading up, the whole map swings with the arrow. */
-  const t = view.tgt, n = Nav.coords.length;
+     Heading up, the whole map swings with the arrow.
+
+     The line it goes onto is the one that is drawn - the curve, not the
+     route's own points. The same few legs either side of the fix, looked
+     for along the pieces of the curve that came out of them. On the route's
+     points the vehicle ran along a chord while the line it was meant to be
+     on bowed out to the road beside it, and the arrow turned through a
+     bend one elbow at a time. On the curve it turns a few degrees a piece,
+     and round a corner with the line. */
+  const F = Nav.flow;
+  if (!F) return;
+  const t = view.tgt, n = Nav.coords.length, L = F.line;
   const lo = Math.max(Nav.head || 0, near.i - 3);
   const hi = Math.min(Nav.tail > 0 ? Nav.tail : n - 1, n - 1, near.i + 4);
-  let best = null, at = near.i;
-  for (let i = lo; i < hi; i++) {
-    if (hdg != null && angleOff(navSegBearing(i), hdg) > CFG.NAV_SNAP_ANGLE) continue;
-    const r = segNear(t, { lat: Nav.coords[i][0], lng: Nav.coords[i][1] },
-                         { lat: Nav.coords[i + 1][0], lng: Nav.coords[i + 1][1] });
-    if (!best || r.d < best.d) { best = r; at = i; }
+  let best = null, way = null;
+  for (let q = F.at[lo]; q < F.at[hi]; q++) {
+    const a = { lat: L[q][0], lng: L[q][1] }, b = { lat: L[q + 1][0], lng: L[q + 1][1] };
+    const along = bearing(a, b);
+    if (hdg != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) continue;
+    const r = segNear(t, a, b);
+    if (!best || r.d < best.d) { best = r; way = along; }
   }
   if (!best || best.d > CFG.NAV_SNAP_M) return;
   view.tgt = { lat: best.lat, lng: best.lng };
   /* Pointed along the line only while moving. Stopped, the arrow keeps the
-     way it was going - see pushPosition. */
-  if (hdg != null) { const b = navSegBearing(at); if (b != null) view.hdgTgt = b; }
+     way it was going - see pushPosition.
+
+     And along it only as far as NAV_SNAP_LEAN from the way the vehicle is
+     moving. A corner is drawn as a curve, and a vehicle carrying straight
+     on past its turn is nearest a piece of that curve which has already
+     begun to swing: pointed along it, the arrow leaned fifty degrees into
+     a turn the driver was not making, for the two seconds it takes to
+     believe the turn was missed. Told one way and driven another over
+     thirty trips, the arrow was more than thirty degrees off the direction
+     of travel on 102 fixes of 12,475 without this, on 57 when the line was
+     drawn joint to joint, and is on 14 with it. Anything still pulling
+     that hard is a line the vehicle is not following. */
+  if (hdg != null && way != null) {
+    const pull = ((way - hdg + 540) % 360) - 180, most = CFG.NAV_SNAP_LEAN;
+    view.hdgTgt = (hdg + Math.max(-most, Math.min(most, pull)) + 360) % 360;
+  }
 }
 
 /* Progress is measured against the nearest point on the route. The cursor
@@ -19896,6 +20125,7 @@ function cancelNav(quiet) {
   Nav.dest = null;
   Nav.coords = [];
   Nav.cum = [];
+  Nav.flow = null;
   Nav.legs = null;
   Nav.turns = [];
   Nav.idx = 0;

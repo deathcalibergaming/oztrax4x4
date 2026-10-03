@@ -22,6 +22,7 @@
      NavSim.sum(await NavSim.run(60, 21, { miss: true })) straight on at a turn
      NavSim.sum(await NavSim.runList(NavSim.divided(30, 3)))  across a divided road
      await NavSim.wrong(30, 11)                       told one way, driven another
+     await NavSim.wrong(30, 11, { curve: true })      the same, driven round the corners
      await NavSim.path(start, [via], pin)             one trip, the way it was driven
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
@@ -57,6 +58,14 @@
    recalculation and how many while the marker was drawn on the route line.
    A long run: start it without awaiting and collect the answer, or the
    preview's script timeout cuts it off.
+
+   The vehicle in wrong() runs joint to joint along the route's own points,
+   and swings the whole of a corner between one fix and the next. With
+   curve: true it drives the road as the app draws it - see navFlow in
+   index.html - so its heading turns through a corner over the ten metres a
+   corner takes, as a vehicle's does. Use both for anything that changes
+   where the marker is put or which way it points: a rule that only looks
+   right against a vehicle that pivots is not right.
 
    path() is for a report from the road - "it said nothing at the end of
    Chess Street". The app is told the destination and the vehicle is driven
@@ -354,7 +363,19 @@
     pushPosition({ lat: o.lat, lng: o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
     await navigateTo({ lat: to.lat, lng: to.lng, name: "driven" });
     if (!Nav.active || Nav.via !== "local") return { skip: "no route to drive" };
-    const co = Nav.coords.slice(), cum = Nav.cum.slice(), head = Nav.head, tail = Nav.tail;
+    let co = Nav.coords.slice(), cum = Nav.cum.slice(), head = Nav.head, tail = Nav.tail;
+    /* curve: driven as a vehicle drives it - round the corners and through
+       the bends, on the curve the app would draw for this road - so its
+       heading turns as it goes rather than all at once at a joint. */
+    if (opt.curve && typeof navFlow === "function") {
+      const fl = navFlow(co, [head, tail]);
+      co = fl.line.slice(fl.at[head], fl.at[tail] + 1);
+      cum = [0];
+      for (let i = 1; i < co.length; i++) {
+        cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+      }
+      head = 0; tail = co.length - 1;
+    }
     cancelNav(true);
     await navigateTo({ lat: nav.lat, lng: nav.lng, name: "told" });
     if (!Nav.active) return { skip: "no route to be told" };
@@ -385,7 +406,7 @@
   /* n such drives across metropolitan Adelaide, three kilometres each way,
      the two destinations 60 to 180 degrees apart - and what the marker did
      over all of them. */
-  async function wrong(n, seed) {
+  async function wrong(n, seed, opt) {
     stub();
     const r = rng(seed);
     const sum = { trips: 0, fixes: 0, calcs: 0, off30: 0, off90: 0, off150: 0, atCalc: 0, onLine: 0, worst: 0 };
@@ -393,7 +414,8 @@
       const o = { lat: -34.95 + r() * 0.17, lng: 138.56 + r() * 0.14 };
       const a = r() * 2 * Math.PI, b = a + (0.5 + r()) * Math.PI * 0.66;
       const res = await wrongRoad(o, offset(o, Math.cos(a) * 3000, Math.sin(a) * 3000),
-                                  offset(o, Math.cos(b) * 3000, Math.sin(b) * 3000), { seed: (r() * 1e9) | 0 });
+                                  offset(o, Math.cos(b) * 3000, Math.sin(b) * 3000),
+                                  Object.assign({}, opt, { seed: (r() * 1e9) | 0 }));
       if (res.skip) continue;
       sum.trips++; sum.fixes += res.fixes; sum.calcs += res.calcs;
       res.log.forEach(function (x) {

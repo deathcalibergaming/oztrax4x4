@@ -1415,6 +1415,28 @@ app is not the authority here and should not sound like one: *those limits
 come from OpenStreetMap — they are missing on many roads and can be out of
 date, so the sign beside the road is the one that counts.*
 
+### Route Line
+
+Navigation Blue, 5.5px, on a near-black casing twice its width, round at
+every end and join.
+
+**A curve, not a ruler between points.** The road packs hold a bend as the
+fewest straight pieces that stay within a few metres of it, and the line
+used to be drawn piece by piece: an elbow every thirty-odd degrees round
+anything that curved, which at the zoom a turn is driven at read as a route
+that did not know the road. It is drawn through the same points as a curve
+now. A bend in a road is run through; a corner between two roads is rounded
+on the inside, by about the arc a car takes; turning round stays a point.
+The curve never stands more than two metres off the straight piece it
+replaced, because a road mapped straight is drawn straight underneath it,
+and a line bowing out of the road it is on is worse than an elbow.
+
+**The vehicle rides the curve.** While it is on the route the arrow is
+drawn on the line and pointed along it, and the line it is drawn on is the
+one on the screen. Through a bend it turns a few degrees at a time with the
+road, where it used to hold one heading down each straight piece and jump
+at the joint.
+
 ### Turn Instructions
 
 The next manoeuvre, across the top of the map, while a route is running.
