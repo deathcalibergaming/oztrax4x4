@@ -3899,6 +3899,11 @@ const CFG = {
      other, a street being seven or eight metres wide, and straight across
      is what a driver does. See navBuildTurns. */
   NAV_TURN_JOG: 10,
+  /* And how square the corner off a road has to be before it and the first
+     bend of the road it goes onto are told as two turns - see the third
+     test in navBuildTurns. Short of this it is the mouth of a street
+     splayed where it meets a curve, and the wheel never goes that way. */
+  NAV_TURN_SQUARE: 60,
   NAV_TURN_LINK: 90,       /* a one-way unnamed leg this short is a ring arc */
   NAV_TURN_RUN: 200,       /* and no run of them is longer than a big roundabout */
   NAV_RING_R: [6, 45],     /* the radius, in metres, of something drivable round */
@@ -18695,6 +18700,33 @@ function navBuildTurns() {
      - Or the leg between them is two-way and they are further apart than
        one junction is ever drawn. That is a car park: left out of the
        aisle, fifty metres, right onto the street.
+     - Or the first is a square corner onto a road of another name, the
+       second is the first bend in that road, and the route leaves the
+       second on the bearing it came into the first on. Crescent Drive
+       leaves Lobethal Road square, runs eighteen metres and turns square
+       again to run alongside it. The name comes straight back, so by the
+       first test that was the two carriageways of one road - but two
+       carriageways sum to a turn, which is why they are left as one, and
+       these summed to six degrees. Nothing was said, and the route left
+       Lobethal Road, which carries straight on. The same shape is the end
+       of Highet Street at Chapel Road - a T, left for fifteen metres,
+       right down the other arm of Chapel Road - and the track that leaves
+       Greenhill Road for Chambers Gully.
+
+       The bearing in against the bearing out, not the two corners added
+       up. Compton Street into Gouger Street is a left onto one carriageway
+       and a right round the end of the median onto the other, ninety-eight
+       degrees and a hundred and twenty-one, which add to twenty-three; but
+       the fourteen metres between them bend, and the route comes out
+       eighty-two degrees from the way it went in. That is a right turn
+       onto Gouger Street and is still called one.
+
+       And square - NAV_TURN_SQUARE - because the mouth of a street is
+       often splayed. Farnell Place leaves Dunbarton Crescent forty-nine
+       degrees to the right for ten metres and then swings seventy-two
+       left, where the crescent is itself curving right, and what the
+       wheel does there is go nearly straight on. Told as a right and a
+       left it would have been wrong twice.
 
      A one-way leg with no name is neither, so the arcs of a roundabout and
      the slip lanes of a median still sum the way they did. Measured over
@@ -18709,6 +18741,12 @@ function navBuildTurns() {
      leaves you on the same bearing a lane over, with the line on the map
      to follow.
 
+     The third test came later and is much the rarest. Over 11,184 trips
+     round Adelaide and the hills behind it - 3,194 of two to eight
+     kilometres and 7,990 short ones - it changes three places, each of
+     which had said nothing, and the corners announced go from 50,991 to
+     50,997.
+
      NAV_TURN_RUN stops a group running away with a road, at the
      circumference of the largest roundabout worth the name. */
   /* Is b the second half of a jog whose first half was the corner c? */
@@ -18717,6 +18755,10 @@ function navBuildTurns() {
     if ((b.ang < 0) === (c.ang < 0)) return false;
     const gap = b.m - c.m;
     if (c.road && b.link.toLowerCase() !== c.link.toLowerCase()) return gap >= CFG.NAV_TURN_JOG;
+    /* off the road by a square corner, and round the first bend of the
+       road it is now on, leaving on the bearing it came in on */
+    if (c.road && gap >= CFG.NAV_TURN_JOG && Math.abs(c.ang) >= CFG.NAV_TURN_SQUARE &&
+        !navTurnKind(((b.bOut - c.bIn + 540) % 360) - 180, true)) return true;
     return !c.one && gap >= CFG.NAV_TURN_MERGE;
   };
   let i = 0, floor = 0;
@@ -19235,6 +19277,14 @@ const Voice = {
        own words - a roundabout's, see navSay */
     say = say || String(act || "").toLowerCase();
     thenSay = thenSay || (then && TURN_WORD[then] ? TURN_WORD[then].toLowerCase() : "");
+    /* A road is named once in a line. Where the corner after is a bend in
+       the road this one turns onto - off Lobethal Road into Crescent Drive,
+       which turns again eighteen metres in - it was "turn right onto
+       Crescent Drive, then turn left onto Crescent Drive", and then "turn
+       left onto Crescent Drive" at the bend, to a driver already on it.
+       Named with this corner, it counts as named for the next. */
+    const again = !!(then && thenRoad && road && kind !== "uturn" &&
+                     String(thenRoad).toLowerCase() === String(road).toLowerCase());
 
     /* Off the route is said over the top of anything else, because anything
        else being said is about a road that is no longer under the wheels.
@@ -19308,7 +19358,7 @@ const Voice = {
         /* The corner after, with its road. Said here or not at all: it is
            too close to get a heads-up of its own, and a "then turn left"
            with no name was a road the driver was never told. */
-        next = then && thenSay && then !== "uturn" ? sayName(thenRoad || "") : "";
+        next = then && thenSay && then !== "uturn" && !again ? sayName(thenRoad || "") : "";
         line = lead + say +
                (road && kind !== "uturn" ? " onto " + sayName(road) : "") +
                (then && thenSay ? ", then " + thenSay : "") +
@@ -19326,7 +19376,7 @@ const Voice = {
       const spoke = this.utter(line.charAt(0).toUpperCase() + line.slice(1), false, function () {
         if (self.mark !== mark) return;
         self.heard = mark;
-        if (next) self.heardNext = true;
+        if (next || again) self.heardNext = true;
       });
       /* Something else still talking. Not queued - the distance in it would
          be wrong by the time it was said - but asked again on the next fix,
@@ -19367,7 +19417,7 @@ const Voice = {
          has already named it. */
       let tail = "", nextName = "";
       if (then && thenSay && thenIn < near) {
-        nextName = !this.heardNext && then !== "uturn" ? sayName(thenRoad || "") : "";
+        nextName = !this.heardNext && then !== "uturn" && !again ? sayName(thenRoad || "") : "";
         tail = ", then " + thenSay + (nextName ? " onto " + nextName : "");
       }
       const self = this;
@@ -19375,7 +19425,7 @@ const Voice = {
       const call = say.replace(/^at the roundabout, /, "");
       const now = call.charAt(0).toUpperCase() + call.slice(1);
       this.utter((name ? now + " onto " + name : now) + tail, true, function () {
-        if (self.mark === mark && nextName) self.heardNext = true;
+        if (self.mark === mark && (nextName || again)) self.heardNext = true;
       });
       if (tail) { this.coverNext = true; this.tailLine = this.talking; }
     }

@@ -1773,6 +1773,16 @@ second turn comes up sooner than its own call could be made, the call at the
 first carries it: *Turn right, then turn left*. The second is still called
 at its corner, unless that line is the one being said.
 
+The same goes for a side road that turns straight after its mouth: *turn
+right onto Crescent Drive, then turn left*, where the right and the bend
+eighteen metres into Crescent Drive had cancelled and the route left the
+main road in silence.
+
+**A road is named once in a line.** *Then turn left onto Crescent Drive*
+would be telling a driver to turn onto the road they were told, four words
+earlier, they were turning onto. Where the corner after is on the road this
+one goes onto, it is *then turn left*, and *Turn left* at the corner itself.
+
 **How fast it talks is the driver's.** Speed - Slow, Medium, Fast - sits
 with the voice's other rows and says a line when it is changed, the way
 Loudness does. Medium is a tenth under the rate the voice was built at and

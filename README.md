@@ -278,6 +278,40 @@ net angle - a sharp right and a left as "bear right" - and two had been
 taken for roundabouts. Which pairs count as a jog, and which are still one
 junction, is in `navBuildTurns`.
 
+One more shape was found later, by a route that left Lobethal Road for
+Crescent Drive without a word. Crescent Drive leaves square, runs 18 m and
+turns square again to run alongside, and it is Crescent Drive both sides of
+that bend - so the pair passed for the two carriageways of one road, which
+are rightly one turn, and summed to six degrees, which is no turn at all.
+A square corner onto a road of another name, then the first bend in that
+road, leaving on the bearing the route came in on, is now a jog too.
+Replayed with `NavSim.path`, from Old Norton Summit Road:
+
+| where | before | now |
+|---|---|---|
+| setting off | In 120 metres, turn right onto Lobethal Road | In 120 metres, turn right onto Lobethal Road, then turn right onto Crescent Drive |
+| 79 m | Turn right | Turn right |
+| 151 m, on Lobethal Road | - | Turn right, then turn left |
+| 205 m, at the bend in Crescent Drive | - | Turn left |
+
+Old builder against new over 11,184 trips round Adelaide and the hills
+(3,194 of 2 to 8 km and 7,990 short ones): three places change, all of them
+silent before, and the corners announced go from 50,991 to 50,997. The
+other two are the end of Highet Street at Chapel Road, a T-junction, and
+the track that leaves Greenhill Road for Chambers Gully.
+
+Two earlier cuts of it were wrong and the same diff showed both. Adding the
+two corners up, rather than taking the bearing in against the bearing out,
+also split Compton Street into Gouger Street - left onto one carriageway,
+right round the median onto the other, which is a right turn - into "turn
+left, then turn right". And any corner over 45 degrees, rather than a
+square one (`NAV_TURN_SQUARE`, 60), called the splayed mouth of Farnell
+Place "turn right, then turn left" where the wheel goes nearly straight.
+
+A road is named once in a line now: "then turn left", not "then turn left
+onto Crescent Drive" to a driver just told they are turning onto it, and
+"Turn left" at the bend.
+
 The call at the corner now carries the next corner too when that one is
 closer than its own call could be made - "Turn right, then turn left" - and
 the voice has a speed: Slow, Medium and Fast are 0.8, 0.9 and 1.0 of the
