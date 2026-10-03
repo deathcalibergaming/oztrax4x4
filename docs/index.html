@@ -18976,6 +18976,12 @@ function navArt(p1, p2, art) {
   }
   const speech = {
     speaking: false, pending: false, paused: false,
+    /* Where the last line the app played itself came out, as the phone
+       reports it: { wanted, bluetooth, name } - whether a Bluetooth device
+       was connected to send it to, whether that is where it went, and what
+       the device calls itself. Null until a line has been played that way.
+       The settings show it - see voiceStateLine. */
+    route: null,
     getVoices: function () { return voices; },
     addEventListener: function (type, fn) { if (type === "voiceschanged") told.push(fn); },
     speak: function (u) {
@@ -19006,6 +19012,11 @@ function navArt(p1, p2, art) {
     }
   };
   cap.nativeCallback("NavVoice", "addListener", { eventName: "speech" }, function (d) {
+    if (d && d.type === "route") {
+      speech.route = { wanted: !!d.wanted, bluetooth: !!d.bluetooth, name: d.name || "" };
+      if (typeof syncVoiceButtons === "function") syncVoiceButtons();
+      return;
+    }
     if (d && (d.type === "end" || d.type === "error")) settle(d.id, d.type === "end");
   });
   cap.nativePromise("NavVoice", "voices", {}).then(function (r) {
@@ -21586,7 +21597,22 @@ function voiceStateLine() {
   if (!f.local) return "On, but none of this phone's " + f.total + " voices work offline";
   if (!f.en) return "On, but none of the " + f.local + " offline voices speak English";
   if (!f.au) return "On - " + Voice.voice.name + ", which is not an Australian accent";
-  return "On - " + Voice.voice.name;
+  return "On - " + Voice.voice.name + voiceWhere();
+}
+
+/* Where the last line went, when there was a Bluetooth device it could
+   have gone to. The app only: the phone tells it, and a browser is told
+   nothing. A car that stays silent is one of two faults that sound the
+   same - the line never reached the car, or it did and the car was not
+   playing it - and this is the half the phone can see. Nothing is said
+   with no Bluetooth device connected, where there is nothing to wonder
+   about. */
+function voiceWhere() {
+  const r = NATIVE && window.speechSynthesis && window.speechSynthesis.route;
+  if (!r || !r.wanted) return "";
+  return r.bluetooth
+    ? ". Last line sent to " + (r.name || "the Bluetooth device") + " over Bluetooth"
+    : ". Bluetooth is connected, but the last line did not go to it";
 }
 
 /* The phones this is for have one English voice on them and the row stays
@@ -21660,7 +21686,8 @@ function syncVoiceButtons() {
     "Speaks each turn twice and " +
     (NATIVE && S.voiceMusic === "pause" ? "pauses" : "lowers") + " your music. Works offline. " +
     (NATIVE
-      ? "The volume buttons set how loud it is. "
+      ? "The volume buttons set how loud it is. With a car connected over Bluetooth it is sent to the car, " +
+        "which plays it while it is on Bluetooth audio. "
       : "For the volume buttons to work on a Samsung, turn on volume keys for media in " + VOL + ". ") +
     (f && f.au
       ? "For another voice: " + TTS + "."
