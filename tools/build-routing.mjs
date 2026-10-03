@@ -99,20 +99,41 @@ const PRECISION = 100000;     /* five decimals, a bit over a metre */
    between their neighbours. Measured over the whole country at five metres,
    46% of the corners on the spine carry no shape at all.
 
-   Five rather than ten. Ten only saves another 14 MB and triples what it
-   does to the length of the local roads. Five costs 0.060% of the spine's
-   length and 0.167% of the local network's - on Perth to Sydney, about two
-   kilometres in 3,853 and under two minutes in forty hours - and stays under
-   a screen pixel until roughly zoom 18, which is past where anyone reads a
-   road shape.
+   Two, where it was five. Five was picked when nothing read a road's shape
+   closer than the zoom it is driven at: it cost 0.060% of the spine's
+   length, and ten would have saved another 14 MB for three times the
+   damage to the local roads. Then the map began closing to zoom 18 at
+   every turn - see AutoZoom in index.html - where five metres is ten
+   pixels and the route line, which is drawn from these points, is five
+   and a half wide. Measured against a build with every surveyed point
+   kept, over 918 km of routes round Adelaide and the hills behind it
+   (tools/line-fit.js): at five the line was more than two metres from the
+   road on 9.8% of its length, and four metres from it at the worst
+   hundredth; at two that is 0.01% and a metre and a half. The line is
+   drawn as a curve now and was smooth either way - see navFlow - but a
+   smooth line along the kerb is still not on the road.
+
+   It costs a tenth. The country goes from 198.4 MB to 217.2 and the spine
+   from 25.86 to 27.21, keeping 20.0 million corners of 29.6 where five
+   kept 16.8; keeping all of them is 268.5 MB. What two takes off the
+   length of the network is 0.011% of the spine and 0.028% of the local
+   roads.
 
    This is only safe because snapping projects onto the segment between
    corners rather than onto the corners themselves. While it went corner to
    corner, thinning them took the 99th percentile snap error from 155 m to
    791 m. See segNear in index.html.
 
-   Five metres is the ceiling, not the rule - see SIMPLIFY_REL. */
-const SIMPLIFY_M = 5;
+   And because the app reads its turns off these legs thinned back to five
+   - see navTurnLine in index.html. Every figure the turn reader works to
+   was measured on legs held to five. Read off legs held to two, 66 trips
+   in 506 round Adelaide changed their instructions and 31 turns went
+   unsaid; thinned back, 505 say word for word what they said, and the
+   other one takes a different road. An app older than that reader must
+   not be given these packs.
+
+   Two metres is the ceiling, not the rule - see SIMPLIFY_REL. */
+const SIMPLIFY_M = 2;
 
 /* The tolerance for a stretch is this fraction of its own length, between
    SIMPLIFY_FLOOR and SIMPLIFY_M.
@@ -130,9 +151,9 @@ const SIMPLIFY_M = 5;
    less visibly.
 
    A stretch is judged against its own length instead. Eight percent of a
-   five hundred metre chord is forty metres, so the five metre ceiling
-   still governs every long road exactly as before and a straight is still
-   cut back to its ends; eight percent of the eleven metre chord across a
+   five hundred metre chord is forty metres, so the ceiling still governs
+   every long road exactly as before and a straight is still cut back to
+   its ends; eight percent of the eleven metre chord across a
    quarter of a roundabout is under a metre, which keeps the arc. The floor
    is the grid itself: PRECISION puts a coordinate on a lattice a bit over
    a metre apart, and a tolerance finer than half of that is asking about a
@@ -140,7 +161,9 @@ const SIMPLIFY_M = 5;
 const SIMPLIFY_REL = 0.08;
 const SIMPLIFY_FLOOR = 0.5;
 
-/* The ceiling for a one-way leg: a metre, not five.
+/* The ceiling for a one-way leg: a metre. Written when every other leg was
+   held to five, which is the five in what follows; they are held to two
+   now, and a metre is still what it takes to keep a slow point.
 
    A one-way leg is one of two lines lying side by side - the carriageways
    of a divided road, the two lanes a street splits into round the island
@@ -164,7 +187,7 @@ const SIMPLIFY_FLOOR = 0.5;
    sixteen percent, to move lines that already lie inside the road they
    are on.
 
-   The app reads its corners off these legs thinned back to five - see
+   The app reads its corners off every leg thinned back to five - see
    navTurnLine in index.html - because a slip lane drawn to the metre does
    its turning between junctions, where the turn reader does not look. */
 const SIMPLIFY_ONEWAY = 1;

@@ -1427,9 +1427,15 @@ anything that curved, which at the zoom a turn is driven at read as a route
 that did not know the road. It is drawn through the same points as a curve
 now. A bend in a road is run through; a corner between two roads is rounded
 on the inside, by about the arc a car takes; turning round stays a point.
-The curve never stands more than two metres off the straight piece it
+The curve never stands more than a metre off the straight piece it
 replaced, because a road mapped straight is drawn straight underneath it,
 and a line bowing out of the road it is on is worse than an elbow.
+
+**On the road, not beside it.** A smooth line a lane's width to one side is
+still wrong, and at the zoom a turn is driven at that is what five metres
+of slack in the road packs came to. They hold a road to two now, and the
+line sits within a metre and a half of the surveyed centre for all but a
+hundredth of its length.
 
 **The vehicle rides the curve.** While it is on the route the arrow is
 drawn on the line and pointed along it, and the line it is drawn on is the

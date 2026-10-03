@@ -3892,7 +3892,7 @@ const CFG = {
      wants none of it, a bend giving its half up as its own swing falls from
      `spare` to nothing. A curve is cut into pieces that each turn under
      `step` or are under `least` long, halved `deep` times at most. */
-  NAV_FLOW: { bend: 45, sharp: 150, bulge: 2, inside: 2, reach: 0.45, spare: 30, step: 8, least: 0.5, deep: 5 },
+  NAV_FLOW: { bend: 45, sharp: 150, bulge: 1, inside: 2, reach: 0.45, spare: 30, step: 8, least: 0.5, deep: 5 },
   NAV_TURN_MERGE: 20,      /* this close is one junction drawn as two */
   /* Unless it is a jog: one way and then the other, with a road between.
      From ten metres - under that the two side streets still face each
@@ -18293,8 +18293,8 @@ function circleR(x, y, tol, least) {
      which between evenly spaced joints is an arc - and evenly spaced
      joints are what the builder leaves of one.
    - How far the curve may stand off the straight leg is capped: bulge
-     metres, or what the builder would have let a leg that long stray if
-     that is less. A leg is as often straight as it is the chord of an arc.
+     metres, a metre, or what the builder would have let a leg that long
+     stray if that is less. A leg is as often straight as it is the chord of an arc.
      Plenty of roads are mapped as rulers with elbows, the map under the
      line draws them that way, and a curve that bows four metres out of a
      road drawn straight is off the road.
@@ -18310,31 +18310,38 @@ function circleR(x, y, tol, least) {
 
    Measured against the survey: 120 trips of two to eight kilometres, half
    round Adelaide and half in the hills behind it, routed on packs built
-   from one extract twice - as shipped, and with every surveyed point kept.
-   114 took the same roads both times, 918 km of them. A point every two
-   metres along the drawn line, and how far it is from the surveyed road:
+   from one extract three times - held to five metres as they were, held
+   to two as they are, and with every surveyed point kept. 114 took the
+   same roads at five as on the survey, 918 km of them, and 115 at two. A
+   point every two metres along the drawn line, and how far it is from the
+   surveyed road:
 
-                                    joint to joint    as a curve
-     average                            0.60 m          0.60 m
-     nine points in ten within          1.98 m          1.78 m
-     ninety-nine in a hundred within    3.98 m          3.76 m
-     more than two metres off           9.8%            8.0%
-     elbows over 20 degrees, per km     4.74            0.12
-     points in the line                 14,166          53,025
+                              five metres            two metres
+                           joints     curve       joints     curve
+     average               0.60 m     0.59 m      0.21 m     0.26 m
+     nine in ten within    1.98 m     1.83 m      0.72 m     0.76 m
+     99 in 100 within      3.98 m     3.83 m      1.56 m     1.51 m
+     over two metres off   9.8%       8.7%        0.01%      0.07%
+     elbows over 20        4.74       0.14        4.46       0.13   a km
+     points in the line    14,166     54,272      17,286     58,415
 
-   The elbows that are left are under a metre across - the point of a
-   hairpin, a corner between two legs a metre long - and not there to see. On the packs as shipped, a month
-   older than that survey, it is 0.70 m to 0.68 and 4.77 elbows to 0.11.
+   Two faults, then, and each wants its own cure. The curve takes the
+   elbows out and leaves the line where it was; holding the roads to two
+   metres puts the line on the road and leaves the elbows in. The elbows
+   that are left are under a metre across - the point of a hairpin, a
+   corner between two legs a metre long - and not there to see.
 
-   What else was tried, same trips. Without the cap the line is further off
-   than the rulers were, 0.65 m, with 9.4% of it over two metres. Cutting
-   every joint inside, which is the smoothing that cannot swing wide, is
-   0.78 m and 11.8%: it leaves the mid-legs where they were and pulls the
-   joints, the one part that was exact, in to meet them. The legs'
+   What else was tried, on the roads held to two. Without the cap the line
+   is 0.37 m off and 2.4% of it is over two metres, further than the
+   joints ever were. Cutting every joint inside, which is the smoothing
+   that cannot swing wide, is 0.39 m: it leaves the mid-legs where they
+   were and pulls the joints, the one part that was exact, in to meet
+   them. Running through every joint is 0.27 m and 0.97 elbows a
+   kilometre, at the street corners it swings wide of. The legs'
    directions weighed evenly, or by the other leg's length as a spline
-   would, are both 0.62.
+   would, were both further off than weighed by their own.
 
-   Sydney to Broome is 9,801 points and comes out as 13,441 in about a
+   Sydney to Broome is 9,801 points and comes out as 13,326 in under a
    hundredth of a second; a highway does not bend enough to need many.
 
    The curve is the drawing and nothing else. Nav.coords is still the
@@ -18468,21 +18475,31 @@ function navFlow(co, sharp) {
    left onto Port Wakefield Road, the left onto Torrens Road - while
    straight through a roundabout came out as bear right.
 
-   So the corners are read off the route with its one-way legs thinned the
-   way the packs used to thin them: the same rule, the same three numbers,
-   leg by leg, ends kept. Thinning a leg the packs kept to a metre gives the
+   So the corners are read off the route with its legs thinned the way the
+   packs used to thin them: the same rule, the same three numbers, leg by
+   leg, ends kept. Thinning a leg the packs kept to a metre gives the
    points thinning the survey to five gave, because the furthest point from
    a chord is the first one either keeps. What a driver is told does not
    depend on how finely the road under it happens to be drawn; the line on
    the map and the vehicle on it use every point there is.
 
-   Two-way legs are left alone: the packs still thin those to five, and a
-   route from OSRM has no one-way legs at all. */
+   Every leg, since the packs came down from five metres to two on the
+   rest - see SIMPLIFY_M. It was only the one-way legs while the others
+   were still held to five, and thinning those again changes nothing: 520
+   trips round Adelaide and the hills read the same either way, on the
+   packs as shipped and on the same roads cut at five. On roads cut at two,
+   506 of those trips keep to the same roads. Read as drawn, 66 of them
+   change their instructions and 31 turns go unsaid; thinned, 505 are word
+   for word what they were on five, and the one that is not takes a
+   different road with the same names.
+
+   A route from OSRM is read as it comes. Its legs are whole roads, not the
+   stretches between junctions, and it was never thinned to begin with. */
 function navTurnLine() {
   const c = Nav.coords, legs = Nav.legs, n = c.length;
   const keep = new Uint8Array(n).fill(1);
   for (let k = 0; k < legs.length; k++) {
-    if (!legs[k].one) continue;
+    if (Nav.via !== "local") break;
     const a = Math.max(legs[k].at, Nav.head);
     const b = Math.min(k + 1 < legs.length ? legs[k + 1].at : Nav.tail, Nav.tail);
     if (b - a < 2) continue;
@@ -19826,10 +19843,11 @@ function navNearestIdx() {
 
      Projecting onto the segment is what fixed that, and it is also what
      lets the wrong-turn threshold be a sane number again. The builder
-     thins corners with a five metre tolerance measured the same way, so the
-     drawn line is never more than five metres from the surveyed road
-     however long the chord across it - and NAV_OFF_ROUTE no longer has to
-     carry the slack that the corners used to need.
+     thins corners with a tolerance measured the same way - five metres
+     when this was written, two now - so the drawn line is never more than
+     that from the surveyed road however long the chord across it, and
+     NAV_OFF_ROUTE no longer has to carry the slack that the corners used to
+     need.
 
      And the line going the way the vehicle is going. A route that passes
      its destination on one side of a divided road, turns at the next gap

@@ -11,10 +11,10 @@
    smoothing that looks lovely and has left the road.
 
    The two builds, from one extract so a month of map edits is not counted
-   as error (about eight minutes each for the country, 200 and 480 MB;
+   as error (about eight minutes each for the country, 217 and 269 MB;
    neither is committed):
 
-     sed -e 's/^const SIMPLIFY_M = 5;/const SIMPLIFY_M = 0;/' \
+     sed -e 's/^const SIMPLIFY_M = 2;/const SIMPLIFY_M = 0;/' \
          -e 's/^const SIMPLIFY_ONEWAY = 1;/const SIMPLIFY_ONEWAY = 0;/' \
          tools/build-routing.mjs > /tmp/build-truth.mjs
      export NODE_OPTIONS=--max-old-space-size=28000
