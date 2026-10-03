@@ -2005,6 +2005,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
 #btnBoostNormal.on,#btnBoostLoud.on,#btnBoostMax.on,#btnMusicLower.on,#btnMusicPause.on,
+#btnBtAudio.on,#btnBtCall.on,
 #btnRateSlow.on,#btnRateMedium.on,#btnRateFast.on,
 #btnNightAuto.on,#btnNightDay.on,#btnNightOff.on,
 #btnFuelAll.on,#btnFuelNone.on{
@@ -3209,6 +3210,10 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnMusicLower">Lower</button>
           <button class="btn xs ghost" id="btnMusicPause">Pause</button>
         </div>
+        <div class="sublabel hidden" id="voiceBtRow" role="radiogroup" aria-label="How the voice is sent to a car over Bluetooth">Bluetooth
+          <button class="btn xs ghost" id="btnBtAudio">Audio</button>
+          <button class="btn xs ghost" id="btnBtCall">Call</button>
+        </div>
         <div class="row">
           <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
         </div>
@@ -3966,6 +3971,12 @@ const CFG = {
      speed floor is for a vehicle pulling away, which is about to be doing
      it. */
   VOICE_WPS: 2, VOICE_START: 1.4, VOICE_SPD_MIN: 5,
+  /* How long the phone may take to start a line before the timings above
+     are moved to allow for it, in seconds, and the most they are moved by.
+     A second is what they were set against. Past it is a line sent to a car
+     as a phone call, which waits for the hands-free channel to open - see
+     the lag in Voice.turn. */
+  VOICE_LAG_FREE: 1, VOICE_LAG_MAX: 3,
   /* How fast it talks, against the rate the voice was built at. Not left
      to the phone's own setting, which belongs to whoever set it: a screen
      reader cranked to double speed is a common thing to find on a phone,
@@ -4860,6 +4871,10 @@ const S = Object.assign({
      already been turned down for it. */
   voiceBoost: "loud",
   voiceMusic: "lower",
+  /* The app only, again. How the voice goes to a car over Bluetooth: as
+     "audio", where the music goes, which a head unit plays only while it is
+     on Bluetooth audio; or as a "call", which it plays whatever it is on. */
+  voiceBt: "audio",
   voiceRate: "medium",  /* "slow", "medium" or "fast" - CFG.VOICE_RATES */
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
@@ -4926,6 +4941,7 @@ function saveSettings() {
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
+                        voiceBt: S.voiceBt,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
@@ -18962,6 +18978,11 @@ function navArt(p1, p2, art) {
   const cap = window.Capacitor;
   const told = [];
   let voices = [], cur = null, n = 0, quiet = false;
+  /* Whether this phone can send a line to a car as a phone call, and how
+     long the last line took to start being heard - sent the ordinary way,
+     and sent as a call. Seconds. See lag. */
+  let canCall = false;
+  const lags = [0, 0];
   function Utterance(text) {
     this.text = text; this.voice = null; this.lang = ""; this.rate = 1;
     this.onend = null; this.onerror = null;
@@ -18978,15 +18999,30 @@ function navArt(p1, p2, art) {
     speaking: false, pending: false, paused: false,
     getVoices: function () { return voices; },
     addEventListener: function (type, fn) { if (type === "voiceschanged") told.push(fn); },
+    /* How long the phone took to start the last line, in seconds. The
+       Voice block times its lines against the corner, and a line sent to
+       the car as a call starts a second or two after it is asked for: the
+       hands-free channel has to open, and the car has to switch to it. So
+       the delay is measured, line by line, rather than guessed at - it is
+       the car's as much as the phone's - and Voice.turn starts that much
+       sooner. Chrome's own speechSynthesis has no such thing and reads as
+       none. */
+    get lag() { return lags[canCall && S.voiceBt === "call" ? 1 : 0]; },
+    get canCall() { return canCall; },
+    /* What is connected to take a call right now - for the settings, which
+       say so when the answer is nothing. */
+    routes: function () { return cap.nativePromise("NavVoice", "routes", {}); },
     speak: function (u) {
       quiet = false;
       const id = "u" + (++n);
-      cur = { id: id, u: u };
+      const car = canCall && S.voiceBt === "call";
+      cur = { id: id, u: u, at: performance.now(), car: car };
       this.speaking = true;
       cap.nativePromise("NavVoice", "speak", {
         text: u.text, id: id, rate: u.rate || 1, voice: (u.voice && u.voice.voiceURI) || null,
         /* read at each line, so a change in the settings is heard on the next */
-        boost: CFG.VOICE_BOOST_MB[S.voiceBoost] || 0, pause: S.voiceMusic === "pause"
+        boost: CFG.VOICE_BOOST_MB[S.voiceBoost] || 0, pause: S.voiceMusic === "pause",
+        call: car
       }).catch(function () { settle(id, false); });
     },
     cancel: function () {
@@ -19006,8 +19042,13 @@ function navArt(p1, p2, art) {
     }
   };
   cap.nativeCallback("NavVoice", "addListener", { eventName: "speech" }, function (d) {
+    if (d && d.type === "start" && cur && cur.id === d.id) lags[cur.car ? 1 : 0] = (performance.now() - cur.at) / 1000;
     if (d && (d.type === "end" || d.type === "error")) settle(d.id, d.type === "end");
   });
+  cap.nativePromise("NavVoice", "routes", {}).then(function (r) {
+    canCall = !!(r && r.call);
+    if (canCall && typeof syncVoiceButtons === "function") syncVoiceButtons();
+  }).catch(function () { });
   cap.nativePromise("NavVoice", "voices", {}).then(function (r) {
     const count = {};
     let names = null;
@@ -19336,8 +19377,18 @@ const Voice = {
     }
 
     const spd = Math.max(0, view.speed || 0);
+    /* What the phone takes to start a line, past what these timings already
+       allow for. Nothing in a browser, and nothing in the app as a rule. A
+       second or two when the line goes to a car as a phone call, because
+       the hands-free channel is opened for each one - see NavVoicePlugin,
+       and lag in nativeSpeech, which measures it. The call at the corner is
+       made that much sooner, so it is still heard four seconds out, and a
+       heads-up is counted as that much longer when it is asked whether it
+       will fit. */
+    const sp = window.speechSynthesis;
+    const lag = Math.min(CFG.VOICE_LAG_MAX, Math.max(0, ((sp && sp.lag) || 0) - CFG.VOICE_LAG_FREE));
     const far = Math.min(CFG.VOICE_FAR_MAX, Math.max(CFG.VOICE_FAR_MIN, spd * CFG.VOICE_FAR_S));
-    const near = Math.min(CFG.VOICE_NEAR_MAX, Math.max(CFG.VOICE_NEAR_MIN, spd * CFG.VOICE_NEAR_S));
+    const near = Math.min(CFG.VOICE_NEAR_MAX, Math.max(CFG.VOICE_NEAR_MIN, spd * (CFG.VOICE_NEAR_S + lag)));
 
     /* Past the near mark there is no heads-up left to give: the corner call
        is already due, and a driver twenty metres out being told about it in
@@ -19370,7 +19421,7 @@ const Voice = {
          nothing: eleven of them in forty simulated trips round Adelaide,
          one now. Left unsaid, the name goes on the call at the corner
          instead. */
-      const secs = CFG.VOICE_START + line.split(" ").length / (CFG.VOICE_WPS * this.rate());
+      const secs = CFG.VOICE_START + lag + line.split(" ").length / (CFG.VOICE_WPS * this.rate());
       if (dist - near < Math.max(spd, CFG.VOICE_SPD_MIN) * secs) { this.stage = 1; return; }
       const self = this;
       const spoke = this.utter(line.charAt(0).toUpperCase() + line.slice(1), false, function () {
@@ -21643,6 +21694,11 @@ function syncVoiceButtons() {
   $("#btnBoostMax").classList.toggle("on", S.voiceBoost === "max");
   $("#btnMusicLower").classList.toggle("on", S.voiceMusic !== "pause");
   $("#btnMusicPause").classList.toggle("on", S.voiceMusic === "pause");
+  /* And the one for a car, on a phone that can do it. */
+  const bt = own && !!(window.speechSynthesis && window.speechSynthesis.canCall);
+  $("#voiceBtRow").classList.toggle("hidden", !bt);
+  $("#btnBtAudio").classList.toggle("on", S.voiceBt !== "call");
+  $("#btnBtCall").classList.toggle("on", S.voiceBt === "call");
   const f = Voice.found;
   /* The Android path is a path, so it is set out as one. Written as prose it
      ran to six commas in a row and had to be parsed rather than followed. */
@@ -21662,6 +21718,12 @@ function syncVoiceButtons() {
     (NATIVE
       ? "The volume buttons set how loud it is. "
       : "For the volume buttons to work on a Samsung, turn on volume keys for media in " + VOL + ". ") +
+    /* Which of the two a car hears depends on what the car is doing, and
+       neither word says that for itself. */
+    (!bt ? ""
+      : S.voiceBt === "call"
+      ? "Over Bluetooth it reaches the car as a phone call: the car stops what it is playing for it, and its call volume sets how loud. "
+      : "Over Bluetooth it goes where your music goes, so the car has to be on Bluetooth audio to hear it. Call sends it as a phone call instead. ") +
     (f && f.au
       ? "For another voice: " + TTS + "."
       : f && f.en
@@ -21714,6 +21776,18 @@ $("#btnBoostLoud").addEventListener("click", function () { setVoiceSound("voiceB
 $("#btnBoostMax").addEventListener("click", function () { setVoiceSound("voiceBoost", "max"); });
 $("#btnMusicLower").addEventListener("click", function () { setVoiceSound("voiceMusic", "lower"); });
 $("#btnMusicPause").addEventListener("click", function () { setVoiceSound("voiceMusic", "pause"); });
+$("#btnBtAudio").addEventListener("click", function () { setVoiceSound("voiceBt", "audio"); });
+$("#btnBtCall").addEventListener("click", function () {
+  setVoiceSound("voiceBt", "call");
+  /* Chosen with nothing connected that takes calls, the line just said
+     went the ordinary way, and the setting would look like it had done
+     nothing. It has: it waits for a car. */
+  const sp = window.speechSynthesis;
+  if (!sp || !sp.routes) return;
+  sp.routes().then(function (r) {
+    if (r && !r.handsfree) toast("No car connected for calls - used when one is", "warn");
+  }).catch(function () { });
+});
 /* A real instruction rather than a word, because what is being tested is
    whether the road names come out right, and those are the hard part. */
 $("#btnVoiceTest").addEventListener("click", function () {

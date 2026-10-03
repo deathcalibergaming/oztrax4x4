@@ -63,4 +63,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Sending the navigation voice to a car as a phone call: the audio mode
+         and the hands-free route are settings an app has to be allowed to
+         change. Granted on install, with nothing to ask - see NavVoicePlugin. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>

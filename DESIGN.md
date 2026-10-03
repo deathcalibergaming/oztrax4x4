@@ -1789,6 +1789,17 @@ Loudness does. Medium is a tenth under the rate the voice was built at and
 is where it starts; the built rate, which it used to be, is Fast. A road
 name is heard once, over an engine, by someone looking at the road.
 
+**Which way it reaches the car is the driver's too.** Bluetooth - Audio,
+Call - is the last of the voice's rows, in the app only. Audio is where the
+music goes and is where it starts: right for a car playing the phone's
+music, and silent in a car on the radio. Call sends each line as a phone
+call, which every head unit plays whatever it is on, at the price of the
+radio cutting out for it and a call's narrow sound. Two words on two
+buttons cannot say that, so the note under them does, and says the half
+that is chosen. Choosing Call with nothing connected to take one says so in
+a chip: the test line that follows comes out of the phone, and would look
+like a setting that had done nothing.
+
 **A roundabout is one instruction: which exit.** *At the roundabout, take
 the third exit onto Onkaparinga Valley Road*, given where the ring is
 entered and held on the bar until it is left; at the roundabout itself,

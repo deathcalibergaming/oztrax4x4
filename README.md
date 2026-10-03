@@ -609,6 +609,32 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   file costs a fraction of a second per line. Loud is the default. **Music**
   (Lower, Pause): Pause asks for plain transient audio focus instead of
   may-duck, which music apps answer by pausing until the line is over.
+- **To a car that is not listening, as a phone call.** Guidance goes where
+  music goes, so over Bluetooth it is media audio, and a head unit plays
+  that only while its source is Bluetooth audio. On the radio, or paired
+  for calls and nothing else, the line is sent and nobody hears it.
+  Settings -> Navigation Voice -> **Bluetooth** (Audio, Call), in the app
+  only and from Android 12: Call opens the hands-free channel for each line
+  (communication mode and `setCommunicationDevice`), plays the line down
+  it with the attributes of a call, and closes it a second and a half
+  after. The car treats it as a call - what it was playing stops, and its
+  call volume sets how loud. With nothing connected that takes calls, the
+  line is said the ordinary way. Audio is the default and is what it always
+  did.
+
+  The channel takes a second or two to open, so the page times it rather
+  than guessing: `nativeSpeech` measures how long each line took to start
+  (`speechSynthesis.lag`), and `Voice.turn` makes the call at the corner
+  that much sooner - whatever is past the first second, up to three
+  (`VOICE_LAG_FREE`, `VOICE_LAG_MAX`). A browser has no lag to read, so
+  the website's timing is as it was.
+
+  **Not yet heard in a car, or run on a phone.** It compiles, and the page
+  side was driven against a stand-in for the bridge: the row, the setting
+  saved, lines sent as calls, the warning with nothing connected, and the
+  corner call moving from 56 m to 67 m out at 50 km/h with a 1.8 s start.
+  The waits in `NavVoicePlugin` (`CALL_WAIT`, `CALL_SETTLE`,
+  `CALL_LINGER`) are first guesses.
 - **The icons and the splash mark** are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.
