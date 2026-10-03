@@ -2,8 +2,11 @@ package io.github.deathcalibergaming.twa;
 
 import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
+import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.media.MediaPlayer;
 import android.media.audiofx.LoudnessEnhancer;
 import android.os.Build;
@@ -57,6 +60,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * guidance plays on the media volume, and MainActivity points the buttons
  * there for as long as the app is in front.
  *
+ * And it says where the line goes, with a car's head unit connected over
+ * Bluetooth, rather than leaving that to the phone. Guidance is meant to go
+ * where the music goes, and on paper it does; the report from the road was
+ * that over Bluetooth it did not work. So with a Bluetooth audio device connected
+ * every line is played by this, not by the engine, and the player is told
+ * to use that device. A link that has been carrying nothing is given half a
+ * second of silence first, because a head unit takes about that long to
+ * open up and the first word of a line is the one that says which way. And
+ * the page is told what the line was actually routed to, which it shows in
+ * the settings - so "sent to the car and not heard" and "never sent to the
+ * car" can be told apart from the driver's seat.
+ *
  * Only voices that are on the phone are offered - a voice needing the
  * network is reported as such and the page refuses it, exactly as it does in
  * Chrome, and one not yet downloaded is left out.
@@ -68,6 +83,10 @@ public class NavVoicePlugin extends Plugin {
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build();
+    /* Milliseconds of silence sent down a Bluetooth link that was carrying
+       nothing, before the line; and how long after a line starts the player
+       is asked where it ended up. Neither has been timed in a car. */
+    private static final int WAKE_MS = 500, WHERE_MS = 250;
 
     private TextToSpeech tts;
     private boolean started = false; /* the engine has answered, one way or the other */
@@ -83,9 +102,10 @@ public class NavVoicePlugin extends Plugin {
        begun - which must not hand the music back under the new one. */
     private String talking = null;
 
-    /* Lines being written to a file to be played louder, and the gain each
-       asked for in millibels. The engine's callbacks come on its own thread,
-       so this is a map that can be read from any of them. */
+    /* Lines being written to a file to be played by this rather than by the
+       engine - louder, or to a Bluetooth device - and the gain each asked
+       for in millibels. The engine's callbacks come on its own thread, so
+       this is a map that can be read from any of them. */
     private final Map<String, Integer> boosted = new ConcurrentHashMap<>();
     /* The line being played back, and what is playing it. Touched on the
        main thread only - every change to them is posted there. */
@@ -93,6 +113,7 @@ public class NavVoicePlugin extends Plugin {
     private MediaPlayer player;
     private LoudnessEnhancer louder;
     private String playing;
+    private AudioTrack hush;         /* the silence that opens a Bluetooth link */
 
     @Override
     public void load() {
@@ -187,8 +208,11 @@ public class NavVoicePlugin extends Plugin {
         main.post(this::silence);
         hold();
         int said;
-        if (boost != null && boost > 0) {
-            boosted.put(id, boost);
+        int gain = boost == null ? 0 : boost;
+        /* With a Bluetooth device connected the line is played by this, so
+           that it can be sent there - see play. */
+        if (gain > 0 || bluetooth() != null) {
+            boosted.put(id, gain);
             /* Written to a file, which goes to the back of the engine's queue
                rather than flushing it - so whatever it is still saying or
                writing is stopped first. */
@@ -229,7 +253,25 @@ public class NavVoicePlugin extends Plugin {
         tell("error", id);
     }
 
-    /* Main thread. Plays a line the engine has written, louder. */
+    /* The Bluetooth device sound can be sent to, if one is connected: a car's
+       head unit, a speaker, a pair of earbuds. Null when there is none. */
+    private AudioDeviceInfo bluetooth() {
+        try {
+            for (AudioDeviceInfo d : audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                if (isBluetooth(d.getType())) return d;
+            }
+        } catch (RuntimeException e) { /* none that can be asked for */ }
+        return null;
+    }
+
+    private static boolean isBluetooth(int type) {
+        if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return true;
+        return Build.VERSION.SDK_INT >= 31
+            && (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER);
+    }
+
+    /* Main thread. Plays a line the engine has written - louder, or to the
+       Bluetooth device that is connected, or both. */
     private void play(String id, int gain) {
         File f = clip(id);
         synchronized (this) {
@@ -238,28 +280,98 @@ public class NavVoicePlugin extends Plugin {
         }
         silence();
         try {
-            MediaPlayer mp = new MediaPlayer();
+            final MediaPlayer mp = new MediaPlayer();
             player = mp;
             playing = id;
             mp.setAudioAttributes(GUIDANCE);
             mp.setDataSource(f.getPath());
+            /* Told where to go, not left to find its way. Android 9 on; on
+               an older phone it goes where the phone sends it. */
+            final AudioDeviceInfo car = bluetooth();
+            if (car != null && Build.VERSION.SDK_INT >= 28) mp.setPreferredDevice(car);
             mp.prepare();
-            try {
-                louder = new LoudnessEnhancer(mp.getAudioSessionId());
-                louder.setTargetGain(gain);
-                louder.setEnabled(true);
-            } catch (RuntimeException e) {
-                /* A phone without the effect says it at the media volume
-                   rather than not at all. */
-                louder = null;
+            if (gain > 0) {
+                try {
+                    louder = new LoudnessEnhancer(mp.getAudioSessionId());
+                    louder.setTargetGain(gain);
+                    louder.setEnabled(true);
+                } catch (RuntimeException e) {
+                    /* A phone without the effect says it at the media volume
+                       rather than not at all. */
+                    louder = null;
+                }
             }
             mp.setOnCompletionListener(m -> ended(id, true));
             mp.setOnErrorListener((m, what, extra) -> { ended(id, false); return true; });
-            mp.start();
-            tell("start", id);
+            /* A link with music on it is already open. One with nothing on
+               it is opened with silence, and the line follows. */
+            if (car != null && !audio.isMusicActive() && wake(car)) {
+                main.postDelayed(() -> begin(id, mp, true), WAKE_MS);
+            } else {
+                begin(id, mp, car != null);
+            }
         } catch (Exception e) {
             ended(id, false);
         }
+    }
+
+    /* Main thread. Starts a line that is ready, unless it has been cut off
+       or overtaken while the link was being opened for it. */
+    private void begin(String id, MediaPlayer mp, boolean wanted) {
+        if (player != mp || !id.equals(playing)) return;
+        try {
+            mp.start();
+            tell("start", id);
+            main.postDelayed(() -> where(id, mp, wanted), WHERE_MS);
+        } catch (RuntimeException e) {
+            ended(id, false);
+        }
+    }
+
+    /* Main thread. Silence, sent to the Bluetooth device, for as long as it
+       takes to open up. False if it could not be played, and then the line
+       is not kept waiting for it. */
+    private boolean wake(AudioDeviceInfo car) {
+        try {
+            int rate = 22050, frames = rate * (WAKE_MS + 200) / 1000;
+            AudioTrack t = new AudioTrack.Builder()
+                .setAudioAttributes(GUIDANCE)
+                .setAudioFormat(new AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(rate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build())
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(frames * 2)
+                .build();
+            hush = t;
+            t.write(new short[frames], 0, frames);
+            t.setPreferredDevice(car);
+            t.play();
+            return true;
+        } catch (RuntimeException e) {
+            if (hush != null) { try { hush.release(); } catch (RuntimeException x) { } hush = null; }
+            return false;
+        }
+    }
+
+    /* Main thread. What the line is actually coming out of, told to the
+       page - which is the only way a driver, or anyone reading a report from
+       one, can know whether the car was sent it. Android 9 on. */
+    private void where(String id, MediaPlayer mp, boolean wanted) {
+        if (player != mp || Build.VERSION.SDK_INT < 28) return;
+        AudioDeviceInfo d = null;
+        try { d = mp.getRoutedDevice(); } catch (RuntimeException e) { /* not saying */ }
+        if (d == null) return;
+        JSObject o = new JSObject();
+        o.put("type", "route");
+        o.put("id", id);
+        /* whether there was a Bluetooth device to send it to, and whether
+           that is where it went */
+        o.put("wanted", wanted);
+        o.put("bluetooth", isBluetooth(d.getType()));
+        o.put("name", String.valueOf(d.getProductName()));
+        notifyListeners("speech", o);
     }
 
     /* Main thread. The line that was playing has finished or failed. */
@@ -283,6 +395,7 @@ public class NavVoicePlugin extends Plugin {
     }
 
     private void release() {
+        if (hush != null) { try { hush.release(); } catch (RuntimeException e) { } hush = null; }
         if (louder != null) { try { louder.release(); } catch (RuntimeException e) { } louder = null; }
         if (player != null) { try { player.release(); } catch (RuntimeException e) { } player = null; }
         playing = null;

@@ -609,6 +609,27 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   file costs a fraction of a second per line. Loud is the default. **Music**
   (Lower, Pause): Pause asks for plain transient audio focus instead of
   may-duck, which music apps answer by pausing until the line is over.
+- **Sent to the car, over Bluetooth.** Guidance is meant to go where the
+  music goes, which with a head unit connected is Bluetooth media audio,
+  and the report from the road was that it did not. So the app no longer
+  leaves it to the phone: with a Bluetooth audio device connected every
+  line is played by `NavVoicePlugin` itself, and the player is told to use
+  that device (`setPreferredDevice`, Android 9 on). A link with nothing on
+  it is opened with half a second of silence first, so the head unit is
+  awake for the first word. And the plugin reports what each line was
+  actually routed to, which Settings shows under Navigation Voice: *Last
+  line sent to MY CAR over Bluetooth*, or *Bluetooth is connected, but the
+  last line did not go to it*. Nothing is shown with no Bluetooth device
+  connected. There is no setting for any of it.
+
+  A head unit still plays Bluetooth media only while its source is
+  Bluetooth audio; on the radio it gets the line and stays on the radio.
+  Sending the line as a phone call gets round that, was built, and was
+  turned down: what was wanted was Bluetooth working, not another choice.
+
+  **Not yet heard in a car, or run on a phone.** It compiles, and the page
+  side was driven against a stand-in for the bridge. The readout is there
+  so that the first report from the car says which half is at fault.
 - **The icons and the splash mark** are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.

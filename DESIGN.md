@@ -1789,6 +1789,14 @@ Loudness does. Medium is a tenth under the rate the voice was built at and
 is where it starts; the built rate, which it used to be, is Fast. A road
 name is heard once, over an engine, by someone looking at the road.
 
+**Where it went is said, where there was a choice.** With a car connected
+over Bluetooth the voice is sent to the car, and the status under the
+switch says what happened to the last line: *sent to MY CAR over
+Bluetooth*, or *Bluetooth is connected, but the last line did not go to
+it*. A car that stays silent is two different faults that sound the same,
+and this is the half the phone can see. With nothing connected the line is
+not there. It is a status and not a setting: there is nothing to choose.
+
 **A roundabout is one instruction: which exit.** *At the roundabout, take
 the third exit onto Onkaparinga Valley Road*, given where the ring is
 entered and held on the bar until it is left; at the roundabout itself,
