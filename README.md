@@ -360,6 +360,74 @@ the camera itself with the frames driven by hand: 15 to 17 at 186 m, 18 at
 86 m, 15 once past; a pinch out to 16 held until the next step and was not
 saved.
 
+**A trip to Woodside, and three things wrong with it.** Reported from a
+drive from Salisbury East to a shop in Woodside: sent round Lobethal by its
+truck bypass instead of down the main street, told to turn left and left
+again at a roundabout where the way was right, and no speed limit shown in
+the back streets.
+
+*The route.* The search priced roads by length over limit and nothing else:
+a corner was free, and a road with no limit posted was priced at an
+open-road figure for its class wherever it ran. Lobethal's bypass is
+tertiary with nothing posted, so it was a 65 km/h road beside a main street
+posted at 50, and three corners cost nothing. Now:
+
+- A corner costs time (`Route.turnSecs`): 4 s left, 7 s right, 30 s to
+  turn round, and 5 s more to come out of a smaller road onto a bigger one
+  or across it. The search settles an edge and its direction rather than a
+  junction, which is what lets it know the road it arrived by.
+- A sealed road with nothing posted is priced as a town road where it meets
+  another every 250 m or so (`ROAD_TOWN`). Measured on the posted roads
+  round Adelaide, tertiary edges under 120 m are 50 km/h on 72% and those
+  over a kilometre are 80 or more on 88%.
+- A residential street is priced at four fifths of its limit, posted or not.
+
+| 199 trips of 2 to 12 km round Adelaide | before | after |
+|---|---|---|
+| corners driven (the line swings more than 45 degrees) | 2,179 | 1,902 |
+| distance | 2,015 km | 2,043 km |
+| the same route | - | 96 |
+| search, with 160,000 edges loaded | 77 ms | 143 ms |
+
+Sydney to Broome is the same 4,479 km either way, in 1.4 s where it was 1.0.
+Through Lobethal the main street now wins by 32 seconds, and by 19 at half
+the corner costs. Forty of the trips were also asked of the public OSRM
+server, to see which pricing came closest to a router with nothing to do
+with this one, and it did not tell them apart: every variant shared 71 to
+83% of its length with OSRM's line, the old one included.
+
+*The roundabout.* The turn reader took a roundabout to be a ring of
+one-way legs with no name. The one at Woodside is named B34, so it was a
+left onto the B34 and a left off it - for the third exit, which is a right
+turn. The road packs now carry OpenStreetMap's own roundabout tag (flag 16,
+and `"r":1` on a pack that has it), and for a pack cut before that
+`Route.ringLoop` finds the ring by its shape. One instruction for the whole
+of it, given at the entry: which exit, counted off the graph, and which way,
+from the road in and the road out.
+
+| | |
+|---|---|
+| roundabout edges round Adelaide found by shape, against the tag | 6,294 of 6,358 |
+| other one-way edges it calls a roundabout | 63 of 12,430 |
+| exit number, against OSRM's for the same roundabout | 30 of 30 |
+| the reported trip, on the packs as shipped | "at the roundabout, take the third exit onto Onkaparinga Valley Scenic Drive" |
+
+The first cut of the shape test stopped at the first loop back to where it
+started, which is often off by a slip lane and on again, and found 65%.
+It also took the square where two divided roads cross for a ring - four
+one-way edges running the same way round, corners on a circle exactly -
+until the middle of each side was tested too.
+
+*The limit.* 29,793 of the 65,563 residential edges loaded round Adelaide
+carry no limit, and the roundel went dark on them. A street with nothing
+posted now shows the built-up default, 50, which is what 99% of the posted
+ones say (`builtUpLimit`). Only for streets, and not in the Northern
+Territory, where the default is 60.
+
+The voice run after all three: 229 of 229 road names heard, 33 of 33
+arrived, at most 13 m short; the marker more than 30 degrees off on 57
+fixes of 12,475, none over 90.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to

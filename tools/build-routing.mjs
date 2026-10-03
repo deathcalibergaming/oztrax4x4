@@ -231,6 +231,13 @@ const F_ONEWAY = 1;       /* forward only */
 const F_REVERSE = 2;      /* the way is drawn against the direction of travel */
 const F_PRIVATE = 4;      /* gated, station access, permit - routable but a last resort */
 const F_UNPAVED = 8;      /* dirt, gravel, sand */
+/* A roundabout, as OpenStreetMap tags one. The app used to work this out
+   from what a ring looks like - one-way, unnamed, short - and a ring with a
+   name on it, which is most of the big ones, was read as a run of corners:
+   the third exit at Woodside came out as "turn left, then turn left". It
+   can still work it out, for a pack cut before this; a pack that carries
+   the flag says so with "r" beside its rows, and is taken at its word. */
+const F_RING = 16;
 
 /* ---------------------------------------------------------------------
    Protobuf, only as much of it as an OSM extract uses. Ids and coordinates
@@ -482,6 +489,7 @@ function flagsOf(tags) {
      anybody tagged them so. */
   else if (tags.junction === "roundabout" || tags.junction === "circular" ||
            tags.highway === "motorway") f |= F_ONEWAY;
+  if (tags.junction === "roundabout" || tags.junction === "circular") f |= F_RING;
 
   const acc = tags.motor_vehicle || tags.vehicle || tags.access;
   if (acc === "private" || acc === "no" || acc === "permit" ||
@@ -513,7 +521,7 @@ function cutStamp(source) {
     CLASSES, [...SPINE].sort(), [...REGION].sort(), REGION_Z, [...SKIP].sort(),
     Object.keys(LINKS).sort().map((k) => [k, LINKS[k]]),
     [...PAVED].sort(), Z, PRECISION, SIMPLIFY_M, SIMPLIFY_REL, SIMPLIFY_FLOOR,
-    SIMPLIFY_ONEWAY,
+    SIMPLIFY_ONEWAY, "ring1",
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
     "dir1"
@@ -733,7 +741,10 @@ async function main() {
     throw new Error("--pbf reads one extract, so it wants --only naming one state");
   }
 
-  const stamp = await sourceStamps(sources);
+  /* A local extract is stamped as what it is. It used to ask Geofabrik for
+     the checksum of the file it was not going to download, so a trial build
+     off a file on the desk failed whenever their server was busy. */
+  const stamp = pbfPath ? sources[0].state + ":local" : await sourceStamps(sources);
   const cut = cutStamp(stamp);
   console.log("extracts:");
   for (const line of stamp.split(" ")) console.log("  " + line);
@@ -850,7 +861,7 @@ async function main() {
     first = false;
   });
   spineFile.write('],"n":' + JSON.stringify(names) +
-                  (spineD.length ? ',"d":' + JSON.stringify(spineD) : "") + "}");
+                  (spineD.length ? ',"d":' + JSON.stringify(spineD) : "") + ',"r":1}');
   await new Promise((res) => spineFile.end(res));
   console.log(`\nspine: ${tally.spine} edges, ${spineKm.toFixed(0)} km`);
 
@@ -1052,7 +1063,8 @@ function pack(edges, origin) {
     }
     out.push(row);
   }
-  return d.length ? { o: origin, n: names, e: out, d: d } : { o: origin, n: names, e: out };
+  /* r: these rows say which of them are roundabouts - see F_RING */
+  return d.length ? { o: origin, n: names, e: out, d: d, r: 1 } : { o: origin, n: names, e: out, r: 1 };
 }
 
 main().catch((e) => {

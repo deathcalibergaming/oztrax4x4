@@ -1355,7 +1355,14 @@ the next sign, so the roundel does too:
 - **Over a gap:** off every mapped road for a moment - a wandering fix, a
   bend drawn across its corner - the last limit stays for 150m or 12 seconds
   while still heading the same way.
-- **Gone:** a turn onto a road with no limit posted, or nothing known at all.
+- **A street with nothing posted:** 50, the built-up default. Over half the
+  back streets in the packs carry no limit, because nobody signs one and so
+  nobody maps one, and a roundel that went dark at every side street read
+  as broken. Of the streets that do carry a limit, 99% carry this one. Only
+  for a residential street, after everything above, and not in the Northern
+  Territory, where the default is 60.
+- **Gone:** a turn onto any other road with no limit posted, or nothing
+  known at all.
 
 The roads come from the road packs the router already holds - every drivable
 road in the country, with the limit OpenStreetMap had for it at the monthly
@@ -1741,6 +1748,16 @@ with the voice's other rows and says a line when it is changed, the way
 Loudness does. Medium is a tenth under the rate the voice was built at and
 is where it starts; the built rate, which it used to be, is Fast. A road
 name is heard once, over an engine, by someone looking at the road.
+
+**A roundabout is one instruction: which exit.** *At the roundabout, take
+the third exit onto Onkaparinga Valley Road*, given where the ring is
+entered and held on the bar until it is left; at the roundabout itself,
+*Take the third exit*. The bar says *Take the 3rd exit* over the road name,
+beside a ring with an arrow out of it - left, right, ahead or back, which
+is the way the exit goes and is the only part read at a glance. It used to
+be whatever corners the ring happened to be drawn with: at Woodside, *turn
+left onto B34, then turn left* for a right turn. Where the exits cannot be
+counted - a route from the online router - it is *Left at the roundabout*.
 
 **Turning around is not announced onto anywhere.** At a hundred and sixty
 degrees the road you come out on is the road you went in on, and *turn around

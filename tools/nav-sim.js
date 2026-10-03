@@ -457,7 +457,7 @@
     const routes = ["at the start: " + told()];
     const V = opt.v || 13, end = cum[cum.length - 1];
     let s = 0, was = 0, last = Nav.coords;
-    for (let n = 0; n < 3000 && Nav.active && s < end; n++) {
+    for (let n = 0; n < 20000 && Nav.active && s < end; n++) {
       let d = Infinity;
       for (const c of corners) d = Math.min(d, Math.abs(c - s));
       const v = Math.min(V, 4 + 0.1 * d, was + 2.5, Math.max(2, (end - s) / 6));
