@@ -3526,6 +3526,7 @@ input[type=date],input[type=time]{color-scheme:dark}
       </div>
       <div class="row">
         <button class="btn sm primary" id="nmSearch">Search</button>
+        <button class="btn sm ghost" id="nmHome">Navigate Home</button>
       </div>
       <div id="nmStatus" class="poi-status"></div>
       <div id="nmList" class="list scrollarea"></div>
@@ -4170,7 +4171,21 @@ const CFG = {
   PACK_TIMEOUT: 30000,     /* one stalled file must not hold a worker for good */
   POI_TTL: 7 * 24 * 3600 * 1000,
   POI_EMPTY_TTL: 15 * 60 * 1000,   /* an empty answer must not poison a spot for a week */
-  LERP_POS: 0.16, LERP_HDG: 0.13,
+  LERP_HDG: 0.13,
+  /* The vehicle between fixes - see Glide. Milliseconds, metres, degrees.
+     PULL is how long a fix that disagrees with where the vehicle is drawn
+     is given to bring it round, and SWING the same for the way it faces.
+     REACH is how long the drawing runs on past the last fix: one and a half
+     times the gap between fixes, but never under the first figure nor over
+     the second. GAP_MAX is the longest gap that still says anything about
+     how the speed or the course was changing. ACC is the most the speed is
+     taken to be changing by, in metres a second each second. TURN is the
+     swing in degrees a second below which the course is not turning, the
+     most it is believed to turn, and the seconds that is run on for. Past
+     JUMP the vehicle is not gliding, it is somewhere else. */
+  GLIDE_PULL: 2000, GLIDE_SWING: 300,
+  GLIDE_REACH: [1500, 3000], GLIDE_GAP_MAX: 5000,
+  GLIDE_ACC: 4, GLIDE_TURN: [2, 40, 1.2], GLIDE_JUMP: 60,
   /* How far down the open map - from the foot of the heads-up display to
      the bottom of the map - the vehicle is held while following heading
      up, and how fast it glides there. See headUpShift. */
@@ -4943,6 +4958,7 @@ function saveHome(h) {
   home = h;
   saveLS(LS.home, home);
   renderHomeRow();
+  renderNavHome();
 }
 
 /* live view state driven by the animation loop */
@@ -7429,6 +7445,216 @@ const Compass = {
     return "off";
   }
 };
+/* ---- the vehicle between fixes ----
+
+   A fix comes once a second. The vehicle used to be eased towards each one
+   as it landed, a sixth of the way a frame, which is nine tenths of the way
+   in a quarter of a second - and then it stood where the fix was for the
+   other three quarters, waiting for the next. At fifty kilometres an hour
+   that is fourteen metres in a lunge and then nothing, every second, and
+   heading up the whole map lunged with it. Reported from a drive to Golden
+   Grove as the marker "jittering forward with every movement", which is
+   exactly what it was doing.
+
+   So it is not eased towards the fix. It is run on from it. A fix says
+   where the vehicle was, how fast it was going and which way, and between
+   one fix and the next that is enough to say where it is now: on from the
+   fix at that speed, along the route line if it is on one and along its
+   course if it is not. Every frame the vehicle is moved by exactly as far
+   as that reckoning moved, so at a steady speed it covers the same ground
+   in every frame and the lunge has nothing to come from.
+
+   The next fix never lands quite where the reckoning had got to - the
+   receiver wanders a metre or two, and nothing holds a speed exactly. What
+   it disagrees by is not jumped to. It is taken up over GLIDE_PULL, on top
+   of the running, so a two metre disagreement is a vehicle going a touch
+   faster or slower for a second rather than one that twitches.
+
+   Three things keep the reckoning honest.
+
+   - The speed is taken to be changing the way it was changing between the
+     last two fixes, so a vehicle pulling up is drawn pulling up and does
+     not run past the line and come back. It stops; it never reverses.
+   - On a course that is swinging, off the route, the reckoning swings
+     with it rather than running straight on out of the bend.
+   - It runs on only so far. A fix that does not come - a tunnel, a
+     cutting, the receiver thinking - leaves the vehicle where the last of
+     GLIDE_REACH put it, not driving on through a town on its own.
+
+   The way it faces is done the same way. On the route it is the way the
+   line runs at the place the vehicle is drawn, which turns through a bend
+   a few degrees at a time and not once a second; off it, the course run on
+   at the rate it was turning. Standing still, and before the vehicle has
+   moved at all, none of this applies and the arrow is whatever pushPosition
+   and the compass made it.
+
+   What is drawn is all that moves. The fix, the recording, the route
+   progress and the speed are the receiver's, as they were. */
+const Glide = {
+  at: 0,          /* when the fix in hand landed, on the frame clock */
+  gap: 1000,      /* and how long after the one before, ms */
+  v: 0,           /* m/s at it, and how that was changing, m/s each second */
+  acc: 0,
+  dir: null,      /* the way it was going, where there is no line to run along */
+  turn: 0,        /* degrees a second that was swinging */
+  hdg: null,      /* its course, when it has one to steer the arrow by */
+  flow: null,     /* on the route: the drawn line, */
+  s: 0,           /*   metres along it at the fix, */
+  end: 0,         /*   metres along it the road runs to, */
+  i: 0,           /*   and the piece the fix was on */
+  snap: null,     /* navSnap's word on the fix in hand: { flow, q, t, end } */
+  last: null,     /* the fix before, for a speed when the receiver gives none */
+  prev: null,     /* where the reckoning stood a frame ago */
+  seen: 0,        /* when that frame was, */
+  lead: 0,        /*   and how long before the fix in hand, ms */
+  held: null,     /* where the fix before put the vehicle */
+  rest: null,     /* pulled up: where it is drawn, and stays */
+  /* The frame clock. A property so that a test can run it by hand - see
+     NavSim.glide in tools/nav-sim.js. */
+  clock: function () { return performance.now(); },
+
+  /* A fix has landed, and view.tgt is where it puts the vehicle. */
+  fix: function (fix, pt, hdg, held) {
+    const now = this.clock();
+    const gap = this.at ? now - this.at : 0;
+    const fresh = gap > 0 && gap <= CFG.GLIDE_GAP_MAX;
+    const T = fresh ? Math.max(0.2, gap / 1000) : 1;
+    let v = (fix.spd != null && isFinite(fix.spd)) ? fix.spd
+          : (fresh && this.last ? haversine(this.last, pt) / T : 0);
+    if (held || !(v > 0)) v = 0;
+    this.acc = fresh ? Math.max(-CFG.GLIDE_ACC, Math.min(CFG.GLIDE_ACC, (v - this.v) / T)) : 0;
+    /* A course worth steering by: the simulator's, or the receiver's at a
+       speed where it means something - the same test pushPosition makes. */
+    const live = hdg != null && (!!fix.sim || v >= CFG.HDG_GPS_MIN);
+    let turn = 0;
+    if (live && this.hdg != null && fresh) {
+      turn = (((hdg - this.hdg + 540) % 360) - 180) / T;
+      if (Math.abs(turn) < CFG.GLIDE_TURN[0]) turn = 0;
+      turn = Math.max(-CFG.GLIDE_TURN[1], Math.min(CFG.GLIDE_TURN[1], turn));
+    }
+    this.turn = turn;
+    this.hdg = live ? hdg : null;
+    /* Crawling, the receiver's course is noise and the arrow keeps the way
+       it was going. So does the reckoning. */
+    this.dir = hdg != null ? hdg : (view.course ? view.hdgTgt : null);
+    const sn = this.snap;
+    this.snap = null;
+    if (sn && sn.flow && sn.flow.cum) {
+      const c = sn.flow.cum;
+      this.flow = sn.flow; this.i = sn.q; this.end = sn.end;
+      this.s = c[sn.q] + (c[sn.q + 1] - c[sn.q]) * sn.t;
+    } else {
+      this.flow = null;
+    }
+    this.gap = fresh ? gap : 1000;
+    this.at = now;
+    this.v = v;
+    this.last = pt;
+    /* Pulled up, the vehicle stays where it is drawn. pushPosition holds
+       the target still under a stopped vehicle so that the receiver's
+       wander does not walk it about, and the target it holds is the fix
+       from the second before the wheels stopped - a metre or so behind
+       where the reckoning, which saw the braking, has put the vehicle.
+       Brought round to it, the vehicle rolled back that metre every time
+       it stopped. Where it is drawn is as good a place as the fix: they
+       differ by less than the fix is good for. Let go as soon as the
+       target moves or the vehicle does. */
+    const t = view.tgt, h = this.held;
+    const same = !!h && Math.abs(h.lat - t.lat) < 5e-7 && Math.abs(h.lng - t.lng) < 5e-7;
+    this.held = { lat: t.lat, lng: t.lng };
+    if (v === 0 && same) { if (!this.rest) this.rest = { lat: view.cur.lat, lng: view.cur.lng }; }
+    else this.rest = null;
+    /* The reckoning starts again from the fix. Whatever lies between that
+       and where the vehicle is drawn is the disagreement, and is taken up
+       in step.
+
+       A fix lands between two frames, and the frame after it has to move
+       the vehicle a whole frame's worth, not only the part since the fix:
+       started from the fix itself, the vehicle stood still for one frame
+       in every sixty, which is a tick you can see. So the reckoning is
+       asked where it would have been at the frame before, and runs on
+       from there. */
+    this.lead = this.seen ? Math.max(0, Math.min(50, now - this.seen)) : 0;
+    this.prev = null;
+  },
+
+  /* Where the reckoning puts the vehicle `age` seconds after the fix, and
+     the way the line runs there if it is on one. A little before the fix
+     as well as after it - see lead. */
+  where: function (age) {
+    if (this.rest) return { lat: this.rest.lat, lng: this.rest.lng, way: null };
+    const tgt = view.tgt;
+    let run = 0;
+    if (this.v > 0) {
+      /* at the speed it was doing, changing as it was changing, and never
+         backwards: it stops */
+      const t = this.acc < 0 ? Math.min(age, this.v / -this.acc) : age;
+      run = this.v * t + 0.5 * this.acc * t * t;
+      if (age > 0 && run < 0) run = 0;
+    }
+    if (run !== 0 && this.flow) {
+      const L = this.flow.line, cum = this.flow.cum;
+      const d = Math.max(0, Math.min(this.s + run, this.end));
+      let i = Math.min(this.i, L.length - 2);
+      while (i < L.length - 2 && cum[i + 1] < d) i++;
+      while (i > 0 && cum[i] > d) i--;
+      const len = cum[i + 1] - cum[i];
+      const f = len > 0 ? Math.max(0, Math.min(1, (d - cum[i]) / len)) : 0;
+      return { lat: L[i][0] + (L[i + 1][0] - L[i][0]) * f, lng: L[i][1] + (L[i + 1][1] - L[i][1]) * f,
+               way: len > 0 ? bearing({ lat: L[i][0], lng: L[i][1] }, { lat: L[i + 1][0], lng: L[i + 1][1] }) : null };
+    }
+    if (run !== 0 && this.dir != null) {
+      /* halfway round whatever it has turned through, which is where the
+         chord of an arc points */
+      const b = rad(this.dir + this.turn * Math.max(0, Math.min(age, CFG.GLIDE_TURN[2])) / 2);
+      return { lat: tgt.lat + Math.cos(b) * run / 111320,
+               lng: tgt.lng + Math.sin(b) * run / (111320 * Math.cos(rad(tgt.lat))), way: null };
+    }
+    return { lat: tgt.lat, lng: tgt.lng, way: null };
+  },
+
+  /* A frame: dt since the last, at `now` on the frame clock. */
+  step: function (dt, now) {
+    if (!view.has) return;
+    const c = view.cur;
+    const reach = Math.min(CFG.GLIDE_REACH[1], Math.max(CFG.GLIDE_REACH[0], this.gap * 1.5));
+    const age = Math.max(0, Math.min(now - this.at, reach)) / 1000;
+    const p = this.where(age), way = p.way;
+    if (!this.prev) this.prev = this.where(-this.lead / 1000);
+    this.seen = now;
+
+    /* Moved by as far as the reckoning moved... */
+    c.lat += p.lat - this.prev.lat; c.lng += p.lng - this.prev.lng;
+    this.prev = p;
+    /* ...and brought round, gently, to where the reckoning is. Bit for bit
+       once it is within a couple of centimetres, so that a vehicle standing
+       still stops being written - see the guards in frame. */
+    const ey = p.lat - c.lat, ex = p.lng - c.lng;
+    const off = Math.hypot(ey * 111320, ex * 111320 * Math.cos(rad(p.lat)));
+    if (off < 0.02 || off > Math.max(CFG.GLIDE_JUMP, this.v * 3)) {
+      c.lat = p.lat; c.lng = p.lng;
+    } else {
+      const k = 1 - Math.exp(-dt / CFG.GLIDE_PULL);
+      c.lat += ey * k; c.lng += ex * k;
+    }
+
+    /* Which way it faces. */
+    let kh = 1 - Math.pow(1 - CFG.LERP_HDG, dt / 16.7);
+    if (this.hdg != null) {
+      let to = this.hdg + this.turn * Math.min(age, CFG.GLIDE_TURN[2]);
+      /* Along the line, but only as far from the course as navSnap allows -
+         see NAV_SNAP_LEAN. */
+      if (way != null) {
+        const pull = ((way - to + 540) % 360) - 180, most = CFG.NAV_SNAP_LEAN;
+        to += Math.max(-most, Math.min(most, pull));
+      }
+      view.hdgTgt = ((to % 360) + 360) % 360;
+      kh = 1 - Math.exp(-dt / CFG.GLIDE_SWING);
+    }
+    view.hdgCur = lerpAngle(view.hdgCur, view.hdgTgt, kh);
+  }
+};
+
 /* ---- 60fps animation loop ---- */
 let prevTs = 0;
 let statsTick = 0, gpsTick = 0, backTick = 0, spdTick = 0, nearTick = 0, pinTick = 0;
@@ -7439,8 +7665,6 @@ function frame(ts) {
   requestAnimationFrame(frame);
   const dt = prevTs ? Math.min(64, ts - prevTs) : 16.7;
   prevTs = ts;
-  const kp = 1 - Math.pow(1 - CFG.LERP_POS, dt / 16.7);
-  const kh = 1 - Math.pow(1 - CFG.LERP_HDG, dt / 16.7);
 
   /* Which way to face. Driving, the GPS course is the honest answer and is
      not upset by the steel of the vehicle. Before the vehicle has moved it
@@ -7463,9 +7687,9 @@ function frame(ts) {
       : view.speed < CFG.HDG_GPS_MIN && view.course ? "last course" : "gps course";
   }
 
-  view.cur.lat += (view.tgt.lat - view.cur.lat) * kp;
-  view.cur.lng += (view.tgt.lng - view.cur.lng) * kp;
-  view.hdgCur = lerpAngle(view.hdgCur, view.hdgTgt, kh);
+  /* Where the vehicle is drawn and which way it faces: run on from the
+     last fix, not eased towards it. */
+  Glide.step(dt, ts);
 
   /* Each of these is guarded the same way the transform is, and for the
      same reason: the lerp settles onto its target and then holds there bit
@@ -7756,7 +7980,10 @@ function pushPosition(fix) {
 
   Rec.onFix(fix, lastFixPt);
   fetchPois();                 /* keeps the 5 km bubble ahead of the vehicle */
+  Glide.snap = null;
   if (Nav.active) navProgress();
+  /* after navProgress, which may have put the vehicle on the route line */
+  Glide.fix(fix, pt, hdg, still);
   lastFixPt = pt;
   syncDragMode();
   updateGpsPill();
@@ -16932,8 +17159,30 @@ function openNavModal(pickHome) {
   homePick = (pickHome === true);
   $("#navModal").classList.remove("hidden");
   $("#nmTitle").textContent = homePick ? "Set Home Address" : "Navigate To";
+  renderNavHome();
   renderNavList();
   setTimeout(function () { $("#nmQuery").focus(); }, 60);
+}
+/* Home, one press from the search screen. It is the one place nearly every
+   trip ends, and getting there used to mean typing "home" and picking it
+   out of the suggestions - four letters and a tap, for the only
+   destination the phone already knows. Asked for after a drive.
+
+   With no home stored the same button is how one is chosen, so it is never
+   a button that does nothing: it turns this screen into the one that sets
+   a home. Choosing a home, there is nothing to go to yet and it is put
+   away. */
+function renderNavHome() {
+  const b = $("#nmHome");
+  if (!b) return;
+  b.classList.toggle("hidden", homePick);
+  b.textContent = home ? "Navigate Home" : "Set Home";
+}
+function navHome() {
+  if (!home) { openNavModal(true); return; }
+  const to = { lat: home.lat, lng: home.lng, name: home.name || "Home" };
+  closeNavModal();
+  navigateTo(to);
 }
 function closeNavModal() {
   homePick = false;
@@ -18369,7 +18618,7 @@ function navFlow(co, sharp) {
   const m = X.length;
   if (m < 3) {
     for (let i = 0; i < n; i++) { line.push(co[i]); at[i] = i; }
-    return { line: line, at: at };
+    return { line: line, at: at, cum: flowCum(line) };
   }
   const put = function (x, y) { line.push([deg(2 * Math.atan(Math.exp(rad(y))) - Math.PI / 2), x]); };
 
@@ -18461,7 +18710,18 @@ function navFlow(co, sharp) {
   }
   put(X[m - 1], Y[m - 1]);
   for (let i = 0; i < n; i++) at[i] = idx[of[i]];
-  return { line: line, at: at };
+  return { line: line, at: at, cum: flowCum(line) };
+}
+
+/* Metres along the drawn line to each of its points, for running the
+   vehicle along it between fixes - see Glide. */
+function flowCum(line) {
+  const cum = new Float64Array(line.length);
+  for (let i = 1; i < line.length; i++) {
+    cum[i] = cum[i - 1] + haversine({ lat: line[i - 1][0], lng: line[i - 1][1] },
+                                    { lat: line[i][0], lng: line[i][1] });
+  }
+  return cum;
 }
 
 /* The line the corners are read off, which is not quite the line drawn.
@@ -18982,6 +19242,12 @@ function navArt(p1, p2, art) {
        the device calls itself. Null until a line has been played that way.
        The settings show it - see voiceStateLine. */
     route: null,
+    /* What is connected over Bluetooth, as the phone tells it: { media,
+       calls } - the name of the device sound can be sent to, and of one
+       that only takes calls, or null for either. Asked again whenever it
+       is about to be shown - see voiceLink. */
+    link: null,
+    links: function () { return cap.nativePromise("NavVoice", "routes", {}); },
     getVoices: function () { return voices; },
     addEventListener: function (type, fn) { if (type === "voiceschanged") told.push(fn); },
     speak: function (u) {
@@ -19014,7 +19280,7 @@ function navArt(p1, p2, art) {
   cap.nativeCallback("NavVoice", "addListener", { eventName: "speech" }, function (d) {
     if (d && d.type === "route") {
       speech.route = { wanted: !!d.wanted, bluetooth: !!d.bluetooth, name: d.name || "" };
-      if (typeof syncVoiceButtons === "function") syncVoiceButtons();
+      if (typeof voiceLink === "function") voiceLink();
       return;
     }
     if (d && (d.type === "end" || d.type === "error")) settle(d.id, d.type === "end");
@@ -19038,6 +19304,8 @@ function navArt(p1, p2, art) {
         return { name: label, lang: v.lang, voiceURI: v.id, localService: !!v.local, default: false };
       });
     told.forEach(function (fn) { try { fn(); } catch (e) { } });
+    /* and what the phone is connected to, for the settings */
+    if (typeof voiceLink === "function") voiceLink();
   }).catch(function () { });
   Object.defineProperty(window, "speechSynthesis", { value: speech, configurable: true, writable: true });
   window.SpeechSynthesisUtterance = Utterance;
@@ -19758,6 +20026,9 @@ async function navigateTo(dest, quiet) {
   setNavNote(Nav.standing);
   showNavPanel();
   navProgress();
+  /* The one thing worth a chip at the start of a route: a car connected in
+     a way the voice cannot reach - see voiceLink. */
+  if (!quiet) voiceLink(true);
   /* No chip for starting a route. The panel that just came up names the
      destination and goes on naming it, which the chip did for two seconds
      over the top of the map you were about to drive. */
@@ -19856,16 +20127,21 @@ function navSnap(near, hdg) {
   const t = view.tgt, n = Nav.coords.length, L = F.line;
   const lo = Math.max(Nav.head || 0, near.i - 3);
   const hi = Math.min(Nav.tail > 0 ? Nav.tail : n - 1, n - 1, near.i + 4);
-  let best = null, way = null;
+  let best = null, way = null, piece = 0;
   for (let q = F.at[lo]; q < F.at[hi]; q++) {
     const a = { lat: L[q][0], lng: L[q][1] }, b = { lat: L[q + 1][0], lng: L[q + 1][1] };
     const along = bearing(a, b);
     if (hdg != null && angleOff(along, hdg) > CFG.NAV_SNAP_ANGLE) continue;
     const r = segNear(t, a, b);
-    if (!best || r.d < best.d) { best = r; way = along; }
+    if (!best || r.d < best.d) { best = r; way = along; piece = q; }
   }
   if (!best || best.d > CFG.NAV_SNAP_M) return;
   view.tgt = { lat: best.lat, lng: best.lng };
+  /* And where on the line that is, so that until the next fix the vehicle
+     can be run along the line rather than held at this point of it - as
+     far as the road goes, and not on down the hop to the pin. */
+  Glide.snap = { flow: F, q: piece, t: best.t,
+                 end: F.cum[F.at[Nav.tail > 0 ? Math.min(Nav.tail, n - 1) : n - 1]] };
   /* Pointed along the line only while moving. Stopped, the arrow keeps the
      way it was going - see pushPosition.
 
@@ -21364,6 +21640,7 @@ $("#nmList").addEventListener("click", function (e) {
 $("#nmClose").addEventListener("click", closeNavModal);
 $("#nmCancel").addEventListener("click", closeNavModal);
 $("#nmSearch").addEventListener("click", navModalSearch);
+$("#nmHome").addEventListener("click", navHome);
 /* Typing asks Photon, which is built for it. The committed search still
    goes to Nominatim - that path is tuned for whole answers - so the two
    geocoders each do the job they are good at. */
@@ -21608,11 +21885,42 @@ function voiceStateLine() {
    with no Bluetooth device connected, where there is nothing to wonder
    about. */
 function voiceWhere() {
-  const r = NATIVE && window.speechSynthesis && window.speechSynthesis.route;
-  if (!r || !r.wanted) return "";
-  return r.bluetooth
-    ? ". Last line sent to " + (r.name || "the Bluetooth device") + " over Bluetooth"
-    : ". Bluetooth is connected, but the last line did not go to it";
+  const sp = NATIVE && window.speechSynthesis;
+  if (!sp) return "";
+  const r = sp.route, k = sp.link;
+  /* Paired for calls and nothing else. Sound other than a call cannot be
+     sent to such a device at all, and from the driver's seat that is one
+     more car that stays silent - except that this one the phone can see,
+     and the cure is a switch in Android's own Bluetooth settings. */
+  if (k && !k.media && k.calls) {
+    return ". " + k.calls + " is connected for calls only, so the voice cannot be sent to it. " +
+           "Turn on Media audio for it in Android's Bluetooth settings";
+  }
+  if (r && r.wanted) {
+    return r.bluetooth
+      ? ". Last line sent to " + (r.name || "the Bluetooth device") + " over Bluetooth"
+      : ". Bluetooth is connected, but the last line did not go to it";
+  }
+  /* Before anything has been said: where the next line will go. */
+  if (k && k.media) return ". Will be sent to " + k.media + " over Bluetooth";
+  return "";
+}
+
+/* Asks the phone what is connected over Bluetooth, and puts the answer in
+   the settings. The app only. `warn` is for the start of a route: a car
+   that will not be getting the voice is said then, once, in a chip - the
+   driver is about to pull out expecting to hear it. A car that will be
+   getting it is not announced; the settings say so for anyone who looks. */
+function voiceLink(warn) {
+  const sp = NATIVE && window.speechSynthesis;
+  if (!sp || !sp.links) return;
+  sp.links().then(function (k) {
+    sp.link = { media: (k && k.media) || "", calls: (k && k.calls) || "" };
+    $("#voiceState").textContent = voiceStateLine();
+    if (warn && S.navVoice && !sp.link.media && sp.link.calls) {
+      toast(sp.link.calls + " takes calls only - the voice stays on the phone", "warn");
+    }
+  }).catch(function () { });
 }
 
 /* The phones this is for have one English voice on them and the row stays
@@ -21701,6 +22009,7 @@ function setNavVoice(on) {
   S.navVoice = on;
   saveSettings();
   Voice.arm();
+  if (on) voiceLink();
   /* Switching it on is itself the gesture a browser wants before it will
      speak, and hearing the thing is the only way to know it works - the
      same move the chime makes, for the same reason. */
@@ -21744,6 +22053,7 @@ $("#btnMusicPause").addEventListener("click", function () { setVoiceSound("voice
 /* A real instruction rather than a word, because what is being tested is
    whether the road names come out right, and those are the hard part. */
 $("#btnVoiceTest").addEventListener("click", function () {
+  voiceLink();
   Voice.arm();
   Voice.utter("In 500 metres, turn left onto Flinders Ranges Way", true);
   syncVoiceButtons();

@@ -72,6 +72,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * the settings - so "sent to the car and not heard" and "never sent to the
  * car" can be told apart from the driver's seat.
  *
+ * That was not enough: the next report was the same. So two things more. A
+ * line going to a Bluetooth device is played as media, plain and simple -
+ * the attributes music has - so that whatever the phone and the car do with
+ * music they do with it; it still asks for the focus as guidance, and the
+ * music is still turned down for it. And the page can ask what is connected
+ * before anything is said (routes), because one answer is a car paired for
+ * calls and not for sound, which no amount of routing reaches and which the
+ * settings can simply say.
+ *
  * Only voices that are on the phone are offered - a voice needing the
  * network is reported as such and the page refuses it, exactly as it does in
  * Chrome, and one not yet downloaded is left out.
@@ -81,6 +90,11 @@ public class NavVoicePlugin extends Plugin {
 
     private static final AudioAttributes GUIDANCE = new AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build();
+    /* A line sent to a Bluetooth device: what music is, saying what it is. */
+    private static final AudioAttributes MEDIA = new AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build();
     /* Milliseconds of silence sent down a Bluetooth link that was carrying
@@ -179,6 +193,18 @@ public class NavVoicePlugin extends Plugin {
         call.resolve(r);
     }
 
+    /* What is connected over Bluetooth: the name of a device sound can be
+       sent to, and of one that takes calls. Either may be missing. A car
+       with the second and not the first is paired for calls only. */
+    @PluginMethod
+    public void routes(PluginCall call) {
+        AudioDeviceInfo media = bluetooth(), calls = handsfree();
+        JSObject r = new JSObject();
+        r.put("media", media == null ? "" : String.valueOf(media.getProductName()));
+        r.put("calls", calls == null ? "" : String.valueOf(calls.getProductName()));
+        call.resolve(r);
+    }
+
     /* text, id, voice, rate - and boost, in millibels over the media volume
        (0 speaks as the engine does), and pause, to stop the music for the
        line rather than turn it down. */
@@ -264,6 +290,23 @@ public class NavVoicePlugin extends Plugin {
         return null;
     }
 
+    /* A Bluetooth device that takes calls - a head unit's hands-free, a
+       headset. Looked for among the outputs and, from Android 12, among the
+       devices a call could be sent to, which is where some phones list it. */
+    private AudioDeviceInfo handsfree() {
+        try {
+            for (AudioDeviceInfo d : audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) return d;
+            }
+            if (Build.VERSION.SDK_INT >= 31) {
+                for (AudioDeviceInfo d : audio.getAvailableCommunicationDevices()) {
+                    if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) return d;
+                }
+            }
+        } catch (RuntimeException e) { /* none that can be asked for */ }
+        return null;
+    }
+
     private static boolean isBluetooth(int type) {
         if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return true;
         return Build.VERSION.SDK_INT >= 31
@@ -283,11 +326,12 @@ public class NavVoicePlugin extends Plugin {
             final MediaPlayer mp = new MediaPlayer();
             player = mp;
             playing = id;
-            mp.setAudioAttributes(GUIDANCE);
-            mp.setDataSource(f.getPath());
-            /* Told where to go, not left to find its way. Android 9 on; on
-               an older phone it goes where the phone sends it. */
+            /* Told where to go, not left to find its way - Android 9 on; on
+               an older phone it goes where the phone sends it - and sent as
+               what the car is certain to play. */
             final AudioDeviceInfo car = bluetooth();
+            mp.setAudioAttributes(car != null ? MEDIA : GUIDANCE);
+            mp.setDataSource(f.getPath());
             if (car != null && Build.VERSION.SDK_INT >= 28) mp.setPreferredDevice(car);
             mp.prepare();
             if (gain > 0) {
@@ -335,7 +379,7 @@ public class NavVoicePlugin extends Plugin {
         try {
             int rate = 22050, frames = rate * (WAKE_MS + 200) / 1000;
             AudioTrack t = new AudioTrack.Builder()
-                .setAudioAttributes(GUIDANCE)
+                .setAudioAttributes(MEDIA)
                 .setAudioFormat(new AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setSampleRate(rate)

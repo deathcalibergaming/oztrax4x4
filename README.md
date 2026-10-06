@@ -573,6 +573,54 @@ pivoting drive reads 14.
 Arrival and the voice, run again on both packs: 33 of 33 arrived, at most
 13 m short; 229 of 229 road names heard.
 
+**The vehicle moves between fixes.** Reported from a drive to Golden Grove:
+the marker "would jitter forward with every movement" where it should move
+"like it's playing a 60fps video". A fix comes once a second, and the
+vehicle was eased towards each one as it landed - nine tenths of the way in
+a quarter of a second, then standing where the fix was until the next. At
+50 km/h that is fourteen metres in a lunge and three quarters of a second
+of nothing, and heading up the map lunged with it.
+
+It is now run on from the fix rather than eased towards it (`Glide`): on
+from where the fix put it, at the speed the fix gave, along the route line
+if it is on one and along its course if it is not, so every frame covers
+the same ground. What the next fix disagrees by is taken up over two
+seconds on top of the running, not jumped to. The speed is taken to be
+changing as it was between the last two fixes, so it pulls up with the
+vehicle and does not run on and come back; pulled up, it stays where it is
+drawn. It runs on for one and a half fix gaps and then waits. The way it
+faces follows the line at the place it is drawn, or its course run on at
+the rate it was turning.
+
+Measured with `NavSim.glide`: 20 trips round Adelaide at 47 km/h, a fix a
+second with a metre and a half of wander, and every frame between stepped
+by hand at sixty a second - 415,418 of them. For each frame, how far the
+drawn vehicle moved against how far the real one did (1 is in step):
+
+| | eased to each fix | run on from it |
+|---|---|---|
+| spread of that, frame to frame | 2.05 | 0.04 |
+| slowest and fastest one frame in a hundred | 0 and 9.4 | 0.90 and 1.09 |
+| frames at under half speed | 71% | 0.01% |
+| frames at over one and a half times | 18% | none |
+| drawn vehicle from the real one, average | 7.5 m | 1.0 m |
+| most the arrow swung in one frame | 19.8 degrees | 7.0 |
+
+The same over other drives, as the spread: pulling up half way and setting
+off again 0.04; no route running 0.08; 100 km/h 0.02; three metres of
+wander 0.07; fixes landing up to 150 ms early or late 0.04; a fix every two
+seconds 0.05, where easing was 3.05. And in the page itself with its own
+frames running, a straight at 50 km/h: 1,136 frames between 0.98 and 1.02.
+
+Two faults the first cut had, which the frame count found and the eye
+might not have: the frame a fix landed on moved the vehicle only as far as
+it had come since the fix, a stall of one frame in sixty; and a vehicle
+that had stopped rolled back a metre to the fix from the second before.
+
+Arrival, the voice and the wrong-road drive read where a fix puts the
+vehicle, which has not changed: 33 of 33 arrived, 229 of 229 road names
+heard, the arrow over 30 degrees off on 11 fixes of 12,441.
+
 80 m short arrives on all 33. Parking further than 30 m short does not, and
 navigation carries on until it is cancelled. A pin more than 60 m from the
 road still goes by the circle, because there the pin is the only place to
@@ -627,9 +675,20 @@ app that replaces it is a Capacitor build of the same page, in `android/`:
   Sending the line as a phone call gets round that, was built, and was
   turned down: what was wanted was Bluetooth working, not another choice.
 
-  **Not yet heard in a car, or run on a phone.** It compiles, and the page
-  side was driven against a stand-in for the bridge. The readout is there
-  so that the first report from the car says which half is at fault.
+  **The report from the car was the same: nothing through the head unit.**
+  It did not say what the readout showed, so two things more, both things
+  the phone can do without being told which fault it is. A line going to a
+  Bluetooth device is now played as media outright (`USAGE_MEDIA`), so
+  that whatever the phone and the car do with music they do with it; the
+  focus is still asked for as guidance. And the page asks what is
+  connected before anything is said (`routes`): the status reads *Will be
+  sent to MY CAR over Bluetooth*, or - for a car paired for calls and not
+  for sound, which no routing reaches - *MY CAR is connected for calls
+  only... Turn on Media audio for it in Android's Bluetooth settings*,
+  and that one is also a chip when a route starts.
+
+  **Still not heard in a car, or run on a phone.** It compiles, and the
+  page side was driven against a stand-in for the bridge.
 - **The icons and the splash mark** are the Play build's.
 - **No service worker** in the app: its shell is inside it, and updates come
   through the Play Store.
