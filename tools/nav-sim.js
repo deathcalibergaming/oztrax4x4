@@ -24,6 +24,9 @@
      await NavSim.wrong(30, 11)                       told one way, driven another
      await NavSim.wrong(30, 11, { curve: true })      the same, driven round the corners
      await NavSim.path(start, [via], pin)             one trip, the way it was driven
+     await NavSim.glide(20, 7)                        the marker, frame by frame
+     await NavSim.glide(20, 7, { stop: true })        and pulling up half way
+     await NavSim.glide(20, 7, { free: true })        and with no route running
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -66,6 +69,23 @@
    corner takes, as a vehicle's does. Use both for anything that changes
    where the marker is put or which way it points: a rule that only looks
    right against a vehicle that pivots is not right.
+
+   glide() is the marker between fixes, which nothing above looks at: they
+   read where a fix put it, and a driver watches it sixty times a second.
+   Each trip is driven along its route at a steady speed with a fix a
+   second, and the frames in between are stepped by hand on a clock of
+   their own (Glide.clock) - the page's frames are stood off, so it runs
+   the same hidden or shown. For every frame it reads how far the drawn
+   vehicle moved against how far the real one did: 1 is in step, 0 is
+   standing still, 3 is a lunge. `now` is the app as it is and `was` is
+   the easing it replaced, worked out beside it from the same fixes - sd,
+   the 1st and 99th percentile, the share of frames under half speed and
+   over one and a half times, frames that went backwards, the mean
+   distance from where the vehicle really was, and the most the arrow
+   swung in a frame. Options: v, sigma (1.5 m here - a receiver at speed
+   in the open holds a line better than one in a street), every (ms
+   between fixes), late (ms of scatter in when they land), stop, free (no
+   route running - the vehicle is run on along its course).
 
    path() is for a report from the road - "it said nothing at the end of
    Chess Street". The app is told the destination and the vehicle is driven
@@ -522,9 +542,112 @@
     return out;
   }
 
+  /* The marker, frame by frame - see the header. */
+  async function glide(n, seed, opt) {
+    opt = opt || {};
+    stub();
+    const step = Glide.step, clock = Glide.clock;
+    let now = 1e6;                      /* the frame clock, run by hand */
+    Glide.step = function () {};        /* the page's own frames stand off */
+    Glide.clock = function () { return now; };
+    const FR = 1000 / 60, KP = 0.16, KH = 0.13;   /* a frame; the easing that was */
+    const sigma = opt.sigma == null ? 1.5 : opt.sigma, V = opt.v || 13, every = opt.every || 1000;
+    const out = { trips: 0, fixes: 0, frames: 0 };
+    const A = { now: [], was: [], turnNow: [], turnWas: [], errNow: 0, errWas: 0, backNow: 0, backWas: 0, n: 0 };
+    const fwd = function (a, b, hdg) {            /* metres from a to b, along hdg */
+      const h = hdg * Math.PI / 180;
+      return (b.lat - a.lat) * ML * Math.cos(h) + (b.lng - a.lng) * ML * Math.cos(a.lat * Math.PI / 180) * Math.sin(h);
+    };
+    const swing = function (a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+    try {
+      for (const trip of trips(n, seed)) {
+        const r = rng(trip.noise);
+        if (Nav.active) cancelNav(true);
+        pushPosition({ lat: trip.o.lat, lng: trip.o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+        await navigateTo({ lat: trip.t.lat, lng: trip.t.lng, name: "T" + trip.k });
+        if (!Nav.active || Nav.via !== "local" || !Nav.flow) continue;
+        /* Driven along the line as it is drawn, which is how a vehicle
+           takes a corner. */
+        const fl = Nav.flow, co = fl.line.slice(fl.at[Nav.head], fl.at[Nav.tail] + 1), cum = [0];
+        for (let i = 1; i < co.length; i++) {
+          cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+        }
+        const end = cum[cum.length - 1];
+        if (end < 500) continue;
+        /* free: the same roads with no route running, so the vehicle is
+           reckoned along its course and not along a line */
+        if (opt.free) cancelNav(true);
+        out.trips++;
+        let ex = 0, ey = 0, s = 5, v = V, t = 0, next = 0, phase = "go", wait = 0;
+        let old = null, oldH = 0, tgtH = 0;
+        while (s < end - 30) {
+          const dts = FR / 1000;
+          if (opt.stop) {
+            if (phase === "go" && s > end * 0.5) phase = "brake";
+            if (phase === "brake") { v = Math.max(0, v - 2.5 * dts); if (v === 0) { phase = "wait"; wait = 3000; } }
+            else if (phase === "wait") { wait -= FR; if (wait <= 0) phase = "pull"; }
+            else if (phase === "pull") { v = Math.min(V, v + 2 * dts); if (v === V) phase = "gone"; }
+          }
+          s += v * dts; now += FR; t += FR;
+          const p = pointAt(co, cum, s);
+          if (t >= next) {
+            next += every + (opt.late ? gauss(r) * opt.late : 0);
+            ex = 0.8 * ex + 0.6 * gauss(r) * sigma;
+            ey = 0.8 * ey + 0.6 * gauss(r) * sigma;
+            const f = offset(p, ex, ey);
+            Nav.lastCalc = Date.now();          /* followed, so never recalculated */
+            pushPosition({ lat: f.lat, lng: f.lng, spd: Math.max(0, v + (v > 0 ? gauss(r) * 0.15 : 0)),
+                           hdg: v > 0.6 ? (p.hdg + gauss(r) * 2 + 360) % 360 : null,
+                           acc: 5, sim: false, t: Date.now() });
+            await settle();
+            if (!Nav.active && !opt.free) break;
+            out.fixes++;
+            tgtH = view.hdgTgt;
+            if (!old) { old = { lat: view.tgt.lat, lng: view.tgt.lng }; oldH = tgtH; }
+          }
+          if (!old) continue;
+          const c0 = { lat: view.cur.lat, lng: view.cur.lng }, h0 = view.hdgCur;
+          step.call(Glide, FR, now);
+          const o0 = { lat: old.lat, lng: old.lng }, oh0 = oldH;
+          old.lat += (view.tgt.lat - old.lat) * KP;
+          old.lng += (view.tgt.lng - old.lng) * KP;
+          oldH = lerpAngle(oldH, tgtH, KH);
+          out.frames++;
+          if (t < 4000) continue;               /* settled in */
+          const mNow = fwd(c0, view.cur, p.hdg), mWas = fwd(o0, old, p.hdg);
+          if (mNow < -0.005) A.backNow++;
+          if (mWas < -0.005) A.backWas++;
+          if (v >= 5) {
+            A.now.push(mNow / (v * dts)); A.was.push(mWas / (v * dts));
+            A.turnNow.push(swing(view.hdgCur, h0)); A.turnWas.push(swing(oldH, oh0));
+          }
+          A.errNow += haversine(view.cur, p); A.errWas += haversine(old, p); A.n++;
+        }
+      }
+    } finally {
+      Glide.step = step; Glide.clock = clock;
+      if (Nav.active) cancelNav(true);
+    }
+    const stat = function (ratio, turn, err, back) {
+      const a = Float64Array.from(ratio).sort(), b = Float64Array.from(turn).sort();
+      const q = (x, f) => x.length ? x[Math.min(x.length - 1, Math.floor(x.length * f))] : 0;
+      let m = 0, sd = 0, slow = 0, fast = 0;
+      for (let i = 0; i < a.length; i++) { m += a[i]; if (a[i] < 0.5) slow++; if (a[i] > 1.5) fast++; }
+      m /= a.length || 1;
+      for (let i = 0; i < a.length; i++) sd += (a[i] - m) * (a[i] - m);
+      const f2 = (x) => +x.toFixed(2);
+      return { mean: f2(m), sd: f2(Math.sqrt(sd / (a.length || 1))), p1: f2(q(a, 0.01)), p99: f2(q(a, 0.99)),
+               underHalf: f2(100 * slow / (a.length || 1)), overOneAndHalf: f2(100 * fast / (a.length || 1)),
+               back: back, off: f2(err / (A.n || 1)), swing99: f2(q(b, 0.99)), swingMax: f2(q(b, 1)) };
+    };
+    out.now = stat(A.now, A.turnNow, A.errNow, A.backNow);
+    out.was = stat(A.was, A.turnWas, A.errWas, A.backWas);
+    return out;
+  }
+
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
-    wrongRoad: wrongRoad, wrong: wrong, path: path,
+    wrongRoad: wrongRoad, wrong: wrong, path: path, glide: glide,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up

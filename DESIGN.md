@@ -1115,7 +1115,12 @@ down there until it is tapped:
   row opens, not keyed to the screen. Which place it gets is settled then
   and left alone while it is up, so a bar arriving as an action is chosen
   cannot move the row out from under the finger that chose it.
-- **Navigate:** a second tap navigates, and puts the row away.
+- **Navigate:** a second tap navigates, and puts the row away. The screen it
+  opens has Navigate Home beside Search - the one destination the phone
+  already knows, one press from the map instead of four letters and a pick
+  from the suggestions. With no home stored it reads Set Home and turns the
+  screen into the one that sets it, so it is never a button that does
+  nothing.
 - **Actions:** a tap on one of the four runs it, then puts the row away.
 - **Dismiss:** a tap anywhere else only puts it away; it is swallowed, so
   dismissing the row cannot also drop a pin or open a place. Escape does it
@@ -1796,6 +1801,10 @@ Bluetooth*, or *Bluetooth is connected, but the last line did not go to
 it*. A car that stays silent is two different faults that sound the same,
 and this is the half the phone can see. With nothing connected the line is
 not there. It is a status and not a setting: there is nothing to choose.
+Before anything has been said it is where the next line will go, and for a
+car paired for calls and nothing else it says that instead, with the
+switch in Android that cures it - the one silent car the phone can
+explain.
 
 **A roundabout is one instruction: which exit.** *At the roundabout, take
 the third exit onto Onkaparinga Valley Road*, given where the ring is
@@ -2461,6 +2470,18 @@ springs onto its heading, an arc closes over six seconds. Everything after
 it acknowledges, explains or reports, and nothing after it entertains. The
 test is not how loud the motion is but when it runs — if a driver could be
 moving while it plays, it is not allowed to be a performance.
+
+**The Moving Vehicle Rule.** The vehicle is the one thing on the map that
+moves while it is being read, and it moves the way the vehicle does: the
+same distance every frame at a steady speed, slowing when the vehicle
+slows, turning with the road. A fix arrives once a second and is not an
+event on the screen. The marker used to be eased towards each fix as it
+landed, which is a lunge and a wait sixty times a minute, and heading up
+the whole map lunged with it; it is run on from the fix now, at the speed
+and along the line the fix gave, and a fix that disagrees is taken up over
+two seconds rather than jumped to. This is not a performance and is not
+covered by the rule above. It is the reading itself, and a reading that
+jerks is a worse reading.
 
 **The Idle Frame Rule.** The loop that moves the vehicle runs on every frame
 the screen offers, which on a modern phone is 90 or 120 a second rather than
