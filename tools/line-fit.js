@@ -226,6 +226,7 @@ window.LineFit = (function () {
   async function follow(list, packs, truth, opt) {
     opt = opt || {};
     S.follow = false;
+    window.resumeFollow = function () {};       /* a route starting turns it back on */
     window.fetchPois = function () {};
     window.schedulePoi = function () {};
     window.osrmRoute = async function () { return null; };

@@ -2147,6 +2147,34 @@ not — the box is always there and Navigate always stands in it, and an inset
 that came and went with a recording would walk the vehicle up and down the
 screen while somebody was driving.
 
+### Following
+
+**The app opens on the vehicle.** Following — the map held on the vehicle —
+is on at every launch, and the first fix puts the map there. It is not a
+setting and it is not saved. It used to be: dragging the map pauses
+following, and the pause was written into the settings, so one drag with no
+press of Recentre after it meant the next launch opened with following off —
+the map parked where the vehicle had last been, the marker moving and the map
+not, until the driver pressed Recentre. A paused follow is the driver looking at
+something else, and that look ended when the app closed.
+
+**Coming back to the app after two minutes is opening it** (`FOLLOW_AWAY_MS`).
+Android keeps the app alive behind the others, so pressing its icon is often a
+return to the running page rather than a launch, and a rule that only reached
+launches would miss those. Back sooner than that, the map is as it was
+left: a message answered or location switched on in the phone's settings is a
+glance away, and the place being looked at should still be there. The figure
+is a judgement, not a measurement.
+
+**A route asked for puts the map on the vehicle.** Go To and then Navigate
+from the place's card is how a route usually gets chosen, and it left the bar
+counting down to a turn that was off the screen. A recalculation does not: a
+driver who has dragged the map ahead to read the road is left reading it.
+
+A drag still pauses following, for that sitting, and before the first fix as
+well as after it — the fix does not take the map back from a driver who has
+already pointed it somewhere.
+
 ### Auto Zoom
 
 The map closes in where there is something to see and opens out again where

@@ -3650,6 +3650,13 @@ const CFG = {
   GL_DEM: "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
   GL_SHADE: 0.35,
   GL_FOLLOW_MS: 50,        /* the follow camera, 20 moves a second - see followCamera */
+  /* Away from the app this long, and coming back to it is opening it again
+     rather than glancing back at it: a map left dragged off the vehicle
+     goes back to the vehicle. Two minutes is longer than answering a
+     message or switching location on in the phone's settings, both of which
+     want the map as it was left, and shorter than a stop for fuel. Chosen,
+     not measured. */
+  FOLLOW_AWAY_MS: 120000,
   /* Drawn at no more than twice the CSS pixel. The S22 is 2.8, and every
      pixel past 2 is GPU memory and fill for a line that was already sharp
      at 2 - vector is drawn, not stretched like the Esri tiles were. */
@@ -4860,7 +4867,7 @@ const DB = (function () {
    ===================================================================== */
 const S = Object.assign({
   northLock: false,     /* true = north up, false = heading up - the default */
-  follow: true,
+  follow: true,         /* the map is held on the vehicle - never saved, see below */
   poiOn: true,
   keepAwake: true,      /* hold the screen on the whole time the app is open */
   /* Off until it is asked for. An app that starts making noises in a moving
@@ -4935,8 +4942,26 @@ if (!S.unitsAutoApplied) {
   S.unitsAutoApplied = true;
 }
 
+/* Following is not kept from one launch to the next. It was: pauseFollow
+   wrote it into the settings, so one drag of the map and no press of the
+   recentre button after it was enough to leave follow:false behind. The app
+   then opened with the map parked where the vehicle had last been and
+   following off - a fix arriving, the marker moving, the map not - until
+   the driver found that button. Reported as having to do that on every
+   opening.
+
+   A paused follow is the driver looking at something else, and that look
+   ended when the app closed. Opening it is a new one, and the first thing a
+   map is asked is where am I. So it always opens following, the first fix
+   puts the map on the vehicle (see pushPosition), and a drag before that
+   fix still pauses it - for that sitting.
+
+   Set here and not left to the default above, because every phone that has
+   run the app has the old value saved and would read it back over it. */
+S.follow = true;
+
 function saveSettings() {
-  saveLS(LS.settings, { northLock: S.northLock, follow: S.follow, poiOn: S.poiOn,
+  saveLS(LS.settings, { northLock: S.northLock, poiOn: S.poiOn,
                         units: S.units, unitsHere: S.unitsHere, unitsAutoApplied: S.unitsAutoApplied,
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
@@ -7311,7 +7336,6 @@ function pauseFollow() {
   clearFollowTransform();
   gl.jumpTo({ center: mid, padding: basePadding() }, { follow: true });
   syncDragMode();
-  saveSettings();
   updateFollowUI();
 }
 
@@ -7320,7 +7344,6 @@ function resumeFollow() {
   followCamera.key = "";
   followCamera();
   syncDragMode();
-  saveSettings();
   updateFollowUI();
 }
 
@@ -7914,7 +7937,9 @@ function pushPosition(fix) {
     view.hdgCur = hdg == null ? 0 : hdg;
     view.has = true;
     /* Only take over the view if the driver has not already pointed the map
-       somewhere deliberately - showing a saved track, for instance. */
+       somewhere deliberately - showing a saved track, for instance. The app
+       opens following (see S.follow), so that means something done since it
+       opened, while this fix was still on its way. */
     if (S.follow) {
       resyncing = true;
       map.setView(pt, Math.max(map.getZoom(), 15), { animate: false });
@@ -20029,6 +20054,13 @@ async function navigateTo(dest, quiet) {
   /* The one thing worth a chip at the start of a route: a car connected in
      a way the voice cannot reach - see voiceLink. */
   if (!quiet) voiceLink(true);
+  /* A route asked for is about to be driven, so the map goes back to the
+     vehicle if it had been moved off it. Looking at the place first is how
+     a route usually gets chosen - Go To, then Navigate from its card - and
+     that left the bar counting down to a turn that was nowhere on the
+     screen. Not on a recalculation, which nobody asked for: a driver who
+     has dragged the map ahead to read the road is left reading it. */
+  if (!quiet && !S.follow) resumeFollow();
   /* No chip for starting a route. The panel that just came up names the
      destination and goes on naming it, which the chip did for two seconds
      over the top of the map you were about to drive. */
@@ -22533,11 +22565,22 @@ document.addEventListener("keydown", function (e) {
      have dropped the wake lock, so take it again, and if the gap was long
      enough that fixes were genuinely missed, say so rather than let a
      straight line across the missing stretch pass for a recorded track. */
+  let awayAt = 0;
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
+      awayAt = Date.now();
       if (Rec.state !== "idle") Rec.persist();
       return;
     }
+    /* To the driver this is opening the app as much as a launch is. Android
+       keeps an app alive behind the others for as long as it has the
+       memory, so tapping the icon is often a return to this page and not a
+       launch of it - and a launch is the only place the rule under S.follow
+       reaches. So a return after long enough does what a launch does. The map goes to the vehicle where it was last known, and
+       on to where it is when the fix lands, which is the watch re-armed
+       below if it has gone quiet. */
+    if (!S.follow && awayAt && Date.now() - awayAt >= CFG.FOLLOW_AWAY_MS) resumeFollow();
+    awayAt = 0;
     Wake.apply();
     checkUpdateFlag();
     Fuel.load(false);        /* a new day may have been published since */
