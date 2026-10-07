@@ -525,6 +525,7 @@
 
   function stub() {
     S.follow = false;
+    window.resumeFollow = function () {};       /* a route starting turns it back on */
     window.fetchPois = function () {};
     window.schedulePoi = function () {};
     window.osrmRoute = async function () { return null; };
