@@ -1899,6 +1899,19 @@ details.sub > .sec-body{padding:12px 0 0}
   text-transform:uppercase}
 .sug .d{flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:var(--t-meta);font-weight:700;
   color:var(--dim);letter-spacing:.04em;padding-top:2px;white-space:nowrap}
+/* Recent destinations, where the results go while nothing has been typed.
+   The type-ahead's own row, because it says the same three things - a
+   place, where it is and how far - and beside it the one control a history
+   has to have: a way to take a place back off it. */
+.recents{display:flex;flex-direction:column;border:1px solid var(--line2);
+  border-radius:8px;overflow:hidden;background:rgba(20,24,27,.98)}
+.rec{display:flex;align-items:stretch;border-bottom:1px solid var(--line2)}
+.rec:last-child{border-bottom:none}
+.rec .sug{flex:1;min-width:0;width:auto;border-bottom:none}
+.rec-x{flex:0 0 var(--tap);display:flex;align-items:center;justify-content:center;
+  background:none;border:none;border-left:1px solid var(--line2);cursor:pointer}
+.rec-x svg{width:14px;height:14px;stroke:var(--dim);fill:none;stroke-width:2;stroke-linecap:round}
+.rec-x:active{background:rgba(216,203,170,.14)}
 /* The one italic in the app, and it was carrying a job the system already has
    a face for: "No tracks recorded yet." is a sentence explaining an empty
    list, which is a note. The size and the dim sand were already saying that;
@@ -3695,6 +3708,8 @@ const CFG = {
   SUGGEST_WAIT: 320,       /* ms of stillness before the request goes */
   SUGGEST_FETCH: 20,       /* asked for, before country and duplicate filtering */
   SUGGEST_MAX: 6,          /* offered, so the list never buries the map */
+  NAV_RECENT: 5,           /* destinations remembered from the search - see NavRecent */
+  NAV_RECENT_SAME: 30,     /* metres apart or less, and two of them are one place */
   POI_RADIUS: 5000,        /* metres around you */
   POI_FAR_M: 50000,        /* how far the pack looks for a category with none nearby */
   /* Addresses come off our own origin - the packs are built quarterly by
@@ -4222,6 +4237,7 @@ const LS = {
   fuelSel: "tt.fuelSel",
   fuelCalc: "tt.fuelCalc", /* the vehicle's figures and the fill log - see FuelCalc */
   favs: "tt.favs",
+  navRecent: "tt.navRecent", /* the last places navigated to from a search - see NavRecent */
   states: "tt.states",     /* which states' data is on this phone, and from which cut */
   swept: "tt.swept",       /* the old map's picture tiles have been cleared - see sweepOldTiles */
   vmaps: "tt.vmaps",       /* which states' maps are stored, and from which cut - see VMap */
@@ -16615,6 +16631,9 @@ function scheduleSuggest() {
     renderNavList();
     return;
   }
+  /* The first letter of something new: the recent places are not answers
+     to it, and left under the box they would read as if they were. */
+  if (navShowing === "recent") renderNavList();
   if (streetPart(q).length < CFG.SUGGEST_MIN) { clearSuggest(); return; }
   /* Still typing the same thing: narrow what is already here, on the
      keystroke, with no request at all. The list can only shrink, which
@@ -17125,7 +17144,7 @@ function geoCardHtml(r) {
       '<button class="btn xs ghost" data-act="go">Go To</button>' +
       '<button class="btn xs ghost" data-act="save">Save Waypoint</button>';
   return '<div class="card" data-lat="' + r.lat + '" data-lng="' + r.lng +
-    '" data-name="' + esc(r.name) + '">' +
+    '" data-name="' + esc(r.name) + '" data-where="' + esc(r.where || "") + '">' +
     '<div class="card-top"><div class="dotmark" style="background:#C77B9E">' + catIcon("flag") + "</div>" +
     '<div style="flex:1;min-width:0"><div class="card-t">' + esc(r.name) + "</div>" +
     '<div class="card-m"><span>' + esc(r.kind.toUpperCase()) + "</span><span>" +
@@ -17139,6 +17158,9 @@ function geoAction(act, card) {
   const place = card.dataset.name;
   if (act === "nav") {
     navigateTo({ lat: lat, lng: lng, name: place });
+    /* Remembered, and the search that found it put away - see NavRecent. */
+    NavRecent.add({ name: place, where: card.dataset.where || "", lat: lat, lng: lng });
+    navSearchClear();
   } else if (act === "go") {
     poiPlace = { name: place, lat: lat, lng: lng };   /* names the offer chip */
     gotoLatLng(lat, lng, 14);
@@ -17216,17 +17238,101 @@ function closeNavModal() {
 }
 function navModalOpen() { return !$("#navModal").classList.contains("hidden"); }
 
+/* The last few places navigated to from this screen, so going back to one
+   is a press and not the address typed out again. Asked for after doing
+   exactly that on every trip.
+
+   A place, not the words that found it: the name, where it is and its
+   position, which is everything the route needs. A remembered query would
+   have to be searched again - a geocoder asked, an answer picked out of
+   the list - and with no signal it would find nothing. This starts a route
+   from the phone alone.
+
+   Only what was navigated to from a search. Go To is a look at somewhere
+   rather than a trip to it, a waypoint or a favourite is already kept and
+   was never typed, and five places is too few to spend on any of them. Not
+   home either, which has its own button beside Search.
+
+   Newest first. Going to one again moves it to the top, and two answers
+   within NAV_RECENT_SAME of each other are one place - the same address
+   comes back a few metres apart from the phone's own packs and from the
+   two geocoders. Kept on the phone and nowhere else. */
+const NavRecent = {
+  list: (function () {
+    const got = loadLS(LS.navRecent, []);
+    return (Array.isArray(got) ? got : []).filter(function (r) {
+      return r && isFinite(r.lat) && isFinite(r.lng) && typeof r.name === "string" && r.name;
+    }).slice(0, CFG.NAV_RECENT);
+  })(),
+
+  add: function (p) {
+    if (!p || !isFinite(p.lat) || !isFinite(p.lng) || !p.name) return;
+    if (home && haversine(home, p) <= CFG.NAV_RECENT_SAME) return;
+    this.list = this.list.filter(function (r) { return haversine(r, p) > CFG.NAV_RECENT_SAME; });
+    this.list.unshift({ name: String(p.name), where: String(p.where || ""), lat: p.lat, lng: p.lng, t: Date.now() });
+    this.list = this.list.slice(0, CFG.NAV_RECENT);
+    saveLS(LS.navRecent, this.list);
+  },
+
+  drop: function (i) {
+    if (!this.list[i]) return;
+    this.list.splice(i, 1);
+    saveLS(LS.navRecent, this.list);
+  }
+};
+
+/* A search that has been navigated from is finished with. Left in the box
+   it would be the first thing on the screen at the next trip, with its
+   results under it and the recent places nowhere - and the place it found
+   is the top of that list now anyway. */
+function navSearchClear() {
+  $("#nmQuery").value = "";
+  clearSuggest();
+  geoResults = [];
+  geoNote = "";
+  renderNavList();
+}
+
+/* What the list is showing - "recent", "results" or "empty" - so typing
+   knows when there is a list of recent places to put away. */
+let navShowing = "empty";
+
 function renderNavList() {
   const box = $("#nmList");
   if (!box) return;
-  $("#nmStatus").textContent = geoNote ||
-    (geoResults.length ? geoResults.length + " places found" : "");
-  if (!geoResults.length) {
-    box.innerHTML = '<div class="empty">' +
-      (geoBusy ? "Searching..." : "Type a place and press Search.") + "</div>";
+  /* An empty box has nothing to show results for (see scheduleSuggest), so
+     nothing typed means no results whatever is still held - an answer that
+     lands after its search was put away is not shown under a box that no
+     longer asks for it. */
+  const asked = !!$("#nmQuery").value.trim();
+  if (!asked && !homePick && NavRecent.list.length) {
+    navShowing = "recent";
+    $("#nmStatus").textContent = "Recent destinations";
+    box.innerHTML = '<div class="recents">' + NavRecent.list.map(function (r, i) {
+      return '<div class="rec">' +
+        '<button type="button" class="sug" data-recent="' + i + '">' +
+        '<span class="txt"><span class="n">' + esc(r.name) + "</span>" +
+        (r.where ? '<span class="w">' + esc(r.where) + "</span>" : "") +
+        "</span>" +
+        '<span class="d">' + esc(fmtDist(geoDist(r))) + "</span>" +
+        "</button>" +
+        '<button type="button" class="rec-x" data-forget="' + i + '" aria-label="Remove ' +
+        esc(r.name) + ' from recent destinations">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        "</button></div>";
+    }).join("") + "</div>";
     return;
   }
-  box.innerHTML = geoResults.map(geoCardHtml).join("");
+  const found = asked ? geoResults : [];
+  navShowing = found.length ? "results" : "empty";
+  $("#nmStatus").textContent = !asked ? "" : geoNote ||
+    (found.length ? found.length + " places found" : "");
+  if (!found.length) {
+    box.innerHTML = '<div class="empty">' +
+      (asked && geoBusy ? "Searching..." : "Type a place and press Search.") + "</div>";
+    return;
+  }
+  box.innerHTML = found.map(geoCardHtml).join("");
 }
 
 /* Committing the search puts the keyboard away. It has done its job, and on
@@ -21662,6 +21768,30 @@ $("#poiFilterChip").addEventListener("click", function () {
    somewhere, so the map is what you want to see next. Saving a waypoint
    leaves it open, since that is not a decision to leave the search over. */
 $("#nmList").addEventListener("click", function (e) {
+  /* A recent place is pressed to go there: the screen is called Navigate
+     To, and one press is the point of keeping the list. The cross beside
+     it takes it off. */
+  const gone = e.target.closest("button[data-forget]");
+  if (gone) {
+    const i = parseInt(gone.dataset.forget, 10);
+    NavRecent.drop(i);
+    renderNavList();
+    /* the button pressed has just been redrawn away: the one that took its
+       place, or the box when the list is empty */
+    const left = $("#nmList").querySelectorAll(".rec-x");
+    (left[Math.min(i, left.length - 1)] || $("#nmQuery")).focus();
+    return;
+  }
+  const again = e.target.closest("button[data-recent]");
+  if (again) {
+    const r = NavRecent.list[parseInt(again.dataset.recent, 10)];
+    if (!r) return;
+    closeNavModal();
+    navigateTo({ lat: r.lat, lng: r.lng, name: r.name });
+    NavRecent.add(r);
+    renderNavList();
+    return;
+  }
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   geoAction(b.dataset.act, b.closest(".card"));

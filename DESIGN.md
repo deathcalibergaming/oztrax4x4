@@ -1121,6 +1121,19 @@ down there until it is tapped:
   from the suggestions. With no home stored it reads Set Home and turns the
   screen into the one that sets it, so it is never a button that does
   nothing.
+- **Recent destinations:** with nothing typed, that screen lists the last
+  five places navigated to from a search, newest first, in the type-ahead's
+  own row - the name, where it is and how far. Pressing one starts the
+  route, so a place gone back to is one press and not its address typed
+  again; the cross beside it takes it off the list. It keeps the place and
+  not the words that found it, so it asks no geocoder and works with no
+  signal. Only a search that was navigated from counts: Go To is a look, a
+  waypoint or a favourite is already kept, and home has its own button. Two
+  answers within 30 m are one place. A search that has been navigated from
+  is cleared, so the screen opens on this list and not on the last search;
+  typing puts the list away, and it is not offered while choosing a home.
+  With the keyboard up an upright phone shows four of the five and the
+  list scrolls to the last.
 - **Actions:** a tap on one of the four runs it, then puts the row away.
 - **Dismiss:** a tap anywhere else only puts it away; it is swallowed, so
   dismissing the row cannot also drop a pin or open a place. Escape does it
