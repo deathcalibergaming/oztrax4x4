@@ -1513,6 +1513,16 @@ what is pressed to take that way. So is the line. They are looked for a
 moment after the route is drawn, never before it, and one that turns round
 in the road or differs from the route by a block is not shown.
 
+**The chip sits where the grey line can be seen.** It is put on the part of
+that way's own stretch the screen is showing, clear of the bar across the
+top, the console and the buttons down the right, and it stays put until
+that spot leaves the screen. It was first pinned to the middle of the
+stretch, which is right on a map of the whole trip and nowhere on the map a
+trip is driven on: at driving zoom the middle of a way round is kilometres
+off the glass, and the report from the road was a grey line with no label.
+Measured 94 m short of a fork at zoom 18, the chip that had been 6,000px
+off the screen was on the grey road leaving the junction.
+
 ### Route Choice
 
 **The direct route, and then the quick one.** The route is the one that
