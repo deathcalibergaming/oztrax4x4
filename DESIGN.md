@@ -1265,8 +1265,8 @@ form never changes under a driver as a number grows - in four steps, each
 tried in turn and the first that holds kept:
 
 - **Full:** a bar on its own, at the console's full height. Navigation
-  carries the destination, three readings on short labels (LEFT, TIME, ETA)
-  and Cancel down the right; recording carries the dot, the track and its
+  carries the destination, three readings - each a figure over the line
+  that says what it is: KM LEFT, MIN, ETA PM - and Cancel down the right; recording carries the dot, the track and its
   state at the left with Pause and Stop & Save at the right, at `--tap`,
   because a bar on its own has the height for them and a recording is paused
   while moving. A pair is half that height, which is one line, so each bar
@@ -1277,12 +1277,44 @@ tried in turn and the first that holds kept:
   hundred pixels of width, and the cheapest thing in the bar to give up. The
   words stay on the buttons for a screen reader; only the drawing changes,
   and Resume shows as a play glyph on a button that turns green. An upright
-  phone reaches this with either bar on its own.
+  phone reaches this with the recording bar on its own, and with the
+  navigation bar whenever the destination would be cut short beside the
+  word: the name takes Cancel's room before it loses a letter.
 - **Tight:** the travel time goes, being the reading the arrival already
-  implies, and the names and figures come down a step. An upright phone's
-  pair is here.
+  implies, and in a pair the names and figures come down a step. An upright
+  phone's pair is here. A bar on its own keeps its size: it has run out of
+  width for three figures, not for two.
 - **Bare:** the arrival goes as well and the distance stands alone. A 320px
   phone's pair reaches it.
+
+**The trip is read at the size the speed is.** A bar on its own prints its
+three figures in Read, 17px, the size the stat bar prints its own, because
+they are the same thing: an instrument read while moving. They were 11.5px
+over a 7px label, and the report from the road was that the trip details
+were hard to read. What had held them down was the unit. "8888.88 km" is
+ten characters and a third of a 375px bar holds six at this size, so the
+figure had been sized to fit its own unit. Now the figure is digits and
+nothing else, and the unit sits on the line under it with the word that
+says which reading it is - KM LEFT, MIN, ETA PM - at Micro, 8.5px, where
+the stat bar keeps its own. The travel time gives its label up to its unit,
+which says the same thing; over an hour it reads 1:05 over H:M, as the stat
+bar's elapsed time does. The distance carries no more than is read at a
+glance and never more than four characters: metres under a kilometre, then
+to ten metres, to a hundred and to the kilometre as it grows. The
+destination comes up from 11.5px to Body, 13px, and the note that takes its
+line off route from 8.5 to 11.5.
+
+Measured with the widest figures the bar holds, alone and in a pair, at
+both text sizes, from 320px to a tablet: nothing runs out of its box.
+Against the bar it replaces, at 320, 360, 375 and 384px, none shows fewer
+readings than it did. A 320px phone's bar on its own
+shows three where it showed two, and so do a 360 and a 375 at the larger
+text size. In a pair the strip is one line and has no line to put a unit
+on, so the unit stands beside its figure, small, and the figure comes up
+from 11px to 13, which the shorter figures paid for. It stops there and not
+at 17 so that the strip takes no more of the line than it did, and keeps
+what room it had for the arrival and the name. Where a pair has the width -
+a phone on its side, a tablet - its figures are 17 as well.
 
 The destination keeps room for a word at every step, and a word is a count
 of letters rather than a count of pixels: 48px is about six of them at the
