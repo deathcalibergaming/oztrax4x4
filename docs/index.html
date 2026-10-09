@@ -1196,8 +1196,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* ---------- what each bar carries ----------
    A bar on its own has the console's full height and the whole width:
 
-   - Navigation: the destination on one line, the three readings under it on
-     short labels, and Cancel down the right as one word.
+   - Navigation: the destination on one line, the three readings under it,
+     each a figure over the line that says what it is, and Cancel down the
+     right as one word.
    - Recording: the dot, the track and its state on one line, and Pause and
      Stop & Save side by side under it.
 
@@ -1207,18 +1208,36 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #navPanel{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
   column-gap:10px;row-gap:2px;align-content:center;align-items:center}
 #navPanel .np-top{grid-column:1;grid-row:1;min-width:0;gap:6px}
-#navPanel .np-ico{width:13px;height:13px}
-#navPanel .np-name{font-size:var(--t-note);letter-spacing:.04em}
+#navPanel .np-ico{width:14px;height:14px}
+#navPanel .np-name{font-size:var(--t-body);letter-spacing:.04em}
 #navPanel .np-figs{grid-column:1;grid-row:2;margin-top:0;min-width:0}
-#navPanel .np-figs > div{min-width:0;gap:0}
-#navPanel .np-figs b{font-size:var(--t-read-sm)}
-#navPanel .np-figs i{font-size:0;letter-spacing:0}
-#navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT"}
-#navPanel .np-figs > div:nth-child(2) i::after{content:"TIME"}
+/* The figures are the size the stat bar's are, because they are the same
+   thing: an instrument read while moving. They were two thirds of that -
+   11.5px over a 7px label - and the report from the road was that the trip
+   could not be read.
+
+   What made room is the unit. "8888.88 km" is ten characters and a third of
+   a 375px bar holds six of them at this size, so the figure was sized to
+   fit its own unit. The unit comes down to the line under the figure, with
+   the word that says which reading it is - KM LEFT, MIN, ETA AM - which is
+   where the stat bar keeps its own, and the figure is digits and nothing
+   else: four of them for a distance (see navDistParts), five for a time.
+   The travel time loses its label to its unit, which says the same thing.
+
+   The words are still in the page for a screen reader, at no size, as they
+   were; the drawn ones are the pseudo-elements. */
+#navPanel .np-figs > div{min-width:0;flex-flow:row wrap;justify-content:center;align-items:baseline;gap:1px 0}
+#navPanel .np-figs b{flex:0 0 100%;text-align:center;font-size:var(--t-read)}
+#navPanel .np-figs em{font-size:var(--t-micro);line-height:1.15;font-style:normal;letter-spacing:.08em;
+  color:var(--hud);text-transform:uppercase;white-space:nowrap}
+#navPanel .np-figs i{font-size:0;letter-spacing:0;line-height:0}
+#navPanel .np-figs i::after{font-size:var(--t-micro);line-height:1.15;letter-spacing:.1em}
+#navPanel .np-figs > div:nth-child(1) i::after{content:"LEFT";margin-left:.45em}
 #navPanel .np-figs > div:nth-child(3) i::after{content:"ETA"}
-#navPanel .np-figs i::after{font-size:var(--t-micro-tight);letter-spacing:.1em}
+/* ETA AM, not AM ETA: the label leads where the unit is half of the figure */
+#navPanel .np-figs > div:nth-child(3) em{order:1;margin-left:.45em}
 /* off route, the note takes the destination's line rather than adding one */
-#navPanel .np-note{grid-column:1;grid-row:1;margin:0;text-align:left;font-size:var(--t-micro);
+#navPanel .np-note{grid-column:1;grid-row:1;margin:0;text-align:left;font-size:var(--t-note);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #navPanel:has(.np-note:not(:empty)) .np-top{visibility:hidden}
 #navPanel .np-btns{grid-column:2;grid-row:1 / 3;margin:0}
@@ -1271,9 +1290,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack.pair .np-ico{display:none}
 #panelStack.pair .np-top{gap:0}
 #panelStack.pair .np-figs{grid-column:2;grid-row:1;margin:0;display:flex;align-items:center;gap:0}
-#panelStack.pair .np-figs > div{flex:0 0 auto;padding:0 9px;border-right:1px solid var(--line)}
+#panelStack.pair .np-figs > div{flex:0 0 auto;flex-flow:row nowrap;gap:0;padding:0 9px;border-right:1px solid var(--line)}
 #panelStack.pair .np-figs > div:first-child{padding-left:0}
 #panelStack.pair .np-figs > div:last-child{padding-right:0;border-right:none}
+/* one line has no line under it: the label goes and the unit stands beside
+   its figure, small, the way the stat bar's does */
+#panelStack.pair .np-figs b{flex:0 0 auto}
+#panelStack.pair .np-figs em{order:0;margin-left:3px}
 #panelStack.pair .np-figs i{display:none}
 #panelStack.pair .np-btns{grid-column:3;grid-row:1;align-self:stretch;padding:var(--conInset) 0}
 #panelStack.pair #recPanel{gap:12px;padding-top:0;padding-bottom:0}
@@ -1293,8 +1316,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
      buttons for a screen reader, only the drawing changes. Resume shows as
      a play glyph, on a button that turns .go.
    - .tight - the travel time goes, being the one reading the arrival
-     already implies, and the names and figures come down a step. A smaller
-     instrument is a worse one, so this is late rather than early.
+     already implies, and in a pair the names and figures come down a step.
+     A smaller instrument is a worse one, so this is late rather than
+     early - and a bar on its own, which has run out of width for three
+     figures and not for two, keeps its size.
    - .bare - the arrival goes as well and the distance stands alone. A
      320px phone's pair reaches it: at .tight the destination was down to
      an ellipsis, 7px of the 234px bar, which is not a name. */
@@ -1309,9 +1334,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #panelStack.dense :is(.np-btns,.rp-btns) .btn::after{content:"";display:block;margin:auto;
   width:14px;height:14px;background:currentColor;
   -webkit-mask:var(--glyph) center/contain no-repeat;mask:var(--glyph) center/contain no-repeat}
-#panelStack.tight .np-name,#panelStack.tight .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
+#panelStack.tight.pair .np-name,#panelStack.tight .rp-name{font-size:var(--t-micro);letter-spacing:.03em}
 #panelStack.tight .rp-state{font-size:var(--t-micro-tight);letter-spacing:.1em}
-#panelStack.tight .np-figs b{font-size:calc(11px * var(--uiScale))}
+#panelStack.tight.pair .np-figs b{font-size:var(--t-body)}
 #panelStack.tight.pair .np-figs > div{padding:0 7px}
 #panelStack.tight .np-figs > div:nth-child(2){display:none}
 #panelStack.bare .np-figs > div:nth-child(3){display:none}
@@ -2961,9 +2986,9 @@ input[type=date],input[type=time]{color-scheme:dark}
           <span class="np-name" id="navName">DESTINATION</span>
         </div>
         <div class="np-figs">
-          <div><b id="navDist">--</b><i>remaining</i></div>
-          <div><b id="navTime">--</b><i>travel time</i></div>
-          <div><b id="navEta">--</b><i>arrive</i></div>
+          <div><b id="navDist">--</b><em id="navDistU"></em><i>remaining</i></div>
+          <div><b id="navTime">--</b><em id="navTimeU"></em><i>travel time</i></div>
+          <div><b id="navEta">--</b><em id="navEtaU"></em><i>arrive</i></div>
         </div>
         <div class="np-note" id="navNote"></div>
         <div class="np-btns">
@@ -20518,11 +20543,15 @@ function navProgress() {
   /* scale the routed duration by how much of the route is left */
   const secs = total > 0 ? Nav.duration * (remain / total) : 0;
 
-  $("#navDist").textContent = fmtDist(remain);
-  $("#navTime").textContent = secs >= 3600
-    ? Math.floor(secs / 3600) + "h " + String(Math.round((secs % 3600) / 60)).padStart(2, "0") + "m"
-    : Math.max(1, Math.round(secs / 60)) + " min";
-  $("#navEta").textContent = fmtClock(Date.now() + secs * 1000);
+  /* A figure and its unit apart - see the bar's CSS. Minutes are rounded
+     before the hours are taken out of them, so fifty-nine and a half
+     minutes past the hour is 2:00 and not 1:60. */
+  const far = navDistParts(remain), mins = Math.max(1, Math.round(secs / 60));
+  const clock = fmtClock(Date.now() + secs * 1000).split(" ");
+  navFig("#navDist", far[0], far[1]);
+  if (mins >= 60) navFig("#navTime", Math.floor(mins / 60) + ":" + String(mins % 60).padStart(2, "0"), "h:m");
+  else navFig("#navTime", String(mins), "min");
+  navFig("#navEta", clock[0], clock[1] || "");
 
   /* Off the line is counted in fixes rather than believed on the first one.
      A single fix bouncing off a shed is not a wrong turn, and at sixty
@@ -20642,7 +20671,8 @@ function syncPanelStack() {
 function fitPanels() {
   /* inside, not beside: layoutDial calls this from the first sizeMap, long
      before a top-level constant down here would have been reached */
-  const widest = [["#navDist", "8888.88 km"], ["#navTime", "88h 88m"], ["#navEta", "12:59 pm"], ["#recState", "PAUSED"]];
+  const widest = [["#navDist", "8888"], ["#navDistU", "km"], ["#navTime", "88:88"], ["#navTimeU", "h:m"],
+                  ["#navEta", "12:59"], ["#navEtaU", "pm"], ["#recState", "PAUSED"]];
   const stack = $("#panelStack");
   const shown = [$("#navPanel"), $("#recPanel")].filter(function (p) { return !p.classList.contains("hidden"); });
   const forms = ["dense", "tight", "bare"];
@@ -20686,8 +20716,47 @@ function panelsHold(shown) {
     if (deep > p.clientHeight + 1) return false;
     const name = p.querySelector(".np-name");
     if (name && name.clientWidth < 4.2 * parseFloat(getComputedStyle(name).fontSize)) return false;
+    /* A destination cut short while Cancel is still spelled out has the
+       cheaper thing to take first. The figures used to decide this by
+       accident - an upright phone never had room for them beside the word -
+       and now that they fit, the word would stay and GAWLER RAILWAY STATION
+       would lose its last word to it. Past that step a long name is simply
+       a long name, and keeps the room for a word that the line above
+       holds it to. */
+    if (name && !$("#panelStack").classList.contains("dense") && name.scrollWidth > name.clientWidth + 1) return false;
     return !Array.from(p.querySelectorAll(".np-figs, .np-figs > div, .rp-btns, .btn")).some(over);
   });
+}
+
+/* One of the bar's three readings: the figure, and the unit that is drawn
+   apart from it. Written only where it has changed, as the stat bar's are. */
+function navFig(id, v, u) {
+  setStat($(id), v);
+  setStat($(id + "U"), u);
+}
+
+/* The distance left as the bar prints it: the figure and its unit.
+
+   No more of the figure than is read at a glance, and never more than four
+   characters, which is what lets it be drawn at the size it is. Metres
+   under a kilometre; then to ten metres, to a hundred, and to the
+   kilometre as the distance grows - a route of eight hundred kilometres is
+   not being driven to the nearest ten metres, and the last digit of
+   "812.44 km" changed every second for nobody. fmtDist is the same ladder
+   with every rung at two places, and stays that for everything that is
+   read standing still. */
+function navDistParts(m) {
+  if (!isFinite(m)) return ["--", ""];
+  const big = function (v, u) { return [v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.round(v)), u]; };
+  if (yards()) {
+    const yd = m * YD_PER_M;
+    return yd < 440 ? [String(Math.round(yd)), "yd"] : big(m / 1000 * MI_PER_KM, "mi");
+  }
+  if (imperial()) {
+    const ft = m * FT_PER_M;
+    return ft < 1000 ? [String(Math.round(ft)), "ft"] : big(m / 1000 * MI_PER_KM, "mi");
+  }
+  return m < 1000 ? [String(Math.round(m)), "m"] : big(m / 1000, "km");
 }
 
 function showNavPanel() {
