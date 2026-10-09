@@ -2191,33 +2191,70 @@ already pointed it somewhere.
 ### Auto Zoom
 
 The map closes in where there is something to see and opens out again where
-there is not. For a turn on the route - an intersection, a ramp, a
-roundabout, the destination - from twelve seconds out and never less than
-250 m, until the turn is behind; and whenever the speed comes down to
-30 km/h, until it is back over 40. Close is zoom 17, where a junction's arms
-are apart on the glass; what it opens out to is the driver's own zoom, and
+there is not: for a turn on the route - an intersection, a ramp, a
+roundabout, the destination - and whenever the speed comes down to 30 km/h,
+until it is back over 40. What it opens out to is the driver's own zoom, and
 that is the only zoom saved. A zoom by hand while it is closed in is taken
 for now and not fought, and the map still returns to the driver's zoom when
 the road opens up.
 
-**Two steps, because one could not be seen.** Closer again at the turn
-itself: zoom 18 from six seconds out, never less than 100 m, and always a
-level in from the driver's own zoom - then back to 17 once the turn is
-behind. The first step alone did nothing in a town. The turns of a suburb
-are inside one another's reach and most of it is driven under forty, so the
-map closed in as the trip began and stayed closed: on the trip it was
-reported from, 272 fixes of 297. Each turn arrived on a map already as
-close as it was going to get, and the driver's word for that was *not
-working*. The second step lets go between turns and comes back for the
-next, so each one is something that happens. A zoom by hand lasts until the
-next step.
+**It closes in as the vehicle closes on the turn.** The zoom is read off the
+distance to the turn: 18 from 100 m out, where the junction is most of the
+screen, and one level further out for every doubling of that - 17 at 200 m,
+16 at 400, 15 at 800. Halve the distance and double the scale, and the
+corner stays where it is on the glass, three fifths of the way up the road
+ahead, while the map grows round it. So the closing in is one movement the
+length of the approach, slow a long way out and quickest as the corner
+arrives, and always to at least a level in from the driver's own zoom. It
+never begins further out than 800 m: zoomed right out to see the country,
+the driver keeps that view until the turn is coming, and the levels are
+fitted into the last 800 m.
 
-Eased over about a second, on the follow camera, because a zoom that snaps
-reads as a different map. This is the one thing that moves on its own while
-the vehicle is moving, and it is allowed to because it is the map showing
-the road, not the interface performing. It never happens at a standstill
-after launch - only a vehicle that has been at speed closes in when it
-slows - and it is one switch in Settings to turn off.
+**It was two steps, and the steps were the complaint.** Zoom 17 at 250 m,
+18 at 100 m, back to 17 once the turn was behind and to the driver's own
+after that, each over in under a second - reported from the road as zooming
+in to one level and back out to another. The second step had been added
+because the first could not be seen: in a town every turn arrived on a map
+that had closed in at the turn before and never let go. Read off the
+distance, there is nothing to hold or let go of. Past a turn the zoom is
+whatever the next turn's distance asks for, so two corners a hundred metres
+apart are one long look and two that are three hundred apart are a breath
+out and back in, a level and a half deep.
+
+**Smooth, and not only gradual.** The distance arrives once a second, and a
+zoom driven by that alone would surge once a second the way the vehicle
+used to; between fixes it is run on at the speed being driven. Where the
+zoom is and where it is wanted are brought together by a spring with no
+bounce in it - about 1.2 s closing in and 2 s opening out, so a corner is
+finished before the map starts to leave it - which starts gently and stops
+gently. The easing it replaced closed a fixed share of the gap every frame,
+and that is at its fastest on the first frame.
+
+Measured frame by frame with `NavSim.zoom` over 20 trips and 102 turns, a
+driver's zoom of 15, against the two steps on the same fixes: the fastest
+the zoom moves, 19.2 levels a second to 1.8; the hardest it starts or
+stops, 383 levels a second each second to 6.3; the closing in for a turn,
+1.3 s to 27 s. Every one of the 102 turns was all the way in four seconds
+before the corner, which is when the voice calls it, as before. The fastest
+it now moves is at the start of a route with a turn already inside 100 m;
+leaving a corner it is 1.1.
+
+It costs camera writes. The follow camera writes twenty times a second, and
+on every frame while the zoom is moving faster than 0.08 of a level a
+second, which over those trips made 20 writes a second into 26. Not yet
+measured on a phone.
+
+A zoom by hand lasts until the next stage: the approach beginning, the turn
+coming inside 100 m, the turn going behind. Pressed out 380 m from a
+corner, the map stayed out until 100 m, closed in for the corner and went
+back to the driver's own zoom after it; the driver's zoom was not
+overwritten.
+
+This is the one thing that moves on its own while the vehicle is moving,
+and it is allowed to because it is the map showing the road, not the
+interface performing. It never happens at a standstill after launch - only
+a vehicle that has been at speed closes in when it slows - and it is one
+switch in Settings to turn off.
 
 **The arrow keeps the way it was going.** Stopped, a phone reports no
 course, and its compass reports which way the cradle faces; the arrow, and
