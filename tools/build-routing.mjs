@@ -319,6 +319,12 @@ const F_UNPAVED = 8;      /* dirt, gravel, sand */
    can still work it out, for a pack cut before this; a pack that carries
    the flag says so with "r" beside its rows, and is taken at its word. */
 const F_RING = 16;
+/* A road that charges to be driven: toll=yes, or the same said of motor
+   vehicles alone. The app keeps off these when the driver asks it to -
+   Avoid Toll Roads - and cannot without being told which they are. 64 and
+   not 32, which the app uses for a note of its own on every edge of a pack
+   that knows its roundabouts. */
+const F_TOLL = 64;
 
 /* ---------------------------------------------------------------------
    Protobuf, only as much of it as an OSM extract uses. Ids and coordinates
@@ -578,6 +584,7 @@ function flagsOf(tags) {
 
   const surf = tags.surface;
   if (surf ? !PAVED.has(surf) : (tags.highway === "track")) f |= F_UNPAVED;
+  if (tags.toll === "yes" || tags["toll:motor_vehicle"] === "yes" || tags["toll:motorcar"] === "yes") f |= F_TOLL;
   return f;
 }
 
@@ -606,6 +613,8 @@ function cutStamp(source) {
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
     "dir1",
+    /* the toll flag: a pack cut before it cannot say which roads charge */
+    "toll1",
     /* and the limits read off the sign: a line added to that list changes
        tiles whose extract has not moved */
     SIGNED.map((f) => [f.name, f.box, f.limit])

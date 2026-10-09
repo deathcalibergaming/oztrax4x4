@@ -394,6 +394,87 @@ the camera itself with the frames driven by hand: 15 to 17 at 186 m, 18 at
 86 m, 15 once past; a pinch out to 16 held until the next step and was not
 saved.
 
+**Which way it goes, and what else it offers.** Five things from the road
+in one report, all of them the router's.
+
+*A U-turn on a main road to save two seconds.* To Prelude Circuit from the
+south the route drove up Main North Road past the right turn at Halsey
+Road, turned round through the gap in the median at Haydown Road, and came
+back down to Blackburn Road: 3.34 km and 4.25 minutes, against 3.01 km and
+4.29 by Halsey Road. It had gone by Halsey Road until the day before, when
+Blackburn Road was given its 60 and became 2.4 seconds the quicker. Two
+things let 2.4 seconds decide it. A U-turn through a median was priced as
+two right turns, and the second of those - onto a one-way carriageway, with
+one way out of the corner - was free, so the whole manoeuvre cost seven
+seconds. It is priced as one manoeuvre now, 45 seconds
+(`ROUTE_TURN.median`, see `Route.turnRound`). And the search weighed time
+alone, where the times are a class speed and a rule of thumb for a corner:
+a metre now costs 0.02 s on top of the time it takes (`ROUTE_DIRECT`), so a
+route has to save twenty seconds for each kilometre further it goes. None
+of that is in the time a route is said to take, which is added up afresh
+along the answer. `NavSim.choice` routes the same trips both ways, on one
+yardstick:
+
+| | Before | Now |
+|---|---|---|
+| 200 trips of 1.2 to 4 km: trips that turn round through a median | 28 | 18 |
+| ... average distance | 4.685 km | 4.549 km |
+| ... average time | 8.00 min | 8.02 min |
+| 93 trips of 5 to 20 km: trips that turn round | 14 | 9 |
+| ... average distance | 19.34 km | 18.93 km |
+| ... average time | 21.02 min | 21.06 min |
+
+The U-turns that are left are at the ends of trips that begin on the wrong
+side of a divided road or finish on the far side of one. Of the first six,
+three still turned round with the price put out of reach, and the other
+three went 30 to 340 m round to avoid it.
+
+*Other ways there.* Up to two, in grey under the route, each with a label
+on its own stretch of road saying what it costs: `+4 MIN`. They are found
+by weighing the route's own roads 1.6 times heavier and searching again,
+and kept if they take no more than 1.3 times as long and 90 seconds, share
+no more than three quarters of their length with a route already shown,
+and do not turn round where the route does not (`ROUTE_ALT`,
+`Route.alternatives`). Golden Grove to Adelaide Oval, 19.9 km and 21.5
+minutes by North East Road, offers two others at +4 and +5, the second by
+Golden Grove Road and Reservoir Road; Adelaide to Victor Harbor, 58.7
+minutes by the Southern
+Expressway, offers Goodwood Road and the South Eastern Freeway. The search
+for them took 59 ms on a 3 km trip and a second on that 83 km one, and is
+not made at all past half a second of searching for the route itself. A
+tap on the label or on the grey line takes that way, and the route it
+replaced becomes one of the others; driven past where it leaves the route,
+a way is taken off the map; and driven onto, it is taken with no
+recalculation and nothing said about being off the route. Checked in the
+preview on that trip: the +5 went at 710 m, and turning onto the +4 at its
+fork made it the route with no search run.
+
+*A recalculation is a redirect.* It replaced the line with one from where
+the vehicle had got to, so everything driven was gone from the map and the
+trip appeared to start at the wrong turn. The line driven is kept and the
+new route joined to it (`navKeepPast`): the old line as far as the vehicle
+was last on it, the fixes since, then the way from here. Checked: 2.3 km
+into a trip and two fixes off the route, the line still began where the
+trip did, 2,423 m of it kept and 18.4 km of new route joined on.
+
+*Avoid Toll Roads and Avoid Dirt Roads*, in Settings. Each weighs those
+roads at eight times their time (`ROUTE_AVOID`), which keeps off them
+wherever there is another way and still reaches a place there is not. Dirt
+is in the packs already. Tolls were not: the builder now flags
+`toll=yes`, and a trial build of the country flagged 4,092 spine edges -
+the M7, the M2, EastLink, CityLink, the Gateway and Logan motorways, the
+Cross City Tunnel. On that build, Blacktown to Macquarie Park is 20.1
+minutes with 15.6 km of the M2 and 24.9 with no toll road at all; North
+Sydney to the airport 15.6 and 27.7; Ringwood to Frankston 28.2 by EastLink
+and 36.4 without. Dirt, on the released packs: of 21 trips through the
+hills east of Gawler between two sealed roads, eight used gravel, 29.9 km
+of it; asked to avoid it, six used none and the eight came to 2.3 km, for
+15.2 minutes against 13.5.
+
+Arrival, the voice and the marker run again: 33 of 33 arrived, at most
+15 m short; 234 of 234 road names heard; the arrow more than 30 degrees
+off on 13 fixes of 12,303 through 879 recalculations.
+
 **The map closes in as the turn does.** The two steps were reported from
 the road as zooming in to one level and back out to another. The zoom is
 now read off the distance to the turn - 18 from 100 m, a level out for every

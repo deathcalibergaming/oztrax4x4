@@ -1499,6 +1499,35 @@ at the joint. The line turns the arrow no more than 25° from the way the
 GPS says the vehicle is moving: carry straight on past a turn and the arrow
 goes straight on too, rather than leaning round a corner nobody took.
 
+**What has been driven stays drawn.** A recalculation joins the new route
+to the line already driven, so the route on the map is one line from where
+the trip began however many times it has been worked out again. The wrong
+turn is part of it: it is a road that was driven.
+
+**Other ways there are grey.** Up to two, under the route, 4.5px on a
+lighter casing, so the one colour on the map that means "this way" stays
+the route's. Each carries what it costs on a chip in the map's own plate,
+on the stretch of it that is not the route's - `+4 MIN`, `−1 MIN`,
+`SIMILAR` - and the chip is a button at the small tap size, because it is
+what is pressed to take that way. So is the line. They are looked for a
+moment after the route is drawn, never before it, and one that turns round
+in the road or differs from the route by a block is not shown.
+
+### Route Choice
+
+**The direct route, and then the quick one.** The route is the one that
+takes least time, with every metre of it counted against it a little: a
+longer way has to save twenty seconds a kilometre to be chosen. The times
+are estimates, and two routes a few seconds apart are the same route as
+far as anybody can tell; between those the shorter is the one a driver
+calls direct. Turning round through a gap in a median is priced as the
+manoeuvre it is, not as two corners.
+
+**Avoid is a preference.** Avoid Toll Roads and Avoid Dirt Roads sit with
+the navigation settings, off until asked for. On, the route keeps off
+those roads wherever there is another way and still reaches a place there
+is not; changing either with a route running works the route out again.
+
 ### Turn Instructions
 
 The next manoeuvre, across the top of the map, while a route is running.

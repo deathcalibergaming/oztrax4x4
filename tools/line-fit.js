@@ -227,6 +227,7 @@ window.LineFit = (function () {
     opt = opt || {};
     S.follow = false;
     window.resumeFollow = function () {};       /* a route starting turns it back on */
+    window.navAltsLater = function () {};       /* no other ways there: they are found on a timer, and a drive that took one would not be the drive asked for */
     window.fetchPois = function () {};
     window.schedulePoi = function () {};
     window.osrmRoute = async function () { return null; };
