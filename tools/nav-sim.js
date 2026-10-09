@@ -27,6 +27,8 @@
      await NavSim.glide(20, 7)                        the marker, frame by frame
      await NavSim.glide(20, 7, { stop: true })        and pulling up half way
      await NavSim.glide(20, 7, { free: true })        and with no route running
+     await NavSim.zoom(20, 7)                         the map's zoom, frame by frame
+     await NavSim.zoom(20, 7, { base: 13 })           from a driver's zoom of 13
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -86,6 +88,23 @@
    in the open holds a line better than one in a street), every (ms
    between fixes), late (ms of scatter in when they land), stop, free (no
    route running - the vehicle is run on along its course).
+
+   zoom() is Auto Zoom the way glide() is the marker: every frame, on a
+   clock run by hand. Each trip is driven with a fix a second, slowing for
+   every turn (to `corner` m/s, 6) and back up to `v` (14) after it, and
+   the camera's own rule for when it writes is followed - twenty times a
+   second, every frame while AutoZoom says it is moving. The map is not
+   touched: map.getZoom is stood in for, so nothing is drawn or fetched.
+   `now` is the app as it is and `was` is the two fixed steps it replaced
+   (17 from 250 m, 18 from 100 m, each eased over a quarter of a second),
+   worked out beside it from the same fixes. For each: the fastest the zoom
+   moved (levels a second) and the hardest it started or stopped (levels a
+   second, each second, over a twentieth of a second); how much of the
+   drive it spent moving; per turn, how long the closing in took and by
+   how much;
+   how many turns were all the way in four seconds before the corner, which
+   is when the voice calls it; and how often the camera was written. Options:
+   v, corner, sigma, base (the driver's own zoom, 15), steady (no slowing).
 
    path() is for a report from the road - "it said nothing at the end of
    Chess Street". The app is told the destination and the vehicle is driven
@@ -646,9 +665,191 @@
     return out;
   }
 
+  /* The map's zoom, frame by frame - see the header. */
+  async function zoom(n, seed, opt) {
+    opt = opt || {};
+    stub();
+    const keep = { step: Glide.step, clock: Glide.clock, get: map.getZoom, pins: window.renderPois,
+                   turn: AutoZoom.turn, auto: S.autoZoom };
+    const FR = 1000 / 60, V = opt.v || 14, VC = opt.corner || 6, base = opt.base || 15;
+    const sigma = opt.sigma == null ? 1.5 : opt.sigma;
+    const top = Math.max(18, base + 1);
+    let now = 1e6, zRead = base, pins = 0;
+    Glide.step = function () {};        /* the page's own frames stand off */
+    Glide.clock = function () { return now; };
+    map.getZoom = function () { return zRead; };
+    window.renderPois = function () { pins++; };
+    S.autoZoom = true;
+    const fresh = function () {
+      AutoZoom.fast = false; AutoZoom.slow = false; AutoZoom.at = null;
+      AutoZoom.on = false; AutoZoom.zv = 0; AutoZoom.hand = null;
+    };
+    /* The two steps that were, on the same fixes. */
+    const Was = {
+      fast: false, slow: false, at: null, near: null, hot: null, level: 0, base: base, goal: null, z: base,
+      fix: function (v) {
+        if (v >= 40 / 3.6) { this.fast = true; this.slow = false; }
+        else if (v <= 30 / 3.6 && this.fast) this.slow = true;
+        let level = 0;
+        if (this.at != null && this.hot === this.at) level = 2;
+        else if (this.slow || (this.at != null && this.near === this.at)) level = 1;
+        if (level === this.level) return;
+        if (!this.level) this.base = this.z;
+        this.level = level;
+        const to = level === 2 ? Math.max(18, this.base + 1) : level === 1 ? Math.max(17, this.base) : this.base;
+        this.goal = Math.abs(this.z - to) > 0.01 ? to : null;
+      },
+      turn: function (mark, dist, v) {
+        const reach = Math.max(250, v * 12), tight = Math.max(100, v * 6);
+        const through = this.near != null && this.near === this.at && mark !== this.at;
+        this.at = mark;
+        if (mark == null) { this.near = null; this.hot = null; return; }
+        if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
+        if (dist <= tight) this.hot = mark;
+      },
+      step: function (ms) {
+        if (this.goal == null) return;
+        const d = this.goal - this.z;
+        if (Math.abs(d) < 0.02) { this.z = this.goal; this.goal = null; return; }
+        this.z += d * (1 - Math.exp(-ms / 260));
+      }
+    };
+    const zN = [], zW = [], cuts = [], passed = [], trace = [];
+    let mark = null, runsNow = 0, runsWas = 0;
+    AutoZoom.turn = function (m, d) {
+      if (m !== mark) {
+        if (typeof mark === "number" && mark >= 0 && m != null) passed.push(zN.length);
+        mark = m;
+      }
+      Was.turn(m, d, view.speed);
+      return keep.turn.call(AutoZoom, m, d);
+    };
+    const out = { trips: 0, fixes: 0, frames: 0 };
+    try {
+      for (const trip of trips(n, seed)) {
+        const r = rng(trip.noise);
+        if (Nav.active) cancelNav(true);
+        fresh();
+        Object.assign(Was, { fast: false, slow: false, at: null, near: null, hot: null, level: 0, base: base, goal: null, z: base });
+        zRead = base; mark = null;
+        pushPosition({ lat: trip.o.lat, lng: trip.o.lng, spd: 0, hdg: null, acc: 5, sim: false, t: Date.now() });
+        await navigateTo({ lat: trip.t.lat, lng: trip.t.lng, name: "T" + trip.k });
+        if (!Nav.active || Nav.via !== "local" || !Nav.flow) continue;
+        const fl = Nav.flow, h0 = fl.at[Nav.head], co = fl.line.slice(h0, fl.at[Nav.tail] + 1), cum = [0];
+        for (let i = 1; i < co.length; i++) {
+          cum[i] = cum[i - 1] + haversine({ lat: co[i - 1][0], lng: co[i - 1][1] }, { lat: co[i][0], lng: co[i][1] });
+        }
+        const end = cum[cum.length - 1];
+        if (end < 500) continue;
+        /* where the corners are, along the line as it is driven */
+        const bends = Nav.turns.map(function (t) { return cum[Math.max(0, Math.min(cum.length - 1, fl.at[t.at] - h0))]; })
+          .filter(function (m) { return isFinite(m); }).sort(function (a, b) { return a - b; });
+        out.trips++;
+        cuts.push(zN.length);
+        let ex = 0, ey = 0, s = 5, v = 0, t = 0, next = 0, b = 0, camNow = now, camWas = now;
+        while (s < end - 30) {
+          const dts = FR / 1000;
+          /* brake for the corner at 2 m/s each second, pull away at 1.5 */
+          while (b < bends.length && bends[b] < s - 2) b++;
+          const gap = b < bends.length ? Math.max(0, bends[b] - s) : Infinity;
+          const want = opt.steady ? V : Math.min(V, Math.sqrt(VC * VC + 4 * gap));
+          v = want < v ? Math.max(want, v - 2.5 * dts) : Math.min(want, v + 1.5 * dts);
+          s += v * dts; now += FR; t += FR;
+          if (t >= next) {
+            next += 1000;
+            const p = pointAt(co, cum, s);
+            ex = 0.8 * ex + 0.6 * gauss(r) * sigma;
+            ey = 0.8 * ey + 0.6 * gauss(r) * sigma;
+            const f = offset(p, ex, ey);
+            Nav.lastCalc = Date.now();          /* followed, so never recalculated */
+            pushPosition({ lat: f.lat, lng: f.lng, spd: Math.max(0, v + (v > 0 ? gauss(r) * 0.15 : 0)),
+                           hdg: v > 0.6 ? (p.hdg + gauss(r) * 2 + 360) % 360 : null,
+                           acc: 5, sim: false, t: Date.now() });
+            await settle();
+            if (!Nav.active) break;
+            Was.fix(view.speed);
+            out.fixes++;
+            if (opt.trace === out.trips) {
+              trace.push([Math.round(t / 1000), Math.round(AutoZoom.dist), Math.round(v * 3.6),
+                          +zRead.toFixed(2), +Was.z.toFixed(2)]);
+            }
+          }
+          /* the follow camera's own rule for when it writes */
+          if (now - camNow >= CFG.GL_FOLLOW_MS || AutoZoom.moving()) {
+            const z = AutoZoom.step(Math.min(100, now - camNow));
+            camNow = now; runsNow++;
+            if (z != null) zRead = z;
+          }
+          if (now - camWas >= 50 || Was.goal != null) {
+            Was.step(Math.min(100, now - camWas));
+            camWas = now; runsWas++;
+          }
+          zN.push(zRead); zW.push(Was.z);
+          out.frames++;
+        }
+      }
+    } finally {
+      Glide.step = keep.step; Glide.clock = keep.clock; map.getZoom = keep.get; window.renderPois = keep.pins;
+      AutoZoom.turn = keep.turn; S.autoZoom = keep.auto;
+      if (Nav.active) cancelNav(true);
+      fresh();
+    }
+    const cut = {};
+    cuts.forEach(function (i) { cut[i] = 1; });
+    const f2 = (x) => +x.toFixed(2);
+    const mid = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[b.length >> 1] : null; };
+    const stat = function (z, runs) {
+      /* Read over three frames, a twentieth of a second: the camera writes
+         no oftener than that while the zoom is barely moving, and a frame
+         by frame reading calls each of those writes a jump. */
+      const W = 3, dts = FR / 1000, rate = new Float64Array(z.length);
+      let fastest = 0, kick = 0, movingFrames = 0, since = 0;
+      for (let i = 0; i < z.length; i++) {
+        since = cut[i] ? 0 : since + 1;
+        if (since < W) continue;
+        rate[i] = (z[i] - z[i - W]) / (W * dts);
+        if (Math.abs(rate[i]) > fastest) fastest = Math.abs(rate[i]);
+        if (Math.abs(rate[i]) > 0.005) movingFrames++;
+        if (since >= 2 * W) kick = Math.max(kick, Math.abs(rate[i] - rate[i - W]) / (W * dts));
+      }
+      /* per turn, over the stretch from the turn before to this one */
+      const took = [], rise = [];
+      let ready = 0, from = 0, turns = 0;
+      const lead = Math.round(4000 / FR);
+      passed.forEach(function (f) {
+        let a = from;
+        cuts.forEach(function (c) { if (c > a && c <= f) a = c; });
+        from = f;
+        if (f - a < lead) return;
+        turns++;
+        /* the closing in: from the lowest it stood before the corner to
+           within a fiftieth of the highest */
+        let lo = a, hi = a;
+        for (let i = a; i <= f; i++) { if (z[i] <= z[lo]) lo = i; }
+        for (let i = lo; i <= f; i++) { if (z[i] > z[hi] || hi < lo) hi = i; }
+        let got = lo;
+        while (got < f && z[got] < z[hi] - 0.02) got++;
+        let left = got;
+        while (left > lo && z[left] > z[lo] + 0.02) left--;
+        if (z[hi] - z[lo] >= 0.5) { took.push((got - left) * dts); rise.push(z[hi] - z[lo]); }
+        if (z[f - lead] >= top - 0.1) ready++;
+      });
+      return {
+        fastest: f2(fastest), kick: f2(kick), movingShare: f2(100 * movingFrames / (z.length || 1)),
+        turns: turns, closedIn: took.length, tookMedian: f2(mid(took) || 0), riseMedian: f2(mid(rise) || 0),
+        readyBeforeCall: ready, writesPerSecond: f2(runs / ((z.length || 1) * dts))
+      };
+    };
+    out.now = stat(zN, runsNow);
+    out.was = stat(zW, runsWas);
+    out.pinRegroups = pins;
+    if (opt.trace != null) out.trace = trace;   /* each fix: seconds, metres to the turn, km/h, zoom now, zoom was */
+    return out;
+  }
+
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
-    wrongRoad: wrongRoad, wrong: wrong, path: path, glide: glide,
+    wrongRoad: wrongRoad, wrong: wrong, path: path, glide: glide, zoom: zoom,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up

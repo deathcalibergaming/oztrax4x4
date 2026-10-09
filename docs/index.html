@@ -4059,27 +4059,36 @@ const CFG = {
      turns nothing. */
   HDG_CRAWL_M: 12,
   HDG_JUMP_M: 150,
-  /* The map closing in - see AutoZoom. In at or under ZOOM_SLOW, out again
-     at ZOOM_FAST, ten kilometres an hour apart so a vehicle sitting on
-     thirty does not have the map breathing. For a turn: ZOOM_TURN_S seconds
-     out at the speed being driven, and never less than ZOOM_TURN_M. Close
-     is street level, where a junction's arms are apart on the glass.
+  /* The map closing in - see AutoZoom. For a turn it is all the way in -
+     ZOOM_TURN, where the junction is most of the screen - from ZOOM_AT_M
+     out. At eighteen a phone shows about a hundred and seventy metres ahead
+     of the vehicle, so a corner a hundred metres off is on the glass with
+     the road beyond it. Further out than that it is as far in as keeps the
+     corner at that place on the glass, a level for every doubling of the
+     distance, and it never starts from further away than ZOOM_TURN_M.
 
-     Then the turn itself, ZOOM_AT_S seconds out and never less than
-     ZOOM_AT_M: a level closer, where the junction is most of the screen.
-     At eighteen a phone shows about a hundred and seventy metres ahead of
-     the vehicle, so a corner a hundred metres off is on the glass as the
-     map arrives at it. Six seconds is ahead of the voice's call at the
-     corner, which is four. */
+     In at or under ZOOM_SLOW with no turn coming, out again at ZOOM_FAST,
+     ten kilometres an hour apart so a vehicle sitting on thirty does not
+     have the map breathing. ZOOM_CLOSE is what slow closes in to: street
+     level, where a junction's arms are apart on the glass.
+
+     ZOOM_EASE is how long the zoom takes to come round to where it is
+     wanted, closing in and opening out - the opening out the slower, so a
+     corner is finished before the map starts to leave it. ZOOM_RUN_MS is
+     how long the distance to the turn is run on between fixes. Moving
+     faster than ZOOM_QUICK levels a second the camera is written on every
+     frame and not twenty times a second, and the pins are grouped again
+     every ZOOM_PINS of a level. */
   ZOOM_SLOW: 30 / 3.6,
   ZOOM_FAST: 40 / 3.6,
-  ZOOM_TURN_M: 250,
-  ZOOM_TURN_S: 12,
+  ZOOM_TURN_M: 800,
   ZOOM_CLOSE: 17,
   ZOOM_AT_M: 100,
-  ZOOM_AT_S: 6,
   ZOOM_TURN: 18,
-  ZOOM_EASE_MS: 260,
+  ZOOM_EASE: [1200, 2000],
+  ZOOM_RUN_MS: 1500,
+  ZOOM_QUICK: 0.08,
+  ZOOM_PINS: 0.5,
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   /* How much of the trail is kept in the piece that is drawn again on every
@@ -7182,117 +7191,186 @@ function visibleBounds() {
    what is coming. At a junction it is wrong - the arms of the turn are a
    few pixels apart - and every sat-nav closes in for one. So does this:
 
-   - for a turn on the route, from ZOOM_TURN_S seconds out (never less than
-     ZOOM_TURN_M) until the turn is behind - an intersection, a ramp on or
-     off, a roundabout, and the destination;
+   - for a turn on the route - an intersection, a ramp on or off, a
+     roundabout, and the destination - all the way in from ZOOM_AT_M out,
+     and held there until the turn is behind;
    - whenever the speed comes down to ZOOM_SLOW, which is every junction
      driven without a route, a town, a car park, a creek crossing - and
      back out once it is over ZOOM_FAST again. Only after the vehicle has
      been at speed: a phone opened at a camp is left at the zoom it was.
 
-   Close is ZOOM_CLOSE, or the driver's own zoom if that is already closer.
    What it goes back out to is the zoom the driver had, which is also the
-   only zoom that is saved: closed in, a zoom by hand is taken for now and
-   not for keeps - it stops this easing, it is not fought, and the map still
-   goes back to the driver's own zoom when the road opens up.
+   only zoom that is saved.
 
-   And closer again at the turn itself: ZOOM_TURN from ZOOM_AT_S seconds
-   out, never less than ZOOM_AT_M, and always a level in from the driver's
-   own zoom. Closing in once was not enough, and the report from the road
-   was that it did nothing coming up to a turn. In town it did nothing
-   because it had already done it: the turns of a suburb are inside one
-   another's reach and most of it is driven under forty, so on the reported
-   trip - Turquoise Drive to Northbri Avenue, eleven turns - the map closed
-   in four seconds after setting off and was closed in on 272 fixes of 297.
-   Every turn arrived on a map that was already as close as it was going to
-   get. A second step is something to see at each one, and it is the step
-   that puts the junction itself across the glass.
+   It closes in as the vehicle closes on the turn. The zoom wanted is read
+   straight off how far away the turn is: all the way in at ZOOM_AT_M, and
+   one level further out for every doubling of that. Halve the distance
+   and double the scale, and the corner stays where it is on the glass -
+   three fifths of the way up the road ahead - while the map grows round
+   it. So it is one movement the length of the approach, at the pace the
+   vehicle is making, slow a long way out and quickest as the corner
+   arrives; it begins where that reading first asks for more than the
+   driver's own zoom, which from a zoom of fifteen is 800 m out.
 
-   Only while following. The follow camera writes the zoom, eased over
-   ZOOM_EASE_MS, as it writes the centre and the bearing; a map the driver
-   has dragged away is the driver's. Off in Settings, Auto Zoom. */
+   Not from further than ZOOM_TURN_M whatever the driver's zoom. Zoomed
+   right out to see the country, the same rule would start closing in
+   thirteen kilometres from a turn; from there the levels are fitted into
+   the last ZOOM_TURN_M instead, which is quicker than the corner arrives
+   and still one movement.
+
+   It was two jumps. Close at 250 m, closer at 100 m, back to the first once
+   the turn was behind and back to the driver's own after that - each over
+   in under a second, and the report from the road was that it zooms in to
+   one level and back out to another. The steps were there because one step
+   could not be seen: in a town every turn arrived on a map that had closed
+   in at the turn before and never let go. Read off the distance there is
+   nothing to hold or let go of. Past a turn the zoom wanted is whatever
+   the next turn's distance says, so two corners a hundred metres apart are
+   one long look, and two that are three hundred apart are a breath out and
+   back in - a level and a half, not three.
+
+   Three things make it smooth and not only gradual.
+
+   - The distance comes once a second, from the turn bar, and a zoom
+     driven by that alone surges once a second the way the vehicle used to
+     (see Glide). Between fixes it is run on at the speed being driven.
+   - Where the zoom is and where it is wanted are brought together by a
+     spring with no bounce in it, which starts moving gently and stops
+     gently. What was there before closed a fixed share of the gap on
+     every frame, which is at its fastest on the first: a kick.
+   - Nothing about it is worked out from the speed. The reach of the old
+     steps shrank as the vehicle slowed, and had to be latched to the turn
+     so that braking for the corner did not open the map back out. A
+     distance only ever gets shorter.
+
+   A zoom by hand while this has the zoom is taken for now and not for
+   keeps: it is not fought, it is not saved, and it lasts until the next
+   stage - the approach beginning, the turn coming right up, the turn
+   going behind - and the map still returns to the driver's own zoom when
+   the road opens up.
+
+   Only while following. The follow camera writes the zoom as it writes the
+   centre and the bearing; a map the driver has dragged away is the
+   driver's. Off in Settings, Auto Zoom. */
 const AutoZoom = {
   fast: false,     /* has been at speed since the app opened */
   slow: false,     /* at or under ZOOM_SLOW, and not back over ZOOM_FAST yet */
   at: null,        /* the turn ahead, by its place on the route */
-  near: null,      /* the turn that has come inside its reach */
-  hot: null,       /* and the one that has come right up - inside ZOOM_AT */
-  level: 0,        /* 0 the driver's own zoom, 1 closed in, 2 at a turn */
+  dist: 0,         /* how far off it was when the turn bar last said, */
+  seen: 0,         /*   and when that was, on the frame clock */
   base: null,      /* the driver's own zoom, to go back to */
-  goal: null,      /* the zoom being eased to, or null when there is none */
+  on: false,       /* the zoom is being held somewhere other than that */
+  zv: 0,           /* how fast it is moving, levels a second */
+  hand: null,      /* the driver zoomed: the stage that was on when they did */
+  pins: 0,         /* the zoom the pins were last grouped at */
 
   /* every fix */
   fix: function () {
     const v = view.speed;
     if (v >= CFG.ZOOM_FAST) { this.fast = true; this.slow = false; }
     else if (v <= CFG.ZOOM_SLOW && this.fast) this.slow = true;
-    this.settle();
   },
-  /* From the turn bar: which turn is next and how far. Latched to the turn
-     rather than to the distance, so slowing for it - which shortens the
-     reach - cannot open the map out again half way there. */
+  /* From the turn bar: which turn is next and how far. */
   turn: function (mark, dist) {
-    const reach = Math.max(CFG.ZOOM_TURN_M, view.speed * CFG.ZOOM_TURN_S);
-    const tight = Math.max(CFG.ZOOM_AT_M, view.speed * CFG.ZOOM_AT_S);
-    /* Through one turn with the next - or the destination - less than two
-       reaches on, the map stays close rather than opening out for four
-       seconds and closing again.
-
-       Not so the closer step. Held through the same way it never let go
-       either: on the reported trip it stood at the turn's zoom for 205
-       fixes of 297, one run of them five turns long, which is the first
-       step's fault over again one level in. It lets go once a turn is
-       behind and comes back for the next, and where the next is inside
-       ZOOM_AT already - a jog, a roundabout's exit - it never left. */
-    const through = this.near != null && this.near === this.at && mark !== this.at;
     this.at = mark;
-    if (mark == null) { this.near = null; this.hot = null; return; }
-    if (dist <= reach || (through && dist <= reach * 2)) this.near = mark;
-    if (dist <= tight) this.hot = mark;
+    if (mark == null) return;
+    this.dist = dist;
+    this.seen = Glide.clock();
   },
-  settle: function () {
-    let level = 0;
-    if (S.autoZoom) {
-      if (this.at != null && this.hot === this.at) level = 2;
-      else if (this.slow || (this.at != null && this.near === this.at)) level = 1;
+  /* How far off the turn is now: what the turn bar said, less what has been
+     driven since it said it. Run on only so far - a fix that does not come
+     leaves the zoom where it had got to. */
+  left: function () {
+    const age = Math.max(0, Math.min(Glide.clock() - this.seen, CFG.ZOOM_RUN_MS)) / 1000;
+    return Math.max(0, this.dist - view.speed * age);
+  },
+  /* All the way in for a turn, and how far out the closing in begins. */
+  top: function () { return Math.min(CFG.MAX_Z, Math.max(CFG.ZOOM_TURN, this.base + 1)); },
+  far: function () {
+    return Math.min(CFG.ZOOM_TURN_M, CFG.ZOOM_AT_M * Math.pow(2, this.top() - this.base));
+  },
+  /* The zoom wanted now. */
+  want: function () {
+    const base = this.base;
+    if (!S.autoZoom) return base;
+    let z = this.slow ? Math.max(CFG.ZOOM_CLOSE, base) : base;
+    if (this.at != null) {
+      /* Asked for a little ahead of where the vehicle is - as far as it
+         drives in the time the spring below trails by - so the zoom on the
+         glass is the one for where the vehicle has got to. */
+      const lead = view.speed * CFG.ZOOM_EASE[0] / 1000;
+      const top = this.top(), far = this.far(), d = Math.max(CFG.ZOOM_AT_M, this.left() - lead);
+      if (d < far) z = Math.max(z, base + (top - base) * Math.log(far / d) / Math.log(far / CFG.ZOOM_AT_M));
     }
-    if (level === this.level) return;
-    /* The driver's own zoom is where the map stood when this first took it.
-       Each step after that is worked out from it, so a zoom by hand while
-       closed in lasts until the next step and no longer. */
-    if (!this.level || this.base == null) this.base = map.getZoom();
-    this.level = level;
-    const z = level === 2 ? Math.max(CFG.ZOOM_TURN, this.base + 1)
-            : level === 1 ? Math.max(CFG.ZOOM_CLOSE, this.base)
-            : this.base;
-    const to = Math.min(CFG.MAX_Z, z);
-    this.goal = Math.abs(map.getZoom() - to) > 0.01 ? to : null;
+    return Math.min(CFG.MAX_Z, z);
   },
-  /* The zoom for this frame of the follow camera, or null to leave it be. */
+  /* What it is doing, in a word. A zoom by hand lasts as long as this
+     reads the same. */
+  stage: function () {
+    if (!S.autoZoom) return "";
+    if (this.at != null) {
+      const d = this.left();
+      if (d <= CFG.ZOOM_AT_M) return "at " + this.at;
+      if (d < this.far()) return "to " + this.at;
+    }
+    return this.slow ? "slow" : "";
+  },
+  /* The zoom for this write of the follow camera, ms after the last, or
+     null to leave it be. */
   step: function (ms) {
-    if (this.goal == null) return null;
-    /* It lands a fiftieth of a zoom out and is put on the goal, which
-       nobody can see. An ease that only ever closes a fraction of what is
-       left never arrives: at sixty frames a second the last steps were
-       under the thousandth the follow camera counts as a change, so it
-       wrote nothing, and the zoom sat 0.013 short for good - still easing,
-       the camera running every frame, the pins never regrouped. */
-    const z = map.getZoom(), d = this.goal - z;
-    if (Math.abs(d) < 0.02) {
-      const g = this.goal;
-      this.goal = null;
-      /* what a zoom by hand does when it ends: the pins are grouped in
-         screen pixels, so a new zoom is a new grouping */
+    const cur = map.getZoom();
+    if (!this.on) {
+      /* Left alone, the zoom is the driver's, and wherever they put it is
+         what this goes back to. */
+      this.base = cur;
+      if (Math.abs(this.want() - cur) < 0.01) return null;
+      this.on = true; this.zv = 0; this.hand = null; this.pins = cur;
+    }
+    if (this.hand != null) {
+      if (this.hand === this.stage()) return null;
+      this.hand = null; this.zv = 0;
+    }
+    /* A spring with no bounce: it leaves gently, arrives gently, and a
+       target that moves under it is followed about ZOOM_EASE behind. */
+    const to = this.want(), off = cur - to;
+    const dt = ms / 1000, w = 2000 / CFG.ZOOM_EASE[off > 0 ? 1 : 0], x = w * dt;
+    const k = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const push = (this.zv + w * off) * dt;
+    this.zv = (this.zv - w * push) * k;
+    let z = to + (off + push) * k;
+    /* It lands a two-hundred-and-fiftieth of a level out and is put on the
+       mark, which nobody can see. A spring only ever closes part of what is
+       left, so without this it never arrives: the last steps are under what
+       the follow camera counts as a change, and the map sits a hair short,
+       still moving, written on every frame. Back at the driver's own zoom
+       the zoom is theirs again. */
+    const there = Math.abs(z - to) < 0.004 && Math.abs(this.zv) < 0.02;
+    if (there) {
+      z = to; this.zv = 0;
+      if (z === this.base) this.on = false;
+    }
+    /* What a zoom by hand does when it ends: the pins are grouped in screen
+       pixels, so a new zoom is a new grouping. A zoom that takes a minute
+       cannot wait for its end, so it is done on the way as well. */
+    if (Math.abs(z - this.pins) >= CFG.ZOOM_PINS || (there && Math.abs(z - this.pins) > 0.01)) {
+      this.pins = z;
       renderPois();
       schedulePoi();
-      return g;
     }
-    return z + d * (1 - Math.exp(-ms / CFG.ZOOM_EASE_MS));
+    return z;
   },
-  /* The driver zoomed. True while closed in, when it is not theirs to keep. */
+  /* Moving at a pace where twenty writes a second would be steps - see
+     followCamera. */
+  moving: function () {
+    return this.on && this.hand == null && Math.abs(this.zv) > CFG.ZOOM_QUICK;
+  },
+  /* The driver zoomed. True while this has the zoom, when it is not theirs
+     to keep. */
   manual: function () {
-    this.goal = null;
-    return this.level > 0;
+    if (!this.on) return false;
+    this.hand = this.stage();
+    this.zv = 0;
+    return true;
   }
 };
 
@@ -7304,10 +7382,14 @@ function followCamera() {
      driving zoom the map moves about 7 px a second at 100 km/h, so 50 ms is
      a third of a pixel - nothing to see. A changed mode or size clears the
      key and goes straight through. */
-  /* Every frame while the zoom is easing, which is under a second: at
-     twenty a second a zoom is a staircase. */
-  const now = performance.now();
-  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS && AutoZoom.goal == null) return;
+  /* Every frame while the zoom is moving at any pace: at twenty a second a
+     zoom is a staircase. Under ZOOM_QUICK a write moves the far corner of
+     the screen about a pixel, and twenty a second is enough.
+
+     On the frame clock, which is the one AutoZoom reads the distance on and
+     the one a test can run by hand. */
+  const now = Glide.clock();
+  if (followCamera.key && now - followCamera.at < CFG.GL_FOLLOW_MS && !AutoZoom.moving()) return;
   const zoom = AutoZoom.step(Math.min(100, now - followCamera.at));
   followCamera.at = now;
   const headUp = !S.northLock && view.has;
@@ -7382,6 +7464,11 @@ map.on("dragstart", function () { if (S.follow) pauseFollow(); });
 
 /* Clusters are grouped in screen pixels, so a zoom changes which pins share
    a cell and the layer has to be rebuilt, not just refetched. */
+/* A pinch lasts as long as the fingers are down, and an approach lasts
+   longer than that: told only at the end, AutoZoom went on writing its own
+   zoom under the fingers for the length of the pinch. So it is told at the
+   start as well. */
+map.on("zoomstart", function () { AutoZoom.manual(); });
 map.on("zoomend", function () {
   /* Closed in for a turn or a town, a zoom by hand is for now and is not
      saved over the driver's own - see AutoZoom. */
@@ -20626,7 +20713,6 @@ function cancelNav(quiet) {
   Nav.via = "";
   Nav.standing = "";
   AutoZoom.turn(null);
-  AutoZoom.settle();
   Voice.stop();
   /* Cancelled by hand, the bar says so; ended by anything else - an
      arrival, which says its own - it goes. */
@@ -22260,7 +22346,8 @@ function syncTiltButtons() {
 function setAutoZoom(on) {
   S.autoZoom = on;
   saveSettings();
-  AutoZoom.settle();          /* off while closed in, it goes back out now */
+  /* off while closed in, it goes back out: the camera's next write finds
+     that nothing is wanted but the driver's own zoom */
   syncZoomButtons();
 }
 function syncZoomButtons() {

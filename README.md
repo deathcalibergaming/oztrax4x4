@@ -394,6 +394,36 @@ the camera itself with the frames driven by hand: 15 to 17 at 186 m, 18 at
 86 m, 15 once past; a pinch out to 16 held until the next step and was not
 saved.
 
+**The map closes in as the turn does.** The two steps were reported from
+the road as zooming in to one level and back out to another. The zoom is
+now read off the distance to the turn - 18 from 100 m, a level out for every
+doubling, never from further than 800 m - with the distance run on between
+fixes and a spring bringing the zoom to it. `NavSim.zoom(20, 7)` steps
+every frame by hand, 409,102 of them over 20 trips and 102 turns, slowing
+to 22 km/h for each turn, and works the two steps out beside it from the
+same fixes:
+
+| | Two steps | Now |
+|---|---|---|
+| Fastest the zoom moves, levels a second | 19.2 | 1.8 |
+| Hardest it starts or stops, levels a second each second | 383 | 6.3 |
+| Closing in for a turn takes, median | 1.3 s | 27 s |
+| Share of the drive the zoom is moving | 4% | 43% |
+| Turns all the way in 4 s before the corner | 102 of 102 | 102 of 102 |
+| Camera writes a second | 20.2 | 25.6 |
+
+From a driver's zoom of 13 the fastest is 3.1 and from 17 it is 0.6. At
+90 km/h 103 turns of 104 were all the way in by the call, where the two
+steps had all 104; with 4 m of GPS error 103 of 104, as the two steps did.
+On the camera itself, the frame clock run by hand through one approach:
+15.68 at 500 m, 16.42 at 300 m, 17.00 at 200 m, 17.94 at 100 m and 18 from
+50 m; inside 300 m no write went back and none moved more than 0.004 of a
+level. The zoom-out button pressed 380 m out held until 100 m and
+the driver's own zoom was kept; Auto Zoom switched off at the corner went
+back out; a map dragged away was written no zoom at all. Arrival, the
+voice and the marker run again: 33 of 33 arrived, at most 13 m short; 229
+of 229 road names heard; the marker's spread 0.05.
+
 **A trip to Woodside, and three things wrong with it.** Reported from a
 drive from Salisbury East to a shop in Woodside: sent round Lobethal by its
 truck bypass instead of down the main street, told to turn left and left
