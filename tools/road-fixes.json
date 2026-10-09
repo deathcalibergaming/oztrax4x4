@@ -1,0 +1,13 @@
+{
+  "about": "Speed limits read off the sign by a driver, for roads where OpenStreetMap records none. tools/build-routing.mjs gives each one to the pieces of the named road that lie wholly inside its box and carry no limit of their own. box is south, west, north, east. A limit OpenStreetMap does carry always stands, and the build says when a line here has nothing left to do.",
+  "limits": [
+    {
+      "name": "Blackburn Road",
+      "where": "Elizabeth East SA, Main North Road to Penarth Court",
+      "box": [-34.7397, 138.6759, -34.7313, 138.6842],
+      "limit": 60,
+      "seen": "2026-10-09",
+      "osm": "highway=residential with no maxspeed, checked 2026-10-09: ways 161753278, 175720326, 161854236, 254112348, 161854237, 175720327"
+    }
+  ]
+}

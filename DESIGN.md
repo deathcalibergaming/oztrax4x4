@@ -1378,7 +1378,11 @@ the next sign, so the roundel does too:
   nobody maps one, and a roundel that went dark at every side street read
   as broken. Of the streets that do carry a limit, 99% carry this one. Only
   for a residential street, after everything above, and not in the Northern
-  Territory, where the default is 60.
+  Territory, where the default is 60. It is wrong on the few streets signed
+  above it that nobody has mapped a limit for, and those are corrected in
+  the road data rather than here: a limit a driver has read off the sign
+  goes in `tools/road-fixes.json`, and the road packs carry it as the
+  road's own.
 - **Gone:** a turn onto any other road with no limit posted, or nothing
   known at all.
 

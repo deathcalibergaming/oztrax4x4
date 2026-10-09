@@ -66,11 +66,14 @@
    partial pack, so it is not something to commit. --pbf reads one local
    extract instead of downloading, and wants --only naming the state it is;
    ROUTE_OUT writes somewhere other than the site's own packs. Both are for
-   trying a change, the same as in build-poi.mjs. */
+   trying a change, the same as in build-poi.mjs.
+
+   tools/road-fixes.json holds speed limits a driver has read off the sign
+   where OpenStreetMap has none - see SIGNED. */
 
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { createWriteStream, createReadStream, appendFileSync, readdirSync } from "node:fs";
+import { createWriteStream, createReadStream, appendFileSync, readdirSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -89,6 +92,61 @@ const REGION_Z = 9;           /* the coarse grid the tertiary roads are cut on, 
                                  falls from 185 KB gzipped to 75, for twice the files and
                                  the same roads. The worst tile is the one that hurts. */
 const PRECISION = 100000;     /* five decimals, a bit over a metre */
+
+/* Limits read off the sign.
+
+   OpenStreetMap has a limit for a road when somebody has mapped the sign,
+   and on the roads that collect a suburb's streets very often nobody has.
+   The app shows the built-up default on a street with nothing posted,
+   which is right for a back street and wrong for one of these: Blackburn
+   Road in Elizabeth East is signed 60, is mapped as a residential street
+   with no limit at all, and so read 50 - with the chime armed, ten under
+   what the sign says.
+
+   tools/road-fixes.json is the list of them, each seen by a driver. A line
+   gives its limit to the pieces of the named road that lie wholly inside
+   its box and carry no limit of their own in either direction. A box and a
+   name, not way numbers: a way that is split keeps its number on one half
+   only, and the other half would quietly go back to 50.
+
+   What OpenStreetMap does say always stands. A limit mapped there is newer
+   than this list on the day it is mapped, and the build reports it against
+   the line - with any line that matched nothing - so the list can be
+   pruned. The right place for every one of these is OpenStreetMap; this is
+   for the weeks until it is there. */
+const SIGNED = (function () {
+  const list = JSON.parse(readFileSync(new URL("./road-fixes.json", import.meta.url), "utf8")).limits || [];
+  return list.map(function (f) {
+    const b = f.box;
+    if (!f.name || !Array.isArray(b) || b.length !== 4 || !(b[0] < b[2]) || !(b[1] < b[3]) ||
+        !Number.isInteger(f.limit) || f.limit < 5 || f.limit > 130) {
+      throw new Error("road-fixes.json: a line needs a name, a box of south, west, north, east and a limit: " + JSON.stringify(f));
+    }
+    return { name: f.name, where: f.where || "", limit: f.limit,
+             box: b.map((v) => Math.round(v * PRECISION)), given: 0, mapped: new Map() };
+  });
+})();
+
+/* The limit a piece of road goes out with: its own, or the one off the sign. */
+function signedLimit(name, pts, v, fw, bw) {
+  if (!name) return v;
+  for (const f of SIGNED) {
+    if (f.name !== name) continue;
+    let inside = true;
+    for (let i = 0; i < pts.length && inside; i += 2) {
+      inside = pts[i] >= f.box[0] && pts[i] <= f.box[2] && pts[i + 1] >= f.box[1] && pts[i + 1] <= f.box[3];
+    }
+    if (!inside) continue;
+    if (v || fw || bw) {
+      const k = v || Math.max(fw, bw);
+      f.mapped.set(k, (f.mapped.get(k) || 0) + 1);
+      return v;
+    }
+    f.given++;
+    return f.limit;
+  }
+  return v;
+}
 
 /* How far the drawn road may stray from the surveyed one, in metres, when
    corners that carry no shape are dropped.
@@ -547,7 +605,10 @@ function cutStamp(source) {
     SIMPLIFY_ONEWAY, "ring1",
     /* the directional limits beside the rows: a pack built without them
        has to be fetched again */
-    "dir1"
+    "dir1",
+    /* and the limits read off the sign: a line added to that list changes
+       tiles whose extract has not moved */
+    SIGNED.map((f) => [f.name, f.box, f.limit])
   ]);
   return createHash("sha1").update(source + "|" + shape).digest("hex").slice(0, 12);
 }
@@ -726,7 +787,7 @@ async function readExtract(path, seenWays, emit, tally) {
     const flush = () => {
       if (pts.length < 4) return;
       const fw = wayFw.get(w), bw = wayBw.get(w);
-      emit({ cls: cls, f: wayFlags.get(w), v: waySpeed.get(w),
+      emit({ cls: cls, f: wayFlags.get(w), v: signedLimit(wayName[w], pts, waySpeed.get(w), fw, bw),
              d: fw || bw ? [fw, bw] : 0, name: wayName[w], pts: pts.slice() });
       tally.edges++;
     };
@@ -950,6 +1011,18 @@ async function main() {
 
   await rm(tmp, { recursive: true, force: true });
   console.log(`wrote ${OUT}/`);
+
+  if (SIGNED.length) {
+    console.log("limits read off the sign (tools/road-fixes.json):");
+    for (const f of SIGNED) {
+      const mapped = [...f.mapped].map(([k, n]) => n + " at " + k).join(", ");
+      console.log("  " + f.name + (f.where ? ", " + f.where : "") + ": " + f.limit + " given to " + f.given +
+        (f.given === 1 ? " piece" : " pieces") +
+        (mapped ? "; OpenStreetMap has its own on " + mapped : "") +
+        (!f.given && mapped ? " - this line has nothing left to do and can go" : "") +
+        (!f.given && !mapped ? " - matched nothing in this build" : ""));
+    }
+  }
 }
 
 /* One JSON row per line, read back. */
