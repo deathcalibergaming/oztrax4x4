@@ -29,6 +29,8 @@
      await NavSim.glide(20, 7, { free: true })        and with no route running
      await NavSim.zoom(20, 7)                         the map's zoom, frame by frame
      await NavSim.zoom(20, 7, { base: 13 })           from a driver's zoom of 13
+     await NavSim.choice(200, 7)                      which way it goes, priced two ways
+     await NavSim.choice(100, 7, { far: true })       the same over 5 to 20 km
    Options: sigma (metres of GPS error, 3), v (cruising m/s, 13), voice
    (say the turns on a simulated clock and report which road names were
    heard - NavSim.heard(rows) sums it), wps (words a second the simulated
@@ -105,6 +107,17 @@
    how many turns were all the way in four seconds before the corner, which
    is when the voice calls it; and how often the camera was written. Options:
    v, corner, sigma, base (the driver's own zoom, 15), steady (no slowing).
+
+   choice() is the router and nothing else: the same trips routed as the
+   search prices them now and as it did before a U-turn through a median
+   had a price of its own or a metre cost anything (ROUTE_TURN.median and
+   ROUTE_DIRECT, both put to nought for `was`). For each: how many trips
+   turn round through a gap and how many times, the average distance, the
+   average time on one yardstick - every road and corner of the route as
+   they are priced now, whichever pricing chose it - and how much of the
+   way is on streets. far makes them 5 to 20 km and not 1.2 to 4. The
+   yardstick counts the first and last road of a trip whole, so it runs a
+   little long for both alike.
 
    path() is for a report from the road - "it said nothing at the end of
    Chess Street". The app is told the destination and the vehicle is driven
@@ -545,6 +558,7 @@
   function stub() {
     S.follow = false;
     window.resumeFollow = function () {};       /* a route starting turns it back on */
+    window.navAltsLater = function () {};       /* no other ways there: they are found on a timer, and a drive that took one would not be the drive asked for */
     window.fetchPois = function () {};
     window.schedulePoi = function () {};
     window.osrmRoute = async function () { return null; };
@@ -662,6 +676,60 @@
     };
     out.now = stat(A.now, A.turnNow, A.errNow, A.backNow);
     out.was = stat(A.was, A.turnWas, A.errWas, A.backWas);
+    return out;
+  }
+
+  /* Which way the router goes, priced two ways - see the header. */
+  async function choice(n, seed, opt) {
+    opt = opt || {};
+    stub();
+    const r = rng(seed), list = [];
+    for (let k = 0; k < n; k++) {
+      const o = opt.far ? { lat: -34.98 + r() * 0.28, lng: 138.52 + r() * 0.2 } : { lat: -34.95 + r() * 0.17, lng: 138.56 + r() * 0.14 };
+      const a = r() * 2 * Math.PI, d = opt.far ? 5000 + r() * 15000 : 1200 + r() * 2800;
+      list.push({ o: o, t: offset(o, Math.cos(a) * d, Math.sin(a) * d) });
+    }
+    const T = CFG.ROUTE_TURN, keepK = CFG.ROUTE_DIRECT, keepM = T.median;
+    const yard = function (rt) {
+      const sl = rt.slots;
+      let secs = 0;
+      for (let k = 0; k < sl.length; k++) {
+        secs += Route.eCost[sl[k] >> 1];
+        if (!k) continue;
+        const was = sl[k - 1], node = (was & 1) ? Route.eA[was >> 1] : Route.eB[was >> 1];
+        const turn = Route.turnSecs(node, was, sl[k]);
+        secs += turn + Route.turnRound(k > 1 ? sl[k - 2] : -1, was, sl[k], turn);
+      }
+      return secs;
+    };
+    const out = { trips: 0 };
+    try {
+      /* once through first, so both pricings route on the same roads: the
+         packs come down as the trips ask for them */
+      for (const t of list) await Route.find(t.o, t.t, false);
+      for (const v of [["was", 0, 0], ["now", keepK, keepM]]) {
+        let trips = 0, m = 0, secs = 0, round = 0, withRound = 0, streets = 0;
+        for (const t of list) {
+          CFG.ROUTE_DIRECT = v[1]; T.median = v[2];
+          const rt = await Route.find(t.o, t.t, false);
+          CFG.ROUTE_DIRECT = keepK; T.median = keepM;
+          if (!rt || !rt.slots || !rt.slots.length) continue;
+          const u = Route.rounds(rt.slots);
+          let all = 0, st = 0;
+          for (const sl of rt.slots) {
+            const i = sl >> 1, c = ROAD_CLASSES[Route.eCls[i]];
+            all += Route.eM[i];
+            if (c === "residential" || c === "service" || c === "living_street") st += Route.eM[i];
+          }
+          trips++; m += rt.distance; secs += yard(rt); round += u; if (u) withRound++; streets += all ? st / all : 0;
+        }
+        out.trips = trips;
+        out[v[0]] = { turnsRound: round, tripsThatTurnRound: withRound, km: +(m / (trips || 1) / 1000).toFixed(3),
+                      min: +(secs / (trips || 1) / 60).toFixed(2), onStreets: +(100 * streets / (trips || 1)).toFixed(1) };
+      }
+    } finally {
+      CFG.ROUTE_DIRECT = keepK; T.median = keepM;
+    }
     return out;
   }
 
@@ -849,7 +917,7 @@
 
   window.NavSim = {
     trips: trips, divided: divided, drive: drive, runList: runList,
-    wrongRoad: wrongRoad, wrong: wrong, path: path, glide: glide, zoom: zoom,
+    wrongRoad: wrongRoad, wrong: wrong, path: path, glide: glide, zoom: zoom, choice: choice,
     run: function (n, seed, opt) { return runList(trips(n, seed), opt); },
     /* The corners across a run: how many turn onto a named road, how many
        of those names were said before the corner, how many had a heads-up

@@ -731,6 +731,16 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .mapchip:active{background:rgba(216,203,170,.16)}
 #poiOfferChip{border-color:var(--warn);color:var(--warn)}
+/* What another way there costs, on that way: "+3 MIN". A chip in the map's
+   own plate, and a button, because it is what is pressed to take it. Hung
+   on a marker with no size of its own, so it is centred on its point
+   whatever it says. */
+.alt-tag{position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+  min-height:var(--tap-sm);padding:0 11px;border-radius:20px;white-space:nowrap;cursor:pointer;
+  background:rgba(20,24,27,.94);border:1px solid var(--line2);color:var(--hud);
+  font-family:var(--ui);font-variant-numeric:tabular-nums;font-size:var(--t-read-sm);font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase}
+.alt-tag:active{background:rgba(216,203,170,.2)}
 #updateChip{border-color:var(--green);color:var(--green)}
 /* The view is off the vehicle's real position, which is the same kind of
    fact Sim's amber already stands for elsewhere on this screen: what you
@@ -2039,6 +2049,7 @@ details.sub > .sec-body{padding:12px 0 0}
 #btnUnitAuto.on,#btnUnitMetric.on,#btnUnitImperial.on,#btnAwakeOn.on,#btnAwakeOff.on,
 #btnKindsAll.on,#btnKindsNone.on,#btnShadeOn.on,#btnShadeOff.on,
 #btnTiltOn.on,#btnTiltOff.on,#btnAzOn.on,#btnAzOff.on,
+#btnTollOn.on,#btnTollOff.on,#btnDirtOn.on,#btnDirtOff.on,
 #btnText1.on,#btnText2.on,
 #btnAlertOn.on,#btnAlertOff.on,
 #btnVoiceOn.on,#btnVoiceOff.on,
@@ -3251,6 +3262,16 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
         </div>
         <div class="note" id="voiceNote"></div>
+        <div class="sublabel">Avoid Toll Roads
+          <button class="btn xs ghost" id="btnTollOn">On</button>
+          <button class="btn xs ghost" id="btnTollOff">Off</button>
+        </div>
+        <div class="note">Routes keep off toll roads wherever there is another way.</div>
+        <div class="sublabel">Avoid Dirt Roads
+          <button class="btn xs ghost" id="btnDirtOn">On</button>
+          <button class="btn xs ghost" id="btnDirtOff">Off</button>
+        </div>
+        <div class="note">Routes keep to sealed roads wherever there is another way.</div>
         <div class="sublabel">Terrain Shading
           <button class="btn xs ghost" id="btnShadeOn">On</button>
           <button class="btn xs ghost" id="btnShadeOff">Off</button>
@@ -3861,7 +3882,48 @@ const CFG = {
      half as much again, and over 40 trips round Adelaide anything from two
      seconds a turn to nine took the corners driven from 470 to between 404
      and 412. What matters is that a corner costs something. */
-  ROUTE_TURN: { straight: 30, round: 150, left: 4, right: 7, uturn: 30, back: 60, give: 5 },
+  ROUTE_TURN: { straight: 30, round: 150, left: 4, right: 7, uturn: 30, back: 60, give: 5,
+                /* Turning round through a gap in the median: two turns no more
+                   than `gap` metres apart that leave the vehicle facing the way
+                   it came. Priced as the one manoeuvre it is - see
+                   Route.turnRound. */
+                gap: 60, median: 45 },
+  /* What a metre costs on top of the time it takes, in seconds: how much a
+     route has to save to be worth going further for. The time on a road is
+     an estimate - a class speed, a limit somebody mapped, a guess at a
+     corner - and two routes a few seconds apart on paper are the same
+     route as far as anybody can tell, so between them the shorter one is
+     the one a driver calls direct. See Route.search. */
+  ROUTE_DIRECT: 0.02,
+  /* How many times its own time a road being avoided is weighed at - dirt,
+     or a toll, when the driver has asked to keep off them. Not a ban: the
+     station at the end of forty kilometres of gravel is still somewhere
+     you can be taken, and the search says so by taking the gravel only
+     when there is nothing else. */
+  ROUTE_AVOID: 8,
+  /* Other ways to the same place - see Route.alternatives. Up to `most` of
+     them, each found by searching again with the roads already used
+     weighed `heavier`. One is kept if it takes no more than `slower` times
+     the route's own time and `grace` seconds, and shares no more than
+     `share` of its length with a route already shown - or it is the same
+     trip with a corner cut differently. Not for a trip under `least`
+     metres, and not past `budget` milliseconds of searching: the search
+     holds the page while it runs, and a second way across the country is
+     not worth a map that stops for ten seconds. */
+  ROUTE_ALT: { most: 2, heavier: 1.6, slower: 1.3, grace: 90, share: 0.75, least: 2000, budget: 1500 },
+  /* How long after a route is drawn the other ways are looked for, ms -
+     and after a recalculation, when the vehicle may yet leave this one
+     too. An alternative is done with once the vehicle is NAV_ALT_PAST
+     metres beyond where it left the route; off the route and within
+     NAV_ALT_ON of one, the vehicle has taken it. */
+  NAV_ALT_WAIT: [150, 2500],
+  /* The most points the line already driven is kept as - see navKeepPast.
+     Past it, every other point of the older part is let go: a trip
+     recalculated fifty times is still one line, and what it has lost is
+     the fineness of a curve fifty kilometres behind the vehicle. */
+  NAV_PAST_MAX: 12000,
+  NAV_ALT_PAST: 30,
+  NAV_ALT_ON: 30,
   NOMINATIM: "https://nominatim.openstreetmap.org/search",
   GEO_MIN_GAP: 1200,       /* Nominatim asks for no more than one call a second */
   /* The place search is limited to the country the vehicle is in, and
@@ -4949,6 +5011,8 @@ const S = Object.assign({
      at Hawker: 52 tiles flat, 60 leaning. Fifteen per cent, not double. */
   tilt: false,
   autoZoom: true,      /* the map closes in for a turn and at low speed - see AutoZoom */
+  avoidToll: false,    /* routes keep off toll roads where they can - see Route.search */
+  avoidDirt: false,    /* and off unsealed ones */
   /* "auto", "day" or "night". Auto is the default because the driver has one
      hand and their eyes on the track, and a setting nobody remembers to flip
      at dusk is a setting that leaves them dazzled. */
@@ -5017,6 +5081,7 @@ function saveSettings() {
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
+                        avoidToll: S.avoidToll, avoidDirt: S.avoidDirt,
                         night: S.night, nightAnchor: S.nightAnchor,
                         shadeDefaultApplied: S.shadeDefaultApplied,
                         headUpDefaultApplied: S.headUpDefaultApplied,
@@ -6469,6 +6534,8 @@ gl.on("click", function (e) {
   if (t && t.closest && t.closest(".maplibregl-marker, .maplibregl-popup, .maplibregl-ctrl")) return;
   /* A pin under the finger opens its card and that is all the tap does. */
   if (Pins.tap(e.point)) return;
+  /* Another way there, tapped, is taken - see navAltTap. */
+  if (navAltTap(e.point)) return;
   L._fire("preclick", {});
   L._closePop();
   L._fire("click", { latlng: { lat: e.lngLat.lat, lng: e.lngLat.lng }, containerPoint: e.point, originalEvent: e.originalEvent });
@@ -6879,9 +6946,16 @@ const PAINT = (function () {
 
 /* ---- layers ---- */
 /* route first so the recorded trail always draws on top of it */
+/* The other ways there go down first, so the route in use is always drawn
+   over them where the two run together. Grey, because they are not the
+   plan: the one colour on the map that means "this way" stays the
+   route's. */
+const navAltCasing = [0, 1].map(function () { return L.polyline([], { color: "#0B1418", weight: 9, opacity: .5, lineCap: "round", lineJoin: "round" }).addTo(map); });
+const navAltLine   = [0, 1].map(function () { return L.polyline([], { color: "#9AA4A8", weight: 4.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map); });
 const navCasing   = L.polyline([], { color: "#0B1418", weight: 11, opacity: .8, lineCap: "round", lineJoin: "round" }).addTo(map);
 const navLine     = L.polyline([], { color: PAINT.nav, weight: 5.5, opacity: .95, lineCap: "round", lineJoin: "round" }).addTo(map);
 const navDestMk   = L.layerGroup().addTo(map);
+const navAltMk    = L.layerGroup().addTo(map);
 /* The recorded trail, drawn as a settled part and a short tip - see
    Rec.push for why. Both casings go down before either line, so the tip's
    nine pixel casing can never be laid over the line it joins. */
@@ -15412,7 +15486,9 @@ const Route = {
       const i = this.nE;
       this.edgeRoom();
       this.eCls[i] = row[0];
-      /* 32: this pack says which of its edges are roundabouts - see isRing */
+      /* 32: this pack says which of its edges are roundabouts - see isRing.
+         Above it, 64 is the pack's own: a road that charges a toll, which
+         only a pack new enough to carry roundabouts can carry either. */
       this.eF[i] = pk.r ? (row[1] | 32) : (row[1] & 15);
       this.eName[i] = -1;
       const nm = row[3] >= 0 ? pk.n[row[3]] : null;
@@ -15714,7 +15790,7 @@ const Route = {
      rescue a stranded snap, a highway 1.7 km across the paddock starts
      beating the track under the wheels to save two minutes. Nearest that
      works, then. Not cheapest counting a leg nobody can drive. */
-  find: async function (from, to, quick) {
+  find: async function (from, to, quick, opt) {
     /* The window has to hold both ends with room for the route to bow out
        between them, so it is centred on the middle of the trip and reaches
        half its length plus the usual sixty kilometres. */
@@ -15736,11 +15812,11 @@ const Route = {
        loaded, so that is a choice of local streets at the ends, in the one
        place the vehicle has just come from. */
     if (quick) {
-      const got = this.tryFind(from, to);
+      const got = this.tryFind(from, to, opt);
       if (got) return got;
     }
     await this.reach(from, to);
-    const got = this.tryFind(from, to);
+    const got = this.tryFind(from, to, opt);
     if (got) return got;
 
     /* Nothing in the window reaches. Fold the country and ask once more, so
@@ -15750,18 +15826,70 @@ const Route = {
     if (this.spineFull) return null;
     if (!await this.ensureSpine(mid, 1e5)) return null;
     await this.reach(from, to);
-    return this.tryFind(from, to);
+    return this.tryFind(from, to, opt);
   },
 
-  tryFind: function (from, to) {
+  tryFind: function (from, to, opt) {
+    const t0 = performance.now();
     let near = this.snapAll(from.lat, from.lng);
     const dest = this.snapAll(to.lat, to.lng);
     if (!near.length || !dest.length) return null;
     if (from.hdg != null) near = this.byHeading(near, from.hdg);
-    const one = this.search(from, to, near.slice(0, 1), dest.slice(0, 1));
-    if (one) return one;
-    if (near.length < 2 && dest.length < 2) return null;
-    return this.search(from, to, near, dest);
+    let got = this.search(from, to, near.slice(0, 1), dest.slice(0, 1), opt);
+    if (!got && (near.length > 1 || dest.length > 1)) got = this.search(from, to, near, dest, opt);
+    /* how long it took to find, which is what says whether there is time
+       to look for another - see alternatives */
+    if (got) got.ms = performance.now() - t0;
+    return got;
+  },
+
+  /* Other ways there, best first: the routes a driver would also call
+     reasonable, for drawing beside the one in use.
+
+     Found the simple way. The roads the route runs along are weighed
+     heavier and the search is run again; what comes back is the best way
+     that mostly keeps off them, which is what "another way" means. Then
+     its roads are weighed heavier as well and it is run once more. Its
+     time is its own, at what its roads really cost - the weighing chose
+     it and is not in the answer.
+
+     Most of what comes back is not worth showing, and three tests say
+     which. A way that takes much longer is not an alternative, it is a
+     mistake waiting for a tap. A way that is the same route but for one
+     block is not another way at all: it would draw as a grey sliver beside
+     the line with a label saying "Similar", at every corner the search
+     could cut two ways. And a way that turns round in the road where the
+     route does not is nobody's second choice - the first other way to
+     Prelude Circuit was the U-turn on Main North Road the route had just
+     been taught not to take. */
+  alternatives: function (from, to, best, opt) {
+    const A = CFG.ROUTE_ALT, out = [], self = this;
+    if (!best || !best.slots || !best.slots.length || best.distance < A.least) return out;
+    let spent = best.ms || 0;
+    if (spent > A.budget / 3) return out;
+    const pen = new Map();
+    const lay = function (r) { for (const sl of r.slots) pen.set(sl >> 1, A.heavier); };
+    const shared = function (r, o) {
+      const on = new Set(o.slots.map(function (sl) { return sl >> 1; }));
+      let m = 0, both = 0;
+      for (const sl of r.slots) { const i = sl >> 1; m += self.eM[i]; if (on.has(i)) both += self.eM[i]; }
+      return m ? both / m : 1;
+    };
+    lay(best);
+    const turnsRound = this.rounds(best.slots);
+    while (out.length < A.most && spent < A.budget) {
+      const r = this.tryFind(from, to, Object.assign({}, opt, { pen: pen }));
+      if (!r || !r.slots || !r.slots.length) break;
+      spent += r.ms || 0;
+      const fresh = r.slots.some(function (sl) { return !pen.has(sl >> 1); });
+      lay(r);
+      if (!fresh) break;                 /* nothing new came back, and nothing new will */
+      if (r.duration > best.duration * A.slower + A.grace) continue;
+      if (this.rounds(r.slots) > turnsRound) continue;
+      if ([best].concat(out).some(function (o) { return shared(r, o) > A.share; })) continue;
+      out.push(r);
+    }
+    return out;
   },
 
   /* Which way an edge may be driven. The graph has always honoured this
@@ -15985,9 +16113,94 @@ const Route = {
     return near;
   },
 
-  search: function (from, to, near, dest) {
+  /* What the second of two turns costs on top of itself when the pair of
+     them turns the vehicle round.
+
+     A divided road is two one-way roads, and the gap in its median is a
+     short road between them. To the search, going up one carriageway,
+     through the gap and back down the other was a right turn and then
+     another right turn: fourteen seconds and a give-way or two. To a driver
+     it is a U-turn on a main road - slowing in the right lane with traffic
+     behind, waiting for a gap across every lane coming the other way, and
+     pulling out into the fast one - and nobody takes one to save two
+     seconds.
+
+     Which is what it was doing. To Prelude Circuit from the south, it
+     drove past Halsey Road, turned round at the Haydown Road gap and came
+     back down Main North Road to Blackburn Road: 2.4 seconds quicker on
+     paper than turning right at Halsey Road, 330 metres further, and
+     reported from the road as being asked to U-turn where the turn was
+     right there.
+
+     So the pair is priced as what it is, `median`, less what the two
+     turns were already charged - which was seven seconds for the pair of
+     them, because the second is onto a one-way carriageway with nowhere
+     else to go, and a corner with one way out of it is free. Only through
+     a gap - two turns further
+     apart than `gap` are round the block, which is its own decision - only
+     at junctions, and never on a roundabout, where going round to come
+     back is what it is for.
+
+     Read off the way the search reached the gap, which is the one way it
+     keeps. A cheaper way into the same gap from the side street opposite
+     would not be a U-turn and is not looked for: it would have to cost
+     less than the U-turn is charged, and what is lost if it does is one
+     corner priced high. */
+  turnRound: function (p, at, b, now) {
+    const T = CFG.ROUTE_TURN, i = at >> 1;
+    if (p == null || p < 0 || this.eM[i] > T.gap) return 0;
+    if (angleOff(this.slotHdg(p, false), this.slotHdg(b, true)) < T.round) return 0;
+    const first = this.turnSecs((at & 1) ? this.eB[i] : this.eA[i], p, at);
+    if (!first || this.isRing(i)) return 0;
+    return Math.max(0, T.median - first - now);
+  },
+
+  /* How many times a route turns round through a gap in a median - the
+     pairs turnRound prices. */
+  rounds: function (slots) {
+    const T = CFG.ROUTE_TURN;
+    let n = 0;
+    for (let k = 2; k < slots.length; k++) {
+      const i = slots[k - 1] >> 1;
+      if (this.eM[i] > T.gap || this.isRing(i)) continue;
+      if (angleOff(this.slotHdg(slots[k - 2], false), this.slotHdg(slots[k], true)) >= T.round) n++;
+    }
+    return n;
+  },
+
+  /* opt is what this one search is asked on top of the roads themselves:
+     dirt and toll to keep off those where it can, and pen, a map of edges
+     to weigh heavier - which is how a second and a third route are found,
+     see alternatives. */
+  search: function (from, to, near, dest, opt) {
     const a = near[0], b = dest[0];
     const hdg = from.hdg == null ? null : from.hdg;
+
+    /* What a stretch of road is weighed at. Its time; several times that
+       where it is a road the driver asked to keep off, or one a route
+       already found runs along; and the metres themselves, at ROUTE_DIRECT.
+
+       The metres are what makes the answer the direct route and not only
+       the quick one. Time alone took any detour that saved a second, and
+       the seconds are not that good: they are a class speed, or a limit
+       somebody mapped, and a corner priced by rule of thumb. The route to
+       Prelude Circuit above won by 2.4 of them. A route now has to save
+       twenty seconds for each kilometre further it goes, which is nothing
+       against a real saving - a highway round a town still wins by minutes
+       - and everything against one that is not there.
+
+       None of it is in the time the route is said to take. That is added
+       up afresh along the answer, from what the roads and the corners cost
+       and nothing else. */
+    const K = CFG.ROUTE_DIRECT, self = this;
+    const dirt = !!(opt && opt.dirt), toll = !!(opt && opt.toll), pen = (opt && opt.pen) || null;
+    const weigh = function (i, secs, m) {
+      let w = secs;
+      if (dirt && (self.eF[i] & 8)) w *= CFG.ROUTE_AVOID;
+      if (toll && (self.eF[i] & 64)) w *= CFG.ROUTE_AVOID;
+      if (pen) { const p = pen.get(i); if (p) w *= p; }
+      return w + K * m;
+    };
 
     /* The ends of every candidate destination edge are arrivals, each with
        the stub from it along to the point actually asked for, and each
@@ -16002,8 +16215,9 @@ const Route = {
       if (this.canFwd(c.i)) ends.push([this.eA[c.i], this.part(c.i, 0, c.u)]);
       if (this.canBwd(c.i)) ends.push([this.eB[c.i], this.part(c.i, this.eNp[c.i] - 1, c.u)]);
       for (const [node, stub] of ends) {
+        stub.w = weigh(c.i, stub.cost, stub.m);
         const held = finish.get(node);
-        if (held && held.cost + held.gap <= stub.cost + gap) continue;
+        if (held && held.w + held.gap <= stub.w + gap) continue;
         stub.gap = gap;
         stub.d = c.d;
         stub.i = c.i;                 /* the road this last stretch is on */
@@ -16042,7 +16256,7 @@ const Route = {
       const fwd = b.u >= a.u;
       if (fwd ? this.canFwd(a.i) : this.canBwd(a.i)) {
         direct = this.part(a.i, a.u, b.u);
-        best = direct.cost + this.gapCost(a.d) + this.gapCost(b.d) +
+        best = weigh(a.i, direct.cost, direct.m) + this.gapCost(a.d) + this.gapCost(b.d) +
                this.turnCost(this.headingAt(a.i, a.u, fwd), hdg);
       }
     }
@@ -16069,7 +16283,7 @@ const Route = {
     const open = new RouteHeap();
     if (direct) open.push(best, GOAL);
     for (const sd of seeds) {
-      const c = sd.stub.cost + sd.gap + sd.pen;
+      const c = weigh(sd.i, sd.stub.cost, sd.stub.m) + sd.gap + sd.pen;
       if (g.has(sd.sl) && g.get(sd.sl) <= c) continue;
       g.set(sd.sl, c);
       prev.set(sd.sl, -1);
@@ -16077,7 +16291,7 @@ const Route = {
       open.push(c + this.hope(sd.node, goal), sd.sl);
     }
 
-    let end = -1, endTurn = 0;
+    let end = -1;
     let popped = 0;
     while (open.size()) {
       const at = open.pop();
@@ -16086,18 +16300,21 @@ const Route = {
       done.add(at);
       if (++popped > CFG.ROUTE_MAX_POPS) break;
       const n = (at & 1) ? this.eA[at >> 1] : this.eB[at >> 1];
-      const base = g.get(at);
+      const base = g.get(at), before = prev.get(at);
       const fin = finish.get(n);
       if (fin) {
-        const turn = this.turnSecs(n, at, fin.sl);
-        const total = base + turn + fin.cost + fin.gap;
-        if (total < best) { best = total; end = at; endTurn = turn; open.push(total, GOAL); }
+        let turn = this.turnSecs(n, at, fin.sl);
+        turn += this.turnRound(before, at, fin.sl, turn);
+        const total = base + turn + fin.w + fin.gap;
+        if (total < best) { best = total; end = at; open.push(total, GOAL); }
       }
       let sl = this.adjHead.get(n);
       if (sl === undefined) continue;
       for (; sl >= 0; sl = this.adjNext[sl]) {
         const i = sl >> 1;
-        const cost = base + this.turnSecs(n, at, sl) + this.eCost[i];
+        let turn = this.turnSecs(n, at, sl);
+        turn += this.turnRound(before, at, sl, turn);
+        const cost = base + turn + weigh(i, this.eCost[i], this.eM[i]);
         if (g.has(sl) && g.get(sl) <= cost) continue;
         g.set(sl, cost);
         prev.set(sl, at);
@@ -16129,6 +16346,19 @@ const Route = {
        rather than "in 400 metres, something". */
     const marks = [{ at: 0, i: seed.i, sl: seed.sl }];
     let m = startStub.m;
+    /* And what the trip takes, added up along it: the roads at their own
+       time and the corners at theirs. Not what the search weighed it at -
+       the metres, a road being avoided and a road weighed heavier to find
+       another way are how the route was chosen, and nobody drives them.
+       Nor the gap to the road or the price of setting off the wrong way,
+       which chose the road and come out for the same reason: the card
+       already says "nearest road is N away" in its own right. */
+    let secs = startStub.cost, was = seed.sl, wasBefore = -1;
+    const corner = function (sl) {
+      const node = (was & 1) ? self.eA[was >> 1] : self.eB[was >> 1];
+      const turn = self.turnSecs(node, was, sl);
+      return turn + self.turnRound(wasBefore, was, sl, turn);
+    };
     for (const sl of chain) {
       const i = sl >> 1;
       const off = this.eOff[i], np = this.eNp[i];
@@ -16139,6 +16369,8 @@ const Route = {
         pts.push([this.geo[off + q * 2] / 1e5, this.geo[off + q * 2 + 1] / 1e5]);
       }
       m += this.eM[i];
+      secs += corner(sl) + this.eCost[i];
+      wasBefore = was; was = sl;
     }
     /* The last stretch runs from the arrival node along to the point, which
        is the order part() hands it over in. It was appended backwards from
@@ -16154,18 +16386,10 @@ const Route = {
     for (const p of endStub.pts) pts.push(p);
     pts.push([to.lat, to.lng]);
     m += endStub.m;
-    /* The gap decided which roads to use and then comes back out of the
-       answer. It is what it costs to reach a road, not time spent driving
-       one, and the card already says "nearest road is N away" in its own
-       right - leaving it in would charge for that twice and would move
-       every estimate the app has ever given by a few seconds for no reason
-       a driver could see. The turning penalty comes out for the same
-       reason: it chose the road, and nobody drives it.
-
-       Reported against the roads actually used, not the ones that happened
+    secs += corner(endStub.sl) + endStub.cost;
+    /* Reported against the roads actually used, not the ones that happened
        to be nearest, which is the whole point of there being a choice. */
-    return this.route(pts, m, g.get(end) - seed.gap - seed.pen + endTurn + endStub.cost,
-                      seed.d, endStub.d, marks);
+    return this.route(pts, m, secs, seed.d, endStub.d, marks);
   },
 
   /* Time to the destination if the rest of the trip were a straight line at
@@ -16195,8 +16419,12 @@ const Route = {
      than vMax, so h(n) is never more than the edge to n' plus h(n') - which
      is what makes settling a node once actually safe. */
   hope: function (node, goal) {
+    /* and the metres, which every road is also weighed by - see search.
+       No road is fewer of them than the straight line, so it is still a
+       bound, and leaving them out would be a looser one: the search would
+       wander for every metre the estimate did not know was coming */
     return haversine({ lat: this.nodeLat(node) / 1e5, lng: this.nodeLng(node) / 1e5 }, goal)
-           / ((this.vMax || 100) / 3.6);
+           * (3.6 / (this.vMax || 100) + CFG.ROUTE_DIRECT);
   },
 
   route: function (pts, m, secs, snapA, snapB, marks) {
@@ -16234,6 +16462,9 @@ const Route = {
          seven metres from the start came to be called a right turn. */
       head: map ? map[1] : 0,
       tail: map ? map[pts.length - 2] : coords.length - 1,
+      /* each road of it and the way it was driven, in order - what another
+         route is found by weighing heavier, and what one is compared by */
+      slots: marks ? marks.filter(function (k) { return k.sl != null; }).map(function (k) { return k.sl; }) : [],
       legs: marks ? marks.map(function (k) {
         const ring = self.isRing(k.i);
         return {
@@ -18465,7 +18696,14 @@ const Nav = {
   via: "",               /* "local", "osrm" or "direct" - where the line came from */
   /* What is true about the whole route rather than about this moment.
      Progress messages come and go over the top of it and put it back. */
-  standing: ""
+  standing: "",
+  route: null,           /* the route in use, as the router handed it over */
+  /* The line already driven before a redirect, and what feeds it: where on
+     the line the vehicle last was, and the fixes since it left it - see
+     navKeepPast. */
+  past: [], on: null, stray: [],
+  alts: [],              /* other ways there, drawn in grey - see navAltFit */
+  altTimer: 0
 };
 
 
@@ -18493,11 +18731,16 @@ function navFrom() {
    router that answers nearly every trip, and two routers wording the same
    corner two different ways is worse than both being plain. One reading,
    in navBuildTurns, off the line either of them draws. */
-async function osrmRoute(from, to) {
+async function osrmRoute(from, to, opt) {
+  /* Out here the only thing that can be asked for is no tolls: the public
+     router has a class for those and none for dirt. If it will not take
+     the request that way it is asked again plainly, further down - a route
+     with a toll on it is better than a straight line. */
+  const noToll = !!(opt && opt.toll);
   const url = CFG.OSRM + "/route/v1/driving/" +
     from.lng.toFixed(6) + "," + from.lat.toFixed(6) + ";" +
     to.lng.toFixed(6) + "," + to.lat.toFixed(6) +
-    "?overview=simplified&geometries=geojson&alternatives=false&steps=true";
+    "?overview=simplified&geometries=geojson&alternatives=false&steps=true" + (noToll ? "&exclude=toll" : "");
   const ctl = new AbortController();
   const bail = setTimeout(function () { ctl.abort(); }, CFG.NAV_TIMEOUT);
   try {
@@ -20200,38 +20443,25 @@ function directLine(from, to) {
 
    OSRM is still there for what the packs do not carry: the spine stops
    at the state border, so Broken Hill or Mildura is its job. */
-async function findRoute(from, to, quick) {
+async function findRoute(from, to, quick, opt) {
   try {
-    const local = await Route.find(from, to, quick);
+    const local = await Route.find(from, to, quick, opt);
     if (local) return local;
   } catch (e) { /* the router is not worth failing the trip over */ }
-  const remote = await osrmRoute(from, to);
+  let remote = await osrmRoute(from, to, opt);
+  if (!remote && opt && opt.toll) remote = await osrmRoute(from, to, null);
   if (remote) return remote;
   return directLine(from, to);
 }
 
-async function navigateTo(dest, quiet) {
-  if (!dest || !isFinite(dest.lat) || !isFinite(dest.lng)) return;
-  if (Nav.busy) return;
-  Nav.busy = true;
-  Nav.dest = { lat: dest.lat, lng: dest.lng, name: dest.name || "Destination" };
-  setNavNote("");
-  if (!quiet) { showNavPanel(); setNavNote("Finding a route..."); }
-
-  /* quiet is a recalculation, and a recalculation asks the graph in memory
-     first - see Route.find. */
-  const r = await findRoute(navFrom(), Nav.dest, !!quiet);
-  Nav.busy = false;
-  Nav.lastCalc = Date.now();
-
-  if (!r || !r.coords.length) {
-    Nav.note = "Could not work out a route to there";
-    if (!Nav.active) { Nav.active = false; }
-    setNavNote(Nav.note);
-    if (!quiet) toast("Could not find a route", "err");
-    return;
-  }
-
+/* ---- a route, put to use ----
+   Everything that follows from a route being the one driven: where it
+   starts and ends, how far along it is, its corners, and the line. Its own
+   function because a route is put to use three ways now - asked for,
+   worked out again, and picked from the other ways on the map - and the
+   three must not differ in what they set. */
+function navTake(r) {
+  Nav.route = r;
   Nav.via = r.direct ? "direct" : (r.local ? "local" : "osrm");
   /* Two things the driver is owed for the length of the trip: that this is
      a bearing rather than a route, and that the line starts somewhere other
@@ -20253,6 +20483,8 @@ async function navigateTo(dest, quiet) {
   Nav.end = Nav.hop <= CFG.NAV_ARRIVE_OFF ? Nav.tail : r.coords.length - 1;
   Nav.offFor = 0;
   Nav.lost = false;
+  Nav.on = null;
+  Nav.stray = [];
   Nav.duration = r.duration;
   Nav.idx = 0;
   navBuildCum();
@@ -20260,8 +20492,220 @@ async function navigateTo(dest, quiet) {
   /* drawn as a curve through the route's points, with the two joints that
      are not road left alone - see navFlow */
   Nav.flow = navFlow(Nav.coords, [Nav.head, Nav.tail]);
-  navLine.setLatLngs(Nav.flow.line);
-  navCasing.setLatLngs(Nav.flow.line);
+  navDrawLine();
+}
+
+/* The line on the map: what has been driven, then what is left to drive. */
+function navDrawLine() {
+  const line = Nav.past.length ? Nav.past.concat(Nav.flow.line) : Nav.flow.line;
+  navLine.setLatLngs(line);
+  navCasing.setLatLngs(line);
+}
+
+/* A recalculation is a redirect, not a new trip.
+
+   It used to be a new trip. The route worked out from where the vehicle
+   had got to replaced the one it was on, so the line now began at the
+   wrong turn and everything driven before it was gone from the map - the
+   trip's start with it. Reported from the road as the reroute dropping the
+   start point and making a new one where it rerouted.
+
+   So what was driven is kept and the new route is joined on to it: the old
+   line as far as the last place the vehicle was on it, then the fixes it
+   has laid down since leaving - the wrong turn itself, which is a road
+   that was driven even if it was never the plan - and then the way from
+   here. One line from where the trip began. Kept across as many
+   recalculations as the trip has, and let go when it is cancelled or
+   another is asked for. */
+function navKeepPast() {
+  const F = Nav.flow, on = Nav.on;
+  let line = Nav.past;
+  if (F && F.line.length && F.at && F.cum && on) {
+    const n = Nav.coords.length, i = Math.max(0, Math.min(n - 1, on.i));
+    const a = F.at[i], b = F.at[Math.min(n - 1, i + 1)];
+    const s = F.cum[a] + (F.cum[b] - F.cum[a]) * on.t;
+    let j = a;
+    while (j < b && F.cum[j + 1] <= s) j++;
+    line = line.concat(F.line.slice(0, j + 1));
+    const len = j < F.line.length - 1 ? F.cum[j + 1] - F.cum[j] : 0;
+    if (len > 0 && s > F.cum[j]) {
+      const f = Math.min(1, (s - F.cum[j]) / len), p = F.line[j], q = F.line[j + 1];
+      line.push([p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]);
+    }
+  }
+  line = line.concat(Nav.stray);
+  if (line.length > CFG.NAV_PAST_MAX) {
+    const keep = line.length - 2000;       /* the last of it is left as it was drawn */
+    line = line.filter(function (p, i) { return i >= keep || !(i & 1); });
+  }
+  Nav.past = line;
+}
+
+/* ---- the other ways there ----
+   Drawn in grey under the route, each with what it costs beside it, and
+   taken by a tap on the line or the label - or by driving it. Looked for a
+   moment after the route is on the map, so the route is never kept waiting
+   for them. */
+function navAltsClear() {
+  if (Nav.altTimer) { clearTimeout(Nav.altTimer); Nav.altTimer = 0; }
+  if (!Nav.alts.length) return;
+  Nav.alts = [];
+  navAltsDraw();
+}
+
+function navAltsLater(from, opt, quiet) {
+  navAltsClear();
+  const main = Nav.route;
+  if (!main || !main.local) return;
+  Nav.altTimer = setTimeout(function () {
+    Nav.altTimer = 0;
+    /* a route that has changed since, or a vehicle off it again, has no
+       use for the ways round the one that was asked about */
+    if (Nav.route !== main || !Nav.active || Nav.lost) return;
+    let found = [];
+    try { found = Route.alternatives(from, Nav.dest, main, opt); } catch (e) { found = []; }
+    Nav.alts = found.map(navAltFit).filter(Boolean).slice(0, navAltLine.length);
+    navAltsDraw();
+  }, CFG.NAV_ALT_WAIT[quiet ? 1 : 0]);
+}
+
+/* What another way is beside the route in use: where it leaves it, how far
+   along; where its label goes; and what the label says.
+
+   It leaves where the two stop running along the same roads from the
+   start, and once the vehicle is past that it is no longer a way that can
+   be taken. The label sits in the middle of its longest stretch that is
+   not the route's, which is the one place it cannot be read as belonging
+   to the blue line. It says the minutes it costs - or saves, which
+   happens: the route in use is the direct one, and a longer way can be a
+   minute quicker on paper. */
+function navAltFit(r) {
+  const main = Nav.route;
+  if (!main || !main.slots || !r || !r.slots || !r.legs) return null;
+  let same = 0;
+  while (same < r.slots.length && same < main.slots.length && r.slots[same] === main.slots[same]) same++;
+  if (same >= r.slots.length && same >= main.slots.length) return null;
+  const fork = Nav.legs && Nav.legs[same] ? (Nav.cum[Nav.legs[same].at] || 0) : 0;
+  const on = new Set(main.slots.map(function (sl) { return sl >> 1; }));
+  const cum = [0];
+  for (let i = 1; i < r.coords.length; i++) {
+    cum[i] = cum[i - 1] + haversine({ lat: r.coords[i - 1][0], lng: r.coords[i - 1][1] }, { lat: r.coords[i][0], lng: r.coords[i][1] });
+  }
+  let a = -1, b = -1, most = -1, run = -1;
+  for (let k = 0; k <= r.slots.length; k++) {
+    const own = k < r.slots.length && !on.has(r.slots[k] >> 1);
+    if (own && run < 0) run = k;
+    if (!own && run >= 0) {
+      const p = r.legs[run].at, q = r.legs[k] ? r.legs[k].at : r.coords.length - 1;
+      if (cum[q] - cum[p] > most) { most = cum[q] - cum[p]; a = p; b = q; }
+      run = -1;
+    }
+  }
+  if (a < 0) return null;
+  const mid = (cum[a] + cum[b]) / 2;
+  let j = a;
+  while (j < b && cum[j + 1] < mid) j++;
+  const mins = Math.round((r.duration - main.duration) / 60);
+  return { r: r, flow: navFlow(r.coords, [r.head || 0, r.tail == null ? r.coords.length - 1 : r.tail]),
+           fork: fork, tagAt: r.coords[j],
+           label: mins >= 1 ? "+" + mins + " min" : mins <= -1 ? "−" + (-mins) + " min" : "Similar",
+           says: mins >= 1 ? mins + " minutes slower" : mins <= -1 ? (-mins) + " minutes quicker" : "about the same time" };
+}
+
+function navAltsDraw() {
+  navAltMk.clearLayers();
+  for (let k = 0; k < navAltLine.length; k++) {
+    const a = Nav.alts[k];
+    navAltCasing[k].setLatLngs(a ? a.flow.line : []);
+    navAltLine[k].setLatLngs(a ? a.flow.line : []);
+    if (!a) continue;
+    const mk = L.marker(a.tagAt, { keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0], iconAnchor: [0, 0],
+      html: '<button type="button" class="alt-tag" aria-label="Take the other route, ' + a.says + '">' + esc(a.label) + "</button>" }) })
+      .addTo(navAltMk);
+    const el = mk.getElement();
+    if (el) el.addEventListener("click", function (e) { e.stopPropagation(); navTakeAlt(k); });
+  }
+}
+
+/* The route in use and one of the other ways change places. Nothing is
+   asked of the router: the way was worked out when it was drawn, from the
+   start of the trip, so the line already driven is still the line and the
+   vehicle is simply found on the new one. */
+function navTakeAlt(k) {
+  const a = Nav.alts[k], was = Nav.route;
+  if (!a || !Nav.active) return;
+  const rest = Nav.alts.filter(function (x, j) { return j !== k; }).map(function (x) { return x.r; });
+  if (Nav.altTimer) { clearTimeout(Nav.altTimer); Nav.altTimer = 0; }
+  navTake(a.r);
+  Nav.alts = (was && was.local ? [was] : []).concat(rest).map(navAltFit).filter(Boolean).slice(0, navAltLine.length);
+  navAltsDraw();
+  setNavNote(Nav.standing);
+  showNavPanel();
+  navProgress();
+}
+
+/* A tap on a grey line takes that way. Not where it runs under the route
+   itself: there the finger is on the blue line, and that is not a choice. */
+function navAltTap(pt) {
+  if (!Nav.alts.length) return false;
+  const box = function (r) { return [[pt.x - r, pt.y - r], [pt.x + r, pt.y + r]]; };
+  const ids = navAltLine.map(function (ln) { return ln.id; }).filter(function (id) { return gl.getLayer(id); });
+  if (!ids.length) return false;
+  let hit = null;
+  try {
+    if (gl.getLayer(navLine.id) && gl.queryRenderedFeatures(box(8), { layers: [navLine.id] }).length) return false;
+    hit = gl.queryRenderedFeatures(box(14), { layers: ids })[0];
+  } catch (e) { return false; }
+  if (!hit) return false;
+  const k = navAltLine.findIndex(function (ln) { return ln.id === hit.layer.id; });
+  if (k < 0 || !Nav.alts[k]) return false;
+  navTakeAlt(k);
+  return true;
+}
+
+/* Off the route and on one of the other ways: the driver has chosen it by
+   driving it, and it is taken without the route being worked out again or
+   the bar saying anything was wrong. */
+function navAltDriven() {
+  const p = view.fix || view.cur;
+  for (let k = 0; k < Nav.alts.length; k++) {
+    const co = Nav.alts[k].r.coords;
+    for (let i = 0; i < co.length - 1; i++) {
+      if (segNear(p, { lat: co[i][0], lng: co[i][1] }, { lat: co[i + 1][0], lng: co[i + 1][1] }).d <= CFG.NAV_ALT_ON) return k;
+    }
+  }
+  return -1;
+}
+
+async function navigateTo(dest, quiet) {
+  if (!dest || !isFinite(dest.lat) || !isFinite(dest.lng)) return;
+  if (Nav.busy) return;
+  Nav.busy = true;
+  Nav.dest = { lat: dest.lat, lng: dest.lng, name: dest.name || "Destination" };
+  setNavNote("");
+  if (!quiet) { showNavPanel(); setNavNote("Finding a route..."); }
+
+  /* quiet is a recalculation, and a recalculation asks the graph in memory
+     first - see Route.find. */
+  const from = navFrom(), opt = navOpts();
+  const r = await findRoute(from, Nav.dest, !!quiet, opt);
+  Nav.busy = false;
+  Nav.lastCalc = Date.now();
+
+  if (!r || !r.coords.length) {
+    Nav.note = "Could not work out a route to there";
+    if (!Nav.active) { Nav.active = false; }
+    setNavNote(Nav.note);
+    if (!quiet) toast("Could not find a route", "err");
+    return;
+  }
+
+  /* Worked out again with a route running, the line driven so far is kept
+     and this one joined to it; asked for afresh, there is nothing driven
+     yet. See navKeepPast. */
+  if (quiet && Nav.active) navKeepPast();
+  else Nav.past = [];
+  navTake(r);
   navDestMk.clearLayers();
   L.marker([Nav.dest.lat, Nav.dest.lng], { icon: pinIcon(PAINT.nav, "flag", false), keyboard: false })
     .bindPopup('<div class="pop-t" style="color:var(--nav2)">' + esc(Nav.dest.name) + "</div>", popOpts())
@@ -20279,6 +20723,8 @@ async function navigateTo(dest, quiet) {
      screen. Not on a recalculation, which nobody asked for: a driver who
      has dragged the map ahead to read the road is left reading it. */
   if (!quiet && !S.follow) resumeFollow();
+  /* and the other ways there, once this one is on the map */
+  navAltsLater(from, opt, !!quiet);
   /* No chip for starting a route. The panel that just came up names the
      destination and goes on naming it, which the chip did for two seconds
      over the top of the map you were about to drive. */
@@ -20567,11 +21013,26 @@ function navProgress() {
   if (near.off > CFG.NAV_OFF_ROUTE || turned) Nav.offFor++;
   else Nav.offFor = 0;
   Nav.lost = Nav.offFor >= CFG.NAV_OFF_FIXES;
+  /* Where the vehicle last was on the line, and where it has been since it
+     left it: what a redirect keeps of the trip - see navKeepPast. */
+  if (!Nav.offFor) { Nav.on = { i: near.i, t: near.t }; if (Nav.stray.length) Nav.stray = []; }
+  else if (view.fix && Nav.stray.length < 600) Nav.stray.push([view.fix.lat, view.fix.lng]);
+  /* Another way there is over once the vehicle has gone past where it
+     left this one. */
+  if (Nav.alts.length && !Nav.offFor) {
+    const open = Nav.alts.filter(function (x) { return x.fork > at - CFG.NAV_ALT_PAST; });
+    if (open.length !== Nav.alts.length) { Nav.alts = open; navAltsDraw(); }
+  }
   /* After the off-route count, because a turn off the line near the end can
      be the turn in to the destination - see navArrived. */
   if (navArrived(near, remain)) { navArrive(); return; }
   navSnap(near, hdg);
 
+  if (Nav.lost && Nav.alts.length) {
+    /* off the route and on one of the other ways drawn beside it */
+    const k = navAltDriven();
+    if (k >= 0) { navTakeAlt(k); return; }
+  }
   if (Nav.lost) {
     /* Nothing to be off, when the line was only ever a bearing. It still
        gets redrawn from where the vehicle now is, which is the whole of
@@ -20782,6 +21243,11 @@ function cancelNav(quiet) {
   Nav.via = "";
   Nav.standing = "";
   AutoZoom.turn(null);
+  navAltsClear();
+  Nav.route = null;
+  Nav.past = [];
+  Nav.stray = [];
+  Nav.on = null;
   Voice.stop();
   /* Cancelled by hand, the bar says so; ended by anything else - an
      arrival, which says its own - it goes. */
@@ -22419,6 +22885,23 @@ function setAutoZoom(on) {
      that nothing is wanted but the driver's own zoom */
   syncZoomButtons();
 }
+/* What the route is asked to keep off. On is a preference and not a ban -
+   see ROUTE_AVOID - and changing it with a route running works the route
+   out again, because the one on the screen was chosen under the old
+   answer. */
+function navOpts() { return { toll: !!S.avoidToll, dirt: !!S.avoidDirt }; }
+function setAvoid(key, on) {
+  S[key] = !!on;
+  saveSettings();
+  syncAvoidButtons();
+  if (Nav.active && !Nav.busy) navigateTo(Nav.dest, true);
+}
+function syncAvoidButtons() {
+  $("#btnTollOn").classList.toggle("on", !!S.avoidToll);
+  $("#btnTollOff").classList.toggle("on", !S.avoidToll);
+  $("#btnDirtOn").classList.toggle("on", !!S.avoidDirt);
+  $("#btnDirtOff").classList.toggle("on", !S.avoidDirt);
+}
 function syncZoomButtons() {
   $("#btnAzOn").classList.toggle("on", !!S.autoZoom);
   $("#btnAzOff").classList.toggle("on", !S.autoZoom);
@@ -22446,6 +22929,10 @@ function syncNightButtons() {
 $("#btnNightAuto").addEventListener("click", function () { setNight("auto"); });
 $("#btnNightDay").addEventListener("click", function () { setNight("day"); });
 $("#btnNightOff").addEventListener("click", function () { setNight("night"); });
+$("#btnTollOn").addEventListener("click", function () { setAvoid("avoidToll", true); });
+$("#btnTollOff").addEventListener("click", function () { setAvoid("avoidToll", false); });
+$("#btnDirtOn").addEventListener("click", function () { setAvoid("avoidDirt", true); });
+$("#btnDirtOff").addEventListener("click", function () { setAvoid("avoidDirt", false); });
 $("#btnAzOn").addEventListener("click", function () { setAutoZoom(true); });
 $("#btnAzOff").addEventListener("click", function () { setAutoZoom(false); });
 $("#btnTiltOn").addEventListener("click", function () { setTilt(true); });
@@ -22809,6 +23296,7 @@ document.addEventListener("keydown", function (e) {
   syncHillshadeButtons();
   syncTiltButtons();
   syncZoomButtons();
+  syncAvoidButtons();
   syncNightButtons();
   Night.load();
   /* before anything measures the bars, since it can change their height */
