@@ -7576,6 +7576,7 @@ map.on("zoomend", function () {
   schedulePoi();
 });
 map.on("moveend", function () {
+  navAltsPlace();          /* a map moved by hand shows a different part of them */
   if (!resyncing) schedulePoi();
   /* Dragging the map moves the anchor when you are not following it; the
      animation loop covers the case where you are. */
@@ -20607,7 +20608,7 @@ function navAltFit(r) {
   while (j < b && cum[j + 1] < mid) j++;
   const mins = Math.round((r.duration - main.duration) / 60);
   return { r: r, flow: navFlow(r.coords, [r.head || 0, r.tail == null ? r.coords.length - 1 : r.tail]),
-           fork: fork, tagAt: r.coords[j],
+           fork: fork, tagAt: r.coords[j], own: [a, b], mk: null, at: null,
            label: mins >= 1 ? "+" + mins + " min" : mins <= -1 ? "−" + (-mins) + " min" : "Similar",
            says: mins >= 1 ? mins + " minutes slower" : mins <= -1 ? (-mins) + " minutes quicker" : "about the same time" };
 }
@@ -20624,6 +20625,66 @@ function navAltsDraw() {
       .addTo(navAltMk);
     const el = mk.getElement();
     if (el) el.addEventListener("click", function (e) { e.stopPropagation(); navTakeAlt(k); });
+    a.mk = mk;
+    a.at = a.tagAt;
+  }
+  navAltsPlace();
+}
+
+/* The label goes where the grey line can be seen.
+
+   It was put in the middle of the way's own stretch of road and left
+   there, which is the right place on a map of the whole trip and nowhere
+   at all on the map a trip is driven on: the middle of a way round is
+   kilometres ahead, and what is on the screen is the first few hundred
+   metres of it leaving the route. Reported from the road as a grey line
+   with no label on it.
+
+   So the label is put on the part of that stretch the screen is showing,
+   in the middle of the longest run of it - clear of the bar across the top,
+   the console and the buttons down the right, which would otherwise have
+   it. It stays where it is put for as long as that spot is on the screen,
+   and is moved only when it has gone: a label that crept along its line
+   with every fix would be the one thing on the map that never held still.
+   With none of the stretch showing it waits in the middle, where a map
+   zoomed out to the trip finds it.
+
+   Measured on the glass, not the ground, because the screen turns and
+   leans. A straight road is two points a kilometre apart, so each piece is
+   walked in steps and not judged by its ends. */
+function navAltsPlace() {
+  if (!Nav.alts.length || !glStyled) return;
+  const box = { l: 28, r: stageW - viewInsX - 70, t: hudStagePx + turnDropPx + 26, b: stageH - viewInsY - 26 };
+  if (box.r <= box.l || box.b <= box.t) return;
+  const inside = function (p) { return p.x >= box.l && p.x <= box.r && p.y >= box.t && p.y <= box.b; };
+  for (const a of Nav.alts) {
+    if (!a.mk || !a.own) continue;
+    if (a.at && inside(gl.project([a.at[1], a.at[0]]))) continue;
+    const co = a.r.coords;
+    let best = null, most = 0, run = [], len = 0;
+    const shut = function () {
+      if (run.length && len >= most) { most = len; best = run[run.length >> 1]; }
+      run = []; len = 0;
+    };
+    let p = gl.project([co[a.own[0]][1], co[a.own[0]][0]]);
+    for (let i = a.own[0]; i < a.own[1]; i++) {
+      const q = gl.project([co[i + 1][1], co[i + 1][0]]);
+      /* both ends off the same side: none of it is on the screen */
+      if ((p.x < box.l && q.x < box.l) || (p.x > box.r && q.x > box.r) ||
+          (p.y < box.t && q.y < box.t) || (p.y > box.b && q.y > box.b)) { shut(); p = q; continue; }
+      const px = Math.hypot(q.x - p.x, q.y - p.y), steps = Math.max(1, Math.min(64, Math.ceil(px / 20)));
+      for (let k = 0; k <= steps; k++) {
+        const f = k / steps;
+        if (inside({ x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f })) {
+          run.push([co[i][0] + (co[i + 1][0] - co[i][0]) * f, co[i][1] + (co[i + 1][1] - co[i][1]) * f]);
+          len += px / steps;
+        } else shut();
+      }
+      p = q;
+    }
+    shut();
+    const at = best || a.tagAt;
+    if (a.at !== at) { a.at = at; a.mk.setLatLng(at); }
   }
 }
 
@@ -21047,6 +21108,8 @@ function navProgress() {
   /* Last, so the bar is drawn from the settled off-route state rather than
      flashing amber at every fix that wanders sixty metres. */
   navRenderTurn(at, remain);
+  /* and the other ways' labels, onto whatever of them the map now shows */
+  navAltsPlace();
 }
 
 function navArrive() {
