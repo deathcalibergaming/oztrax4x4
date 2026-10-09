@@ -857,7 +857,13 @@ collected by the developer.
   some roadhouses, and the section says so. Nothing is fetched or sent
 * Roads — OpenStreetMap via the Geofabrik state extracts, cut into a national
   spine and z13 packs under `docs/route/` and served off this origin; built
-  monthly by `tools/build-routing.mjs`
+  monthly by `tools/build-routing.mjs`. A speed limit is OpenStreetMap's
+  where it has one. Where it has none and a driver has read the sign,
+  `tools/road-fixes.json` carries it - a road name, a box and the limit -
+  and the build gives it to the pieces of that road with no limit of their
+  own, reporting at the end what each line did and which lines OpenStreetMap
+  has since overtaken. The first is Blackburn Road in Elizabeth East: signed
+  60, mapped as a street with no limit, and shown as the built-up 50
 * Routing — worked out on the phone from those packs across the whole country,
   with OSRM behind it for anywhere the packs do not reach and a plain bearing
   behind that. The whole national spine is downloaded and stored on the first
