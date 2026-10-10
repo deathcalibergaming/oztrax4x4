@@ -1911,8 +1911,12 @@ onto Webb Road* is a sentence describing nothing.
 **Off the route** interrupts whatever is being said, because whatever is being
 said is about a road that is no longer under the wheels — *Off route,
 recalculating*, once per time it happens rather than once a fix. **Arriving**
-is *You have arrived at Parachilna*, said after the route is torn down so it
-is the last word either way. A **straight-line trip** has no corners to count
+is *You have arrived at your destination*, said after the route is torn down
+so it is the last word either way, with *In 300 metres, arrive at your
+destination* ahead of it. The place is not named. It was, which read well
+for Parachilna and badly for what a destination usually is - a street
+address, read out number and all at the kerb, to the driver who chose it
+and anyone else in the car. The bar still shows the name. A **straight-line trip** has no corners to count
 down to, so its bearing is spoken when the eighth of the compass changes and
 not otherwise, and never twice inside a minute — the minute is for the wander
 that is real, a track that turns you through an octant and back.
