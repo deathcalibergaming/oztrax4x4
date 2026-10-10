@@ -20114,7 +20114,8 @@ const Voice = {
       const lead = d ? "In " + d + ", " : "";
       let line, next = "";
       if (kind === "arrive") {
-        line = lead + "arrive at " + (sayName(road) || "your destination");
+        /* The place is not said - see navArrive. */
+        line = lead + "arrive at your destination";
       } else {
         /* The road is the one the driver will be on, which navBuildTurns
            has already chased past any short connector to find. */
@@ -21117,7 +21118,12 @@ function navArrive() {
   /* The cancel first, because it stops whatever was still being said about
      a corner that no longer matters. This is the last word either way. */
   cancelNav(true);
-  Voice.say("You have arrived at " + (sayName(name) || "your destination"), true);
+  /* "Your destination", and not its name. It used to be named, which reads
+     well for Parachilna and badly for what a destination usually is: a
+     street address, read out number and all at the kerb outside it, to the
+     driver who typed it in and anybody else in the car. Asked for from the
+     road. The name is still on the bar, which says it to whoever looks. */
+  Voice.say("You have arrived at your destination", true);
   navEndBar("arrived", name);
 }
 
