@@ -388,9 +388,10 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
 /* ---------- the heads-up display ----------
    The stats lie on the map itself with nothing behind them: a straight
-   heading tape across the top, the heading in a tag hung from its caret,
-   the speed in large figures with the limit roundel beside it and a gauge
-   under both, and altitude, distance and time stacked at the right.
+   heading tape across the top, the heading in a box under its caret,
+   the speed in large figures with a gauge under it, the limit roundel on
+   the middle under the heading, and altitude, distance and time stacked at
+   the right.
 
    They sat on a fade of the panel colour - 85% behind the tape, 58% behind
    the figures - in white, and the display was asked to lose the fade and to
@@ -473,35 +474,48 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 /* three digits give a little back to keep the ring clear */
 #speedSign.wide b{font-size:calc(var(--sign-d) * .34);letter-spacing:-.04em}
 #statsbar #speedSign.hidden{display:flex !important;visibility:hidden}
-/* The gauge: twelve segments under the speed and its roundel, ten from
-   nothing to the posted limit and two past it, with a gap where the limit
-   falls. They fill in the ink as the speed climbs, burnt orange for the
-   last tenth and past the limit, and alert red only while the over-speed
-   alert is sounding - the state that colours the figure, so the two never
+/* The gauge: eleven segments under the speed, ten from nothing to the
+   posted limit and one past it, with a gap where the limit falls, and that
+   gap stands under the middle of the roundel. The two segments either side
+   of it are the markers - the last tenth to the limit outlined in burnt
+   orange, the tenth past it in alert red - so the pair sits centred under
+   the sign and marks the limit whatever the speed. There were twelve, two
+   past the limit, and the coloured end landed off to one side of the
+   roundel; one past it is what lets the pair centre. Twenty to the limit
+   and two past centred as well, but at 6px a segment on a 360px phone the
+   gauge read as a row of dots.
+
+   They fill in the ink as the speed climbs, burnt orange for the last
+   tenth and past the limit, and alert red only while the over-speed alert
+   is sounding - the state that colours the figure, so the two never
    disagree, and switching the alert off takes the red with it. Unlit, a
    segment is its outline. Hidden, keeping its place, whenever the roundel
-   is: with no limit known there is nothing to measure against. Placed by
-   layoutHud; filled by Gauge. */
-#spdGauge{position:absolute;display:flex;gap:3px;height:calc(7px * var(--uiScale));pointer-events:none}
+   is: with no limit known there is nothing to measure against. Sized and
+   placed by layoutHud - --seg is worked out so the limit lands under the
+   roundel - and filled by Gauge. The tenth is CFG.GAUGE_TO. */
+#spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px}
 #spdGauge.off{visibility:hidden}
-#spdGauge i{flex:1 1 0;min-width:0;border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
-  box-shadow:0 0 0 2px rgba(var(--halo),.9),0 2px 4px rgba(0,0,0,.5);opacity:.5}
-#spdGauge i:nth-child(10){margin-right:5px}
+#spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
+  box-shadow:0 0 0 1.5px rgba(var(--halo),.9),0 2px 4px rgba(0,0,0,.5);opacity:.5}
+#spdGauge i:nth-child(10){margin-right:4px}
+#spdGauge i.mk-near{border-color:var(--hnear);opacity:.85}
+#spdGauge i.mk-over{border-color:var(--hred);opacity:.85}
 #spdGauge i.on{background:var(--ink);opacity:1}
 #spdGauge i.near{background:var(--hnear);border-color:var(--hnear);opacity:1}
 #spdGauge i.over{background:var(--hred);border-color:var(--hred);opacity:1}
-/* The heading, in a tag hung from the tape's caret, the tape parted around
-   it (see buildTape) the way an aircraft's heading tape frames the figure
-   it reads. Drawn to the window's box by layoutHud, its point rising into
-   the caret, and solid: filled with the halo's colour - sand by day, near
+/* The heading, in a box on the tape under its caret, the tape parted
+   around it (see buildTape) the way an aircraft's heading tape frames the
+   figure it reads, and an orange line from the caret's tip down to the box.
+   A plain rectangle with rounded corners, drawn to the window's box by
+   layoutHud, and solid: filled with the halo's colour - sand by day, near
    black at night - and outlined in the ink, with a drop shadow. It was an
-   outline with the map showing through it, and was asked to be solid; the
-   figures in it need no halo or shadow of their own on a ground of their
-   own. The lubber line that ran down into the old window stays gone: the
-   point meets the caret's tip and says the same thing.
+   outline the map showed through, then a tag with a point rising to the
+   caret; asked for solid, then for a rectangle joined to the caret by a
+   line. The figures in it need no halo or shadow of their own on a ground
+   of their own.
 
    One width for every heading - the widest, a three-letter point and three
-   figures, set by layoutHud - so the tag and the gap in the tape stay still
+   figures, set by layoutHud - so the box and the gap in the tape stay still
    while N becomes NNE. */
 #statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;
   padding:4px 12px;justify-content:center}
@@ -544,6 +558,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #hudTape .th text,#hudTape .th .nn{fill:rgb(var(--halo));stroke:rgb(var(--halo));stroke-width:3.5px;stroke-linejoin:round}
 #hudTape .rule{stroke:var(--ink);stroke-width:1.4px}
 #hudTape .rule.th{stroke:rgb(var(--halo));stroke-width:4.4px}
+#hudTape .lub{stroke:var(--rust);stroke-width:1.8px}
+#hudTape .lub.th{stroke:rgb(var(--halo));stroke-width:4.6px}
 #hudTape .caret{fill:var(--rust);stroke:rgb(var(--halo));stroke-width:2.5px;paint-order:stroke fill;stroke-linejoin:round}
 /* no fix: dimmed, so a heading held over from the last one does not read as live */
 #hudTape.idle{opacity:.35}
@@ -4214,6 +4230,8 @@ const CFG = {
   ZOOM_RUN_MS: 1500,
   ZOOM_QUICK: 0.08,
   ZOOM_PINS: 0.5,
+  GAUGE_TO: 10,            /* the speed gauge's segments up to the limit, a tenth each - see Gauge */
+  GAUGE_PAST: 1,           /* and past it */
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
   /* The drive Dist and Time count when nothing is recording - see Drive. */
@@ -5262,12 +5280,12 @@ function headUpShift() {
    strip onto an identical picture. 4.2px a degree, 21px between five-degree
    ticks, on every size, so the scale reads the same upright or on its side.
 
-   The heading's tag sits on the tape under the caret, so the ticks
+   The heading's box sits on the tape under the caret, so the ticks
    and letters part around it: an SVG mask 6px clear of the window each side,
    feathered over 10px, so a letter sliding in fades rather than being cut in
    half at the window's edge. The mask is on a group that does not move - the
-   strip slides inside it - and the tape's rule and the caret stay outside
-   it. Rebuilt only when the width or the window's width changes.
+   strip slides inside it - and the tape's rule, the caret and the lubber
+   line stay outside it. Rebuilt only when the width or the window's width changes.
 
    Everything on it is drawn twice, a halo pass and then the ink - see the
    CSS - and in that order across the whole tape: the rule's halo, the
@@ -5303,7 +5321,10 @@ function buildTape(gap) {
     '<g mask="url(#tapeGap)"><g class="tg th">' + s + "</g></g>" +
     '<line class="rule" x1="0" y1="' + TAPE_TOP + '" x2="' + W + '" y2="' + TAPE_TOP + '"/>' +
     '<g mask="url(#tapeGap)"><g class="tg">' + s + "</g></g>" +
-    /* the caret rests on the tape's line; the heading's tag rises to meet it */
+    /* the caret rests on the tape's line, and the lubber line runs from its
+       tip down to the heading's box - the box is drawn over its lower end */
+    '<line class="lub th" x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="27"/>' +
+    '<line class="lub" x1="' + cx + '" y1="' + (TAPE_TOP - 1) + '" x2="' + cx + '" y2="27"/>' +
     '<path class="caret" d="M' + (cx - 7) + " 0H" + (cx + 7) + "L" + cx + " " + (TAPE_TOP - 1) + 'Z"/></svg>';
   tapeGs = Array.from(box.querySelectorAll(".tg"));
   tapeLast = null;
@@ -5335,6 +5356,7 @@ function moveTape(hdg) {
    gets the tape across the top and the band under it - see the CSS. Must
    match that media query. */
 const HUD_ROWS = window.matchMedia("(orientation: portrait), (height > 520px)");
+let bandSignMin = 0;          /* upright: the nearest the roundel may stand to a three-figure speed - see fitBand */
 function layoutHud() {
   const sb = $("#statsbar"), tape = $("#hudTape"), sign = $("#speedSign");
   if (!sb || !tape) return;
@@ -5380,11 +5402,10 @@ function layoutHud() {
   alignSpeedUnit();
 
   if (!banded) {
-    /* three rows: the roundel beside the speed and the gauge under them, as
-       in the band */
+    /* three rows: the roundel beside the speed and the gauge under them */
     const box = sb.getBoundingClientRect(), d = sign.offsetWidth;
     const spd = cells[0].getBoundingClientRect(), ink = inkBox($("#stSpeed"), "8");
-    sign.style.left = Math.round(spd.right - box.left + 10) + "px";
+    sign.style.left = Math.round(spd.right - box.left + 12) + "px";
     sign.style.top = Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2) + "px";
     placeGauge(box, sign, true);
   }
@@ -5392,23 +5413,32 @@ function layoutHud() {
     /* The readouts are measured at their widest so a growing one never runs
        under the tape. The speed is measured at its fixed three-figure box -
        it no longer changes width with the reading - and the limit roundel
-       follows it, 10px past its unit and centred on the digits, at every
-       size and on every screen: the limit is read beside the speed it
-       governs. It used to stand on the middle of an upright phone's bar,
-       under the heading window. The tape's mask starts past the roundel
-       whether or not a limit is showing, since the roundel keeps its place. */
+       follows it, 12px off its unit and centred on the digits, so neither
+       leaves a gap beside the other. Upright, the roundel stands on the
+       middle of the bar instead, under the heading's box and its lubber
+       line, between the speed and the readouts; fitBand leaves it the room.
+       It stood beside the speed for one build and was asked back to the
+       middle. The tape's mask starts past the roundel whether or not a
+       limit is showing, since the roundel keeps its place. */
     const held = [["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
       .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
     const box = sb.getBoundingClientRect(), r = function (el) { return el.getBoundingClientRect(); };
     let spd = r(cells[0]), outs = cells.slice(2).map(r);
     const d = sign.offsetWidth;
-    const sx = Math.round(spd.right - box.left) + 10;
+    let sx = Math.round(spd.right - box.left) + 12;
+    if (upright) {
+      /* centred, unless fitBand could only make room beside the speed - then
+         as near the middle as a three-figure speed and the widest readouts
+         allow, and there it stays: measured off the widest speed rather than
+         this one, so it does not step sideways as 99 becomes 100 */
+      const outL = Math.round(Math.min(...outs.map(function (b) { return b.left; })) - box.left);
+      sx = Math.round(clamp(box.width / 2 - d / 2, bandSignMin, outL - 12 - d));
+    }
     /* Centred on the middle of the digits' ink - measured, not the middle of
        their line box, which is where a font thinks digits sit and can be a
-       pixel or two out in a phone's own face. Always centred: on a narrow
-       upright phone the ring can stand under the heading's tag, and where
-       centred it would come within 12px of it the band steps down to make
-       the room. It used to be the ring that stepped down, 3.6px off the
+       pixel or two out in a phone's own face. Always centred: upright, the
+       ring also stands under the heading's box, and where centred it would
+       come within 12px of it the band steps down to make the room. It used to be the ring that stepped down, 3.6px off the
        middle of the speed beside it. */
     const ink = inkBox($("#stSpeed"), "8");
     let sy = Math.round((ink.top + ink.bottom) / 2 - box.top - d / 2);
@@ -5438,7 +5468,7 @@ function layoutHud() {
     spdEl.textContent = "888";
     const wideRight = Math.round(r(cells[0]).right - box.left);
     spdEl.textContent = spdWas;
-    const arm = Math.min(box.width / 2 - (wideRight + 10 + d + 8),
+    const arm = Math.min(box.width / 2 - (wideRight + 12 + d + 8),
       Math.min(...outs.map(function (b) { return b.left; })) - box.left - 8 - box.width / 2);
     const l = Math.round(box.width / 2 - arm), rr = Math.round(box.width / 2 + arm);
     held.forEach(function (p) { p[0].textContent = p[1]; });
@@ -5462,16 +5492,15 @@ function layoutHud() {
   layoutDial();
 }
 
-/* The heading's tag, drawn to the window's own box: an outline with rounded
-   corners and a point rising from the middle of its top edge to the caret.
-   Two paths with the same shape - the halo, then the ink - as everything
-   else in the display. */
+/* The heading's box, drawn to the window's own size: a rectangle with
+   rounded corners. Two paths with the same shape - the halo, then the ink
+   - as everything else in the display. */
 function drawHdgTag(chip) {
   const svg = chip.querySelector(".hdg-tag");
   if (!svg) return;
-  const w = chip.offsetWidth, h = chip.offsetHeight, r = 5, p = 6, c = w / 2;
+  const w = chip.offsetWidth, h = chip.offsetHeight, r = 5;
   if (!w || !h) return;
-  const d = "M" + r + " 0H" + (c - p) + "L" + c + " " + (-p) + "L" + (c + p) + " 0H" + (w - r) +
+  const d = "M" + r + " 0H" + (w - r) +
     "Q" + w + " 0 " + w + " " + r + "V" + (h - r) + "Q" + w + " " + h + " " + (w - r) + " " + h +
     "H" + r + "Q0 " + h + " 0 " + (h - r) + "V" + r + "Q0 0 " + r + " 0Z";
   svg.setAttribute("width", w); svg.setAttribute("height", h);
@@ -5491,16 +5520,21 @@ function alignSpeedUnit() {
   u.style.marginBottom = (Math.round(off * 10) / 10) + "px";
 }
 
-/* The gauge under the speed and its roundel: from the digits' box - three
-   figures wide, so it does not move with the speed - to the roundel's far
-   edge, 8px under the lower of the two. In three rows it is a row of the
-   grid, and only its width is set here. Returns where it ends, from the top
-   of the display. */
+/* The gauge under the speed: from the digits' box - three figures wide, so
+   it does not move with the speed - with the limit's gap under the middle
+   of the roundel, 8px under the lower of the speed and the roundel. Each
+   segment is as wide as puts it there: GAUGE_TO segments and their 2px gaps
+   fill the run from the digits' box to the gap, which is 6px. In three rows
+   it is a row of the grid, and only its segments are sized here. Returns
+   where it ends, from the top of the display. */
 function placeGauge(box, sign, stacked) {
   const g = $("#spdGauge"), b = $("#stSpeed");
   if (!g || !b) return 0;
   const br = b.getBoundingClientRect(), sr = sign.getBoundingClientRect(), ink = inkBox(b, "8");
-  g.style.width = Math.max(0, Math.round(sr.right - br.left)) + "px";
+  const n = CFG.GAUGE_TO, mid = (sr.left + sr.right) / 2;
+  const seg = Math.max(2, (mid - 3 - br.left - (n - 1) * 2) / n);
+  g.style.setProperty("--seg", seg.toFixed(2) + "px");
+  g.style.width = "";
   if (stacked) { g.style.left = ""; g.style.top = ""; }
   else {
     g.style.left = Math.round(br.left - box.left) + "px";
@@ -5562,30 +5596,36 @@ new MutationObserver(function () { centreSignNumber(); })
   .observe($("#speedSign"), { attributes: true, attributeFilter: ["class"] });
 
 /* An upright phone's band: the largest speed, from the 64px the CSS asks for
-   downwards, that leaves the limit roundel room beside it - 10px past its
-   unit and 12px clear of the widest readouts. Measured with those figures
-   written in and put back before anything is drawn, so the size is set by
-   the screen and the text step and never by what the speed happens to read:
-   a speed that shrank at 100 km/h would be worse than one a little smaller
-   all along.
+   downwards, that leaves the limit roundel room on the middle of the bar,
+   under the heading - 12px clear of a three-figure speed on its left and of
+   the widest readouts on its right. Measured with those figures written in
+   and put back before anything is drawn, so the size is set by the screen
+   and the text step and never by what the speed happens to read: a roundel
+   that slid off the middle at 100 km/h, or a speed that shrank there, would
+   be worse than either.
 
-   Under 48px drawn the speed stops being the thing you read first; where
-   the band would take it there, the bar goes back to three rows. */
+   Under 48px drawn the speed stops being the thing you read first. Where
+   the middle would take it there, the roundel stands beside the speed
+   instead, 12px off its unit and as near the middle as the readouts allow;
+   where even that will not fit, the bar goes back to three rows. */
 function fitBand(sb, cells, sign) {
   const held = [["#stSpeed", "888"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
     .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
   const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--uiScale")) || 1;
-  const d = sign.offsetWidth;
+  const d = sign.offsetWidth, bar = sb.getBoundingClientRect(), mid = bar.left + bar.width / 2;
   const top = parseFloat(getComputedStyle(sb).getPropertyValue("--spd")) || 64;
   const outL = function () { return Math.min(...cells.slice(2).map(function (c) { return c.getBoundingClientRect().left; })); };
   const spdR = function () { return cells[0].getBoundingClientRect().right; };
-  const beside = function () { return outL() - (spdR() + 10 + d + 12); };
+  /* the readouts do not move with the speed, so a middle they crowd is no use at any size */
+  const centred = function () { return outL() - 12 >= mid + d / 2 ? (mid - d / 2 - 12) - spdR() : -Infinity; };
+  const beside = function () { return outL() - (spdR() + 12 + d + 12); };
   function shrinkTo(clearOf) {
     let size = top;
     for (let i = 0; i < 6; i++) {
       sb.style.setProperty("--spd", size + "px");
       const clear = clearOf();
       if (clear >= 0) return true;
+      if (!isFinite(clear)) return false;
       /* the digits are the only part of the speed that scales with it */
       const w = $("#stSpeed").getBoundingClientRect().width;
       const next = Math.min(size - 1, Math.floor(size * (w + clear) / w));
@@ -5594,7 +5634,8 @@ function fitBand(sb, cells, sign) {
     }
     return false;
   }
-  const fits = shrinkTo(beside);
+  const fits = shrinkTo(centred) || shrinkTo(beside);
+  bandSignMin = Math.ceil(spdR() + 12 - bar.left);
   held.forEach(function (p) { p[0].textContent = p[1]; });
   if (fits) return true;
   sb.style.removeProperty("--spd");
@@ -8746,19 +8787,24 @@ const Gauge = {
   paint: function () {
     const g = $("#spdGauge");
     if (!g) return;
-    if (!g.children.length) g.innerHTML = "<i></i>".repeat(12);
+    const to = CFG.GAUGE_TO, n = to + CFG.GAUGE_PAST;
+    if (g.children.length !== n) g.innerHTML = "<i></i>".repeat(n);
     const L = this.limit, v = view.speed * 3.6;
     let key = "off", lit = 0;
     if (L && view.has && isFinite(v)) {
-      const step = L / 10;
-      lit = Math.max(0, Math.min(12, Math.floor((v + step / 2) / step)));
+      const step = L / to;
+      lit = Math.max(0, Math.min(n, Math.floor((v + step / 2) / step)));
       key = lit + (OverSpeed.over ? "r" : "");
     }
     if (key === this.key) return;
     this.key = key;
     g.classList.toggle("off", key === "off");
-    for (let i = 0; i < 12; i++) {
-      g.children[i].className = i >= lit ? "" : OverSpeed.over ? "over" : i >= 9 ? "near" : "on";
+    /* the last tenth to the limit, and past it, are the markers either side
+       of the limit's gap - outlined in their colours when unlit */
+    const near = to - Math.round(to / 10);
+    for (let i = 0; i < n; i++) {
+      g.children[i].className = i < lit ? (OverSpeed.over ? "over" : i >= near ? "near" : "on")
+        : i >= to ? "mk-over" : i >= near ? "mk-near" : "";
     }
   }
 };

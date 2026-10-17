@@ -1038,15 +1038,16 @@ wide stroke of halo under the ink, the way the map draws its own names:
   five-degree ticks) on every size, slid along under a burnt-orange caret.
   Cardinals in the ink, N in the label orange, tens of degrees as small
   numerals. Dimmed to 35% with no fix.
-- **Heading tag:** the heading in figures — `E 093°` — in a solid tag hung
-  from the caret, its point rising into it: filled with the halo's colour
+- **Heading box:** the heading in figures — `E 093°` — in a solid box on
+  the tape under the caret, joined to the caret's tip by a burnt-orange
+  lubber line: a rectangle with 5px corners, filled with the halo's colour
   (sand by day, near-black at night), outlined in the ink, with a drop
-  shadow. It was an outline the map showed through, and was asked to be
-  solid. Drawn to the window's box by `layoutHud`; the tape parts around it
-  (ticks and letters stop 6px short and fade in over 10px). One width for
-  every heading, the widest, so the tag and the gap stay still as N becomes
-  NNE. No lubber line runs down into it: the tag's point meets the caret's
-  tip and says the same thing.
+  shadow. It was an outline the map showed through, then a tag with a point
+  rising to the caret; it was asked for solid, then for a plain rectangle
+  and a line. Drawn to the window's box by `layoutHud`; the tape parts
+  around it (ticks and letters stop 6px short and fade in over 10px). One
+  width for every heading, the widest, so the box and the gap stay still as
+  N becomes NNE.
 - **Speed:** large figures — 64px, less where that will not fit; 52px on a
   phone on its side — in the interface face at weight 900 with tabular
   digits, its unit on the digits' baseline beside them. The baseline is
@@ -1060,27 +1061,40 @@ wide stroke of halo under the ink, the way the map draws its own names:
   (`#CF533D` by day, `#E07C63` at night) — see the over-speed alert under
   Speed Sign.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the halo colour, 40px, 10px
-  past the speed's unit and centred on its digits, on every screen. It used
-  to stand on the middle of an upright phone's bar; beside the speed, the
-  limit is read with the figure it governs. Hidden, it keeps its place.
-- **Gauge:** twelve segments under the speed and its roundel, ten from
-  nothing to the posted limit and two past it, with a 5px gap where the limit
-  falls. They fill in the ink as the speed climbs, Burnt Orange for the last
-  tenth and past the limit, and Alert Red only while the over-speed alert is
-  sounding — the same state that colours the figure and sounds the chime, so
-  none of the three can disagree. Unlit, a segment is its outline at half
-  strength. Hidden, keeping its place, whenever the roundel is.
+  white, without the roadside plate — collared in the halo colour, 40px, on
+  the middle of the bar under the heading box, centred on the speed's
+  digits. It stood beside the speed for one build and was asked back to the
+  middle. Where the middle would take the speed under 48px, it stands beside
+  the speed instead, 12px off its unit and as near the middle as the
+  readouts allow — Large text on a 360px phone puts it 3px left of the
+  middle — and a phone on its side and the three-row bar always have it
+  there. Hidden, it keeps its place.
+- **Gauge:** eleven dashes under the speed — ten from nothing to the posted
+  limit and one past it — with a 6px gap where the limit falls, and that gap
+  stands under the middle of the roundel wherever the roundel is. Each dash
+  is as wide as puts it there (14px on a 360px phone). The two dashes either
+  side of the gap are the markers: the last tenth to the limit outlined in
+  Burnt Orange, the tenth past it in Alert Red, so the pair sits centred
+  under the sign whatever the speed. Twelve dashes, two past the limit, put
+  the coloured end off to one side of the sign; twenty to the limit and two
+  past centred as well but read as a row of dots at 6px each. The dashes
+  fill in the ink as the speed climbs, Burnt Orange for the last tenth and
+  past the limit, and Alert Red only while the over-speed alert is sounding
+  — the same state that colours the figure and sounds the chime, so none of
+  the three can disagree. Unlit, a dash is its outline at half strength.
+  Hidden, keeping its place, whenever the roundel is.
 - **Readouts:** altitude, distance and time, stacked at the right: the label
   in orange at 10px, the value in the ink at 18px weight 800, the unit after
   it. 23px apart.
 - **One layout, phone and tablet:** an upright phone, a tablet either way
   up and a desktop window all get the same display, at the same sizes: the
-  tape across the top with the heading tag on it, and straight under it one
-  band — the speed at the left with its roundel and gauge, the readouts
-  stacked at the right. The speed is sized to fit: the largest, from 64px
-  down, that leaves the roundel 12px clear of the widest readouts beside a
-  three-figure speed (64 on a 360px phone; 52 drawn at Large text).
+  tape across the top with the heading box on it, and straight under it one
+  band — the speed at the left with the gauge under it, the roundel on the
+  middle under the heading, the readouts stacked at the right. The speed is
+  sized to fit: the largest, from 64px down, that leaves the roundel on the
+  middle 12px clear of a three-figure speed and of the widest readouts (56
+  on a 360px phone; at Large text the roundel moves beside the speed and the
+  speed draws at 51).
 - **A phone on its side:** the one exception, with no height to give the
   tape a row. Speed, roundel and gauge at the left, readouts stacked at the
   right, the tape in the clear stretch between them, running the same
@@ -1091,11 +1105,12 @@ wide stroke of halo under the ink, the way the map draws its own names:
   with its roundel beside it and the gauge under them, then the readouts in a
   row with each label over its figure, with a 74px speed.
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
-  heading tag centred at 27 with its point at the caret's tip. On an upright
-  phone the band starts at 46, and the roundel at least 12px under the tag —
-  the band steps down to make that room on a narrow phone. The figures end
-  112px into the map on a 360px phone; nothing is drawn below them, and the
-  14px under them is room for the turn bar and the chips.
+  heading box centred at 27 with the lubber line running up from it to the
+  caret's tip. On an upright phone the band starts at 46, and the roundel at
+  least 12px under the box — the band steps down to make that room on a
+  narrow phone. The figures end 115px into the map on a 360px phone; nothing
+  is drawn below them, and the 14px under them is room for the turn bar and
+  the chips.
 
 Nothing in it takes a tap, so the map under it still pans.
 
