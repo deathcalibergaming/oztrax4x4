@@ -4178,6 +4178,12 @@ const CFG = {
   ZOOM_PINS: 0.5,
   REC_GAP_MS: 25000,       /* a silence longer than this is a hole in the track,
                               not a straight line the vehicle actually drove */
+  /* The drive Dist and Time count when nothing is recording - see Drive. */
+  DRIVE_NEW_MS: 4 * 3600000,   /* still this long and the next move starts a new drive */
+  DRIVE_STOP_MS: 15 * 60000,   /* a stop counts towards the time for this long */
+  DRIVE_GAP_SPD: 1.4,          /* m/s, 5 km/h: across a silence at least this fast, it was driving */
+  DRIVE_STILL_M: 15,           /* metres a fix must get from where the distance was last counted,
+                                  or twice its accuracy if more; twice that, saying it is stopped */
   /* How much of the trail is kept in the piece that is drawn again on every
      fix, and how many points a checkpoint may carry in its header. See
      Rec.push and Rec.persist: both exist so that the cost of recording one
@@ -8207,6 +8213,7 @@ function pushPosition(fix) {
   saveLS(LS.lastPos, { lat: pt.lat, lng: pt.lng });
 
   Rec.onFix(fix, lastFixPt);
+  Drive.take(fix);
   fetchPois();                 /* keeps the 5 km bubble ahead of the vehicle */
   Glide.snap = null;
   if (Nav.active) navProgress();
@@ -8711,8 +8718,10 @@ function updateStats() {
   setStat(e.hdg, view.has ? String(Math.round(view.hdgCur) % 360).padStart(3, "0") : "--");
   setStat(e.card, view.has ? cardinal(view.hdgCur) : "");
   setStat(e.alt, (view.alt != null) ? String(Math.round(dispAlt(view.alt))) : "--");
-  setStat(e.dist, dispKm(Rec.dist).toFixed(2));
-  setStat(e.time, fmtStopwatch(Rec.elapsed()));
+  /* the recording's figures while there is one, the drive's otherwise */
+  const rec = Rec.state !== "idle";
+  setStat(e.dist, dispKm(rec ? Rec.dist : Drive.dist).toFixed(2));
+  setStat(e.time, fmtStopwatch(rec ? Rec.elapsed() : Drive.ms));
 }
 
 /* The captions under the stats, and the two labels in the track dialog that
@@ -8727,6 +8736,134 @@ function syncUnitLabels() {
   $("#lblEleMin").textContent = "Min elevation (" + unitLabel("alt") + ")";
 }
 setInterval(function () { updateGpsPill(); updateStats(); }, 500);
+
+/* =====================================================================
+   The drive - what Dist and Time count when nothing is being recorded
+   ===================================================================== */
+/* Dist and Time were the recording's and nothing else's. With no track
+   running they sat at 0.00 and 00:00 for the whole of a drive, navigating
+   or not, which reads as two instruments that do not work. Outside a
+   recording they now count the drive, the way a car's trip computer counts
+   one from the start.
+
+   A drive begins the first time the vehicle moves, and ends once it has
+   stood still for DRIVE_NEW_MS - four hours, so a lunch stop or a walk is
+   part of the day's drive and a night at camp is not. Its figures stay up
+   after it ends, until the vehicle moves off and a new one starts from
+   nothing. It is kept in storage, so leaving the app or having it closed
+   under you does not lose it.
+
+   The distance is counted the way the recorder counts it: a fix more than
+   60 m out is dropped, and across a silence longer than REC_GAP_MS nothing
+   is claimed, because nothing says which way the road went. Stopped, the
+   receiver wandering about is not counted at all, which the recorder does
+   not need: it runs for a drive, where this runs all evening at a camp with
+   the app open, and a few metres of wander a fix would be kilometres by
+   morning. So a fix counts only once it is DRIVE_STILL_M from where the
+   distance was last counted, or twice its own accuracy if that is more -
+   wider than the 4 m the marker is held to, because the marker shows where
+   the vehicle is and this adds up where it has been - and a fix that says
+   it is stopped has to get twice that far. The speed alone is not trusted
+   to say moving: parked, a phone reports a stray 1 m/s now and then, and
+   in a test with one in a hundred readings stray, taking them at their
+   word counted 147 m in a 40 minute stop. At 60 km/h a fix is 17 m on from
+   the last, so every one counts; slower, or crawling, the distance is
+   counted in steps and none of it is lost, because the point it measures
+   from stays put until the step is made.
+
+   The time is the drive's elapsed time, stops and all, but any one stop
+   counts for its first DRIVE_STOP_MS and no more. A red light, a queue or a
+   fuel stop is part of how long a trip took; lunch is not, and the clock
+   stops for it the way a car's does with the engine off. It stops rather
+   than dropping back once a stop turns out long, so the figure never runs
+   backwards. A silence the vehicle plainly drove through - it came back
+   somewhere at least walking pace away - counts in full; one it did not is
+   a stop like any other.
+
+   Real fixes only. A simulated drive or a vehicle placed by hand is not a
+   drive. While a track is recording, or paused, the bar shows that
+   recording's own figures, as it always has, and this goes on counting
+   underneath so the drive is whole when the recording stops - including,
+   in the app, what the recording logged with the screen off. Without a
+   recording, nothing is listening with the screen off, and that stretch
+   is a silence like any other. */
+LS.drive = "tt.drive";
+const Drive = {
+  start: 0,      /* when it began; 0, no drive yet */
+  dist: 0,       /* metres */
+  ms: 0,         /* elapsed, with each stop counted up to DRIVE_STOP_MS */
+  moveAt: 0,     /* the last fix that moved */
+  at: null,      /* where the distance is measured from */
+  t: 0,          /* the last fix taken, moving or not */
+
+  load: function () {
+    const d = loadLS(LS.drive, null);
+    if (!d || typeof d !== "object") return;
+    const self = this;
+    ["start", "dist", "ms", "moveAt", "t"].forEach(function (k) {
+      if (typeof d[k] === "number" && isFinite(d[k]) && d[k] >= 0) self[k] = d[k];
+    });
+    if (d.at && isFinite(d.at.lat) && isFinite(d.at.lng)) this.at = { lat: d.at.lat, lng: d.at.lng };
+  },
+
+  save: function () {
+    saveLS(LS.drive, { start: this.start, dist: Math.round(this.dist * 10) / 10, ms: this.ms,
+                       moveAt: this.moveAt, at: this.at, t: this.t });
+  },
+
+  /* How much of the stretch from the last fix to t falls in the first
+     DRIVE_STOP_MS of the stop that began at the last move. */
+  stopPart: function (t) {
+    return Math.max(0, Math.min(t, this.moveAt + CFG.DRIVE_STOP_MS) - Math.max(this.t, this.moveAt));
+  },
+
+  /* Distance the page never saw: a recording's stretch with the screen
+     off, which Keeper takes in from the phone's own log when the driver
+     comes back. The time across it is already counted - see the silence
+     rule in take. */
+  add: function (m) {
+    if (!(m > 0)) return;
+    this.dist += m;
+    this.save();
+  },
+
+  take: function (fix) {
+    if (fix.sim) return;
+    if (fix.acc != null && fix.acc > 60) return;                  /* junk fix - see Rec.take */
+    const t = fix.t || Date.now(), p = { lat: fix.lat, lng: fix.lng };
+    if (!this.at) { this.at = p; this.t = t; this.save(); return; }
+    if (t <= this.t) return;
+    const d = haversine(this.at, p), dt = t - this.t;
+    const spd = (fix.spd != null && isFinite(fix.spd)) ? fix.spd : null;
+    const slack = Math.max(CFG.DRIVE_STILL_M, (fix.acc || 0) * 2);
+    const moved = d > ((spd != null && spd <= CFG.STILL_SPD) ? 2 * slack : slack);
+    if (!moved) {
+      const add = this.start ? this.stopPart(t) : 0;
+      this.ms += add;
+      this.t = t;
+      if (add) this.save();
+      return;
+    }
+    const gap = dt > CFG.REC_GAP_MS;
+    if (!this.start || t - this.moveAt > CFG.DRIVE_NEW_MS) {
+      /* a new drive, from the fix before this one - or from this one, when
+         the one before it is a silence ago */
+      this.start = gap ? t : this.t;
+      this.dist = gap ? 0 : d;
+      this.ms = gap ? 0 : dt;
+    } else if (!gap) {
+      this.dist += d;
+      this.ms += dt;
+    } else if (d / (dt / 1000) >= CFG.DRIVE_GAP_SPD) {
+      this.ms += dt;
+    } else {
+      this.ms += this.stopPart(t);
+    }
+    this.at = p; this.t = t; this.moveAt = t;
+    this.save();
+  }
+};
+Drive.load();
 
 /* =====================================================================
    Track recorder - drives the trail line, saves tracks, exports GPX
@@ -9123,6 +9260,8 @@ const Keeper = {
         await yieldToPage();
       }
     } catch (e) { /* the service had nothing to give; the live fixes carry on */ }
+    /* the drive heard nothing either while the screen was off */
+    Drive.add(Rec.dist - d0);
     const held = Rec.held;
     Rec.held = null;
     /* A watch waking up can hand back a fix older than the ones just taken
