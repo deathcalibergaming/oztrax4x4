@@ -1025,8 +1025,12 @@ wide stroke of halo under the ink, the way the map draws its own names:
   The switch is the night map's (`Night.apply` sets `.map-night`), so the
   display turns with the map and never on its own clock.
 - **The halo** is a text stroke under the ink (`paint-order: stroke fill`),
-  4px on the readouts and 6.5px on the speed, with a soft spread of the same
-  colour past it. The tape's ticks and rule are drawn as two passes, halo
+  4px on the readouts and 6.5px on the speed, and under it all a dark drop
+  shadow (0 2px 4px, 50%; 0 3px 6px on the speed) that the halo's edge casts
+  on the map. The first build had a soft glow of the halo's own colour
+  instead, and the report from the road was that it was hard to read by day:
+  a sand edge on a cream map has nothing to stand off it. The tape and the
+  gauge carry the same shadow. The tape's ticks and rule are drawn as two passes, halo
   then ink, across the whole strip — drawn tick by tick, each tick's halo
   would notch the rule — rather than with a filter, which would redo itself
   on every degree of heading.
@@ -1034,13 +1038,15 @@ wide stroke of halo under the ink, the way the map draws its own names:
   five-degree ticks) on every size, slid along under a burnt-orange caret.
   Cardinals in the ink, N in the label orange, tens of degrees as small
   numerals. Dimmed to 35% with no fix.
-- **Heading tag:** the heading in figures — `E 093°` — in an outlined tag
-  hung from the caret, its point rising into it. An outline with nothing
-  inside, drawn to the window's box by `layoutHud`; the tape parts around it
+- **Heading tag:** the heading in figures — `E 093°` — in a solid tag hung
+  from the caret, its point rising into it: filled with the halo's colour
+  (sand by day, near-black at night), outlined in the ink, with a drop
+  shadow. It was an outline the map showed through, and was asked to be
+  solid. Drawn to the window's box by `layoutHud`; the tape parts around it
   (ticks and letters stop 6px short and fade in over 10px). One width for
   every heading, the widest, so the tag and the gap stay still as N becomes
-  NNE. The lubber line that ran down into the old filled window went with
-  the fill: it would cross the figures.
+  NNE. No lubber line runs down into it: the tag's point meets the caret's
+  tip and says the same thing.
 - **Speed:** large figures — 64px, less where that will not fit; 52px on a
   phone on its side — in the interface face at weight 900 with tabular
   digits, its unit on the digits' baseline beside them. The baseline is

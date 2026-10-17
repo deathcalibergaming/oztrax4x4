@@ -422,10 +422,14 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   --ink:#1B211D;--halo:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
 .map-night #statsbar{--ink:#F1E9D2;--halo:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
 /* The halo: a stroke of it under each glyph - paint-order puts the ink on
-   top - and a soft spread of it past the stroke, so the thin parts of a
-   small label have ground on both sides as well. */
+   top - and under the lot a drop shadow, which the halo's edge casts onto
+   the map. The halo alone was a soft glow of its own colour, and on the
+   pale day map in sun a sand edge on a cream map has nothing to stand off
+   it: the first report from the road was that the bar was hard to read by
+   day and wanted a drop shadow. Dark at night as well, where it falls on a
+   dark map and costs nothing. */
 #statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
-  text-shadow:0 0 6px rgba(var(--halo),.85),0 1px 10px rgba(var(--halo),.55)}
+  text-shadow:0 1px 1px rgba(0,0,0,.45),0 2px 4px rgba(0,0,0,.5)}
 #statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{
   -webkit-text-stroke:calc(4px * var(--uiScale)) rgb(var(--halo));paint-order:stroke fill}
 /* Speed: the figure, and its unit on the digits' baseline - put there by
@@ -449,6 +453,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    colour and the gauge's come from one test, so they can never disagree
    about whether you are over. */
 #statsbar .stat:nth-child(1) b.over{color:var(--hred)}
+/* the speed's shadow scaled with it */
+#statsbar .stat:nth-child(1) b{text-shadow:0 1px 1px rgba(0,0,0,.45),0 3px 6px rgba(0,0,0,.5)}
 #statsbar .stat:nth-child(1) i{grid-area:u;align-self:end;font-size:calc(13px * var(--uiScale));letter-spacing:.06em}
 /* The limit: the Australian regulatory roundel - black numerals in a red
    ring on white - without the square plate it stands on at the roadside,
@@ -479,17 +485,20 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #spdGauge{position:absolute;display:flex;gap:3px;height:calc(7px * var(--uiScale));pointer-events:none}
 #spdGauge.off{visibility:hidden}
 #spdGauge i{flex:1 1 0;min-width:0;border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
-  box-shadow:0 0 0 2px rgba(var(--halo),.9);opacity:.5}
+  box-shadow:0 0 0 2px rgba(var(--halo),.9),0 2px 4px rgba(0,0,0,.5);opacity:.5}
 #spdGauge i:nth-child(10){margin-right:5px}
 #spdGauge i.on{background:var(--ink);opacity:1}
 #spdGauge i.near{background:var(--hnear);border-color:var(--hnear);opacity:1}
 #spdGauge i.over{background:var(--hred);border-color:var(--hred);opacity:1}
 /* The heading, in a tag hung from the tape's caret, the tape parted around
    it (see buildTape) the way an aircraft's heading tape frames the figure
-   it reads. An outline with nothing inside it, drawn to the window's box by
-   layoutHud, so the figures sit on the map like every other figure here;
-   its point rises into the caret. The lubber line that used to run down
-   into a filled window is gone with the fill: it would cross the figures.
+   it reads. Drawn to the window's box by layoutHud, its point rising into
+   the caret, and solid: filled with the halo's colour - sand by day, near
+   black at night - and outlined in the ink, with a drop shadow. It was an
+   outline with the map showing through it, and was asked to be solid; the
+   figures in it need no halo or shadow of their own on a ground of their
+   own. The lubber line that ran down into the old window stays gone: the
+   point meets the caret's tip and says the same thing.
 
    One width for every heading - the widest, a three-letter point and three
    figures, set by layoutHud - so the tag and the gap in the tape stay still
@@ -497,9 +506,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;
   padding:4px 12px;justify-content:center}
 #statsbar .stat:nth-child(2) .lbl,#statsbar .stat:nth-child(2) i{display:none}
-#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale))}
-#statsbar .hdg-tag{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
-#statsbar .hdg-tag .h{fill:none;stroke:rgb(var(--halo));stroke-width:5.5;stroke-linejoin:round}
+#statsbar .stat:nth-child(2){text-shadow:none}
+#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale));-webkit-text-stroke-width:0}
+/* under the figures - the window's transform makes it the stacking context,
+   so -1 is behind its text and still in front of the tape */
+#statsbar .hdg-tag{position:absolute;left:0;top:0;z-index:-1;overflow:visible;pointer-events:none;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+#statsbar .hdg-tag .h{fill:rgb(var(--halo));stroke:rgb(var(--halo));stroke-width:5.5;stroke-linejoin:round}
 #statsbar .hdg-tag .i{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round}
 /* the readouts, stacked at the right of the band: the label in orange, the
    value in the ink and its unit after it. 10px labels rather than Micro:
@@ -514,10 +527,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    The rule, each tick and each letter is drawn twice, the halo pass under
    the ink one, so it reads over the map with nothing behind it - a filter
    would do the same in one pass and then redo it on every degree the
-   heading moves. Its ticks carry classes rather than being styled as bare
-   lines, so the rule for a tick does not also repaint the caret. */
+   heading moves. The drop shadow under it is one filter on the tape as a
+   whole. Its ticks carry classes rather than being styled as bare lines, so
+   the rule for a tick does not also repaint the caret. */
 #hudTape{position:absolute;left:0;top:0;width:100%;height:64px;overflow:hidden;z-index:1;transition:opacity .2s}
-#hudTape svg{display:block}
+#hudTape svg{display:block;filter:drop-shadow(0 1.5px 2px rgba(0,0,0,.5))}
 #hudTape .tk{stroke:var(--ink);stroke-linecap:round;stroke-width:1.3px}
 #hudTape .tk.cd{stroke-width:2.2px}
 #hudTape .tk.mn{stroke-width:1.1px}
