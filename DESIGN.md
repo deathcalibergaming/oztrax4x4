@@ -1038,7 +1038,22 @@ White, with a text shadow and a fade behind them:
   the middle of the bar under the heading window, centred on the speed's
   digits. A phone on its side keeps it 12px past the speed's unit, 38px.
   Hidden, it keeps its place.
-- **Readouts:** altitude, distance and time.
+- **Readouts:** altitude, distance and time. The distance and time are the
+  recording's while a track is recording or paused, and the drive's
+  otherwise - they used to sit at 0.00 and 00:00 whenever nothing was
+  recording, navigating or not, and read as broken. A drive is counted like
+  a car's trip computer counts one from the start: it begins when the
+  vehicle first moves and ends after four hours standing still, so lunch or
+  a walk is part of the day and a night at camp is not, and its figures stay
+  up until the vehicle moves off again. The distance follows the recorder's
+  rules - a fix more than 60 m out is dropped and a silence of more than 25
+  s claims nothing - and, stopped, the receiver's wander counts for nothing.
+  The time counts stops, but any one for its first fifteen minutes only: a
+  light or a fuel stop is part of how long the trip took, lunch is not, and
+  the clock holds rather than running back. Simulated and hand-placed
+  positions are not driving and are not counted. With the screen off the
+  page hears nothing, so only a recording's stretch with the screen off - which
+  the app logs and hands back - reaches the drive's distance.
 - **One layout, phone and tablet:** an upright phone, a tablet either way
   up and a desktop window all get the same display, at the same sizes: the
   tape across the top with the heading window on it, and straight under it
