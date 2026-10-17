@@ -1064,11 +1064,14 @@ wide stroke of halo under the ink, the way the map draws its own names:
   white, without the roadside plate — collared in the halo colour, 40px, on
   the middle of the bar under the heading box, centred on the speed's
   digits. It stood beside the speed for one build and was asked back to the
-  middle. Where the middle would take the speed under 48px, it stands beside
-  the speed instead, 12px off its unit and as near the middle as the
-  readouts allow — Large text on a 360px phone puts it 3px left of the
-  middle — and a phone on its side and the three-row bar always have it
-  there. Hidden, it keeps its place.
+  middle. Where the widest readouts crowd the middle, their figures give a
+  little first — up to 15%, no more than it takes — so the roundel keeps
+  it: Large text on a 360px phone stood it 3px left of the middle until it
+  was asked to be central, and the readouts now give 4% there instead.
+  Where the middle would take the speed under 48px, it stands beside the
+  speed, 12px off its unit and as near the middle as the readouts allow;
+  a phone on its side and the three-row bar always have it there. Hidden,
+  it keeps its place.
 - **Gauge:** eleven dashes under the speed — ten from nothing to the posted
   limit and one past it — with a 6px gap where the limit falls, and that gap
   stands under the middle of the roundel wherever the roundel is. Each dash
@@ -1093,8 +1096,8 @@ wide stroke of halo under the ink, the way the map draws its own names:
   middle under the heading, the readouts stacked at the right. The speed is
   sized to fit: the largest, from 64px down, that leaves the roundel on the
   middle 12px clear of a three-figure speed and of the widest readouts (56
-  on a 360px phone; at Large text the roundel moves beside the speed and the
-  speed draws at 51).
+  on a 360px phone; at Large text, 46 drawn at 53, with the readouts' figures
+  at 96%).
 - **A phone on its side:** the one exception, with no height to give the
   tape a row. Speed, roundel and gauge at the left, readouts stacked at the
   right, the tape in the clear stretch between them, running the same

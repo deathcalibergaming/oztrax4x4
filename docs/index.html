@@ -536,7 +536,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #statsbar .stat:nth-child(4){top:calc(6px + 24px * var(--uiScale))}
 #statsbar .stat:nth-child(5){top:calc(6px + 48px * var(--uiScale))}
 #statsbar .stat:nth-child(n+3) .lbl{font-size:calc(10px * var(--uiScale))}
-#statsbar .stat:nth-child(n+3) b{font-size:calc(18px * var(--uiScale));letter-spacing:-.01em}
+/* --rdK is fitBand's: the little the figures give where they would crowd
+   the roundel off the middle - see there */
+#statsbar .stat:nth-child(n+3) b{font-size:calc(18px * var(--uiScale) * var(--rdK, 1));letter-spacing:-.01em}
 /* The tape: built once by buildTape, slid by moveTape, masked by layoutHud.
    The rule, each tick and each letter is drawn twice, the halo pass under
    the ink one, so it reads over the map with nothing behind it - a filter
@@ -5371,7 +5373,8 @@ function layoutHud() {
   drawHdgTag(chip);
   buildTape(chipW);
   sb.style.height = ""; sb.style.background = "";
-  sb.style.removeProperty("--spd"); sb.style.removeProperty("--bandT"); sb.classList.remove("hud-stack");
+  sb.style.removeProperty("--spd"); sb.style.removeProperty("--bandT"); sb.style.removeProperty("--rdK");
+  sb.classList.remove("hud-stack");
   /* cleared before anything measures: fitBand shrinks the figures to fit and
      a width held over from the last size would stop it */
   $("#stSpeed").style.minWidth = "";
@@ -5604,10 +5607,18 @@ new MutationObserver(function () { centreSignNumber(); })
    that slid off the middle at 100 km/h, or a speed that shrank there, would
    be worse than either.
 
+   The middle is the roundel's first. Where the widest readouts crowd it,
+   their figures give a little - down to 85% of their size, a hundredth at
+   a time, and no further than it takes. That is Large text on a 360px
+   phone: the readouts came 3px too close, the roundel went beside the
+   speed 3px left of the middle, and it was asked to be central. The
+   readouts' figures give 4% there, 20.7px to 19.9px.
+
    Under 48px drawn the speed stops being the thing you read first. Where
-   the middle would take it there, the roundel stands beside the speed
-   instead, 12px off its unit and as near the middle as the readouts allow;
-   where even that will not fit, the bar goes back to three rows. */
+   the middle would take it there, or the readouts would have to give more
+   than that, the roundel stands beside the speed instead, 12px off its unit
+   and as near the middle as the readouts allow; where even that will not
+   fit, the bar goes back to three rows. */
 function fitBand(sb, cells, sign) {
   const held = [["#stSpeed", "888"], ["#stAlt", "-4046"], ["#stDist", "1234.56"], ["#stTime", "00:00"]]
     .map(function (p) { const e = $(p[0]), was = e.textContent; e.textContent = p[1]; return [e, was]; });
@@ -5634,7 +5645,16 @@ function fitBand(sb, cells, sign) {
     }
     return false;
   }
-  const fits = shrinkTo(centred) || shrinkTo(beside);
+  /* the readouts' figures give a little before the roundel gives up the middle */
+  let k = 1;
+  while (outL() - 12 < mid + d / 2 && k > 0.85) {
+    k = Math.round((k - 0.01) * 100) / 100;
+    sb.style.setProperty("--rdK", String(k));
+  }
+  if (outL() - 12 < mid + d / 2) sb.style.removeProperty("--rdK");
+  let fits = shrinkTo(centred);
+  /* beside the speed the middle is not wanted, and nor is what the readouts gave for it */
+  if (!fits) { sb.style.removeProperty("--rdK"); fits = shrinkTo(beside); }
   bandSignMin = Math.ceil(spdR() + 12 - bar.left);
   held.forEach(function (p) { p[0].textContent = p[1]; });
   if (fits) return true;
