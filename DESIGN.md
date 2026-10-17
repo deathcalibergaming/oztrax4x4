@@ -22,6 +22,10 @@ colors:
   navigation-blue: "#4FA8E8"
   navigation-blue-lit: "#7FC1F0"
   instrument-white: "#FFFFFF"
+  hud-sand: "#F1E9D2"
+  hud-sand-halo: "#F4EEDD"
+  hud-dark-halo: "#0F1311"
+  burnt-orange-deep: "#A9441F"
   hairline: "rgba(216,203,170,.22)"
   hairline-strong: "rgba(216,203,170,.48)"
   muted-sand: "rgba(216,203,170,.72)"
@@ -59,10 +63,11 @@ typography:
     fontWeight: 700
     letterSpacing: "0.09em"
   readout:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
-    fontSize: "17px"
-    fontWeight: 600
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+    fontSize: "18px"
+    fontWeight: 800
     lineHeight: 1.05
+    fontVariantNumeric: "tabular-nums"
   readout-sm:
     fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
     fontSize: "11.5px"
@@ -178,9 +183,9 @@ components:
 OzTrax Recon is fitted to a vehicle, not added to a website. The two bars
 that frame the map are an instrument face: labelled, unit-suffixed, and read
 at a glance by someone whose eyes belong on the track. The readings in the
-upper bar are the one place the app spends a second typeface, because a
-number redrawn four times a second has to stay in its column. The map between
-them is the windscreen. Everything else — panels, popups, pins — is an object
+upper bar lie on the map itself, with nothing behind them, in ink that
+follows the map: dark green by day, sand by night. The map between them is
+the windscreen. Everything else — panels, popups, pins — is an object
 resting on that view, never a page the map happens to be printed on.
 
 The materials are warm and analogue rather than machined and cold. The ground
@@ -440,9 +445,10 @@ that says what it is for cannot be picked that way. Where two jobs genuinely
 want the same size they take a name each and share a value, so one can move
 later without dragging the other with it.
 
-**The Monospace Rule.** The app has one face. Monospace is spent on two
-rules — the stat bar's readings and the navigation panel's figures — and
-nowhere else.
+**The Monospace Rule.** The app has one face. Monospace is spent on the
+navigation panel's figures and nowhere else. The stat bar was the other place
+until its redesign, when tabular figures in the interface face took over the
+one job the face was there for.
 
 That is a narrower rule than it used to be, and the reasoning is what
 narrowed it. Monospace was doing two jobs at once: holding a column still,
@@ -1003,99 +1009,111 @@ missing**: a missing one sends you to look, a wrong one stops you looking.
 
 ### Heads-Up Display
 
-The signature component, and one of the three places in the app that keep the
-monospaced face — the navigation panel's figures and the turn bar's distance
-are the others. The five readings lie over the top of the map in Instrument
-White, with a text shadow and a fade behind them:
+The signature component, and the one place in the app that draws straight on
+the map with nothing behind it. The five readings lie over the top of the map
+in an ink that follows the map, every glyph, tick and outline drawn twice — a
+wide stroke of halo under the ink, the way the map draws its own names:
 
+- **No backing.** It sat on a fade of the panel colour, 85% behind the tape
+  and 58% behind the figures, in Instrument White. It was asked to lose the
+  fade and to carry more of the app's own colour, look newer and read better.
+- **Day and night ink.** By day the ink is Panel green (`#1B211D`) on a halo
+  of sand (`#F4EEDD`): the day map is pale, and a dark figure on it holds in
+  sun where a white one with a shadow washes out. At night, on the dark map,
+  it is sand (`#F1E9D2`) on a near-black halo (`#0F1311`). Labels are Burnt
+  Orange, deepened by day (`#A9441F`, 5.1:1 on the halo) and lit at night.
+  The switch is the night map's (`Night.apply` sets `.map-night`), so the
+  display turns with the map and never on its own clock.
+- **The halo** is a text stroke under the ink (`paint-order: stroke fill`),
+  4px on the readouts and 6.5px on the speed, and under it all a dark drop
+  shadow (0 2px 4px, 50%; 0 3px 6px on the speed) that the halo's edge casts
+  on the map. The first build had a soft glow of the halo's own colour
+  instead, and the report from the road was that it was hard to read by day:
+  a sand edge on a cream map has nothing to stand off it. The tape and the
+  gauge carry the same shadow. The tape's ticks and rule are drawn as two passes, halo
+  then ink, across the whole strip — drawn tick by tick, each tick's halo
+  would notch the rule — rather than with a filter, which would redo itself
+  on every degree of heading.
 - **Heading tape:** straight, across the top, at 4.2px a degree (21px between
-  five-degree ticks) on every size, slid along under a rust lubber line.
-  Cardinals in white, N in rust, tens of degrees as small numerals. Dimmed to
-  35% with no fix.
-- **Heading window:** the heading in figures on a panel-colour plate with a
-  rust hairline, set into the tape itself under the lubber line and centred
-  on its ticks and letters. The tape parts around it - the ticks and letters
-  stop 6px short of it each side and fade in over 10px - the way an
-  aircraft's heading tape frames the figure it reads. One width for every
-  heading, the widest, so the window and the gap stay still as N becomes NNE.
-  15px figures.
+  five-degree ticks) on every size, slid along under a burnt-orange caret.
+  Cardinals in the ink, N in the label orange, tens of degrees as small
+  numerals. Dimmed to 35% with no fix.
+- **Heading box:** the heading in figures — `E 093°` — in a solid box on
+  the tape under the caret, joined to the caret's tip by a burnt-orange
+  lubber line: a rectangle with 5px corners, filled with the halo's colour
+  (sand by day, near-black at night), outlined in the ink, with a drop
+  shadow. It was an outline the map showed through, then a tag with a point
+  rising to the caret; it was asked for solid, then for a plain rectangle
+  and a line. Drawn to the window's box by `layoutHud`; the tape parts
+  around it (ticks and letters stop 6px short and fade in over 10px). One
+  width for every heading, the widest, so the box and the gap stay still as
+  N becomes NNE.
 - **Speed:** large figures — 64px, less where that will not fit; 52px on a
-  phone on its side — lettered the way a gauge is: its label in rust level
-  with the top of the digits, its unit on their baseline, 10px off them.
+  phone on its side — in the interface face at weight 900 with tabular
+  digits, its unit on the digits' baseline beside them. The baseline is
+  measured in the phone's own face by `alignSpeedUnit`, not fitted to one.
+  The label is not drawn; the unit and the size say what it is.
 
   The figures sit in a box **three digits wide whatever the speed is**,
   measured at each size and right-aligned, so 99 becoming 100 moves nothing
-  but the figure. Before, the label and the unit were shoved along by a
-  digit’s width at 100 and back again at 99 — a caption twitching in the
-  corner of the eye on any road that sits near the limit, and a full relayout
-  of the bar each time it crossed. Right-aligned rather than left so the unit
-  keeps the 10px off the digits it was measured to have; the empty digit’s
-  width falls at the left, against the edge of the screen, where nothing else
-  lives. Over the posted limit they turn **Alert Red Lit** — see the
-  over-speed alert under Speed Sign.
+  but the figure — not the unit, the roundel or the gauge. Over the posted
+  limit, while the over-speed alert is sounding, they turn Alert Red
+  (`#CF533D` by day, `#E07C63` at night) — see the over-speed alert under
+  Speed Sign.
 - **Speed limit:** the regulatory roundel — black numerals in a red ring on
-  white, without the roadside plate — collared in the panel colour, 40px, on
-  the middle of the bar under the heading window, centred on the speed's
-  digits. A phone on its side keeps it 12px past the speed's unit, 38px.
-  Hidden, it keeps its place.
-- **Readouts:** altitude, distance and time. The distance and time are the
-  recording's while a track is recording or paused, and the drive's
-  otherwise - they used to sit at 0.00 and 00:00 whenever nothing was
-  recording, navigating or not, and read as broken. A drive is counted like
-  a car's trip computer counts one from the start: it begins when the
-  vehicle first moves and ends after four hours standing still, so lunch or
-  a walk is part of the day and a night at camp is not, and its figures stay
-  up until the vehicle moves off again. The distance follows the recorder's
-  rules - a fix more than 60 m out is dropped and a silence of more than 25
-  s claims nothing - and, stopped, the receiver's wander counts for nothing.
-  The time counts stops, but any one for its first fifteen minutes only: a
-  light or a fuel stop is part of how long the trip took, lunch is not, and
-  the clock holds rather than running back. Simulated and hand-placed
-  positions are not driving and are not counted. With the screen off the
-  page hears nothing, so only a recording's stretch with the screen off - which
-  the app logs and hands back - reaches the drive's distance.
+  white, without the roadside plate — collared in the halo colour, 40px, on
+  the middle of the bar under the heading box, centred on the speed's
+  digits. It stood beside the speed for one build and was asked back to the
+  middle. Where the widest readouts crowd the middle, their figures give a
+  little first — up to 15%, no more than it takes — so the roundel keeps
+  it: Large text on a 360px phone stood it 3px left of the middle until it
+  was asked to be central, and the readouts now give 4% there instead.
+  Where the middle would take the speed under 48px, it stands beside the
+  speed, 12px off its unit and as near the middle as the readouts allow;
+  a phone on its side and the three-row bar always have it there. Hidden,
+  it keeps its place.
+- **Gauge:** eleven dashes under the speed — ten from nothing to the posted
+  limit and one past it — with a 6px gap where the limit falls, and that gap
+  stands under the middle of the roundel wherever the roundel is. Each dash
+  is as wide as puts it there (14px on a 360px phone). The two dashes either
+  side of the gap are the markers: the last tenth to the limit outlined in
+  Burnt Orange, the tenth past it in Alert Red, so the pair sits centred
+  under the sign whatever the speed. Twelve dashes, two past the limit, put
+  the coloured end off to one side of the sign; twenty to the limit and two
+  past centred as well but read as a row of dots at 6px each. The dashes
+  fill in the ink as the speed climbs, Burnt Orange for the last tenth and
+  past the limit, and Alert Red only while the over-speed alert is sounding
+  — the same state that colours the figure and sounds the chime, so none of
+  the three can disagree. Unlit, a dash is its outline at half strength.
+  Hidden, keeping its place, whenever the roundel is.
+- **Readouts:** altitude, distance and time, stacked at the right: the label
+  in orange at 10px, the value in the ink at 18px weight 800, the unit after
+  it. 23px apart.
 - **One layout, phone and tablet:** an upright phone, a tablet either way
   up and a desktop window all get the same display, at the same sizes: the
-  tape across the top with the heading window on it, and straight under it
-  one band - the speed at the left, the limit roundel on the middle, the
-  readouts stacked at the right. A tablet used to run the tape through the
-  band between the speed and the readouts, as a phone on its side still
-  does; it was asked to look the same as the phone. The speed is sized to
-  fit: the largest, from 64px down, that leaves the centred roundel 12px
-  clear of a three-figure speed and of the widest readouts (62px at 375
-  wide, 64 on a tablet).
+  tape across the top with the heading box on it, and straight under it one
+  band — the speed at the left with the gauge under it, the roundel on the
+  middle under the heading, the readouts stacked at the right. The speed is
+  sized to fit: the largest, from 64px down, that leaves the roundel on the
+  middle 12px clear of a three-figure speed and of the widest readouts (56
+  on a 360px phone; at Large text, 46 drawn at 53, with the readouts' figures
+  at 96%).
 - **A phone on its side:** the one exception, with no height to give the
-  tape a row. Speed and limit at the left, readouts stacked at the right,
-  the tape in the clear stretch between them - and running the same
-  distance either side of the lubber line, the shorter of the two arms,
-  measured past a three-figure speed and the widest readouts and faded in
-  over 32px, so the heading window sits on the middle of its scale: 207px
-  either side at 812 wide, 146 at 690.
-- **Tight upright phones:** Where that would take the speed under 48px - 320
-  wide, or 340 at Large text - the roundel stands as near the middle as a
-  three-figure speed allows, and stays there as the speed changes. Measured with those figures, so the size is set
-  by the screen and the text step and never changes with what the speed
-  reads. The readouts step at 19px.
-- **Three rows, the fallback:** an upright phone too narrow for the band
-  with its speed at 48px or more — a 320px phone at Large text — stacks the
-  tape, then the speed with the roundel at the far end of its row, then the
-  readouts in a row under a hairline, with a 74px speed. The speed and the
-  roundel share the whole row and the readouts share theirs, so a
-  three-figure speed never pushes a readout along.
-- **Fade:** the panel colour, set against the content — 85% behind the
-  tape, never under 58% behind a figure (the small ones need 55% over the
-  palest terrain in sun), eased out over the 14px below the last of them.
+  tape a row. Speed, roundel and gauge at the left, readouts stacked at the
+  right, the tape in the clear stretch between them, running the same
+  distance either side of the caret, measured past a three-figure speed and
+  its roundel and faded in over 32px.
+- **Three rows, the fallback:** an upright phone too narrow for the band with
+  its speed at 48px or more — 320px wide — stacks the tape, then the speed
+  with its roundel beside it and the gauge under them, then the readouts in a
+  row with each label over its figure, with a 74px speed.
 - **Rhythm:** the tape's line at 10px, its letters ending at about 41, the
-  heading window centred at 27, 3-5px under the line. On an upright phone
-  the band starts at 46, the speed's digits about 11px under the tape's
-  letters, and the roundel at least 12px under the window - the band steps
-  down to make that room on a 320px phone, so the roundel never leaves the
-  middle of the speed. It is centred on the digits' ink rather than their
-  line box, and its number on the ring's centre by the number's ink, both
-  measured in the phone's own face: flex alone left 110 1.2px right and
-  two-figure limits up to 1.4px low. With the
-  heading in a row of its own under the tape the band started at 84; the
-  display now ends 115px into the map on an upright phone, from 153.
+  heading box centred at 27 with the lubber line running up from it to the
+  caret's tip. On an upright phone the band starts at 46, and the roundel at
+  least 12px under the box — the band steps down to make that room on a
+  narrow phone. The figures end 115px into the map on a 360px phone; nothing
+  is drawn below them, and the 14px under them is room for the turn bar and
+  the chips.
 
 Nothing in it takes a tap, so the map under it still pans.
 
@@ -2724,10 +2742,12 @@ Same information, no movement.
 
 ### Do:
 
-- **Do** use Instrument White (`#FFFFFF`) for anything read at speed —
-  values, their labels and their units — and keep every other text colour
-  above 4.5:1 and every control border above 3:1, because the rest of the
-  interface is read in the same light.
+- **Do** use Instrument White (`#FFFFFF`) for anything read at speed on a
+  panel — values, their labels and their units — and keep every other text
+  colour above 4.5:1 and every control border above 3:1, because the rest of
+  the interface is read in the same light. The heads-up display, which has
+  no panel, takes the map's ink instead: dark green by day, sand by night,
+  always on its halo.
 - **Do** give every map overlay a shadow from the vocabulary, and give panel
   internals none.
 - **Do** keep radii between 3px and 10px, and draw structure with one-pixel
@@ -2741,8 +2761,8 @@ Same information, no movement.
   adjacency; a bigger Delete beside a bigger Go To is the same mistake at a
   larger scale.
 - **Do** give numbers tabular figures wherever they stack, line up or update,
-  and say the unit in uppercase beside them (`KM/H`). Monospace is for the two
-  gauges and nothing else.
+  and say the unit in uppercase beside them (`KM/H`). Monospace is for the
+  navigation figures and nothing else.
 - **Do** size type from a scale token, never a literal px. A literal is the
   exception and has to say why it is one.
 - **Do** pick that token by the job — `--t-title` for a heading, `--t-note`
@@ -2789,7 +2809,7 @@ Same information, no movement.
   wearing it; state the face on the control.
 - **Don't** reach for `--mono` to say "this is a value". Size, tracking and
   colour already say it; the face is for holding a gauge column still, which
-  is a job only the stat bar and the navigation figures have.
+  is a job only the navigation figures have now.
 - **Don't** use colour as the only difference between a label and its value;
   size and weight already do that job, and colour is needed for classifying.
 - **Don't** add a category colour outside the 24-entry scale.
