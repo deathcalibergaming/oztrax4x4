@@ -1093,7 +1093,10 @@ wide stroke of halo under the ink, the way the map draws its own names:
   fill in the ink as the speed climbs, Burnt Orange for the last tenth and
   past the limit, and Alert Red only while the over-speed alert is sounding
   — the same state that colours the figure and sounds the chime, so none of
-  the three can disagree. Unlit, a dash is its outline at half strength.
+  the three can disagree. Unlit, a dash is the ink's border at 45% inside a
+  full-strength halo ring — the same white outline as a lit dash. It was the
+  whole dash at half opacity, ring and all, and on the phone the unlit
+  dashes looked as if they had no outline.
   Hidden, keeping its place, whenever the roundel is.
 - **Readouts:** altitude, distance and time, stacked at the right: the label
   in orange at 10px, the value in the ink at 18px weight 800, the unit after

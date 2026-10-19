@@ -425,8 +425,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   pointer-events:none;padding:0;
   --spd:68px;       /* the speed figure */
   --sign-d:48px;    /* the limit roundel's diameter */
-  --ink:#1B211D;--halo:255,255,255;--hbox:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
-.map-night #statsbar{--ink:#F1E9D2;--halo:15,19,17;--hbox:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
+  --ink:#1B211D;--ink-rgb:27,33,29;--halo:255,255,255;--hbox:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
+.map-night #statsbar{--ink:#F1E9D2;--ink-rgb:241,233,210;--halo:15,19,17;--hbox:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
 /* The halo: the figure's own shape laid round it in the halo's colour -
    twenty-four copies, sixteen at the full radius (--hr, 1.75px round a
    readout, 2.75px round the speed - thinned from 2.5 and 4, which were
@@ -528,21 +528,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    tenth and past the limit, and alert red only while the over-speed alert
    is sounding - the state that colours the figure, so the two never
    disagree, and switching the alert off takes the red with it. Unlit, a
-   segment is its outline. Hidden, keeping its place, whenever the roundel
+   segment is its outline: the ink's border at 45% inside the halo's ring
+   at full strength, the same white outline every lit dash and every figure
+   has. It was the whole dash at half opacity, ring and all, and on the
+   phone the unlit dashes' outline was so faint that not all of the dashes
+   looked as if they had one. Hidden, keeping its place, whenever the roundel
    is: with no limit known there is nothing to measure against. Sized and
    placed by layoutHud - --seg is worked out so the limit lands under the
    roundel - and filled by Gauge. The tenth is CFG.GAUGE_TO. */
 #spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px;
   filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
 #spdGauge.off{visibility:hidden}
-#spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
-  box-shadow:0 0 0 1.5px rgba(var(--halo),.9);opacity:.5}
+#spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid rgba(var(--ink-rgb),.45);
+  box-shadow:0 0 0 1.5px rgb(var(--halo))}
 #spdGauge i:nth-child(10){margin-right:4px}
-#spdGauge i.mk-near{border-color:var(--hnear);opacity:.85}
-#spdGauge i.mk-over{border-color:var(--hred);opacity:.85}
-#spdGauge i.on{background:var(--ink);opacity:1}
-#spdGauge i.near{background:var(--hnear);border-color:var(--hnear);opacity:1}
-#spdGauge i.over{background:var(--hred);border-color:var(--hred);opacity:1}
+#spdGauge i.mk-near{border-color:var(--hnear)}
+#spdGauge i.mk-over{border-color:var(--hred)}
+#spdGauge i.on{background:var(--ink);border-color:var(--ink)}
+#spdGauge i.near{background:var(--hnear);border-color:var(--hnear)}
+#spdGauge i.over{background:var(--hred);border-color:var(--hred)}
 /* The heading, in a box on the tape under its caret, the tape parted
    around it (see buildTape) the way an aircraft's heading tape frames the
    figure it reads, and an orange line from the caret's tip down to the box.
