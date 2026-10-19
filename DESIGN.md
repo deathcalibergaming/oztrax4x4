@@ -1027,14 +1027,18 @@ wide stroke of halo under the ink, the way the map draws its own names:
   5.9:1 on the white halo) and lit at night.
   The switch is the night map's (`Night.apply` sets `.map-night`), so the
   display turns with the map and never on its own clock.
-- **The halo** is a text stroke under the ink (`paint-order: stroke fill`),
-  5px on the readouts and 8px on the speed — half of it shows — and under it
-  all a dark drop shadow (0 2px 5px, 70%; 0 3px 7px on the speed) that the
-  halo's edge casts on the map. The first build had a soft glow of the
-  halo's own colour instead and was hard to read by day; the shadow came
-  next, at 50%, and then a white halo, wider, and the shadow at 70%, when
-  the dark figures still wanted an outline. The tape and the gauge carry
-  the same shadow. The tape's ticks and rule are drawn as two passes, halo
+- **The halo** is the figure's own shape laid round it in the halo colour —
+  twenty-four zero-blur text-shadows, sixteen at the radius (2.5px round a
+  readout, 4px round the speed) and eight at half — so the outline is the
+  letter grown outward: it follows every curve and rounds every corner. A
+  text stroke did the job for a build and mitred the corners of a 4 or a 7
+  into spikes. Under it all is a dark drop shadow (0 2px 3px, 70%; 0 3px 5px
+  on the speed) applied as a filter to each readout, so it is cast by the
+  outline and the figure together, not the letter alone. The way here: a
+  soft glow of the halo's own colour, hard to read by day; a drop shadow at
+  50%; a white outline and the shadow at 70%; then outline and shadow as
+  they are now. The tape and the gauge carry the same shadow, also as
+  filters. The tape's ticks and rule are drawn as two passes, halo
   then ink, across the whole strip — drawn tick by tick, each tick's halo
   would notch the rule — rather than with a filter, which would redo itself
   on every degree of heading.

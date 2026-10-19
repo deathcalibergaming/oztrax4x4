@@ -427,20 +427,50 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   --sign-d:48px;    /* the limit roundel's diameter */
   --ink:#1B211D;--halo:255,255,255;--hbox:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
 .map-night #statsbar{--ink:#F1E9D2;--halo:15,19,17;--hbox:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
-/* The halo: a stroke of it under each glyph - paint-order puts the ink on
-   top, so half the stroke shows, 2.5px round a readout and 4px round the
-   speed - and under the lot a drop shadow, which the halo's edge casts onto
-   the map. The halo began as a soft glow of its own colour; the first
-   report from the road was that the bar was hard to read by day and wanted
-   a drop shadow, and the second that the dark figures still wanted a white
-   outline and a darker shadow. So the outline is white and wider than the
-   4px of stroke it was (6.5 on the speed), and the shadow went from 50% to
-   70%. Dark at night as well, where it falls on a dark map and costs
-   nothing. */
+/* The halo: the figure's own shape laid round it in the halo's colour -
+   twenty-four copies, sixteen at the full radius (--hr, 2.5px round a
+   readout, 4px round the speed) and eight at half - so the outline is the
+   letter grown outward by the radius: it follows every curve and rounds
+   every corner. It was a text stroke under the ink, which mitres - the
+   corners of a 4, a 7 or an M came out as spikes, and the report was that
+   the outline did not follow the curves of the text.
+
+   The drop shadow is a filter on each readout as a whole, so it is cast by
+   the outline and the figure together; a text-shadow is cast by the letter
+   alone, and the outline sat on the map unshadowed. It was asked to
+   include the outline.
+
+   The history, so the next change starts from it: a soft glow of the
+   halo's own colour, hard to read by day; then a drop shadow at 50%; then
+   a white outline and the shadow at 70%; then this. Dark at night as well,
+   where the shadow falls on a dark map and costs nothing. */
 #statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
-  text-shadow:0 1px 1px rgba(0,0,0,.6),0 2px 5px rgba(0,0,0,.7)}
-#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{
-  -webkit-text-stroke:calc(5px * var(--uiScale)) rgb(var(--halo));paint-order:stroke fill}
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
+#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{--hr:calc(2.5px * var(--uiScale));
+  text-shadow:calc(var(--hr) * 1) 0 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.924) calc(var(--hr) * 0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.707) calc(var(--hr) * 0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.383) calc(var(--hr) * 0.924) 0 rgb(var(--halo)),
+    0 calc(var(--hr) * 1) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.383) calc(var(--hr) * 0.924) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.707) calc(var(--hr) * 0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.924) calc(var(--hr) * 0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * -1) 0 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.924) calc(var(--hr) * -0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.707) calc(var(--hr) * -0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.383) calc(var(--hr) * -0.924) 0 rgb(var(--halo)),
+    0 calc(var(--hr) * -1) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.383) calc(var(--hr) * -0.924) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.707) calc(var(--hr) * -0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.924) calc(var(--hr) * -0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.462) calc(var(--hr) * 0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.191) calc(var(--hr) * 0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.191) calc(var(--hr) * 0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.462) calc(var(--hr) * 0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.462) calc(var(--hr) * -0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.191) calc(var(--hr) * -0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.191) calc(var(--hr) * -0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.462) calc(var(--hr) * -0.191) 0 rgb(var(--halo))}
 /* Speed: the figure, and its unit on the digits' baseline - put there by
    layoutHud, measured in whatever face the phone draws, not fitted to one.
    The label is not drawn: the unit and the size say what this is, and the
@@ -457,13 +487,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    empty digit's width falls at the left, where the only thing beside it is
    the edge of the screen. */
 #statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;
-  font-weight:900;letter-spacing:-.045em;text-align:right;-webkit-text-stroke-width:calc(8px * var(--uiScale))}
+  font-weight:900;letter-spacing:-.045em;text-align:right;--hr:calc(4px * var(--uiScale))}
 /* Over the posted limit, while the over-speed alert is on. The chime, this
    colour and the gauge's come from one test, so they can never disagree
    about whether you are over. */
 #statsbar .stat:nth-child(1) b.over{color:var(--hred)}
 /* the speed's shadow scaled with it */
-#statsbar .stat:nth-child(1) b{text-shadow:0 1px 1px rgba(0,0,0,.6),0 3px 7px rgba(0,0,0,.7)}
+#statsbar .stat:nth-child(1){filter:drop-shadow(0 3px 5px rgba(0,0,0,.7))}
 #statsbar .stat:nth-child(1) i{grid-area:u;align-self:end;font-size:calc(13px * var(--uiScale));letter-spacing:.06em}
 /* The limit: the Australian regulatory roundel - black numerals in a red
    ring on white - without the square plate it stands on at the roadside,
@@ -501,10 +531,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    is: with no limit known there is nothing to measure against. Sized and
    placed by layoutHud - --seg is worked out so the limit lands under the
    roundel - and filled by Gauge. The tenth is CFG.GAUGE_TO. */
-#spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px}
+#spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
 #spdGauge.off{visibility:hidden}
 #spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
-  box-shadow:0 0 0 1.5px rgba(var(--halo),.9),0 2px 5px rgba(0,0,0,.7);opacity:.5}
+  box-shadow:0 0 0 1.5px rgba(var(--halo),.9);opacity:.5}
 #spdGauge i:nth-child(10){margin-right:4px}
 #spdGauge i.mk-near{border-color:var(--hnear);opacity:.85}
 #spdGauge i.mk-over{border-color:var(--hred);opacity:.85}
@@ -528,8 +559,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;
   padding:4px 12px;justify-content:center}
 #statsbar .stat:nth-child(2) .lbl,#statsbar .stat:nth-child(2) i{display:none}
-#statsbar .stat:nth-child(2){text-shadow:none}
-#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale));-webkit-text-stroke-width:0}
+/* the box carries the shadow, and the figures in it sit on the box's own ground */
+#statsbar .stat:nth-child(2){filter:none}
+#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale));text-shadow:none}
 /* under the figures - the window's transform makes it the stacking context,
    so -1 is behind its text and still in front of the tape */
 #statsbar .hdg-tag{position:absolute;left:0;top:0;z-index:-1;overflow:visible;pointer-events:none;
