@@ -1083,7 +1083,10 @@ wide stroke of halo under the ink, the way the map draws its own names:
   it keeps its place.
 - **Gauge:** eleven dashes under the speed — ten from nothing to the posted
   limit and one past it — with a 6px gap where the limit falls, and that gap
-  stands under the middle of the roundel wherever the roundel is. Each dash
+  stands under the middle of the roundel wherever the roundel is. Its foot
+  stands on the time readout's baseline, so the bottom of the band reads as
+  one line; it was 8px under the speed and read as sitting high beside the
+  time, and 8px is still the least it keeps from the speed. Each dash
   is as wide as puts it there (14px on a 360px phone). The two dashes either
   side of the gap are the markers: the last tenth to the limit outlined in
   Burnt Orange, the tenth past it in Alert Red, so the pair sits centred

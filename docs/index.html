@@ -5571,7 +5571,13 @@ function alignSpeedUnit() {
 
 /* The gauge under the speed: from the digits' box - three figures wide, so
    it does not move with the speed - with the limit's gap under the middle
-   of the roundel, 8px under the lower of the speed and the roundel. Each
+   of the roundel. Level with the time, the last readout: its foot on the
+   time's baseline, where the label and the unit beside the time's figures
+   stand, so the band's bottom line reads straight across. It sat 8px under
+   the speed and the roundel, centred on the time's digits to half a pixel
+   but above the TIME and H:M either side of them, so it read as sitting
+   high, and was asked to line up with the time. Never closer than those
+   8px, where the time stands higher. Each
    segment is as wide as puts it there: GAUGE_TO segments and their 2px gaps
    fill the run from the digits' box to the gap, which is 6px. In three rows
    it is a row of the grid, and only its segments are sized here. Returns
@@ -5586,8 +5592,13 @@ function placeGauge(box, sign, stacked) {
   g.style.width = "";
   if (stacked) { g.style.left = ""; g.style.top = ""; }
   else {
+    let top = Math.max(ink.bottom, sr.bottom) - box.top + 8;
+    const t = $("#stTime");
+    if (t) {
+      top = Math.max(top, inkBox(t, "00:00").bottom - box.top - g.offsetHeight);
+    }
     g.style.left = Math.round(br.left - box.left) + "px";
-    g.style.top = Math.round(Math.max(ink.bottom, sr.bottom) - box.top + 8) + "px";
+    g.style.top = Math.round(top) + "px";
   }
   return Math.ceil(g.getBoundingClientRect().bottom - box.top);
 }
