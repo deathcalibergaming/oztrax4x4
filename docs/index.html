@@ -428,8 +428,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   --ink:#1B211D;--halo:255,255,255;--hbox:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
 .map-night #statsbar{--ink:#F1E9D2;--halo:15,19,17;--hbox:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
 /* The halo: the figure's own shape laid round it in the halo's colour -
-   twenty-four copies, sixteen at the full radius (--hr, 2.5px round a
-   readout, 4px round the speed) and eight at half - so the outline is the
+   twenty-four copies, sixteen at the full radius (--hr, 1.75px round a
+   readout, 2.75px round the speed - thinned from 2.5 and 4, which were
+   reported a little too thick) and eight at half - so the outline is the
    letter grown outward by the radius: it follows every curve and rounds
    every corner. It was a text stroke under the ink, which mitres - the
    corners of a 4, a 7 or an M came out as spikes, and the report was that
@@ -446,7 +447,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    where the shadow falls on a dark map and costs nothing. */
 #statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
   filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
-#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{--hr:calc(2.5px * var(--uiScale));
+#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{--hr:calc(1.75px * var(--uiScale));
   text-shadow:calc(var(--hr) * 1) 0 0 rgb(var(--halo)),
     calc(var(--hr) * 0.924) calc(var(--hr) * 0.383) 0 rgb(var(--halo)),
     calc(var(--hr) * 0.707) calc(var(--hr) * 0.707) 0 rgb(var(--halo)),
@@ -487,7 +488,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    empty digit's width falls at the left, where the only thing beside it is
    the edge of the screen. */
 #statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;
-  font-weight:900;letter-spacing:-.045em;text-align:right;--hr:calc(4px * var(--uiScale))}
+  font-weight:900;letter-spacing:-.045em;text-align:right;--hr:calc(2.75px * var(--uiScale))}
 /* Over the posted limit, while the over-speed alert is on. The chime, this
    colour and the gauge's come from one test, so they can never disagree
    about whether you are over. */

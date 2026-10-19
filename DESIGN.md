@@ -1028,8 +1028,9 @@ wide stroke of halo under the ink, the way the map draws its own names:
   The switch is the night map's (`Night.apply` sets `.map-night`), so the
   display turns with the map and never on its own clock.
 - **The halo** is the figure's own shape laid round it in the halo colour —
-  twenty-four zero-blur text-shadows, sixteen at the radius (2.5px round a
-  readout, 4px round the speed) and eight at half — so the outline is the
+  twenty-four zero-blur text-shadows, sixteen at the radius (1.75px round a
+  readout, 2.75px round the speed, thinned from 2.5 and 4 as a little too
+  thick) and eight at half — so the outline is the
   letter grown outward: it follows every curve and rounds every corner. A
   text stroke did the job for a build and mitred the corners of a 4 or a 7
   into spikes. Under it all is a dark drop shadow (0 2px 3px, 70%; 0 3px 5px
