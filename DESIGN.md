@@ -1017,20 +1017,24 @@ wide stroke of halo under the ink, the way the map draws its own names:
 - **No backing.** It sat on a fade of the panel colour, 85% behind the tape
   and 58% behind the figures, in Instrument White. It was asked to lose the
   fade and to carry more of the app's own colour, look newer and read better.
-- **Day and night ink.** By day the ink is Panel green (`#1B211D`) on a halo
-  of sand (`#F4EEDD`): the day map is pale, and a dark figure on it holds in
-  sun where a white one with a shadow washes out. At night, on the dark map,
-  it is sand (`#F1E9D2`) on a near-black halo (`#0F1311`). Labels are Burnt
-  Orange, deepened by day (`#A9441F`, 5.1:1 on the halo) and lit at night.
+- **Day and night ink.** By day the ink is Panel green (`#1B211D`) on a
+  white halo: the day map is pale, and a dark figure on it holds in sun
+  where a white one with a shadow washes out. The halo was sand
+  (`#F4EEDD`) until the dark figures were reported hard to read — a sand
+  edge disappears on a cream map — and sand now fills only the heading box.
+  At night, on the dark map, the ink is sand (`#F1E9D2`) on a near-black
+  halo (`#0F1311`). Labels are Burnt Orange, deepened by day (`#A9441F`,
+  5.9:1 on the white halo) and lit at night.
   The switch is the night map's (`Night.apply` sets `.map-night`), so the
   display turns with the map and never on its own clock.
 - **The halo** is a text stroke under the ink (`paint-order: stroke fill`),
-  4px on the readouts and 6.5px on the speed, and under it all a dark drop
-  shadow (0 2px 4px, 50%; 0 3px 6px on the speed) that the halo's edge casts
-  on the map. The first build had a soft glow of the halo's own colour
-  instead, and the report from the road was that it was hard to read by day:
-  a sand edge on a cream map has nothing to stand off it. The tape and the
-  gauge carry the same shadow. The tape's ticks and rule are drawn as two passes, halo
+  5px on the readouts and 8px on the speed — half of it shows — and under it
+  all a dark drop shadow (0 2px 5px, 70%; 0 3px 7px on the speed) that the
+  halo's edge casts on the map. The first build had a soft glow of the
+  halo's own colour instead and was hard to read by day; the shadow came
+  next, at 50%, and then a white halo, wider, and the shadow at 70%, when
+  the dark figures still wanted an outline. The tape and the gauge carry
+  the same shadow. The tape's ticks and rule are drawn as two passes, halo
   then ink, across the whole strip — drawn tick by tick, each tick's halo
   would notch the rule — rather than with a filter, which would redo itself
   on every degree of heading.
@@ -1040,9 +1044,9 @@ wide stroke of halo under the ink, the way the map draws its own names:
   numerals. Dimmed to 35% with no fix.
 - **Heading box:** the heading in figures — `E 093°` — in a solid box on
   the tape under the caret, joined to the caret's tip by a burnt-orange
-  lubber line: a rectangle with 5px corners, filled with the halo's colour
-  (sand by day, near-black at night), outlined in the ink, with a drop
-  shadow. It was an outline the map showed through, then a tag with a point
+  lubber line: a rectangle with 5px corners, filled with sand by day and
+  near-black at night, outlined in the ink with the halo round it, and a
+  drop shadow. It was an outline the map showed through, then a tag with a point
   rising to the caret; it was asked for solid, then for a plain rectangle
   and a line. Drawn to the window's box by `layoutHud`; the tape parts
   around it (ticks and letters stop 6px short and fade in over 10px). One
