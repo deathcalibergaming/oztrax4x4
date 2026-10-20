@@ -1,1 +1,1 @@
-{"o":[-3302709,14660156],"k":["name","tourism"],"v":["Booberoi Weir","camp_site"],"p":[[-985,4177,0,1811162981,0,0,1,1]]}
+{"o":[-3302709,14660156],"k":["fee","name","tourism","access","camp_site","caravans","shower","toilets","information"],"v":["no","Booberoi Weir","picnic_site","yes","basic","camp_site","board","information"],"p":[[-985,4177,0,1811162981,0,0,1,1,2,2],[-1004,4176,0,14272287926,3,3,4,4,5,3,0,0,1,1,6,0,7,3,2,5],[-942,3258,0,14272287929,8,6,1,1,2,7]]}

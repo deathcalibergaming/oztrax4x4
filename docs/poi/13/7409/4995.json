@@ -1,1 +1,1 @@
-{"o":[-3670366,14559082],"k":["access","amenity","wheelchair","shelter_type"],"v":["yes","toilets","shelter","picnic_shelter"],"p":[[-1040,4338,0,372119567,0,0,1,1,2,0],[-1042,4384,1,1516714588,1,2,3,3]]}
+{"o":[-3670366,14559082],"k":["amenity","shelter_type","access","fee","opening_hours","wheelchair"],"v":["shelter","picnic_shelter","yes","toilets","no","24/7"],"p":[[-1042,4384,1,1516714588,0,0,1,1],[-1040,4338,1,1562996108,2,2,0,3,3,4,4,5,5,2]]}
