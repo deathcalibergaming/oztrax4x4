@@ -400,11 +400,16 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    outline is drawn twice, a wide stroke of halo under the ink, which is how
    the map draws its own names and why they read over anything beside them.
 
-   The ink follows the map. By day it is the panel's dark green on a halo of
-   pale sand, because the day map is pale and a dark figure on it holds in
-   sun where a white one with a shadow washes out; at night, on the dark
-   map, it is sand on a near-black halo. The labels are burnt orange,
-   darkened by day to stay over 4.5:1 on the halo and lit at night. The
+   The ink follows the map. By day it is the panel's dark green on a white
+   halo, because the day map is pale and a dark figure on it holds in sun
+   where a white one with a shadow washes out; at night, on the dark map,
+   it is sand on a near-black halo. The halo was pale sand by day, and on a
+   cream map a sand edge all but disappears: the dark figures read as dark
+   figures with nothing round them, and were reported hard to read. White
+   is the brightest edge there is. The heading's box keeps the sand as its
+   fill (--hbox), so the app's colour stays in the display. The labels are
+   burnt orange, darkened by day to stay over 4.5:1 on the halo and lit at
+   night. The
    switch is Night.apply's, so the display turns with the map and never on
    a clock of its own. Over the limit the speed and the gauge turn alert
    red, one state with the chime - see OverSpeed.
@@ -420,19 +425,53 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
   pointer-events:none;padding:0;
   --spd:68px;       /* the speed figure */
   --sign-d:48px;    /* the limit roundel's diameter */
-  --ink:#1B211D;--halo:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
-.map-night #statsbar{--ink:#F1E9D2;--halo:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
-/* The halo: a stroke of it under each glyph - paint-order puts the ink on
-   top - and under the lot a drop shadow, which the halo's edge casts onto
-   the map. The halo alone was a soft glow of its own colour, and on the
-   pale day map in sun a sand edge on a cream map has nothing to stand off
-   it: the first report from the road was that the bar was hard to read by
-   day and wanted a drop shadow. Dark at night as well, where it falls on a
-   dark map and costs nothing. */
+  --ink:#1B211D;--ink-rgb:27,33,29;--halo:255,255,255;--hbox:244,238,221;--hlab:#A9441F;--hnear:#CC5A2E;--hred:#CF533D}
+.map-night #statsbar{--ink:#F1E9D2;--ink-rgb:241,233,210;--halo:15,19,17;--hbox:15,19,17;--hlab:#DC8767;--hnear:#DC8767;--hred:#E07C63}
+/* The halo: the figure's own shape laid round it in the halo's colour -
+   twenty-four copies, sixteen at the full radius (--hr, 1.75px round a
+   readout, 2.75px round the speed - thinned from 2.5 and 4, which were
+   reported a little too thick) and eight at half - so the outline is the
+   letter grown outward by the radius: it follows every curve and rounds
+   every corner. It was a text stroke under the ink, which mitres - the
+   corners of a 4, a 7 or an M came out as spikes, and the report was that
+   the outline did not follow the curves of the text.
+
+   The drop shadow is a filter on each readout as a whole, so it is cast by
+   the outline and the figure together; a text-shadow is cast by the letter
+   alone, and the outline sat on the map unshadowed. It was asked to
+   include the outline.
+
+   The history, so the next change starts from it: a soft glow of the
+   halo's own colour, hard to read by day; then a drop shadow at 50%; then
+   a white outline and the shadow at 70%; then this. Dark at night as well,
+   where the shadow falls on a dark map and costs nothing. */
 #statsbar .stat{position:absolute;min-width:0;padding:0;display:flex;flex-direction:row;align-items:baseline;gap:5px;
-  text-shadow:0 1px 1px rgba(0,0,0,.45),0 2px 4px rgba(0,0,0,.5)}
-#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{
-  -webkit-text-stroke:calc(4px * var(--uiScale)) rgb(var(--halo));paint-order:stroke fill}
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
+#statsbar .stat b,#statsbar .stat i,#statsbar .stat .lbl{--hr:calc(1.75px * var(--uiScale));
+  text-shadow:calc(var(--hr) * 1) 0 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.924) calc(var(--hr) * 0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.707) calc(var(--hr) * 0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.383) calc(var(--hr) * 0.924) 0 rgb(var(--halo)),
+    0 calc(var(--hr) * 1) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.383) calc(var(--hr) * 0.924) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.707) calc(var(--hr) * 0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.924) calc(var(--hr) * 0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * -1) 0 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.924) calc(var(--hr) * -0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.707) calc(var(--hr) * -0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.383) calc(var(--hr) * -0.924) 0 rgb(var(--halo)),
+    0 calc(var(--hr) * -1) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.383) calc(var(--hr) * -0.924) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.707) calc(var(--hr) * -0.707) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.924) calc(var(--hr) * -0.383) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.462) calc(var(--hr) * 0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.191) calc(var(--hr) * 0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.191) calc(var(--hr) * 0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.462) calc(var(--hr) * 0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.462) calc(var(--hr) * -0.191) 0 rgb(var(--halo)),
+    calc(var(--hr) * -0.191) calc(var(--hr) * -0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.191) calc(var(--hr) * -0.462) 0 rgb(var(--halo)),
+    calc(var(--hr) * 0.462) calc(var(--hr) * -0.191) 0 rgb(var(--halo))}
 /* Speed: the figure, and its unit on the digits' baseline - put there by
    layoutHud, measured in whatever face the phone draws, not fitted to one.
    The label is not drawn: the unit and the size say what this is, and the
@@ -449,13 +488,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    empty digit's width falls at the left, where the only thing beside it is
    the edge of the screen. */
 #statsbar .stat:nth-child(1) b{grid-area:v;font-size:calc(var(--spd) * var(--uiScale));line-height:.84;
-  font-weight:900;letter-spacing:-.045em;text-align:right;-webkit-text-stroke-width:calc(6.5px * var(--uiScale))}
+  font-weight:900;letter-spacing:-.045em;text-align:right;--hr:calc(2.75px * var(--uiScale))}
 /* Over the posted limit, while the over-speed alert is on. The chime, this
    colour and the gauge's come from one test, so they can never disagree
    about whether you are over. */
 #statsbar .stat:nth-child(1) b.over{color:var(--hred)}
 /* the speed's shadow scaled with it */
-#statsbar .stat:nth-child(1) b{text-shadow:0 1px 1px rgba(0,0,0,.45),0 3px 6px rgba(0,0,0,.5)}
+#statsbar .stat:nth-child(1){filter:drop-shadow(0 3px 5px rgba(0,0,0,.7))}
 #statsbar .stat:nth-child(1) i{grid-area:u;align-self:end;font-size:calc(13px * var(--uiScale));letter-spacing:.06em}
 /* The limit: the Australian regulatory roundel - black numerals in a red
    ring on white - without the square plate it stands on at the roadside,
@@ -489,20 +528,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    tenth and past the limit, and alert red only while the over-speed alert
    is sounding - the state that colours the figure, so the two never
    disagree, and switching the alert off takes the red with it. Unlit, a
-   segment is its outline. Hidden, keeping its place, whenever the roundel
+   segment is its outline: the ink's border at 45% inside the halo's ring
+   at full strength, the same white outline every lit dash and every figure
+   has. It was the whole dash at half opacity, ring and all, and on the
+   phone the unlit dashes' outline was so faint that not all of the dashes
+   looked as if they had one. Hidden, keeping its place, whenever the roundel
    is: with no limit known there is nothing to measure against. Sized and
    placed by layoutHud - --seg is worked out so the limit lands under the
    roundel - and filled by Gauge. The tenth is CFG.GAUGE_TO. */
-#spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px}
+#spdGauge{position:absolute;display:flex;gap:2px;height:calc(7px * var(--uiScale));pointer-events:none;--seg:8px;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.7))}
 #spdGauge.off{visibility:hidden}
-#spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid var(--ink);
-  box-shadow:0 0 0 1.5px rgba(var(--halo),.9),0 2px 4px rgba(0,0,0,.5);opacity:.5}
+#spdGauge i{flex:0 0 var(--seg);border-radius:3px;box-sizing:border-box;border:1.5px solid rgba(var(--ink-rgb),.45);
+  box-shadow:0 0 0 1.5px rgb(var(--halo))}
 #spdGauge i:nth-child(10){margin-right:4px}
-#spdGauge i.mk-near{border-color:var(--hnear);opacity:.85}
-#spdGauge i.mk-over{border-color:var(--hred);opacity:.85}
-#spdGauge i.on{background:var(--ink);opacity:1}
-#spdGauge i.near{background:var(--hnear);border-color:var(--hnear);opacity:1}
-#spdGauge i.over{background:var(--hred);border-color:var(--hred);opacity:1}
+#spdGauge i.mk-near{border-color:var(--hnear)}
+#spdGauge i.mk-over{border-color:var(--hred)}
+#spdGauge i.on{background:var(--ink);border-color:var(--ink)}
+#spdGauge i.near{background:var(--hnear);border-color:var(--hnear)}
+#spdGauge i.over{background:var(--hred);border-color:var(--hred)}
 /* The heading, in a box on the tape under its caret, the tape parted
    around it (see buildTape) the way an aircraft's heading tape frames the
    figure it reads, and an orange line from the caret's tip down to the box.
@@ -520,13 +564,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #statsbar .stat:nth-child(2){left:50%;top:27px;transform:translate(-50%,-50%);z-index:2;
   padding:4px 12px;justify-content:center}
 #statsbar .stat:nth-child(2) .lbl,#statsbar .stat:nth-child(2) i{display:none}
-#statsbar .stat:nth-child(2){text-shadow:none}
-#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale));-webkit-text-stroke-width:0}
+/* the box carries the shadow, and the figures in it sit on the box's own ground */
+#statsbar .stat:nth-child(2){filter:none}
+#statsbar .stat:nth-child(2) b{font-size:calc(17px * var(--uiScale));text-shadow:none}
 /* under the figures - the window's transform makes it the stacking context,
    so -1 is behind its text and still in front of the tape */
 #statsbar .hdg-tag{position:absolute;left:0;top:0;z-index:-1;overflow:visible;pointer-events:none;
-  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
-#statsbar .hdg-tag .h{fill:rgb(var(--halo));stroke:rgb(var(--halo));stroke-width:5.5;stroke-linejoin:round}
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.65))}
+/* sand inside by day, the white halo round its ink outline like every other figure */
+#statsbar .hdg-tag .h{fill:rgb(var(--hbox));stroke:rgb(var(--halo));stroke-width:5.5;stroke-linejoin:round}
 #statsbar .hdg-tag .i{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round}
 /* the readouts, stacked at the right of the band: the label in orange, the
    value in the ink and its unit after it. 10px labels rather than Micro:
@@ -547,7 +593,7 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
    whole. Its ticks carry classes rather than being styled as bare lines, so
    the rule for a tick does not also repaint the caret. */
 #hudTape{position:absolute;left:0;top:0;width:100%;height:64px;overflow:hidden;z-index:1;transition:opacity .2s}
-#hudTape svg{display:block;filter:drop-shadow(0 1.5px 2px rgba(0,0,0,.5))}
+#hudTape svg{display:block;filter:drop-shadow(0 1.5px 2.5px rgba(0,0,0,.7))}
 #hudTape .tk{stroke:var(--ink);stroke-linecap:round;stroke-width:1.3px}
 #hudTape .tk.cd{stroke-width:2.2px}
 #hudTape .tk.mn{stroke-width:1.1px}
@@ -5525,7 +5571,13 @@ function alignSpeedUnit() {
 
 /* The gauge under the speed: from the digits' box - three figures wide, so
    it does not move with the speed - with the limit's gap under the middle
-   of the roundel, 8px under the lower of the speed and the roundel. Each
+   of the roundel. Level with the time, the last readout: its foot on the
+   time's baseline, where the label and the unit beside the time's figures
+   stand, so the band's bottom line reads straight across. It sat 8px under
+   the speed and the roundel, centred on the time's digits to half a pixel
+   but above the TIME and H:M either side of them, so it read as sitting
+   high, and was asked to line up with the time. Never closer than those
+   8px, where the time stands higher. Each
    segment is as wide as puts it there: GAUGE_TO segments and their 2px gaps
    fill the run from the digits' box to the gap, which is 6px. In three rows
    it is a row of the grid, and only its segments are sized here. Returns
@@ -5540,8 +5592,13 @@ function placeGauge(box, sign, stacked) {
   g.style.width = "";
   if (stacked) { g.style.left = ""; g.style.top = ""; }
   else {
+    let top = Math.max(ink.bottom, sr.bottom) - box.top + 8;
+    const t = $("#stTime");
+    if (t) {
+      top = Math.max(top, inkBox(t, "00:00").bottom - box.top - g.offsetHeight);
+    }
     g.style.left = Math.round(br.left - box.left) + "px";
-    g.style.top = Math.round(Math.max(ink.bottom, sr.bottom) - box.top + 8) + "px";
+    g.style.top = Math.round(top) + "px";
   }
   return Math.ceil(g.getBoundingClientRect().bottom - box.top);
 }

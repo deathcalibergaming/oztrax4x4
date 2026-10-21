@@ -1017,20 +1017,29 @@ wide stroke of halo under the ink, the way the map draws its own names:
 - **No backing.** It sat on a fade of the panel colour, 85% behind the tape
   and 58% behind the figures, in Instrument White. It was asked to lose the
   fade and to carry more of the app's own colour, look newer and read better.
-- **Day and night ink.** By day the ink is Panel green (`#1B211D`) on a halo
-  of sand (`#F4EEDD`): the day map is pale, and a dark figure on it holds in
-  sun where a white one with a shadow washes out. At night, on the dark map,
-  it is sand (`#F1E9D2`) on a near-black halo (`#0F1311`). Labels are Burnt
-  Orange, deepened by day (`#A9441F`, 5.1:1 on the halo) and lit at night.
+- **Day and night ink.** By day the ink is Panel green (`#1B211D`) on a
+  white halo: the day map is pale, and a dark figure on it holds in sun
+  where a white one with a shadow washes out. The halo was sand
+  (`#F4EEDD`) until the dark figures were reported hard to read — a sand
+  edge disappears on a cream map — and sand now fills only the heading box.
+  At night, on the dark map, the ink is sand (`#F1E9D2`) on a near-black
+  halo (`#0F1311`). Labels are Burnt Orange, deepened by day (`#A9441F`,
+  5.9:1 on the white halo) and lit at night.
   The switch is the night map's (`Night.apply` sets `.map-night`), so the
   display turns with the map and never on its own clock.
-- **The halo** is a text stroke under the ink (`paint-order: stroke fill`),
-  4px on the readouts and 6.5px on the speed, and under it all a dark drop
-  shadow (0 2px 4px, 50%; 0 3px 6px on the speed) that the halo's edge casts
-  on the map. The first build had a soft glow of the halo's own colour
-  instead, and the report from the road was that it was hard to read by day:
-  a sand edge on a cream map has nothing to stand off it. The tape and the
-  gauge carry the same shadow. The tape's ticks and rule are drawn as two passes, halo
+- **The halo** is the figure's own shape laid round it in the halo colour —
+  twenty-four zero-blur text-shadows, sixteen at the radius (1.75px round a
+  readout, 2.75px round the speed, thinned from 2.5 and 4 as a little too
+  thick) and eight at half — so the outline is the
+  letter grown outward: it follows every curve and rounds every corner. A
+  text stroke did the job for a build and mitred the corners of a 4 or a 7
+  into spikes. Under it all is a dark drop shadow (0 2px 3px, 70%; 0 3px 5px
+  on the speed) applied as a filter to each readout, so it is cast by the
+  outline and the figure together, not the letter alone. The way here: a
+  soft glow of the halo's own colour, hard to read by day; a drop shadow at
+  50%; a white outline and the shadow at 70%; then outline and shadow as
+  they are now. The tape and the gauge carry the same shadow, also as
+  filters. The tape's ticks and rule are drawn as two passes, halo
   then ink, across the whole strip — drawn tick by tick, each tick's halo
   would notch the rule — rather than with a filter, which would redo itself
   on every degree of heading.
@@ -1040,9 +1049,9 @@ wide stroke of halo under the ink, the way the map draws its own names:
   numerals. Dimmed to 35% with no fix.
 - **Heading box:** the heading in figures — `E 093°` — in a solid box on
   the tape under the caret, joined to the caret's tip by a burnt-orange
-  lubber line: a rectangle with 5px corners, filled with the halo's colour
-  (sand by day, near-black at night), outlined in the ink, with a drop
-  shadow. It was an outline the map showed through, then a tag with a point
+  lubber line: a rectangle with 5px corners, filled with sand by day and
+  near-black at night, outlined in the ink with the halo round it, and a
+  drop shadow. It was an outline the map showed through, then a tag with a point
   rising to the caret; it was asked for solid, then for a plain rectangle
   and a line. Drawn to the window's box by `layoutHud`; the tape parts
   around it (ticks and letters stop 6px short and fade in over 10px). One
@@ -1074,7 +1083,10 @@ wide stroke of halo under the ink, the way the map draws its own names:
   it keeps its place.
 - **Gauge:** eleven dashes under the speed — ten from nothing to the posted
   limit and one past it — with a 6px gap where the limit falls, and that gap
-  stands under the middle of the roundel wherever the roundel is. Each dash
+  stands under the middle of the roundel wherever the roundel is. Its foot
+  stands on the time readout's baseline, so the bottom of the band reads as
+  one line; it was 8px under the speed and read as sitting high beside the
+  time, and 8px is still the least it keeps from the speed. Each dash
   is as wide as puts it there (14px on a 360px phone). The two dashes either
   side of the gap are the markers: the last tenth to the limit outlined in
   Burnt Orange, the tenth past it in Alert Red, so the pair sits centred
@@ -1084,7 +1096,10 @@ wide stroke of halo under the ink, the way the map draws its own names:
   fill in the ink as the speed climbs, Burnt Orange for the last tenth and
   past the limit, and Alert Red only while the over-speed alert is sounding
   — the same state that colours the figure and sounds the chime, so none of
-  the three can disagree. Unlit, a dash is its outline at half strength.
+  the three can disagree. Unlit, a dash is the ink's border at 45% inside a
+  full-strength halo ring — the same white outline as a lit dash. It was the
+  whole dash at half opacity, ring and all, and on the phone the unlit
+  dashes looked as if they had no outline.
   Hidden, keeping its place, whenever the roundel is.
 - **Readouts:** altitude, distance and time, stacked at the right: the label
   in orange at 10px, the value in the ink at 18px weight 800, the unit after
