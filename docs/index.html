@@ -3929,6 +3929,15 @@ const CFG = {
      closer than the highway from being the only thing considered. Four,
      because the case it exists for is one wrong road rather than four. */
   ROUTE_SNAP_TRIES: 4,
+  /* Arriving at a shop in its car park - see Route.parkFor. `off`: how far
+     the pin has to sit from the nearest car park lane to be a building and
+     not a bay. `reach`: how far round it the lanes are gathered. `link`:
+     the longest plain service road counted as part of a car park, where it
+     joins two of its lanes. `pull`: how much nearer a lane counts for each
+     metre it lies towards the middle of the car park. `wide`: how far off
+     the middle has to be for that to count in full - a car park all round
+     the shop has its middle under the roof and no side to favour. */
+  ROUTE_PARK: { off: 10, reach: 150, link: 60, pull: 0.6, wide: 30 },
   /* What the gap between where you are and the road you snapped to costs,
      in km/h. It is not a road, so it is not priced like one: this is the
      rate that decides whether a highway 900 m off is worth more than the
@@ -15867,7 +15876,8 @@ const Route = {
       this.eCls[i] = row[0];
       /* 32: this pack says which of its edges are roundabouts - see isRing.
          Above it, 64 is the pack's own: a road that charges a toll, which
-         only a pack new enough to carry roundabouts can carry either. */
+         only a pack new enough to carry roundabouts can carry either - and
+         128 a lane of a car park, see parkFor. */
       this.eF[i] = pk.r ? (row[1] | 32) : (row[1] & 15);
       this.eName[i] = -1;
       const nm = row[3] >= 0 ? pk.n[row[3]] : null;
@@ -16074,8 +16084,11 @@ const Route = {
      junction is in a tile nobody fetched: any of them can be a few metres
      nearer than the road actually wanted, and being nearest was the whole
      of the test. So the choice is handed to the search, which is the only
-     thing that knows what is reachable. */
-  snapAll: function (lat, lng) {
+     thing that knows what is reachable.
+
+     Asked for `every`, it hands back all of them, nearest first - what
+     parkFor looks through for the car park round a shop. */
+  snapAll: function (lat, lng, every) {
     const x = lon2tile(lng, CFG.ROUTE_Z), y = lat2tile(lat, CFG.ROUTE_Z);
     const near = new Map();                /* edge -> its own closest point */
     for (let dx = -1; dx <= 1; dx++) {
@@ -16106,7 +16119,129 @@ const Route = {
     const out = [];
     for (const v of near.values()) out.push(v);
     out.sort(function (a, b) { return a.d - b.d; });
-    return out.slice(0, CFG.ROUTE_SNAP_TRIES);
+    return every ? out : out.slice(0, CFG.ROUTE_SNAP_TRIES);
+  },
+
+  /* Where to arrive for a shop in a car park: in the car park, on the side
+     of the shop the parking is.
+
+     A shop's pin is the middle of its roof, and the road nearest the middle
+     of a roof is whichever lane happens to run closest to it. At the IGA on
+     Northbri Avenue that is the strip of bays down the shop's north-east
+     side, and the way into it is round the back, by Eusebio Drive and
+     Sobers Street. The centre's car park is out the front, where it is
+     parked in and turned into off Northbri Avenue; the two ways in were
+     priced 362.6 and 363.3, so the lane nearest the roof decided it, and
+     it was reported as the directions always sending the car round the
+     back.
+
+     The car park is its lanes - service=parking_aisle, flagged 128 in the
+     packs - joined where they meet, and through any plain service road no
+     longer than `link` that runs between two of them: the one the nearest
+     lane is part of. The place in it is the nearest point of its lanes,
+     with every metre a lane lies towards the car park's middle counted
+     `pull` of a metre nearer - so the strip behind the shop is further off
+     than it looks and the lane out the front, between the shop and the
+     bays, is nearer. Never further from the shop than reaching the road
+     counts as arriving (NAV_ARRIVE_OFF), so the trip still ends there.
+
+     Two ways of choosing that did worse, measured over the 6,481 shops and
+     businesses round Adelaide, from three kilometres north and south of
+     each. The biggest car park within reach, rather than the shop's own,
+     took 199 of the 1,126 that move to a neighbour's car park, and was 35
+     of the 46 trips made a minute or 300 m longer. And the point nearest
+     the shop and the middle together, the sum of the two distances, pulled
+     the arrival out into the middle of a big car park as far as it could
+     go - to the 60 m limit on 57 of them - when the lane wanted is the one
+     outside the door. As it is: the arrival moves 4 m or less on half the
+     trips and 24 m or less on nine in ten, the drive is no longer on nine
+     in ten, and four trips are made more than 45 seconds longer - ALDI on
+     Sherriffs Road the most, by 71, turning in at the main entrance to the
+     shopfront where it stopped in the strip along the road, and a dental
+     clinic on Torrens Road going round into the car park behind it where
+     it stopped at the kerb of the main road. Of a
+     sample of 7,241 street addresses, 50 move - shops on the main roads
+     and units off a car park lane they were already nearest.
+
+     Only where the nearest road of all is a car park lane and the pin sits
+     more than `off` back from it. A house is nearest its street, a servo
+     its forecourt or the road it fronts, a charger or a dump point the lane
+     it stands on; none of them moves. A pack cut before the flag has no
+     lanes to find, and nothing changes. */
+  parkFor: function (to, around) {
+    const P = CFG.ROUTE_PARK, R = CFG.NAV_ARRIVE_OFF, self = this;
+    if (!around.length || around[0].d < P.off || !(this.eF[around[0].i] & 128)) return null;
+    /* flat metres from the pin, which is plenty across a car park */
+    const ky = 111320, kx = ky * Math.cos(rad(to.lat));
+    const X = function (i, k) { return (self.geo[self.eOff[i] + k * 2 + 1] / 1e5 - to.lng) * kx; };
+    const Y = function (i, k) { return (self.geo[self.eOff[i] + k * 2] / 1e5 - to.lat) * ky; };
+    /* the car parks: lanes joined at their ends, by node */
+    const up = new Map();
+    const top = function (n) {
+      while (up.get(n) !== n) { const p = up.get(up.get(n)); up.set(n, p); n = p; }
+      return n;
+    };
+    const join = function (a, b) {
+      if (!up.has(a)) up.set(a, a);
+      if (!up.has(b)) up.set(b, b);
+      up.set(top(a), top(b));
+    };
+    const lanes = [];
+    for (const c of around) {
+      if (c.d > P.reach) break;
+      if (this.eF[c.i] & 128) { lanes.push(c); join(this.eA[c.i], this.eB[c.i]); }
+    }
+    for (const c of around) {
+      if (c.d > P.reach) break;
+      const i = c.i;
+      if ((this.eF[i] & 128) || this.eM[i] > P.link || ROAD_CLASSES[this.eCls[i]] !== "service") continue;
+      if (up.has(this.eA[i]) && up.has(this.eB[i])) join(this.eA[i], this.eB[i]);
+    }
+    /* the shop's own: the lanes joined to the nearest, and their middle,
+       weighed by length */
+    const own = top(this.eA[around[0].i]), mine = [];
+    let m = 0, mx = 0, my = 0;
+    for (const c of lanes) {
+      if (top(this.eA[c.i]) !== own) continue;
+      mine.push(c.i);
+      for (let s = 0; s + 1 < this.eNp[c.i]; s++) {
+        const len = Math.hypot(X(c.i, s + 1) - X(c.i, s), Y(c.i, s + 1) - Y(c.i, s));
+        m += len;
+        mx += len * (X(c.i, s) + X(c.i, s + 1)) / 2;
+        my += len * (Y(c.i, s) + Y(c.i, s + 1)) / 2;
+      }
+    }
+    if (!m) return null;
+    const cx = mx / m, cy = my / m, cd = Math.max(Math.hypot(cx, cy), P.wide);
+    const ux = cx / cd, uy = cy / cd;
+    /* the distance, less `pull` of whatever of it runs towards the middle:
+       a distance less a straight line is one valley along a straight, so a
+       golden-section search finds the bottom of it, between where the
+       straight comes inside R of the pin and where it leaves */
+    const f = function (x, y) { return Math.hypot(x, y) - P.pull * (x * ux + y * uy); };
+    let got = null;
+    for (const i of mine) {
+      for (let s = 0; s + 1 < this.eNp[i]; s++) {
+        const ax = X(i, s), ay = Y(i, s), dx = X(i, s + 1) - ax, dy = Y(i, s + 1) - ay;
+        const qa = dx * dx + dy * dy;
+        if (!qa) continue;
+        const qb = 2 * (ax * dx + ay * dy), qc = ax * ax + ay * ay - R * R;
+        const disc = qb * qb - 4 * qa * qc;
+        if (disc < 0) continue;
+        let lo = Math.max(0, (-qb - Math.sqrt(disc)) / (2 * qa));
+        let hi = Math.min(1, (-qb + Math.sqrt(disc)) / (2 * qa));
+        if (lo > hi) continue;
+        for (let n = 0; n < 40 && hi - lo > 1e-4; n++) {
+          const t1 = hi - (hi - lo) * 0.618, t2 = lo + (hi - lo) * 0.618;
+          if (f(ax + dx * t1, ay + dy * t1) <= f(ax + dx * t2, ay + dy * t2)) hi = t2; else lo = t1;
+        }
+        const t = (lo + hi) / 2, v = f(ax + dx * t, ay + dy * t);
+        if (!got || v < got.v) got = { v: v, i: i, u: s + t };
+      }
+    }
+    if (!got) return null;
+    const at = this.pointAt(got.i, got.u);
+    return { i: got.i, u: got.u, d: 0, lat: at.lat, lng: at.lng };
   },
 
   /* What that gap costs to cross, in seconds. */
@@ -16211,11 +16346,24 @@ const Route = {
   tryFind: function (from, to, opt) {
     const t0 = performance.now();
     let near = this.snapAll(from.lat, from.lng);
-    const dest = this.snapAll(to.lat, to.lng);
-    if (!near.length || !dest.length) return null;
+    const around = this.snapAll(to.lat, to.lng, true);
+    if (!near.length || !around.length) return null;
     if (from.hdg != null) near = this.byHeading(near, from.hdg);
-    let got = this.search(from, to, near.slice(0, 1), dest.slice(0, 1), opt);
-    if (!got && (near.length > 1 || dest.length > 1)) got = this.search(from, to, near, dest, opt);
+    /* A shop in a car park is driven to in the car park, and the line goes
+       on from there to the shop as it would from the kerb - see parkFor.
+       If the car park cannot be reached, the shop is driven to as before. */
+    const park = this.parkFor(to, around);
+    let got = null;
+    if (park) {
+      got = this.search(from, park, near.slice(0, 1), [park], opt);
+      if (!got && near.length > 1) got = this.search(from, park, near, [park], opt);
+      if (got) got.coords.push([to.lat, to.lng]);
+    }
+    if (!got) {
+      const dest = around.slice(0, CFG.ROUTE_SNAP_TRIES);
+      got = this.search(from, to, near.slice(0, 1), dest.slice(0, 1), opt);
+      if (!got && (near.length > 1 || dest.length > 1)) got = this.search(from, to, near, dest, opt);
+    }
     /* how long it took to find, which is what says whether there is time
        to look for another - see alternatives */
     if (got) got.ms = performance.now() - t0;

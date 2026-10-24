@@ -325,6 +325,10 @@ const F_RING = 16;
    not 32, which the app uses for a note of its own on every edge of a pack
    that knows its roundabouts. */
 const F_TOLL = 64;
+/* A lane of a car park: service=parking_aisle. The app arrives at a shop
+   in its car park rather than on whichever lane runs nearest the middle of
+   its roof, and the car park is these lanes - see Route.parkFor. */
+const F_PARKING = 128;
 
 /* ---------------------------------------------------------------------
    Protobuf, only as much of it as an OSM extract uses. Ids and coordinates
@@ -585,6 +589,7 @@ function flagsOf(tags) {
   const surf = tags.surface;
   if (surf ? !PAVED.has(surf) : (tags.highway === "track")) f |= F_UNPAVED;
   if (tags.toll === "yes" || tags["toll:motor_vehicle"] === "yes" || tags["toll:motorcar"] === "yes") f |= F_TOLL;
+  if (tags.highway === "service" && tags.service === "parking_aisle") f |= F_PARKING;
   return f;
 }
 
@@ -615,6 +620,8 @@ function cutStamp(source) {
     "dir1",
     /* the toll flag: a pack cut before it cannot say which roads charge */
     "toll1",
+    /* and the car park flag: one cut before it has no car parks to arrive in */
+    "park1",
     /* and the limits read off the sign: a line added to that list changes
        tiles whose extract has not moved */
     SIGNED.map((f) => [f.name, f.box, f.limit])
