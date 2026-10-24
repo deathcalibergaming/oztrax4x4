@@ -3938,6 +3938,11 @@ const CFG = {
      the middle has to be for that to count in full - a car park all round
      the shop has its middle under the roof and no side to favour. */
   ROUTE_PARK: { off: 10, reach: 150, link: 60, pull: 0.6, wide: 30 },
+  /* The centres set by hand - see PARK_AT. `edge`: how far outside the
+     outline a pin may sit and still be in the centre, for a shop mapped
+     on its wall. `slip`: how far the nearest road may have moved off the
+     point set before the point is no longer trusted. */
+  ROUTE_PARK_AT: { edge: 15, slip: 10 },
   /* What the gap between where you are and the road you snapped to costs,
      in km/h. It is not a road, so it is not priced like one: this is the
      rate that decides whether a highway 900 m off is worth more than the
@@ -15256,6 +15261,36 @@ function yieldToPage() {
   });
 }
 
+/* Shopping centres whose car park is set by hand: anything inside the
+   outline is driven to `at`, a point on a lane of the car park it is
+   parked in - see Route.parkAt.
+
+   For a centre the map cannot answer. A shop inside one is a pin in the
+   middle of a building with car parks on every side, and nothing mapped
+   says which of them is the shop's; parkFor leaves it alone, and the
+   route ends on whatever service road runs nearest the pin. Both of these
+   are Mick's, from the car park he uses:
+   - Parabanks, Salisbury. Coles is on the east side and the route ended on
+     the service road there; he parks on the Woolworths and Big W side,
+     the west, and walks through.
+   - Hollywood Plaza, Salisbury Downs. The route came in off Winzor Street
+     to the service road on the west wall; he comes in off Spains Road and
+     parks at the back, the car park down the east side.
+   The outlines are the centres' own buildings in OpenStreetMap, cut to a
+   dozen corners. */
+const PARK_AT = [
+  { name: "Parabanks, Salisbury", at: [-34.76076, 138.6456],
+    edge: [[-34.7613, 138.64591], [-34.76167, 138.64613], [-34.76147, 138.64675], [-34.76134, 138.6467],
+           [-34.76115, 138.64752], [-34.76067, 138.64738], [-34.76062, 138.64752], [-34.76039, 138.64741],
+           [-34.76055, 138.64695], [-34.76041, 138.64725], [-34.76008, 138.64687], [-34.76042, 138.64624],
+           [-34.75991, 138.64658], [-34.75946, 138.64537], [-34.76006, 138.64507], [-34.76016, 138.64538]] },
+  { name: "Hollywood Plaza, Salisbury Downs", at: [-34.76775, 138.62574],
+    edge: [[-34.76717, 138.62464], [-34.76734, 138.62522], [-34.7667, 138.62574], [-34.76706, 138.62614],
+           [-34.76748, 138.62579], [-34.76763, 138.62537], [-34.7683, 138.62574], [-34.76903, 138.62496],
+           [-34.76841, 138.62469], [-34.76861, 138.62415], [-34.76879, 138.62412], [-34.76872, 138.62364],
+           [-34.76822, 138.62395], [-34.76774, 138.62367]] }
+];
+
 const Route = {
   manifest: null,
   packs: new Set(),        /* pack ids already folded in - "bb", or "x/y" */
@@ -16244,6 +16279,34 @@ const Route = {
     return { i: got.i, u: got.u, d: 0, lat: at.lat, lng: at.lng };
   },
 
+  /* The car park set by hand for a centre the pin is in - see PARK_AT -
+     as the lane it is on and how far along. Inside the outline, or within
+     `edge` metres of it, for a shop mapped on the centre's wall. Nothing if
+     the lane has moved off the point in a rebuild of the packs: the
+     centre is then driven to as any other shop is. */
+  parkAt: function (to) {
+    const P = CFG.ROUTE_PARK_AT;
+    const ky = 111320, kx = ky * Math.cos(rad(to.lat));
+    for (const c of PARK_AT) {
+      const e = c.edge;
+      let inside = false, near = Infinity;
+      for (let k = 0, j = e.length - 1; k < e.length; j = k++) {
+        const ax = (e[j][1] - to.lng) * kx, ay = (e[j][0] - to.lat) * ky;
+        const bx = (e[k][1] - to.lng) * kx, by = (e[k][0] - to.lat) * ky;
+        if ((ay > 0) !== (by > 0) && 0 < ax + (bx - ax) * (0 - ay) / (by - ay)) inside = !inside;
+        const dx = bx - ax, dy = by - ay, q = dx * dx + dy * dy;
+        const t = q ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / q)) : 0;
+        near = Math.min(near, Math.hypot(ax + dx * t, ay + dy * t));
+      }
+      if (!inside && near > P.edge) continue;
+      const s = this.snapAll(c.at[0], c.at[1])[0];
+      if (!s || s.d > P.slip) return null;
+      const p = this.pointAt(s.i, s.u);
+      return { i: s.i, u: s.u, d: 0, lat: p.lat, lng: p.lng };
+    }
+    return null;
+  },
+
   /* What that gap costs to cross, in seconds. */
   gapCost: function (d) { return d / (CFG.ROUTE_SNAP_KMH / 3.6); },
 
@@ -16350,14 +16413,21 @@ const Route = {
     if (!near.length || !around.length) return null;
     if (from.hdg != null) near = this.byHeading(near, from.hdg);
     /* A shop in a car park is driven to in the car park, and the line goes
-       on from there to the shop as it would from the kerb - see parkFor.
-       If the car park cannot be reached, the shop is driven to as before. */
-    const park = this.parkFor(to, around);
+       on from there to the shop as it would from the kerb - see parkFor,
+       and parkAt for the centres whose car park is set by hand. Not across
+       a whole centre: past NAV_ARRIVE_OFF the line stops in the car park,
+       and the flag on the map is the shop. Either way the trip ends where
+       the driving does (arrive). If the car park cannot be reached, the
+       shop is driven to as before. */
+    const park = this.parkAt(to) || this.parkFor(to, around);
     let got = null;
     if (park) {
       got = this.search(from, park, near.slice(0, 1), [park], opt);
       if (!got && near.length > 1) got = this.search(from, park, near, [park], opt);
-      if (got) got.coords.push([to.lat, to.lng]);
+      if (got) {
+        if (haversine(park, to) <= CFG.NAV_ARRIVE_OFF) got.coords.push([to.lat, to.lng]);
+        got.arrive = { lat: park.lat, lng: park.lng };
+      }
     }
     if (!got) {
       const dest = around.slice(0, CFG.ROUTE_SNAP_TRIES);
@@ -21006,8 +21076,12 @@ function navTake(r) {
   Nav.tail = r.tail == null ? r.coords.length - 1 : r.tail;
   /* Where arriving is. The end of the road when the pin sits beside it,
      which is nearly always, so the distance counted down is the distance
-     there is to drive and it runs out where the vehicle stops. */
-  Nav.hop = haversine({ lat: r.coords[Nav.tail][0], lng: r.coords[Nav.tail][1] }, Nav.dest);
+     there is to drive and it runs out where the vehicle stops. A route to
+     a shop's car park says where in it the driving ends (Route.tryFind),
+     which can be a whole shopping centre from the shop: there, and not the
+     shop, is what has to be reached. */
+  Nav.arrive = r.arrive || null;
+  Nav.hop = haversine({ lat: r.coords[Nav.tail][0], lng: r.coords[Nav.tail][1] }, Nav.arrive || Nav.dest);
   Nav.end = Nav.hop <= CFG.NAV_ARRIVE_OFF ? Nav.tail : r.coords.length - 1;
   Nav.offFor = 0;
   Nav.lost = false;
@@ -21543,7 +21617,7 @@ function navNearestIdx() {
    that is only a bearing, still go by the circle. Out there the pin is the
    only place there is to arrive at. */
 function navArrived(near, remain) {
-  const toPin = haversine(navFrom(), Nav.dest);
+  const toPin = haversine(navFrom(), Nav.arrive || Nav.dest);
   if (Nav.via === "direct" || Nav.hop > CFG.NAV_ARRIVE_OFF) return toPin <= CFG.NAV_ARRIVE_OFF;
   if (Nav.lost) return remain <= CFG.NAV_ARRIVE_OFF && toPin <= CFG.NAV_ARRIVE_OFF;
   const stopped = view.speed <= CFG.STILL_SPD;
