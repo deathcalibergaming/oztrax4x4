@@ -15268,8 +15268,8 @@ function yieldToPage() {
    For a centre the map cannot answer. A shop inside one is a pin in the
    middle of a building with car parks on every side, and nothing mapped
    says which of them is the shop's; parkFor leaves it alone, and the
-   route ends on whatever service road runs nearest the pin. Both of these
-   are Mick's, from the car park he uses:
+   route ends on whatever service road runs nearest the pin. These are all
+   Mick's, from the car park he uses:
    - Parabanks, Salisbury. Coles is on the east side and the route ended on
      the service road there; he parks on the Woolworths and Big W side,
      the west, and walks through.
@@ -15281,8 +15281,15 @@ function yieldToPage() {
      parks in the big car park to the south. Only the Kmart end of the
      building, a box 45 m round its pin: Foodland and the shops at the far
      end have car parks of their own beside them.
+   - The IGA, Northbri Avenue, Salisbury East, and the two strips of shops
+     beside it. parkFor already put this one in the front car park, in
+     through the median gap nearer the shop; Mick recorded the trip and
+     asked for it to end where he stopped recording, which is just inside
+     the southern gap - the way he turns in. So `at` is the last fix of
+     that recording, on the driveway in from the gap.
    The outlines are the centres' own buildings in OpenStreetMap, cut to a
-   dozen corners, or a box where the place is one shop of a long one. */
+   dozen corners, or a box where the place is one shop of a long one, or
+   the hull round the few buildings of a small centre. */
 const PARK_AT = [
   { name: "Parabanks, Salisbury", at: [-34.76076, 138.6456],
     edge: [[-34.7613, 138.64591], [-34.76167, 138.64613], [-34.76147, 138.64675], [-34.76134, 138.6467],
@@ -15295,7 +15302,10 @@ const PARK_AT = [
            [-34.76841, 138.62469], [-34.76861, 138.62415], [-34.76879, 138.62412], [-34.76872, 138.62364],
            [-34.76822, 138.62395], [-34.76774, 138.62367]] },
   { name: "Kmart, Main North Road, Smithfield", at: [-34.68931, 138.68708],
-    edge: [[-34.68831, 138.68701], [-34.68831, 138.68799], [-34.68911, 138.68799], [-34.68911, 138.68701]] }
+    edge: [[-34.68831, 138.68701], [-34.68831, 138.68799], [-34.68911, 138.68799], [-34.68911, 138.68701]] },
+  { name: "IGA, Northbri Avenue, Salisbury East", at: [-34.791036, 138.654099],
+    edge: [[-34.791, 138.65332], [-34.79123, 138.6537], [-34.79123, 138.65373], [-34.79112, 138.65383],
+           [-34.7904, 138.65427], [-34.79021, 138.65394], [-34.79035, 138.65382], [-34.79045, 138.65373]] }
 ];
 
 const Route = {
@@ -19930,8 +19940,17 @@ function navBuildTurns() {
        corner, so the line has to reach its side of the road - which is the
        router arriving at a junction and then running back down the edge it
        came in on. Read literally that is a u-turn at the front door, and it
-       was being called one. Arriving is the instruction there. */
-    if (end - cum[at] < 25) kind = null;
+       was being called one. Arriving is the instruction there.
+
+       Except the turn off the road into a car park, on a route that
+       arrives in one (Nav.arrive): the end is then a spot inside it, not
+       the side of a road, and the turn in is the one thing the driver
+       needs telling. At the IGA on Northbri Avenue the spot Mick parks is
+       seventeen metres past the right turn through the median, and the
+       voice went from the roundabout straight to "arrive at your
+       destination" with the turn never said. */
+    const turnIn = !!Nav.arrive && legs[k].cls === "service" && legs[k - 1].cls !== "service";
+    if (end - cum[at] < 25 && !turnIn) kind = null;
     if (kind === "uturn" && end - cum[at] < 120) kind = null;
 
     js.push({ at: at, m: cum[at], ang: ang, kind: kind, name: name,
