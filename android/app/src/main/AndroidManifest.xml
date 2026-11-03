@@ -48,6 +48,10 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- and its speech recogniser, for the microphone in Navigate To -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
 
     <!-- Permissions -->
@@ -63,4 +67,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Saying where to go, in Navigate To. Asked for the first time the
+         microphone there is tapped; heard on the phone, never sent. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>
