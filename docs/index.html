@@ -23712,11 +23712,6 @@ const HeyRecon = {
     toast(code === "permission" ? "Hey Recon needs the microphone - allow it in Android's settings"
       : "Hey Recon can't listen on this phone", "warn");
   },
-  echo: function (f) {
-    const now = Date.now();
-    this.said = this.said.filter(function (s) { return now - s.t < CFG.WAKE_ECHO_MS; });
-    return this.said.some(function (s) { return f && (s.f.indexOf(f) >= 0 || f.indexOf(s.f) >= 0); });
-  },
   /* How sure Vosk was of the name, the two words of it - see CFG.WAKE_CONF. */
   sure: function (d) {
     const w = String(d.text).split(/\s+/), c = d.conf || [];
@@ -23728,35 +23723,69 @@ const HeyRecon = {
     }
     return true;
   },
+  /* What was heard, less the app's own last words if they came back first.
+     The app's "Yes?" is heard too, and run together with the answer to it
+     comes out as "yes cancel navigation". That used to be thrown away whole
+     as the app hearing itself - which is how "Hey Recon" ... "cancel
+     navigation", said by Mick in a running route, did nothing. Now only the
+     echoed words come off the front, and all of it goes only when it is
+     nothing but the echo. */
+  unecho: function (f) {
+    const now = Date.now();
+    this.said = this.said.filter(function (s) { return now - s.t < CFG.WAKE_ECHO_MS; });
+    for (const s of this.said) {
+      if (!s.f) continue;
+      if (f === s.f) return "";
+      if (f.indexOf(s.f + " ") === 0) return f.slice(s.f.length + 1);
+    }
+    return f;
+  },
+  /* A command, as act reads one - what the words after "Yes?" have to be
+     before they are taken as the answer, so a turn the app is saying, or
+     the radio, heard in those seconds is not. */
+  isCommand: function (s) {
+    return /\b(cancel|stop|end|quit|exit)\b/.test(s) || /\bhome\b/.test(s) ||
+      /^(?:navigate|(?:take|get) me|go|drive|head|directions)\b/.test(s);
+  },
   got: function (d) {
     if (!d) return;
     if (d.type === "stopped") { this.refused(d.why); return; }
     if (d.type !== "heard" || !d.text) return;
     if (!this.sure(d)) return;
-    /* [unk] is a word not on Vosk's list - a place name, mostly */
-    const clean = function (t) { return String(t || "").replace(/\[unk\]/g, " ").replace(/\s+/g, " ").trim(); };
-    const texts = [clean(d.text)].concat((d.alts || []).map(clean));
-    let rest = null;
-    for (const t of texts) {
-      const m = this.NAME.exec(t);
-      if (m) { rest = t.slice(m.index + m[0].length).trim(); break; }
-    }
-    if (rest === null) {
-      /* not addressed to the app - unless it is the command after "hey
-         recon" said alone, and not the app's own voice coming back */
-      if (this.waiting > Date.now() && !this.echo(sugFlat(d.text))) {
-        this.waiting = 0;
-        this.act(d.text);
+    /* [unk] is a word not on Vosk's list - a place name, mostly. It came
+       through once as the place itself, "unk", which found Deb's Funky Art
+       Studio and set off for it. */
+    const raw = String(d.text);
+    const text = this.unecho(sugFlat(raw.replace(/\[unk\]/g, " ")));
+    if (!text) return;
+    const m = this.NAME.exec(text);
+    if (m) {
+      const rest = text.slice(m.index + m[0].length).trim();
+      if (!rest) {
+        this.waiting = Date.now() + CFG.WAKE_WAIT_MS;
+        this.reply("Yes?");
+        return;
       }
+      this.waiting = 0;
+      this.act(rest);
       return;
     }
-    if (!rest) {
-      this.waiting = Date.now() + CFG.WAKE_WAIT_MS;
-      this.reply("Yes?");
+    /* the command after "hey recon" said alone */
+    if (this.waiting > Date.now()) {
+      if (!this.isCommand(text)) return;
+      this.waiting = 0;
+      this.act(text);
       return;
     }
-    this.waiting = 0;
-    this.act(rest);
+    /* And "cancel navigation" needs no name while a route is running. Mick
+       asked for it as a command of its own; it is two words nobody says by
+       accident, and only these - every word heard sure, nothing else said
+       with them, and only with a route to cancel. */
+    const c = d.conf || [];
+    if (Nav.active && /^(cancel|stop|end) navigation$/.test(text) && raw.indexOf("[unk]") < 0 &&
+        c.length && c.every(function (v) { return v >= CFG.WAKE_CONF; })) {
+      this.act(text);
+    }
   },
   act: function (said) {
     const s = sugFlat(said);
@@ -23816,6 +23845,7 @@ const HeyRecon = {
      shopping centre or a town before the shops in it - the next was the
      Parabanks Coffee Lounge, inside the centre and 20 m nearer. */
   go: async function (place) {
+    if (sugFlat(place).replace(/\bunk\b/g, "").trim().length < 2) { this.ask(); return; }
     let list = [];
     const said = sugFlat(place);
     const starts = function (r) {
