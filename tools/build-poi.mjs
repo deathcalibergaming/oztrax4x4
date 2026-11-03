@@ -162,11 +162,18 @@ const WANT = {
    OVERPASS_TAGS, which fills the map, not the search.
 
    Measured over Australia: 188,219 POIs and 13.6 MB before, about 306,000
-   and 24.5 MB with these. */
+   and 24.5 MB with these.
+
+   healthcare=alternative is the chiropractor, the osteopath, the
+   naturopath. Reported as chiropractors not coming up in Navigate: of the
+   23 mapped round Adelaide, 19 are tagged healthcare=alternative with
+   healthcare:speciality=chiropractic and nothing else that says what they
+   are - no amenity, no shop - so neither list above carried one. */
 const SEARCH = {
   amenity: new Set(["restaurant", "cafe", "fast_food", "pub", "bar", "biergarten",
     "ice_cream", "food_court", "car_wash", "car_rental", "veterinary", "dentist",
     "police", "library", "marketplace"]),
+  healthcare: new Set(["alternative"]),
   tourism: new Set(["hotel", "motel", "guest_house", "hostel", "chalet", "apartment",
     "attraction", "museum", "gallery", "zoo", "theme_park", "wine_cellar", "aquarium"]),
   craft: new Set(["winery", "brewery", "distillery"]),
