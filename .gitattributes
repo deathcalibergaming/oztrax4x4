@@ -28,3 +28,8 @@ docs/style/** linguist-generated=true
 # gradlew is a shell script: Unix line endings wherever it is checked out,
 # or a Linux build machine cannot run it
 android/gradlew text eol=lf
+
+# Vosk's English model for "Hey Recon", copied in unmodified. Its config
+# files are read by Kaldi, which takes a carriage return as part of a value,
+# so nothing in it is ever converted on checkout.
+android/app/src/main/assets/model-en-us/** -text linguist-vendored=true

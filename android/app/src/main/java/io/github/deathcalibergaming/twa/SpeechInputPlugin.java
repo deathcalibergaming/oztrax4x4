@@ -38,6 +38,11 @@ import java.util.ArrayList;
  * One listen at a time. The page is sent what has been heard so far, as it
  * is heard, so the words fill the search box while they are spoken, and the
  * call itself answers with the finished words once the speaker stops.
+ *
+ * And "Hey Recon", the app listening for its name - below, on Vosk rather
+ * than on Android's recogniser, and on the phone just the same. The two
+ * share the one microphone: a listen here stops "Hey Recon" for as long as
+ * it lasts, and it starts again after.
  */
 @CapacitorPlugin(
     name = "SpeechInput",
@@ -108,6 +113,9 @@ public class SpeechInputPlugin extends Plugin {
     private void start(PluginCall call) {
         main.post(() -> {
             finish(null, "replaced by another listen", "cancelled");
+            /* one microphone: "Hey Recon" stands down while the button
+               listens, and comes back when it is done (finish) */
+            stopWake();
             pending = call;
             try {
                 rec = SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
@@ -173,6 +181,7 @@ public class SpeechInputPlugin extends Plugin {
         if (rec != null) {
             try { rec.destroy(); } catch (Exception e) { /* already gone */ }
             rec = null;
+            if (wanted && front) { main.removeCallbacks(rewatch); main.postDelayed(rewatch, 400); }
         }
         if (call == null) return;
         if (got == null || got.isEmpty() || got.get(0).isEmpty()) {
@@ -187,8 +196,174 @@ public class SpeechInputPlugin extends Plugin {
         call.resolve(r);
     }
 
+    /* ---------- "Hey Recon" ----------
+
+       Listening for the app's name for as long as the app is on the screen
+       and the driver has it switched on. Everything heard is handed to the
+       page as words (the "wake" event), and the page decides whether it
+       began with "hey recon" and what to do about the rest. Nothing is kept
+       here.
+
+       Not Android's recogniser. Both on the S22 - the private on-device one
+       and Google's Speech Services - are built to be asked once, end every
+       listen after five to nine seconds of nobody speaking, and sound two
+       tones on the notification volume each time they do, however the
+       listen ends; and neither honours a request to listen on for longer.
+       Measured: twelve tones a minute in a quiet car. So this is Vosk, an
+       open-source recogniser that runs entirely on the phone and listens
+       for as long as it is asked, without a sound.
+
+       It listens for a fixed list of words (WORDS) rather than any word at
+       all - the app's name and its commands. A short list is what makes it
+       light enough to leave running and sure of the name, and anything
+       else it hears comes out as [unk]. A place to go to is not on any
+       list: "Hey Recon, navigate to" hands the microphone to Android's
+       recogniser, which is good at place names, for the one listen (see
+       the page's HeyRecon).
+
+       The model is loaded once, the first time it is switched on, from the
+       app's assets (model-en-us, Vosk's small US English model, 68 MB) - an
+       unpacked copy is kept in the app's own storage for it. */
+    private static final String WORDS = "[\"hey recon\", \"hey reckon\", \"hey\", \"recon\", \"reckon\", " +
+        "\"cancel navigation\", \"stop navigation\", \"end navigation\", \"cancel\", \"stop\", " +
+        "\"take me home\", \"navigate home\", \"go home\", \"home\", " +
+        "\"navigate to\", \"take me to\", \"go to\", \"drive to\", \"navigate\", " +
+        "\"yes\", \"no\", \"[unk]\"]";
+
+    private org.vosk.Model model;
+    private org.vosk.android.SpeechService wake;
+    private boolean wanted, front = true, loading;
+    private final Runnable rewatch = this::startWake;
+
+    @PluginMethod
+    public void watch(PluginCall call) {
+        boolean on = call.getBoolean("on", false);
+        if (on && getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAlias("microphone", call, "watchAsked");
+            return;
+        }
+        setWatch(on);
+        call.resolve();
+    }
+
+    @PermissionCallback
+    private void watchAsked(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            call.reject("microphone not allowed", "permission");
+            return;
+        }
+        setWatch(true);
+        call.resolve();
+    }
+
+    private void setWatch(boolean on) {
+        main.post(() -> {
+            wanted = on;
+            if (on) startWake();
+            else stopWake();
+        });
+    }
+
+    private void startWake() {
+        main.removeCallbacks(rewatch);
+        if (!wanted || !front || wake != null || pending != null) return;
+        if (model == null) {
+            if (loading) return;
+            loading = true;
+            org.vosk.android.StorageService.unpack(getContext(), "model-en-us", "model",
+                (m) -> { model = m; loading = false; startWake(); },
+                (e) -> { loading = false; stopped("model"); });
+            return;
+        }
+        try {
+            org.vosk.Recognizer r = new org.vosk.Recognizer(model, 16000.0f, WORDS);
+            /* how sure it is of each word - a short list makes every sound
+               come out as one of its words, so the page wants to know */
+            r.setWords(true);
+            wake = new org.vosk.android.SpeechService(r, 16000.0f);
+            wake.startListening(new org.vosk.android.RecognitionListener() {
+                @Override public void onPartialResult(String json) { heard(json, "partial", false); }
+                @Override public void onResult(String json) { heard(json, "text", true); }
+                @Override public void onFinalResult(String json) { heard(json, "text", true); }
+                @Override public void onError(Exception e) { stopWake(); again(5000); }
+                @Override public void onTimeout() { stopWake(); again(100); }
+            });
+        } catch (Exception e) {
+            stopWake();
+            again(5000);
+        }
+    }
+
+    /* What Vosk heard, as words for the page: "hearing" while the phrase
+       is still being said, "heard" once it is over. [unk] - a word not on
+       the list - is passed on as it is, so the page can tell "hey recon"
+       followed by something it does not know from "hey recon" alone. */
+    private void heard(String json, String key, boolean last) {
+        String text;
+        JSArray conf = new JSArray();
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(json);
+            text = o.optString(key, "");
+            /* a finished phrase says how sure it is of each word, in order */
+            org.json.JSONArray words = o.optJSONArray("result");
+            if (words != null) {
+                for (int k = 0; k < words.length(); k++) {
+                    org.json.JSONObject w = words.optJSONObject(k);
+                    if (w != null) conf.put(w.optDouble("conf", 0));
+                }
+            }
+        } catch (Exception e) { return; }
+        if (text.isEmpty() || text.equals("[unk]")) return;
+        JSObject d = new JSObject();
+        d.put("type", last ? "heard" : "hearing");
+        d.put("text", text);
+        if (last) d.put("conf", conf);
+        notifyListeners("wake", d);
+    }
+
+    private void stopped(String why) {
+        wanted = false;
+        stopWake();
+        JSObject d = new JSObject();
+        d.put("type", "stopped");
+        d.put("why", why);
+        notifyListeners("wake", d);
+    }
+
+    private void again(int wait) {
+        main.removeCallbacks(rewatch);
+        if (wanted && front) main.postDelayed(rewatch, wait);
+    }
+
+    private void stopWake() {
+        main.removeCallbacks(rewatch);
+        if (wake != null) {
+            try { wake.stop(); } catch (Exception e) { /* already stopped */ }
+            try { wake.shutdown(); } catch (Exception e) { /* already gone */ }
+            wake = null;
+        }
+    }
+
+    /* Only with the app on the screen. Behind another app, or with the
+       screen off, Android would not let it hear anyway, and nobody would
+       expect it to. */
+    @Override
+    protected void handleOnPause() {
+        main.post(() -> { front = false; stopWake(); });
+    }
+
+    @Override
+    protected void handleOnResume() {
+        main.post(() -> { front = true; startWake(); });
+    }
+
     @Override
     protected void handleOnDestroy() {
-        main.post(() -> finish(null, "app closed", "cancelled"));
+        main.post(() -> {
+            wanted = false;
+            stopWake();
+            finish(null, "app closed", "cancelled");
+            if (model != null) { try { model.close(); } catch (Exception e) { /* gone */ } model = null; }
+        });
     }
 }

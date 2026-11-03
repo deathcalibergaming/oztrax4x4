@@ -241,6 +241,17 @@ is recorded or kept. If the phone has no on-device recogniser, the app shows
 no microphone rather than use one that works over the internet. You can
 refuse the microphone, or withdraw it later in Android's settings, and type
 instead.</p>
+<p>If you switch on <strong>Hey Recon</strong> in Settings, the app listens
+the whole time it is open on the screen - not behind another app, and not
+with the screen off - for a command that starts with "Hey Recon", such as
+"Hey Recon, cancel navigation". Android shows its microphone light for as
+long as it does. It is heard by Vosk, an open-source speech recogniser built
+into the app that runs entirely on the phone and listens only for the app's
+name and its commands; anything else it hears is thrown away. When you say
+"Hey Recon, navigate to", the app asks where, and your answer is heard by the
+phone's own on-device recogniser, as with the microphone button. Nothing is
+recorded, kept or sent. It is off until you switch it on, and switching it
+off stops it.</p>
 <h3>Storage</h3>
 <p>The app asks the phone to treat its own storage as worth keeping, so
 Android does not quietly clear your downloaded maps to reclaim space. Its own

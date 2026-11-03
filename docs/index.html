@@ -3375,6 +3375,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn sm ghost" id="btnVoiceTest">Test Voice</button>
         </div>
         <div class="note" id="voiceNote"></div>
+        <!-- See HeyRecon. Only in the app, on a phone that can hear on its own. -->
+        <div class="sublabel hidden" id="wakeRow">Hey Recon
+          <button class="btn xs ghost" id="btnWakeOn">On</button>
+          <button class="btn xs ghost" id="btnWakeOff">Off</button>
+        </div>
+        <div class="note hidden" id="wakeNote">Say “Hey Recon, cancel navigation”, “Hey Recon, take me home” or “Hey Recon, navigate to” and a place. While it is on, the app listens whenever it is open on the screen. It hears on the phone and sends nothing.</div>
         <div class="sublabel">Avoid Toll Roads
           <button class="btn xs ghost" id="btnTollOn">On</button>
           <button class="btn xs ghost" id="btnTollOff">Off</button>
@@ -3485,7 +3491,11 @@ input[type=date],input[type=time]{color-scheme:dark}
       &middot; relief from Mapzen terrain tiles on AWS Open Data<br>
       Addresses incorporate Geoscape Australia&rsquo;s G-NAF, &copy; Commonwealth of
       Australia, licensed under the Open G-NAF end user licence agreement.
-      Not verified for mail delivery.
+      Not verified for mail delivery.<br>
+      <!-- the Android app's "Hey Recon" listener and its model - see
+           SpeechInputPlugin -->
+      Hey Recon listens with Vosk and its small English model, &copy; Alpha Cephei
+      Inc, Apache License 2.0.
     </div>
   </div>
 </aside>
@@ -4101,6 +4111,17 @@ const CFG = {
      is told it has arrived at a place across the intersection, which is
      close enough to be true. */
   NAV_ARRIVE: 10,
+  /* "Hey Recon" said on its own: how long the next words are taken as the
+     command - see HeyRecon. And how long after the app has said something its
+     own words, heard back through the microphone, are not taken for the
+     driver's. */
+  WAKE_WAIT_MS: 8000,
+  WAKE_ECHO_MS: 6000,
+  /* How sure Vosk has to be of both words of "hey recon" before anything
+     is done about it. It listens for a short list, and a short list turns
+     every sound into one of its words - room noise came out as "take me" -
+     but the name said came back at 1.0 and the decoys never did. */
+  WAKE_CONF: 0.8,
   NAV_ARRIVE_STOP: 30,
   /* How far the pin can sit from the road and reaching the road still
      count. A house, a servo or a shop is set back from the kerb; past sixty
@@ -5137,6 +5158,10 @@ const S = Object.assign({
   voiceBoost: "loud",
   voiceMusic: "lower",
   voiceRate: "medium",  /* "slow", "medium" or "fast" - CFG.VOICE_RATES */
+  /* "Hey Recon" - see HeyRecon. Off until it is switched on: a microphone that
+     listens the whole time the app is open is not something to find out
+     about afterwards. */
+  heyRecon: false,
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
   zoom: 15,
@@ -5222,6 +5247,7 @@ function saveSettings() {
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
+                        heyRecon: S.heyRecon,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         avoidToll: S.avoidToll, avoidDirt: S.avoidDirt,
                         night: S.night, nightAnchor: S.nightAnchor,
@@ -23622,6 +23648,219 @@ function setNavVoice(on) {
 
 $("#btnVoiceOn").addEventListener("click", function () { setNavVoice(true); });
 $("#btnVoiceOff").addEventListener("click", function () { setNavVoice(false); });
+
+/* "Hey Recon": the app listening, while it is open on the screen, for a
+   command that starts with its name - "Hey Recon, cancel navigation". Asked
+   for by Mick, to drive without reaching for the phone.
+
+   The listening is SpeechInputPlugin.watch: Vosk, a recogniser that runs
+   on the phone and listens for a short list of words - the name and the
+   commands - so it works with no signal, nothing it hears leaves the phone,
+   and it does not chime every few seconds the way Android's own does when
+   asked to listen for long. Everything it hears comes here as words, and
+   is dropped unless it begins with "hey recon" said with confidence
+   (WAKE_CONF) - or comes within WAKE_WAIT_MS of "hey recon" said on its
+   own, which is answered "Yes?". Spoken through the phone's speaker as a
+   test, "Hey Recon, cancel navigation" came back word for word at full
+   confidence, and "Hey there, I reckon it is going to rain" and "Take me to
+   the shops and then stop at home" set nothing off.
+
+   The commands are the three a driver needs without hands: cancel
+   navigation, take me home, and navigate to somewhere - which goes to the
+   first answer the phone's own search gives, nearest first, as Navigate
+   To would list it, and says where it is going; "Hey Recon, cancel
+   navigation" undoes a wrong one. Every answer is said out loud, whether
+   or not the turns are, because the question was asked out loud.
+
+   The app hears its own voice too, so what it said in the last
+   WAKE_ECHO_MS is not taken as the driver's answer to it. */
+const HeyRecon = {
+  NAME: /\b(?:hey|hay|hi|a|okay|ok)[\s,.!]+(?:re\s?con|reckon|recon|rekon|reacon|ricon|recan|wreckin)\b[\s,.!?]*/i,
+  waiting: 0,
+  said: [],
+  init: function () {
+    if (!NATIVE) return;
+    const cap = window.Capacitor;
+    cap.nativeCallback("SpeechInput", "addListener", { eventName: "wake" }, function (d) { HeyRecon.got(d); });
+    const utter = Voice.utter;
+    Voice.utter = function (text, urgent, done) {
+      if (text) HeyRecon.said.push({ t: Date.now(), f: sugFlat(text) });
+      return utter.call(Voice, text, urgent, done);
+    };
+    cap.nativePromise("SpeechInput", "available", {}).then(function (r) {
+      const ok = !!(r && r.onDevice);
+      $("#wakeRow").classList.toggle("hidden", !ok);
+      $("#wakeNote").classList.toggle("hidden", !ok);
+      if (ok && S.heyRecon) HeyRecon.sync();
+    }).catch(function () { /* no plugin in this build */ });
+    syncWakeButtons();
+  },
+  /* Listening or not, to match the switch. Refused - no microphone, no
+     recogniser - the switch goes back off and says why. */
+  sync: function () {
+    if (!NATIVE) return;
+    const on = !!S.heyRecon;
+    window.Capacitor.nativePromise("SpeechInput", "watch", { on: on }).catch(function (e) {
+      if (!on) return;
+      HeyRecon.refused(e && e.code);
+    });
+  },
+  refused: function (code) {
+    S.heyRecon = false;
+    saveSettings();
+    syncWakeButtons();
+    toast(code === "permission" ? "Hey Recon needs the microphone - allow it in Android's settings"
+      : "Hey Recon can't listen on this phone", "warn");
+  },
+  echo: function (f) {
+    const now = Date.now();
+    this.said = this.said.filter(function (s) { return now - s.t < CFG.WAKE_ECHO_MS; });
+    return this.said.some(function (s) { return f && (s.f.indexOf(f) >= 0 || f.indexOf(s.f) >= 0); });
+  },
+  /* How sure Vosk was of the name, the two words of it - see CFG.WAKE_CONF. */
+  sure: function (d) {
+    const w = String(d.text).split(/\s+/), c = d.conf || [];
+    if (c.length !== w.length) return true;
+    for (let i = 0; i + 1 < w.length; i++) {
+      if (/^(hey|hay|hi|a|okay|ok)$/.test(w[i]) && /^(recon|reckon)$/.test(w[i + 1])) {
+        return Math.min(c[i], c[i + 1]) >= CFG.WAKE_CONF;
+      }
+    }
+    return true;
+  },
+  got: function (d) {
+    if (!d) return;
+    if (d.type === "stopped") { this.refused(d.why); return; }
+    if (d.type !== "heard" || !d.text) return;
+    if (!this.sure(d)) return;
+    /* [unk] is a word not on Vosk's list - a place name, mostly */
+    const clean = function (t) { return String(t || "").replace(/\[unk\]/g, " ").replace(/\s+/g, " ").trim(); };
+    const texts = [clean(d.text)].concat((d.alts || []).map(clean));
+    let rest = null;
+    for (const t of texts) {
+      const m = this.NAME.exec(t);
+      if (m) { rest = t.slice(m.index + m[0].length).trim(); break; }
+    }
+    if (rest === null) {
+      /* not addressed to the app - unless it is the command after "hey
+         recon" said alone, and not the app's own voice coming back */
+      if (this.waiting > Date.now() && !this.echo(sugFlat(d.text))) {
+        this.waiting = 0;
+        this.act(d.text);
+      }
+      return;
+    }
+    if (!rest) {
+      this.waiting = Date.now() + CFG.WAKE_WAIT_MS;
+      this.reply("Yes?");
+      return;
+    }
+    this.waiting = 0;
+    this.act(rest);
+  },
+  act: function (said) {
+    const s = sugFlat(said);
+    if (/\b(cancel|stop|end|quit|exit)\b/.test(s) &&
+        (/\b(navigation|navigating|route|directions|guidance|trip)\b/.test(s) || s.split(" ").length <= 2)) {
+      if (!Nav.active) { this.reply("Not navigating"); return; }
+      cancelNav();
+      this.reply("Navigation cancelled");
+      return;
+    }
+    if (/^(?:(?:take|get) me|navigate|go|drive|head|directions)\b.*\bhome$|^home$/.test(s)) {
+      if (!home) { this.reply("No home set"); return; }
+      navigateTo({ lat: home.lat, lng: home.lng, name: home.name || "Home" });
+      this.reply("Navigating home");
+      return;
+    }
+    if (/^(?:navigate|(?:take|get) me|go|drive|head|directions)(?: me)?(?: to| for)?$/.test(s)) { this.ask(); return; }
+    const m = s.match(/^(?:navigate|(?:take|get) me|go|drive|head|directions)(?: me)?(?: to| for)? (.+)$/);
+    if (m) { this.go(m[1].replace(/^the /, "")); return; }
+    this.reply("Say navigate to a place, take me home, or cancel navigation");
+  },
+  /* "Hey Recon, navigate to" - and where to is a place name, which is not
+     on the list Vosk listens for (SpeechInputPlugin). So it asks, and
+     Android's own recogniser - the one behind the microphone in Navigate
+     To, which is good at place names - hears the answer, once, then hands
+     the microphone back. Said in one breath, the place has gone by before
+     the question and is said again; the question waits for the voice to
+     finish, so the recogniser does not hear it. */
+  ask: function () {
+    if (this.asking) return;
+    this.asking = true;
+    const self = this;
+    let started = false;
+    const listen = function () {
+      if (started) return;
+      started = true;
+      window.Capacitor.nativePromise("SpeechInput", "listen", {}).then(function (r) {
+        self.asking = false;
+        const place = sugFlat((r && r.text) || "").replace(/^(?:to |the )+/, "");
+        if (place) self.go(place);
+        else self.reply("Didn't catch where");
+      }).catch(function (e) {
+        self.asking = false;
+        if (((e && e.code) || "") !== "cancelled") self.reply("Didn't catch where");
+      });
+    };
+    toast("Where to?", "ok");
+    if (Voice.utter("Where to?", true, function () { setTimeout(listen, 150); })) setTimeout(listen, 2500);
+    else listen();
+  },
+  /* The first answer the phone's own search gives - the same towns,
+     streets, addresses and places Navigate To lists, nearest first - and
+     only with nothing on the phone the geocoder. A name that starts with
+     what was said goes ahead of a nearer one that only contains it: there
+     is no list to pick from out loud, and "Parabanks" was the servo called
+     OTR Parabanks, 200 m nearer than the shopping centre. And of those, a
+     shopping centre or a town before the shops in it - the next was the
+     Parabanks Coffee Lounge, inside the centre and 20 m nearer. */
+  go: async function (place) {
+    let list = [];
+    const said = sugFlat(place);
+    const starts = function (r) {
+      if (sugFlat(r.name).indexOf(said) !== 0) return 2;
+      return /^(mall|town|city|suburb|village|locality|hamlet|place)$/.test(r.kind || "") ? 0 : 1;
+    };
+    try {
+      const got = await Promise.all([
+        Addr.places(place, 5, true).catch(function () { return []; }),
+        Pack.named(place, 5, true).catch(function () { return []; })
+      ]);
+      list = got[0].concat(got[1]).sort(function (a, b) {
+        return (a.order || 2) - (b.order || 2) || starts(a) - starts(b) || geoDist(a) - geoDist(b);
+      });
+    } catch (e) { list = []; }
+    if (!list.length && navigator.onLine) {
+      try { await geoSearch(place); list = geoResults.slice(); } catch (e) { list = []; }
+    }
+    const r = list[0];
+    if (!r) { this.reply("Couldn't find " + place); return; }
+    navigateTo({ lat: r.lat, lng: r.lng, name: r.name });
+    NavRecent.add({ name: r.name, where: r.where || "", lat: r.lat, lng: r.lng });
+    this.reply("Navigating to " + r.name);
+  },
+  reply: function (text) {
+    toast(text, "ok");
+    Voice.utter(text, true);
+  }
+};
+
+function syncWakeButtons() {
+  $("#btnWakeOn").classList.toggle("on", !!S.heyRecon);
+  $("#btnWakeOff").classList.toggle("on", !S.heyRecon);
+}
+function setHeyRecon(on) {
+  if (!!S.heyRecon === on) return;
+  S.heyRecon = on;
+  saveSettings();
+  syncWakeButtons();
+  HeyRecon.sync();
+  toast(on ? "Hey Recon on - say “Hey Recon” and a command" : "Hey Recon off", on ? "ok" : "warn");
+}
+$("#btnWakeOn").addEventListener("click", function () { setHeyRecon(true); });
+$("#btnWakeOff").addEventListener("click", function () { setHeyRecon(false); });
+HeyRecon.init();
 /* An accent is judged by hearing it, so choosing one says a line in it
    there and then rather than leaving the driver to find the test button. */
 $("#voicePick").addEventListener("change", function () {
