@@ -2400,6 +2400,17 @@ details.sub > .sec-body{padding:12px 0 0}
 #askModal{z-index:1050;background:rgba(6,8,7,.45)}
 .askmsg{font-size:var(--t-body);line-height:1.45;color:var(--sand)}
 #nmForm{display:contents}
+/* The microphone beside the search box: the field's own ground, border and
+   corner, so the two read as one control. Listening, it lights the way a
+   toggled icon button does and breathes, so a glance says it is still
+   listening; held still for anyone who asked for less motion. */
+.qrow{display:flex;gap:6px;align-items:stretch}
+.qrow input{flex:1 1 auto;min-width:0}
+#nmMic{width:var(--tap);height:auto;min-height:var(--tap);border:1px solid var(--line2);border-radius:4px;background:#111513}
+#nmMic.on{border-color:var(--rust);background:rgba(204,90,46,.16);animation:micBreathe 1.4s ease-in-out infinite}
+#nmMic.on svg{stroke:var(--rust)}
+@keyframes micBreathe{50%{box-shadow:0 0 0 4px rgba(204,90,46,.22)}}
+@media (prefers-reduced-motion: reduce){#nmMic.on{animation:none}}
 .fld2{display:flex;gap:8px}
 .fld2 .fld{flex:1;min-width:0}
 input[type=date],input[type=time]{color-scheme:dark}
@@ -3680,9 +3691,16 @@ input[type=date],input[type=time]{color-scheme:dark}
              Implicit submission is not routed through the IME, so it lands
              whatever the keyboard is doing. display:contents keeps the form
              out of the layout. -->
-        <form id="nmForm" autocomplete="off">
-          <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
-        </form>
+        <div class="qrow">
+          <form id="nmForm" autocomplete="off">
+            <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
+          </form>
+          <!-- Saying it instead - see Mic. Shown only in the app, on a phone
+               that can hear it without a signal. -->
+          <button id="nmMic" class="icon-btn hidden" type="button" aria-label="Say where to go">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+          </button>
+        </div>
         <div id="nmSuggest" class="hidden"></div>
       </div>
       <div class="row">
@@ -18198,6 +18216,7 @@ function openNavModal(pickHome) {
   homePick = (pickHome === true);
   $("#navModal").classList.remove("hidden");
   $("#nmTitle").textContent = homePick ? "Set Home Address" : "Navigate To";
+  Mic.init();
   renderNavHome();
   renderNavList();
   setTimeout(function () { $("#nmQuery").focus(); }, 60);
@@ -18226,8 +18245,76 @@ function navHome() {
 function closeNavModal() {
   homePick = false;
   clearSuggest();
+  Mic.cancel();
   $("#navModal").classList.add("hidden");
 }
+
+/* Saying where to go: the microphone beside the search box in Navigate To.
+
+   Heard by the phone's own on-device recogniser (SpeechInputPlugin), so it
+   works with no signal and the voice never leaves the phone. Where the
+   phone has none, or this is a browser and not the app, there is no
+   microphone at all - Chrome's own speech recognition sends the voice to
+   Google, which the app does not do with anything it hears or says.
+
+   What has been heard so far fills the box while it is said, and the
+   finished words are searched exactly as if they had been typed and Search
+   pressed, so "chiropractor" or "IGA Salisbury East" said is the same
+   search typed. Tapped while listening, it stops and takes what it has. */
+const Mic = {
+  ready: false, on: false,
+  init: function () {
+    if (this.ready || !NATIVE) return;
+    this.ready = true;
+    const cap = window.Capacitor;
+    cap.nativePromise("SpeechInput", "available", {}).then(function (r) {
+      $("#nmMic").classList.toggle("hidden", !(r && r.onDevice));
+    }).catch(function () { /* no plugin in this build: no microphone */ });
+    cap.nativeCallback("SpeechInput", "addListener", { eventName: "speech" }, function (d) {
+      if (!Mic.on || !d) return;
+      if (d.type === "speaking") $("#nmStatus").textContent = "Listening...";
+      else if (d.type === "thinking") $("#nmStatus").textContent = "Got it...";
+      else if (d.type === "partial" && d.text) $("#nmQuery").value = d.text;
+    });
+  },
+  tap: function () {
+    const cap = window.Capacitor;
+    if (this.on) { cap.nativePromise("SpeechInput", "stop", {}).catch(function () {}); return; }
+    this.on = true;
+    const box = $("#nmQuery");
+    clearSuggest();
+    box.blur();                       /* the keyboard is in the way of a voice */
+    box.value = "";
+    box.placeholder = "Say a place...";
+    $("#nmMic").classList.add("on");
+    $("#nmStatus").textContent = "Say where to go";
+    $("#nmList").innerHTML = "";
+    const done = function () {
+      Mic.on = false;
+      $("#nmMic").classList.remove("on");
+      box.placeholder = "Address, Town, Roadhouse";
+    };
+    cap.nativePromise("SpeechInput", "listen", {}).then(function (r) {
+      done();
+      box.value = (r && r.text) || "";
+      navModalSearch();
+    }).catch(function (e) {
+      done();
+      const code = (e && e.code) || "";
+      if (code === "cancelled") return;
+      box.value = "";
+      $("#nmStatus").textContent =
+        code === "nomatch" ? "Didn't catch that - tap the microphone and try again"
+        : code === "permission" ? "The microphone is off for OzTrax Recon - allow it in Android's settings to search by voice"
+        : code === "download" ? "Fetching the speech pack for Australian English - try again in a minute"
+        : "Voice search isn't working on this phone right now";
+    });
+  },
+  cancel: function () {
+    if (!this.on) return;
+    window.Capacitor.nativePromise("SpeechInput", "cancel", {}).catch(function () {});
+  }
+};
 function navModalOpen() { return !$("#navModal").classList.contains("hidden"); }
 
 /* The last few places navigated to from this screen, so going back to one
@@ -23153,6 +23240,7 @@ $("#nmList").addEventListener("click", function (e) {
 $("#nmClose").addEventListener("click", closeNavModal);
 $("#nmCancel").addEventListener("click", closeNavModal);
 $("#nmSearch").addEventListener("click", navModalSearch);
+$("#nmMic").addEventListener("click", function () { Mic.tap(); });
 $("#nmHome").addEventListener("click", navHome);
 /* Typing asks Photon, which is built for it. The committed search still
    goes to Nominatim - that path is tuned for whole answers - so the two

@@ -22,6 +22,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NavVoicePlugin.class);
         registerPlugin(SaveFilePlugin.class);
         registerPlugin(TrackerPlugin.class);
+        registerPlugin(SpeechInputPlugin.class);
         super.onCreate(savedInstanceState);
         /* The volume buttons change the volume the navigation voice speaks
            on, whether or not anything is playing. Left to Android they change
