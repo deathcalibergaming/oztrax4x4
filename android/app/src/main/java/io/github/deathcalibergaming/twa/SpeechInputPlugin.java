@@ -2,10 +2,14 @@ package io.github.deathcalibergaming.twa;
 
 import android.Manifest;
 import android.content.Intent;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -94,6 +98,7 @@ public class SpeechInputPlugin extends Plugin {
     /* Stop listening and throw it away - the box was closed. */
     @PluginMethod
     public void cancel(PluginCall call) {
+        trainStop = true;
         main.post(() -> finish(null, "cancelled", "cancelled"));
         call.resolve();
     }
@@ -232,12 +237,40 @@ public class SpeechInputPlugin extends Plugin {
 
     private org.vosk.Model model;
     private org.vosk.android.SpeechService wake;
-    private boolean wanted, front = true, loading;
+    private boolean wanted, front = true, loading, training;
+    private volatile boolean trainStop;
     private final Runnable rewatch = this::startWake;
+
+    /* The driver's own versions of the name and the commands, learned by
+       training (see train) and handed over by the page: what Vosk hears
+       when this voice says them. Added to the list, so they can be heard
+       at all - a word not on the list never comes out. */
+    private final ArrayList<String> mine = new ArrayList<>();
+
+    private String grammar() {
+        StringBuilder b = new StringBuilder(WORDS.substring(0, WORDS.length() - 1));
+        for (String p : mine) b.append(", ").append(org.json.JSONObject.quote(p));
+        return b.append("]").toString();
+    }
 
     @PluginMethod
     public void watch(PluginCall call) {
         boolean on = call.getBoolean("on", false);
+        JSArray extra = call.getArray("extra");
+        ArrayList<String> got = new ArrayList<>();
+        if (extra != null) {
+            for (int k = 0; k < extra.length(); k++) {
+                String p = extra.optString(k, "");
+                if (p.matches("[a-z' ]{2,60}") && got.size() < 40) got.add(p);
+            }
+        }
+        main.post(() -> {
+            if (got.equals(mine)) return;
+            mine.clear();
+            mine.addAll(got);
+            /* a new list: listen again with it */
+            if (wake != null) { stopWake(); startWake(); }
+        });
         if (on && getPermissionState("microphone") != PermissionState.GRANTED) {
             requestPermissionForAlias("microphone", call, "watchAsked");
             return;
@@ -266,7 +299,7 @@ public class SpeechInputPlugin extends Plugin {
 
     private void startWake() {
         main.removeCallbacks(rewatch);
-        if (!wanted || !front || wake != null || pending != null) return;
+        if (!wanted || !front || wake != null || pending != null || training) return;
         if (model == null) {
             if (loading) return;
             loading = true;
@@ -276,7 +309,7 @@ public class SpeechInputPlugin extends Plugin {
             return;
         }
         try {
-            org.vosk.Recognizer r = new org.vosk.Recognizer(model, 16000.0f, WORDS);
+            org.vosk.Recognizer r = new org.vosk.Recognizer(model, 16000.0f, grammar());
             /* how sure it is of each word - a short list makes every sound
                come out as one of its words, so the page wants to know */
             r.setWords(true);
@@ -344,9 +377,135 @@ public class SpeechInputPlugin extends Plugin {
         }
     }
 
+    /* ---------- training ----------
+
+       One line said by the driver, heard twice over: once through the list
+       "Hey Recon" listens with, and once with the whole of Vosk's 152,000
+       words. The list says how sure it is that this voice said the name;
+       the whole vocabulary says what this voice sounds like to it where the
+       list does not fit - "hey rick on", say, for an Australian "Hey
+       Recon". The page keeps both (see the page's VoiceTrain) and hands the
+       second back through watch() as words of the driver's own.
+
+       Text only. The sound is read a tenth of a second at a time, fed to
+       the two recognisers and dropped; nothing of it is kept. */
+    @PluginMethod
+    public void train(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAlias("microphone", call, "trainAsked");
+            return;
+        }
+        startTrain(call);
+    }
+
+    @PermissionCallback
+    private void trainAsked(PluginCall call) {
+        if (getPermissionState("microphone") == PermissionState.GRANTED) startTrain(call);
+        else call.reject("microphone not allowed", "permission");
+    }
+
+    private void startTrain(PluginCall call) {
+        main.post(() -> {
+            if (training || loading) { call.reject("already listening", "busy"); return; }
+            training = true;
+            stopWake();
+            if (model != null) { trainRun(call); return; }
+            loading = true;
+            org.vosk.android.StorageService.unpack(getContext(), "model-en-us", "model",
+                (m) -> { model = m; loading = false; trainRun(call); },
+                (e) -> { loading = false; training = false; call.reject("could not load the speech model", "model"); });
+        });
+    }
+
+    private void trainRun(PluginCall call) {
+        trainStop = false;
+        final org.vosk.Model m = model;
+        final String list = grammar();
+        new Thread(() -> {
+            JSObject out = new JSObject();
+            String err = null;
+            AudioRecord ar = null;
+            org.vosk.Recognizer gram = null, free = null;
+            try {
+                int min = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                ar = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(min, 32000));
+                gram = new org.vosk.Recognizer(m, 16000.0f, list);
+                gram.setWords(true);
+                free = new org.vosk.Recognizer(m, 16000.0f);
+                free.setWords(true);
+                ar.startRecording();
+                main.post(() -> { JSObject d = new JSObject(); d.put("type", "listening"); notifyListeners("train", d); });
+                short[] buf = new short[1600];
+                String gj = null, fj = null;
+                long t0 = SystemClock.elapsedRealtime();
+                /* until the whole-vocabulary one has heard a phrase end, or
+                   eight seconds of nothing */
+                while (!trainStop && SystemClock.elapsedRealtime() - t0 < 8000) {
+                    int n = ar.read(buf, 0, buf.length);
+                    if (n <= 0) continue;
+                    if (gram.acceptWaveForm(buf, n)) {
+                        String r = gram.getResult();
+                        if (gj == null && !text(r).isEmpty()) gj = r;
+                    }
+                    if (free.acceptWaveForm(buf, n)) {
+                        String r = free.getResult();
+                        if (!text(r).isEmpty()) { fj = r; break; }
+                    }
+                }
+                if (fj == null) fj = free.getFinalResult();
+                if (gj == null) gj = gram.getFinalResult();
+                out.put("free", heardOf(fj));
+                out.put("list", heardOf(gj));
+            } catch (Exception e) {
+                err = String.valueOf(e.getMessage());
+            } finally {
+                if (ar != null) { try { ar.stop(); } catch (Exception e) { /* never started */ } ar.release(); }
+                if (gram != null) gram.close();
+                if (free != null) free.close();
+            }
+            final String why = err;
+            main.post(() -> {
+                training = false;
+                JSObject f = out.getJSObject("free");
+                if (trainStop) call.reject("cancelled", "cancelled");
+                else if (why != null) call.reject(why, "error");
+                else if (f == null || f.getString("text", "").isEmpty()) call.reject("nothing heard", "nomatch");
+                else call.resolve(out);
+                again(400);
+            });
+        }).start();
+    }
+
+    private static String text(String json) {
+        try { return new org.json.JSONObject(json).optString("text", ""); }
+        catch (Exception e) { return ""; }
+    }
+
+    /* A Vosk result as the page reads one: the words, and how sure it was
+       of each. */
+    private static JSObject heardOf(String json) {
+        JSObject o = new JSObject();
+        JSArray conf = new JSArray();
+        String t = "";
+        try {
+            org.json.JSONObject r = new org.json.JSONObject(json);
+            t = r.optString("text", "");
+            org.json.JSONArray w = r.optJSONArray("result");
+            if (w != null) for (int k = 0; k < w.length(); k++) {
+                org.json.JSONObject x = w.optJSONObject(k);
+                if (x != null) conf.put(x.optDouble("conf", 0));
+            }
+        } catch (Exception e) { /* nothing heard */ }
+        o.put("text", t);
+        o.put("conf", conf);
+        return o;
+    }
+
     /* Only with the app on the screen. Behind another app, or with the
        screen off, Android would not let it hear anyway, and nobody would
        expect it to. */
+
     @Override
     protected void handleOnPause() {
         main.post(() -> { front = false; stopWake(); });

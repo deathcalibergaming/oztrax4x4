@@ -2399,6 +2399,11 @@ details.sub > .sec-body{padding:12px 0 0}
 .modal-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:7px}
 #askModal{z-index:1050;background:rgba(6,8,7,.45)}
 .askmsg{font-size:var(--t-body);line-height:1.45;color:var(--sand)}
+/* Training "Hey Recon": which line of how many, and the line to say, big
+   enough to read at arm's length from the driver's seat. */
+.train-step{font-size:var(--t-label-sm);letter-spacing:.15em;color:var(--dim);text-transform:uppercase}
+.train-say{font-size:calc(24px * var(--uiScale));font-weight:700;color:var(--sand);margin:8px 0 6px;line-height:1.2}
+#trainDone{margin-top:10px}
 #nmForm{display:contents}
 /* The microphone beside the search box: the field's own ground, border and
    corner, so the two read as one control. Listening, it lights the way a
@@ -3381,6 +3386,12 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnWakeOff">Off</button>
         </div>
         <div class="note hidden" id="wakeNote">Say “Hey Recon, cancel navigation”, “Hey Recon, take me home” or “Hey Recon, navigate to” and a place. While it is on, the app listens whenever it is open on the screen. It hears on the phone and sends nothing.</div>
+        <!-- See VoiceTrain. -->
+        <div class="row hidden" id="wakeTrainRow">
+          <button class="btn sm ghost" id="btnWakeTrain">Train To My Voice</button>
+          <button class="btn sm ghost hidden" id="btnWakeForget">Forget My Voice</button>
+        </div>
+        <div class="poi-status hidden" id="wakeTrainState"></div>
         <div class="sublabel">Avoid Toll Roads
           <button class="btn xs ghost" id="btnTollOn">On</button>
           <button class="btn xs ghost" id="btnTollOff">Off</button>
@@ -3757,6 +3768,23 @@ input[type=date],input[type=time]{color-scheme:dark}
 
 
 <!-- in-app confirmation: browsers suppress window.confirm in installed PWAs -->
+<!-- Training "Hey Recon" to a voice - see VoiceTrain. -->
+<div id="trainModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="trainTitle">
+  <div class="modal-box" style="width:min(340px,100%)">
+    <div class="modal-head"><h2 class="t" id="trainTitle">Train To My Voice</h2></div>
+    <div class="modal-body">
+      <div class="train-step" id="trainStep"></div>
+      <div class="train-say" id="trainSay"></div>
+      <div class="poi-status" id="trainState"></div>
+      <div class="prog"><i id="trainProg"></i></div>
+      <div class="askmsg hidden" id="trainDone"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm ghost" id="trainCancel">Cancel</button>
+      <button class="btn sm primary" id="trainGo">Start</button>
+    </div>
+  </div>
+</div>
 <div id="askModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="askTitle">
   <div class="modal-box" style="width:min(320px,100%)">
     <div class="modal-head"><h2 class="t" id="askTitle">Are You Sure?</h2></div>
@@ -5162,6 +5190,9 @@ const S = Object.assign({
      listens the whole time the app is open is not something to find out
      about afterwards. */
   heyRecon: false,
+  /* What training learned of the driver's voice - see VoiceTrain. null
+     until trained. */
+  voiceTrain: null,
   units: "auto",        /* "auto", "metric" or "imperial" - display only, never what is stored */
   unitsHere: "metric",  /* what Auto last settled on, so it opens in it */
   zoom: 15,
@@ -5247,7 +5278,7 @@ function saveSettings() {
                         keepAwake: S.keepAwake, speedAlert: S.speedAlert,
                         navVoice: S.navVoice, voiceName: S.voiceName,
                         voiceBoost: S.voiceBoost, voiceMusic: S.voiceMusic, voiceRate: S.voiceRate,
-                        heyRecon: S.heyRecon,
+                        heyRecon: S.heyRecon, voiceTrain: S.voiceTrain,
                         zoom: S.zoom, hillshade: S.hillshade, tilt: S.tilt, autoZoom: S.autoZoom,
                         avoidToll: S.avoidToll, avoidDirt: S.avoidDirt,
                         night: S.night, nightAnchor: S.nightAnchor,
@@ -23691,6 +23722,8 @@ const HeyRecon = {
       const ok = !!(r && r.onDevice);
       $("#wakeRow").classList.toggle("hidden", !ok);
       $("#wakeNote").classList.toggle("hidden", !ok);
+      $("#wakeTrainRow").classList.toggle("hidden", !ok);
+      $("#wakeTrainState").classList.toggle("hidden", !ok);
       if (ok && S.heyRecon) HeyRecon.sync();
     }).catch(function () { /* no plugin in this build */ });
     syncWakeButtons();
@@ -23700,7 +23733,7 @@ const HeyRecon = {
   sync: function () {
     if (!NATIVE) return;
     const on = !!S.heyRecon;
-    window.Capacitor.nativePromise("SpeechInput", "watch", { on: on }).catch(function (e) {
+    window.Capacitor.nativePromise("SpeechInput", "watch", { on: on, extra: VoiceTrain.extra() }).catch(function (e) {
       if (!on) return;
       HeyRecon.refused(e && e.code);
     });
@@ -23716,12 +23749,52 @@ const HeyRecon = {
   sure: function (d) {
     const w = String(d.text).split(/\s+/), c = d.conf || [];
     if (c.length !== w.length) return true;
+    const bar = this.bar();
     for (let i = 0; i + 1 < w.length; i++) {
       if (/^(hey|hay|hi|a|okay|ok)$/.test(w[i]) && /^(recon|reckon)$/.test(w[i + 1])) {
-        return Math.min(c[i], c[i + 1]) >= CFG.WAKE_CONF;
+        return Math.min(c[i], c[i + 1]) >= bar;
       }
     }
+    /* or the driver's own version of the name, at the front */
+    for (const p of this.mine("name")) {
+      const n = p.split(" ").length;
+      if (w.slice(0, n).join(" ") === p) return Math.min.apply(null, c.slice(0, n)) >= bar;
+    }
     return true;
+  },
+  /* The bar the name has to clear: the driver's own, from training, or
+     CFG.WAKE_CONF for a voice it has not been trained to. */
+  bar: function () {
+    const t = S.voiceTrain;
+    return t && t.thr ? t.thr : CFG.WAKE_CONF;
+  },
+  /* What training learned this voice's words come out as, for one line. */
+  mine: function (k) {
+    const t = S.voiceTrain;
+    return (t && t.phrases && t.phrases[k]) || [];
+  },
+  /* The driver's own versions turned back into the words act reads: "hey
+     rick on cancel" into "hey recon cancel navigation". Whole words only,
+     and only at the front - of what was heard, and of what follows the
+     name. */
+  canon: function (f) {
+    const swap = function (f, list, to) {
+      for (const p of list) {
+        if (f === p) return to;
+        if (f.indexOf(p + " ") === 0) return to + f.slice(p.length);
+      }
+      return null;
+    };
+    const g = swap(f, this.mine("name"), "hey recon");
+    if (g !== null) f = g;
+    const head = f.indexOf("hey recon") === 0 ? "hey recon" : "";
+    let rest = head ? f.slice(head.length).trim() : f;
+    const keys = [["cancel", "cancel navigation"], ["home", "take me home"], ["nav", "navigate to"]];
+    for (const k of keys) {
+      const r = swap(rest, this.mine(k[0]), k[1]);
+      if (r !== null) { rest = r; break; }
+    }
+    return head ? (rest ? head + " " + rest : head) : rest;
   },
   /* What was heard, less the app's own last words if they came back first.
      The app's "Yes?" is heard too, and run together with the answer to it
@@ -23756,7 +23829,7 @@ const HeyRecon = {
        through once as the place itself, "unk", which found Deb's Funky Art
        Studio and set off for it. */
     const raw = String(d.text);
-    const text = this.unecho(sugFlat(raw.replace(/\[unk\]/g, " ")));
+    const text = this.canon(this.unecho(sugFlat(raw.replace(/\[unk\]/g, " "))));
     if (!text) return;
     const m = this.NAME.exec(text);
     if (m) {
@@ -23783,7 +23856,7 @@ const HeyRecon = {
        with them, and only with a route to cancel. */
     const c = d.conf || [];
     if (Nav.active && /^(cancel|stop|end) navigation$/.test(text) && raw.indexOf("[unk]") < 0 &&
-        c.length && c.every(function (v) { return v >= CFG.WAKE_CONF; })) {
+        c.length && c.every(function (v) { return v >= HeyRecon.bar(); })) {
       this.act(text);
     }
   },
@@ -23879,6 +23952,13 @@ const HeyRecon = {
 function syncWakeButtons() {
   $("#btnWakeOn").classList.toggle("on", !!S.heyRecon);
   $("#btnWakeOff").classList.toggle("on", !S.heyRecon);
+  const t = S.voiceTrain;
+  $("#btnWakeForget").classList.toggle("hidden", !t);
+  $("#btnWakeTrain").textContent = t ? "Train Again" : "Train To My Voice";
+  $("#wakeTrainState").textContent = t
+    ? "Trained to your voice " + new Date(t.at).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) +
+      (VoiceTrain.extra().length ? " - also listening for " + VoiceTrain.extra().slice(0, 3).map(function (p) { return "“" + p + "”"; }).join(", ") : "")
+    : "Not trained - if it mishears you, Train To My Voice teaches it how you say the commands.";
 }
 function setHeyRecon(on) {
   if (!!S.heyRecon === on) return;
@@ -23890,6 +23970,164 @@ function setHeyRecon(on) {
 }
 $("#btnWakeOn").addEventListener("click", function () { setHeyRecon(true); });
 $("#btnWakeOff").addEventListener("click", function () { setHeyRecon(false); });
+/* Training "Hey Recon" to one voice.
+
+   Mick: "it is struggling to understand my Australian accent". The name and
+   the commands are heard by Vosk with a small US English model, and a
+   model cannot be retrained on a phone. What can be learned is how this
+   model hears this voice, and that is enough for a handful of fixed
+   phrases.
+
+   So the driver says each line a few times - the name five times, each
+   command three - and every time it is heard twice over (SpeechInputPlugin
+   .train): through the list Hey Recon listens with, which says how sure it
+   is of the name in this voice, and with the model's whole vocabulary,
+   which says what this voice sounds like to it - "hey rick on", perhaps.
+   Learned from that:
+   - the driver's own bar for the name, a little under the least sure the
+     list was of it, between 0.4 and CFG.WAKE_CONF; and
+   - the driver's own versions of each line, the commonest few heard with
+     the whole vocabulary that are not already the line itself. They go on
+     the list Vosk listens for (so they can be heard at all) and are read
+     back as the line (HeyRecon.canon).
+
+   Words only - the sound is never kept - and only on the phone, in the
+   settings. Forget My Voice throws it away. */
+const VoiceTrain = {
+  LINES: [["name", "Hey Recon", 5], ["cancel", "Cancel navigation", 3], ["home", "Take me home", 3], ["nav", "Navigate to", 3]],
+  CANON: { name: "hey recon", cancel: "cancel navigation", home: "take me home", nav: "navigate to" },
+  busy: false, stop: false, hooked: false,
+  extra: function () {
+    const t = S.voiceTrain, out = [];
+    if (!t || !t.phrases) return out;
+    Object.keys(t.phrases).forEach(function (k) {
+      t.phrases[k].forEach(function (p) { if (out.indexOf(p) < 0) out.push(p); });
+    });
+    return out;
+  },
+  open: function () {
+    if (!NATIVE) return;
+    if (!this.hooked) {
+      this.hooked = true;
+      window.Capacitor.nativeCallback("SpeechInput", "addListener", { eventName: "train" }, function (d) {
+        if (d && d.type === "listening" && VoiceTrain.busy) VoiceTrain.state("Say it now");
+      });
+    }
+    this.stop = false;
+    $("#trainStep").textContent = "Before you start";
+    $("#trainSay").textContent = "In a quiet spot";
+    this.state("You will be asked to say “Hey Recon” five times, then each command three times, the way you would in the car.");
+    $("#trainProg").style.width = "0";
+    $("#trainDone").classList.add("hidden");
+    $("#trainGo").textContent = "Start";
+    $("#trainGo").classList.remove("hidden");
+    $("#trainCancel").textContent = "Cancel";
+    $("#trainModal").classList.remove("hidden");
+  },
+  close: function () {
+    if (this.busy) {
+      this.stop = true;
+      window.Capacitor.nativePromise("SpeechInput", "cancel", {}).catch(function () {});
+    }
+    $("#trainModal").classList.add("hidden");
+  },
+  state: function (t) { $("#trainState").textContent = t; },
+  run: async function () {
+    if (this.busy) return;
+    this.busy = true;
+    this.stop = false;
+    $("#trainGo").classList.add("hidden");
+    const cap = window.Capacitor;
+    const wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    const got = { name: [], cancel: [], home: [], nav: [] };
+    const total = this.LINES.reduce(function (n, l) { return n + l[2]; }, 0);
+    let done = 0;
+    for (const line of this.LINES) {
+      for (let k = 0; k < line[2] && !this.stop; k++) {
+        $("#trainStep").textContent = "Line " + (done + 1) + " of " + total;
+        $("#trainSay").textContent = "“" + line[1] + "”";
+        this.state("Get ready...");
+        let r = null;
+        for (let tries = 0; !r && !this.stop && tries < 3; tries++) {
+          await wait(600);
+          try {
+            r = await cap.nativePromise("SpeechInput", "train", {});
+          } catch (e) {
+            const code = (e && e.code) || "";
+            if (code === "cancelled") { this.stop = true; break; }
+            if (code === "permission" || code === "model") {
+              this.busy = false;
+              this.state(code === "permission" ? "The microphone is off for OzTrax Recon - allow it in Android's settings"
+                : "The speech model would not load");
+              return;
+            }
+            this.state("Didn't hear that - say it again");
+            await wait(1200);
+          }
+        }
+        if (r) got[line[0]].push(r);
+        done++;
+        $("#trainProg").style.width = Math.round(100 * done / total) + "%";
+      }
+      if (this.stop) break;
+    }
+    this.busy = false;
+    if (this.stop) return;
+    this.learn(got);
+  },
+  learn: function (got) {
+    const C = this.CANON, phrases = {}, right = {};
+    let low = 1, any = false;
+    Object.keys(got).forEach(function (key) {
+      const count = {};
+      right[key] = [0, got[key].length];
+      got[key].forEach(function (r) {
+        const f = sugFlat((r.free && r.free.text) || "");
+        const n = f ? f.split(" ").length : 0;
+        /* the name needs two words of its own: one word on its own is
+           heard in everything said near the phone */
+        if (f && f !== C[key] && n <= 5 && (key !== "name" || n >= 2)) count[f] = (count[f] || 0) + 1;
+        const lt = sugFlat((r.list && r.list.text) || ""), lc = (r.list && r.list.conf) || [];
+        if (lt.indexOf(C[key]) === 0 || (key === "name" && /^hey (recon|reckon)\b/.test(lt))) right[key][0]++;
+        if (key === "name") {
+          const lw = String((r.list && r.list.text) || "").split(/\s+/);
+          for (let i = 0; i + 1 < lw.length && lc.length === lw.length; i++) {
+            if (lw[i] === "hey" && /^(recon|reckon)$/.test(lw[i + 1])) { low = Math.min(low, lc[i], lc[i + 1]); any = true; break; }
+          }
+        }
+      });
+      phrases[key] = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; }).slice(0, 4);
+    });
+    const thr = any ? Math.max(0.4, Math.min(CFG.WAKE_CONF, Math.floor(low * 90) / 100)) : 0.5;
+    S.voiceTrain = { at: Date.now(), thr: thr, phrases: phrases, right: right };
+    saveSettings();
+    HeyRecon.sync();
+    syncWakeButtons();
+    const L = this.LINES;
+    $("#trainStep").textContent = "Done";
+    $("#trainSay").textContent = "Trained to your voice";
+    this.state("");
+    $("#trainDone").innerHTML = L.map(function (l) {
+      const k = l[0], also = phrases[k];
+      return "<b>" + esc(l[1]) + "</b> - heard right " + right[k][0] + " of " + right[k][1] +
+        (also.length ? "; also listening for " + also.map(function (p) { return "“" + esc(p) + "”"; }).join(", ") : "");
+    }).join("<br>");
+    $("#trainDone").classList.remove("hidden");
+    $("#trainCancel").textContent = "Done";
+  },
+  forget: function () {
+    S.voiceTrain = null;
+    saveSettings();
+    HeyRecon.sync();
+    syncWakeButtons();
+    toast("Hey Recon has forgotten your voice", "warn");
+  }
+};
+$("#btnWakeTrain").addEventListener("click", function () { VoiceTrain.open(); });
+$("#btnWakeForget").addEventListener("click", function () { VoiceTrain.forget(); });
+$("#trainGo").addEventListener("click", function () { VoiceTrain.run(); });
+$("#trainCancel").addEventListener("click", function () { VoiceTrain.close(); });
+/* after VoiceTrain, which the switch's status line reads */
 HeyRecon.init();
 /* An accent is judged by hearing it, so choosing one says a line in it
    there and then rather than leaving the driver to find the test button. */
