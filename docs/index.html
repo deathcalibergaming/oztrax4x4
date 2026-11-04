@@ -2405,17 +2405,6 @@ details.sub > .sec-body{padding:12px 0 0}
 .train-say{font-size:calc(24px * var(--uiScale));font-weight:700;color:var(--sand);margin:8px 0 6px;line-height:1.2}
 #trainDone{margin-top:10px}
 #nmForm{display:contents}
-/* The microphone beside the search box: the field's own ground, border and
-   corner, so the two read as one control. Listening, it lights the way a
-   toggled icon button does and breathes, so a glance says it is still
-   listening; held still for anyone who asked for less motion. */
-.qrow{display:flex;gap:6px;align-items:stretch}
-.qrow input{flex:1 1 auto;min-width:0}
-#nmMic{width:var(--tap);height:auto;min-height:var(--tap);border:1px solid var(--line2);border-radius:4px;background:#111513}
-#nmMic.on{border-color:var(--rust);background:rgba(204,90,46,.16);animation:micBreathe 1.4s ease-in-out infinite}
-#nmMic.on svg{stroke:var(--rust)}
-@keyframes micBreathe{50%{box-shadow:0 0 0 4px rgba(204,90,46,.22)}}
-@media (prefers-reduced-motion: reduce){#nmMic.on{animation:none}}
 .fld2{display:flex;gap:8px}
 .fld2 .fld{flex:1;min-width:0}
 input[type=date],input[type=time]{color-scheme:dark}
@@ -3385,7 +3374,7 @@ input[type=date],input[type=time]{color-scheme:dark}
           <button class="btn xs ghost" id="btnWakeOn">On</button>
           <button class="btn xs ghost" id="btnWakeOff">Off</button>
         </div>
-        <div class="note hidden" id="wakeNote">Say “Hey Recon, cancel navigation”, “Hey Recon, take me home” or “Hey Recon, navigate to” and a place. While it is on, the app listens whenever it is open on the screen. It hears on the phone and sends nothing.</div>
+        <div class="note hidden" id="wakeNote">Say “Hey Recon, cancel navigation” - or just “cancel navigation” with a route running. While it is on, the app listens whenever it is open on the screen. It hears on the phone and sends nothing.</div>
         <!-- See VoiceTrain. -->
         <div class="row hidden" id="wakeTrainRow">
           <button class="btn sm ghost" id="btnWakeTrain">Train To My Voice</button>
@@ -3712,16 +3701,9 @@ input[type=date],input[type=time]{color-scheme:dark}
              Implicit submission is not routed through the IME, so it lands
              whatever the keyboard is doing. display:contents keeps the form
              out of the layout. -->
-        <div class="qrow">
-          <form id="nmForm" autocomplete="off">
-            <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
-          </form>
-          <!-- Saying it instead - see Mic. Shown only in the app, on a phone
-               that can hear it without a signal. -->
-          <button id="nmMic" class="icon-btn hidden" type="button" aria-label="Say where to go">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
-          </button>
-        </div>
+        <form id="nmForm" autocomplete="off">
+          <input id="nmQuery" type="search" placeholder="Address, Town, Roadhouse" autocomplete="off" enterkeyhint="search">
+        </form>
         <div id="nmSuggest" class="hidden"></div>
       </div>
       <div class="row">
@@ -18273,7 +18255,6 @@ function openNavModal(pickHome) {
   homePick = (pickHome === true);
   $("#navModal").classList.remove("hidden");
   $("#nmTitle").textContent = homePick ? "Set Home Address" : "Navigate To";
-  Mic.init();
   renderNavHome();
   renderNavList();
   setTimeout(function () { $("#nmQuery").focus(); }, 60);
@@ -18302,76 +18283,9 @@ function navHome() {
 function closeNavModal() {
   homePick = false;
   clearSuggest();
-  Mic.cancel();
   $("#navModal").classList.add("hidden");
 }
 
-/* Saying where to go: the microphone beside the search box in Navigate To.
-
-   Heard by the phone's own on-device recogniser (SpeechInputPlugin), so it
-   works with no signal and the voice never leaves the phone. Where the
-   phone has none, or this is a browser and not the app, there is no
-   microphone at all - Chrome's own speech recognition sends the voice to
-   Google, which the app does not do with anything it hears or says.
-
-   What has been heard so far fills the box while it is said, and the
-   finished words are searched exactly as if they had been typed and Search
-   pressed, so "chiropractor" or "IGA Salisbury East" said is the same
-   search typed. Tapped while listening, it stops and takes what it has. */
-const Mic = {
-  ready: false, on: false,
-  init: function () {
-    if (this.ready || !NATIVE) return;
-    this.ready = true;
-    const cap = window.Capacitor;
-    cap.nativePromise("SpeechInput", "available", {}).then(function (r) {
-      $("#nmMic").classList.toggle("hidden", !(r && r.onDevice));
-    }).catch(function () { /* no plugin in this build: no microphone */ });
-    cap.nativeCallback("SpeechInput", "addListener", { eventName: "speech" }, function (d) {
-      if (!Mic.on || !d) return;
-      if (d.type === "speaking") $("#nmStatus").textContent = "Listening...";
-      else if (d.type === "thinking") $("#nmStatus").textContent = "Got it...";
-      else if (d.type === "partial" && d.text) $("#nmQuery").value = d.text;
-    });
-  },
-  tap: function () {
-    const cap = window.Capacitor;
-    if (this.on) { cap.nativePromise("SpeechInput", "stop", {}).catch(function () {}); return; }
-    this.on = true;
-    const box = $("#nmQuery");
-    clearSuggest();
-    box.blur();                       /* the keyboard is in the way of a voice */
-    box.value = "";
-    box.placeholder = "Say a place...";
-    $("#nmMic").classList.add("on");
-    $("#nmStatus").textContent = "Say where to go";
-    $("#nmList").innerHTML = "";
-    const done = function () {
-      Mic.on = false;
-      $("#nmMic").classList.remove("on");
-      box.placeholder = "Address, Town, Roadhouse";
-    };
-    cap.nativePromise("SpeechInput", "listen", {}).then(function (r) {
-      done();
-      box.value = (r && r.text) || "";
-      navModalSearch();
-    }).catch(function (e) {
-      done();
-      const code = (e && e.code) || "";
-      if (code === "cancelled") return;
-      box.value = "";
-      $("#nmStatus").textContent =
-        code === "nomatch" ? "Didn't catch that - tap the microphone and try again"
-        : code === "permission" ? "The microphone is off for OzTrax Recon - allow it in Android's settings to search by voice"
-        : code === "download" ? "Fetching the speech pack for Australian English - try again in a minute"
-        : "Voice search isn't working on this phone right now";
-    });
-  },
-  cancel: function () {
-    if (!this.on) return;
-    window.Capacitor.nativePromise("SpeechInput", "cancel", {}).catch(function () {});
-  }
-};
 function navModalOpen() { return !$("#navModal").classList.contains("hidden"); }
 
 /* The last few places navigated to from this screen, so going back to one
@@ -23297,7 +23211,6 @@ $("#nmList").addEventListener("click", function (e) {
 $("#nmClose").addEventListener("click", closeNavModal);
 $("#nmCancel").addEventListener("click", closeNavModal);
 $("#nmSearch").addEventListener("click", navModalSearch);
-$("#nmMic").addEventListener("click", function () { Mic.tap(); });
 $("#nmHome").addEventListener("click", navHome);
 /* Typing asks Photon, which is built for it. The committed search still
    goes to Nominatim - that path is tuned for whole answers - so the two
@@ -23696,12 +23609,12 @@ $("#btnVoiceOff").addEventListener("click", function () { setNavVoice(false); })
    confidence, and "Hey there, I reckon it is going to rain" and "Take me to
    the shops and then stop at home" set nothing off.
 
-   The commands are the three a driver needs without hands: cancel
-   navigation, take me home, and navigate to somewhere - which goes to the
-   first answer the phone's own search gives, nearest first, as Navigate
-   To would list it, and says where it is going; "Hey Recon, cancel
-   navigation" undoes a wrong one. Every answer is said out loud, whether
-   or not the turns are, because the question was asked out loud.
+   The command is "cancel navigation" (or stop, or end). It could also
+   take a driver home and to a place said out loud - "Hey Recon, navigate
+   to", "Where to?" - and Mick had that taken out: it did not work
+   properly. A route is chosen by hand; a voice stops one. Every answer is
+   said out loud, whether or not the turns are, because the question was
+   asked out loud.
 
    The app hears its own voice too, so what it said in the last
    WAKE_ECHO_MS is not taken as the driver's answer to it. */
@@ -23771,7 +23684,7 @@ const HeyRecon = {
   /* What training learned this voice's words come out as, for one line. */
   mine: function (k) {
     const t = S.voiceTrain;
-    return (t && t.phrases && t.phrases[k]) || [];
+    return ((t && t.phrases && t.phrases[k]) || []).filter(function (p) { return VoiceTrain.keep(k, p); });
   },
   /* The driver's own versions turned back into the words act reads: "hey
      rick on cancel" into "hey recon cancel navigation". Whole words only,
@@ -23789,7 +23702,7 @@ const HeyRecon = {
     if (g !== null) f = g;
     const head = f.indexOf("hey recon") === 0 ? "hey recon" : "";
     let rest = head ? f.slice(head.length).trim() : f;
-    const keys = [["cancel", "cancel navigation"], ["home", "take me home"], ["nav", "navigate to"]];
+    const keys = [["cancel", "cancel navigation"]];
     for (const k of keys) {
       const r = swap(rest, this.mine(k[0]), k[1]);
       if (r !== null) { rest = r; break; }
@@ -23817,8 +23730,7 @@ const HeyRecon = {
      before they are taken as the answer, so a turn the app is saying, or
      the radio, heard in those seconds is not. */
   isCommand: function (s) {
-    return /\b(cancel|stop|end|quit|exit)\b/.test(s) || /\bhome\b/.test(s) ||
-      /^(?:navigate|(?:take|get) me|go|drive|head|directions)\b/.test(s);
+    return /\b(cancel|stop|end|quit|exit)\b/.test(s);
   },
   got: function (d) {
     if (!d) return;
@@ -23869,79 +23781,7 @@ const HeyRecon = {
       this.reply("Navigation cancelled");
       return;
     }
-    if (/^(?:(?:take|get) me|navigate|go|drive|head|directions)\b.*\bhome$|^home$/.test(s)) {
-      if (!home) { this.reply("No home set"); return; }
-      navigateTo({ lat: home.lat, lng: home.lng, name: home.name || "Home" });
-      this.reply("Navigating home");
-      return;
-    }
-    if (/^(?:navigate|(?:take|get) me|go|drive|head|directions)(?: me)?(?: to| for)?$/.test(s)) { this.ask(); return; }
-    const m = s.match(/^(?:navigate|(?:take|get) me|go|drive|head|directions)(?: me)?(?: to| for)? (.+)$/);
-    if (m) { this.go(m[1].replace(/^the /, "")); return; }
-    this.reply("Say navigate to a place, take me home, or cancel navigation");
-  },
-  /* "Hey Recon, navigate to" - and where to is a place name, which is not
-     on the list Vosk listens for (SpeechInputPlugin). So it asks, and
-     Android's own recogniser - the one behind the microphone in Navigate
-     To, which is good at place names - hears the answer, once, then hands
-     the microphone back. Said in one breath, the place has gone by before
-     the question and is said again; the question waits for the voice to
-     finish, so the recogniser does not hear it. */
-  ask: function () {
-    if (this.asking) return;
-    this.asking = true;
-    const self = this;
-    let started = false;
-    const listen = function () {
-      if (started) return;
-      started = true;
-      window.Capacitor.nativePromise("SpeechInput", "listen", {}).then(function (r) {
-        self.asking = false;
-        const place = sugFlat((r && r.text) || "").replace(/^(?:to |the )+/, "");
-        if (place) self.go(place);
-        else self.reply("Didn't catch where");
-      }).catch(function (e) {
-        self.asking = false;
-        if (((e && e.code) || "") !== "cancelled") self.reply("Didn't catch where");
-      });
-    };
-    toast("Where to?", "ok");
-    if (Voice.utter("Where to?", true, function () { setTimeout(listen, 150); })) setTimeout(listen, 2500);
-    else listen();
-  },
-  /* The first answer the phone's own search gives - the same towns,
-     streets, addresses and places Navigate To lists, nearest first - and
-     only with nothing on the phone the geocoder. A name that starts with
-     what was said goes ahead of a nearer one that only contains it: there
-     is no list to pick from out loud, and "Parabanks" was the servo called
-     OTR Parabanks, 200 m nearer than the shopping centre. And of those, a
-     shopping centre or a town before the shops in it - the next was the
-     Parabanks Coffee Lounge, inside the centre and 20 m nearer. */
-  go: async function (place) {
-    if (sugFlat(place).replace(/\bunk\b/g, "").trim().length < 2) { this.ask(); return; }
-    let list = [];
-    const said = sugFlat(place);
-    const starts = function (r) {
-      if (sugFlat(r.name).indexOf(said) !== 0) return 2;
-      return /^(mall|town|city|suburb|village|locality|hamlet|place)$/.test(r.kind || "") ? 0 : 1;
-    };
-    try {
-      const got = await Promise.all([
-        Addr.places(place, 5, true).catch(function () { return []; }),
-        Pack.named(place, 5, true).catch(function () { return []; })
-      ]);
-      list = got[0].concat(got[1]).sort(function (a, b) {
-        return (a.order || 2) - (b.order || 2) || starts(a) - starts(b) || geoDist(a) - geoDist(b);
-      });
-    } catch (e) { list = []; }
-    if (!list.length && navigator.onLine) {
-      try { await geoSearch(place); list = geoResults.slice(); } catch (e) { list = []; }
-    }
-    const r = list[0];
-    if (!r) { this.reply("Couldn't find " + place); return; }
-    navigateTo({ lat: r.lat, lng: r.lng, name: r.name });
-    NavRecent.add({ name: r.name, where: r.where || "", lat: r.lat, lng: r.lng });
-    this.reply("Navigating to " + r.name);
+    this.reply("Say cancel navigation");
   },
   reply: function (text) {
     toast(text, "ok");
@@ -23994,14 +23834,25 @@ $("#btnWakeOff").addEventListener("click", function () { setHeyRecon(false); });
    Words only - the sound is never kept - and only on the phone, in the
    settings. Forget My Voice throws it away. */
 const VoiceTrain = {
-  LINES: [["name", "Hey Recon", 5], ["cancel", "Cancel navigation", 3], ["home", "Take me home", 3], ["nav", "Navigate to", 3]],
-  CANON: { name: "hey recon", cancel: "cancel navigation", home: "take me home", nav: "navigate to" },
+  LINES: [["name", "Hey Recon", 5], ["cancel", "Cancel navigation", 4]],
+  CANON: { name: "hey recon", cancel: "cancel navigation" },
   busy: false, stop: false, hooked: false,
+  /* Whether a learned version is safe to listen for. Two words at least,
+     and not a piece of the line itself. Mick's first training learned
+     "navigation" as his "cancel navigation" - one word, which the app's
+     own voice says, and which would have cancelled a route whenever it
+     did. Applied to what is kept as well as to what is learned, so a
+     training from before this is cleaned without doing it again. */
+  keep: function (k, p) {
+    return !!this.CANON[k] && String(p).split(" ").length >= 2 && this.CANON[k].indexOf(p) < 0;
+  },
   extra: function () {
     const t = S.voiceTrain, out = [];
     if (!t || !t.phrases) return out;
-    Object.keys(t.phrases).forEach(function (k) {
-      t.phrases[k].forEach(function (p) { if (out.indexOf(p) < 0) out.push(p); });
+    /* only the lines still trained - a training from before took the two
+       routes as well, and those are not listened for any more */
+    Object.keys(this.CANON).forEach(function (k) {
+      (t.phrases[k] || []).forEach(function (p) { if (VoiceTrain.keep(k, p) && out.indexOf(p) < 0) out.push(p); });
     });
     return out;
   },
@@ -24016,7 +23867,7 @@ const VoiceTrain = {
     this.stop = false;
     $("#trainStep").textContent = "Before you start";
     $("#trainSay").textContent = "In a quiet spot";
-    this.state("You will be asked to say “Hey Recon” five times, then each command three times, the way you would in the car.");
+    this.state("You will be asked to say “Hey Recon” five times, then “Cancel navigation” four times, the way you would in the car.");
     $("#trainProg").style.width = "0";
     $("#trainDone").classList.add("hidden");
     $("#trainGo").textContent = "Start";
@@ -24039,7 +23890,7 @@ const VoiceTrain = {
     $("#trainGo").classList.add("hidden");
     const cap = window.Capacitor;
     const wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-    const got = { name: [], cancel: [], home: [], nav: [] };
+    const got = { name: [], cancel: [] };
     const total = this.LINES.reduce(function (n, l) { return n + l[2]; }, 0);
     let done = 0;
     for (const line of this.LINES) {
@@ -24086,7 +23937,7 @@ const VoiceTrain = {
         const n = f ? f.split(" ").length : 0;
         /* the name needs two words of its own: one word on its own is
            heard in everything said near the phone */
-        if (f && f !== C[key] && n <= 5 && (key !== "name" || n >= 2)) count[f] = (count[f] || 0) + 1;
+        if (f && n <= 5 && VoiceTrain.keep(key, f)) count[f] = (count[f] || 0) + 1;
         const lt = sugFlat((r.list && r.list.text) || ""), lc = (r.list && r.list.conf) || [];
         if (lt.indexOf(C[key]) === 0 || (key === "name" && /^hey (recon|reckon)\b/.test(lt))) right[key][0]++;
         if (key === "name") {
